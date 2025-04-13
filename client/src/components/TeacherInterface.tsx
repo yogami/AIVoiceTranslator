@@ -96,27 +96,55 @@ export const TeacherInterface: React.FC = () => {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-medium text-gray-700">Microphone</Label>
-                <Switch
-                  checked={isRecording}
-                  onCheckedChange={toggleRecording}
-                />
+                <div className="flex items-center">
+                  {devices.length === 0 ? (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="mr-2 text-xs"
+                      onClick={requestPermission}
+                    >
+                      Allow Mic Access
+                    </Button>
+                  ) : (
+                    <Switch
+                      checked={isRecording}
+                      onCheckedChange={toggleRecording}
+                    />
+                  )}
+                </div>
               </div>
-              <Select
-                value={selectedDeviceId}
-                onValueChange={selectDevice}
-                disabled={isRecording || devices.length === 0}
-              >
-                <SelectTrigger className="w-full p-2 bg-gray-50">
-                  <SelectValue placeholder="Select microphone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {devices.map(device => (
-                    <SelectItem key={device.id} value={device.id}>
-                      {device.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              
+              {devices.length > 0 ? (
+                <Select
+                  value={selectedDeviceId || ''}
+                  onValueChange={selectDevice}
+                  disabled={isRecording}
+                >
+                  <SelectTrigger className="w-full p-2 bg-gray-50">
+                    <SelectValue placeholder="Select microphone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {devices.map(device => (
+                      <SelectItem key={device.id} value={device.id}>
+                        {device.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="border rounded p-3 bg-gray-50 text-center">
+                  <p className="text-sm text-gray-500">
+                    Please allow microphone access to use this feature
+                  </p>
+                </div>
+              )}
+              
+              {audioError && (
+                <div className="mt-2 text-xs text-red-500">
+                  Error: {audioError.message}
+                </div>
+              )}
             </div>
 
             <div className="mb-6">

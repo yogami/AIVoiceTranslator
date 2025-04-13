@@ -7,6 +7,7 @@ import Home from "@/pages/Home";
 import TeacherPage from "./pages/TeacherPage";
 import StudentPage from "./pages/StudentPage";
 import QRCodePage from "./pages/QRCodePage";
+import UsageGuidePage from "./pages/UsageGuidePage";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/teacher" component={TeacherPage} />
       <Route path="/student" component={StudentPage} />
       <Route path="/qrcode" component={QRCodePage} />
+      <Route path="/guide" component={UsageGuidePage} />
       <Route component={NotFound} />
     </Switch>
   );
