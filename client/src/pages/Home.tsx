@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { Info, ExternalLink, Headphones, Mic } from 'lucide-react';
+import { Info, ExternalLink, Headphones, Mic, QrCode } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const [activeMode, setActiveMode] = useState<'teacher' | 'student'>('teacher');
@@ -31,6 +31,14 @@ export const Home: React.FC = () => {
       />
       
       <main className="container mx-auto px-4 py-6 flex-1">
+        <div className="flex justify-end mb-4">
+          <Link href="/qrcode">
+            <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <QrCode className="h-4 w-4" />
+              QR Codes for Mobile Access
+            </Button>
+          </Link>
+        </div>
         <div className="flex flex-col sm:flex-row gap-6 mb-6">
           <Card className="flex-1">
             <CardContent className="p-6">

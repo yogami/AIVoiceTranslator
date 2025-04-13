@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import TeacherPage from "./pages/TeacherPage";
 import StudentPage from "./pages/StudentPage";
+import QRCodePage from "./pages/QRCodePage";
 
 function Router() {
   return (
@@ -13,6 +14,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/teacher" component={TeacherPage} />
       <Route path="/student" component={StudentPage} />
+      <Route path="/qrcode" component={QRCodePage} />
       <Route component={NotFound} />
     </Switch>
   );
