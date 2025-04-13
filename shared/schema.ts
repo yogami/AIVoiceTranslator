@@ -1,0 +1,71 @@
+import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
+
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+});
+
+export const languages = pgTable("languages", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  isActive: boolean("is_active").default(true),
+});
+
+export const insertLanguageSchema = createInsertSchema(languages).pick({
+  code: true,
+  name: true,
+  isActive: true,
+});
+
+export const translations = pgTable("translations", {
+  id: serial("id").primaryKey(),
+  sourceLanguage: text("source_language").notNull(),
+  targetLanguage: text("target_language").notNull(),
+  originalText: text("original_text").notNull(),
+  translatedText: text("translated_text").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+  latency: integer("latency"),
+});
+
+export const insertTranslationSchema = createInsertSchema(translations).pick({
+  sourceLanguage: true,
+  targetLanguage: true,
+  originalText: true,
+  translatedText: true,
+  latency: true,
+});
+
+export const transcripts = pgTable("transcripts", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  language: text("language").notNull(),
+  text: text("text").notNull(),
+  timestamp: timestamp("timestamp").defaultNow(),
+});
+
+export const insertTranscriptSchema = createInsertSchema(transcripts).pick({
+  sessionId: true,
+  language: true,
+  text: true,
+});
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
+export type Language = typeof languages.$inferSelect;
+export type InsertLanguage = z.infer<typeof insertLanguageSchema>;
+
+export type Translation = typeof translations.$inferSelect;
+export type InsertTranslation = z.infer<typeof insertTranslationSchema>;
+
+export type Transcript = typeof transcripts.$inferSelect;
+export type InsertTranscript = z.infer<typeof insertTranscriptSchema>;
