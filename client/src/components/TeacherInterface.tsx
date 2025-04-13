@@ -51,6 +51,7 @@ export const TeacherInterface: React.FC = () => {
     requestPermission
   } = useAudioCapture({
     onDataAvailable: (base64Data) => {
+      console.log('Audio data captured, sending to server...');
       translation.sendAudioData(base64Data);
     }
   });

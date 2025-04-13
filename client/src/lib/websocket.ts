@@ -143,12 +143,25 @@ export class WebSocketClient {
   }
 
   public sendAudio(audioData: string) {
-    return this.send({
-      type: 'audio',
-      payload: {
-        audio: audioData
-      }
-    });
+    console.log('WebSocketClient: Sending audio data, length:', audioData.length);
+    
+    // Only send if we're connected
+    if (this.status !== 'connected') {
+      console.warn('WebSocketClient: Cannot send audio - not connected');
+      return false;
+    }
+    
+    try {
+      return this.send({
+        type: 'audio',
+        payload: {
+          audio: audioData
+        }
+      });
+    } catch (err) {
+      console.error('WebSocketClient: Error sending audio data:', err);
+      return false;
+    }
   }
 
   public register(role: UserRole, languageCode: string) {

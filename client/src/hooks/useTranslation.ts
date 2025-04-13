@@ -140,6 +140,7 @@ export function useTranslation(options: UseTranslationOptions) {
 
   // Send audio data function
   const sendAudioData = useCallback((audioBase64: string) => {
+    console.log('useTranslation: Received audio data to send, length:', audioBase64.length);
     return sendAudio(audioBase64);
   }, [sendAudio]);
 
