@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
+import { Link } from "wouter";
 import Header from '@/components/Header';
 import TeacherInterface from '@/components/TeacherInterface';
 import StudentInterface from '@/components/StudentInterface';
 import HelpModal from '@/components/HelpModal';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { Info } from 'lucide-react';
+import { Info, ExternalLink, Headphones, Mic } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const [activeMode, setActiveMode] = useState<'teacher' | 'student'>('teacher');
@@ -29,37 +31,83 @@ export const Home: React.FC = () => {
       />
       
       <main className="container mx-auto px-4 py-6 flex-1">
-        {/* Mode Tabs */}
-        <Tabs 
-          value={activeMode} 
-          onValueChange={(value) => setActiveMode(value as 'teacher' | 'student')}
-          className="mb-6"
-        >
-          <div className="bg-white rounded-t-lg shadow-sm mb-0 border-b border-gray-200">
-            <TabsList className="w-full justify-start bg-transparent border-b rounded-none">
-              <TabsTrigger 
-                value="teacher"
-                className="flex-1 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
-              >
-                Teacher Mode
-              </TabsTrigger>
-              <TabsTrigger 
-                value="student"
-                className="flex-1 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
-              >
-                Student Mode
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          
-          <TabsContent value="teacher" className="mt-0">
-            <TeacherInterface />
-          </TabsContent>
-          
-          <TabsContent value="student" className="mt-0">
-            <StudentInterface />
-          </TabsContent>
-        </Tabs>
+        <div className="flex flex-col sm:flex-row gap-6 mb-6">
+          <Card className="flex-1">
+            <CardContent className="p-6">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center justify-center p-3 rounded-full bg-primary/10 mb-3">
+                  <Mic className="h-8 w-8 text-primary" />
+                </div>
+                <h2 className="text-xl font-bold">Teacher Mode</h2>
+                <p className="text-gray-600 mt-2 mb-4">
+                  Broadcast your voice in multiple languages to your students
+                </p>
+                <Link href="/teacher">
+                  <Button className="w-full flex items-center justify-center gap-2">
+                    Open Teacher Interface
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="flex-1">
+            <CardContent className="p-6">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center justify-center p-3 rounded-full bg-primary/10 mb-3">
+                  <Headphones className="h-8 w-8 text-primary" />
+                </div>
+                <h2 className="text-xl font-bold">Student Mode</h2>
+                <p className="text-gray-600 mt-2 mb-4">
+                  Receive translations in your preferred language
+                </p>
+                <Link href="/student">
+                  <Button className="w-full flex items-center justify-center gap-2">
+                    Open Student Interface
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Classic Mode with Tabs */}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <h2 className="font-bold text-lg mb-4">All-In-One Mode</h2>
+            <Tabs 
+              value={activeMode} 
+              onValueChange={(value) => setActiveMode(value as 'teacher' | 'student')}
+            >
+              <div className="bg-white rounded-lg shadow-sm mb-4 border">
+                <TabsList className="w-full justify-start bg-transparent border-b rounded-none">
+                  <TabsTrigger 
+                    value="teacher"
+                    className="flex-1 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
+                  >
+                    Teacher Mode
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="student"
+                    className="flex-1 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none"
+                  >
+                    Student Mode
+                  </TabsTrigger>
+                </TabsList>
+              </div>
+              
+              <TabsContent value="teacher" className="mt-0">
+                <TeacherInterface />
+              </TabsContent>
+              
+              <TabsContent value="student" className="mt-0">
+                <StudentInterface />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
         
         {/* Information Card */}
         <Card className="bg-blue-50 border-blue-200">
