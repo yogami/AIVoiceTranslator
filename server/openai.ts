@@ -46,14 +46,38 @@ export async function translateSpeech(
  */
 export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   try {
-    // Create a readable stream from the buffer
-    const transcription = await openai.audio.transcriptions.create({
-      file: new File([audioBuffer], "audio.wav", { type: "audio/wav" }),
-      model: "whisper-1",
-      language: "en", // Default to English
-    });
+    console.log(`Transcribing audio buffer of size ${audioBuffer.byteLength}...`);
     
-    return transcription.text;
+    // Create a temporary file for the audio buffer
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+    
+    // Create a temporary file with a random name
+    const tempFilePath = path.join(os.tmpdir(), `audio-${Date.now()}.wav`);
+    fs.writeFileSync(tempFilePath, audioBuffer);
+    
+    console.log(`Audio saved to temporary file: ${tempFilePath}`);
+    
+    try {
+      // Use the file path for transcription
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(tempFilePath),
+        model: "whisper-1",
+        language: "en", // Default to English
+      });
+      
+      console.log(`Transcription successful: "${transcription.text}"`);
+      return transcription.text;
+    } finally {
+      // Clean up the temporary file
+      try {
+        fs.unlinkSync(tempFilePath);
+        console.log(`Temporary file deleted: ${tempFilePath}`);
+      } catch (cleanupError) {
+        console.error('Error cleaning up temporary file:', cleanupError);
+      }
+    }
   } catch (error) {
     console.error('Error in transcription:', error);
     throw error;

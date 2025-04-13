@@ -113,8 +113,12 @@ export class TranslationWebSocketServer {
 
   private async processAndBroadcastAudio(teacherConnection: UserConnection, audioBase64: string) {
     try {
+      console.log(`Processing audio data (length: ${audioBase64.length}) from teacher...`);
+      
       // Convert base64 audio to buffer
       const audioBuffer = Buffer.from(audioBase64, 'base64');
+      console.log(`Converted audio data to buffer (size: ${audioBuffer.byteLength})`);
+      
       const sourceLanguage = teacherConnection.languageCode;
       const sessionId = teacherConnection.sessionId;
       
@@ -130,48 +134,64 @@ export class TranslationWebSocketServer {
       const startTime = Date.now();
       
       // Process translation for each target language
+      console.log(`Processing translations for ${targetLanguages.size} target languages: ${Array.from(targetLanguages).join(', ')}`);
+      
+      if (targetLanguages.size === 0) {
+        console.log('No students connected with different languages, processing source language only');
+        // Add the source language if there are no students yet
+        targetLanguages.add(sourceLanguage);
+      }
+
+      // Process each language separately and handle errors independently
       for (const targetLanguage of targetLanguages) {
-        const result = await translateSpeech(audioBuffer, sourceLanguage, targetLanguage);
+        console.log(`Translating from ${sourceLanguage} to ${targetLanguage}...`);
         
-        // Calculate latency
-        const latency = Date.now() - startTime;
+        try {
+          const result = await translateSpeech(audioBuffer, sourceLanguage, targetLanguage);
+          console.log(`Translation complete: "${result.originalText}" -> "${result.translatedText}"`);
+          
+          // Calculate latency
+          const latency = Date.now() - startTime;
         
-        // Store translation and transcript
-        await storage.addTranslation({
-          sourceLanguage,
-          targetLanguage,
-          originalText: result.originalText,
-          translatedText: result.translatedText,
-          latency
-        });
-        
-        await storage.addTranscript({
-          sessionId,
-          language: targetLanguage,
-          text: result.translatedText
-        });
-        
-        // Broadcast to students who selected this language
-        for (const [ws, conn] of this.connections.entries()) {
-          if (
-            conn.role === 'student' && 
-            conn.languageCode === targetLanguage &&
-            ws.readyState === WebSocket.OPEN
-          ) {
-            ws.send(JSON.stringify({
-              type: 'translation',
-              data: {
-                sessionId,
-                sourceLanguage,
-                targetLanguage,
-                originalText: result.originalText,
-                translatedText: result.translatedText,
-                audio: result.audioBuffer.toString('base64'),
-                timestamp: new Date().toISOString(),
-                latency
-              }
-            }));
+          // Store translation and transcript
+          await storage.addTranslation({
+            sourceLanguage,
+            targetLanguage,
+            originalText: result.originalText,
+            translatedText: result.translatedText,
+            latency
+          });
+          
+          await storage.addTranscript({
+            sessionId,
+            language: targetLanguage,
+            text: result.translatedText
+          });
+          
+          // Broadcast to students who selected this language
+          for (const [ws, conn] of this.connections.entries()) {
+            if (
+              conn.role === 'student' && 
+              conn.languageCode === targetLanguage &&
+              ws.readyState === WebSocket.OPEN
+            ) {
+              ws.send(JSON.stringify({
+                type: 'translation',
+                data: {
+                  sessionId,
+                  sourceLanguage,
+                  targetLanguage,
+                  originalText: result.originalText,
+                  translatedText: result.translatedText,
+                  audio: result.audioBuffer.toString('base64'),
+                  timestamp: new Date().toISOString(),
+                  latency
+                }
+              }));
+            }
           }
+        } catch (error) {
+          console.error(`Error processing translation from ${sourceLanguage} to ${targetLanguage}:`, error);
         }
       }
       

@@ -119,23 +119,47 @@ export class AudioCapture {
    * Stop audio capture
    */
   public stop(): boolean {
-    if (!this.isRecording || !this.mediaRecorder) {
+    console.log('AudioCapture: Stopping recording...');
+    if (!this.isRecording) {
+      console.log('AudioCapture: Not recording, nothing to stop');
       return false;
     }
     
     try {
       this.clearChunkTimer();
-      this.mediaRecorder.stop();
+      
+      // First pause the MediaRecorder to avoid state errors
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        console.log('AudioCapture: Stopping MediaRecorder');
+        this.mediaRecorder.stop();
+      } else {
+        console.log('AudioCapture: MediaRecorder not in recording state, cannot stop');
+      }
       
       // Stop and release all tracks
       if (this.stream) {
+        console.log('AudioCapture: Stopping and releasing audio tracks');
         this.stream.getTracks().forEach(track => track.stop());
         this.stream = null;
       }
       
+      // Reset state
+      this.isRecording = false;
+      this.mediaRecorder = null;
+      this.chunks = [];
+      
+      console.log('AudioCapture: Recording stopped successfully');
       return true;
     } catch (error) {
+      console.error('AudioCapture: Error stopping recording:', error);
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
+      
+      // Force reset state even on error
+      this.isRecording = false;
+      this.mediaRecorder = null;
+      this.stream = null;
+      this.chunks = [];
+      
       return false;
     }
   }

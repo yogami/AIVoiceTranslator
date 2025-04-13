@@ -143,10 +143,18 @@ export const TeacherInterface: React.FC = () => {
                     </Button>
                   ) : (
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-success font-medium">Enabled</span>
+                      <span className="text-xs font-medium">
+                        {isRecording ? 
+                          <span className="text-success">Recording</span> : 
+                          <span className="text-gray-600">Enabled</span>
+                        }
+                      </span>
                       <Switch
                         checked={isRecording}
-                        onCheckedChange={toggleRecording}
+                        onCheckedChange={(checked) => {
+                          console.log('Toggle switch changed to:', checked);
+                          toggleRecording();
+                        }}
                       />
                     </div>
                   )}
