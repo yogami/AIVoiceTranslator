@@ -63,12 +63,20 @@ export class AudioCapture {
       
       this.stream = await navigator.mediaDevices.getUserMedia(constraints);
       
-      // Create MediaRecorder instance
-      this.mediaRecorder = new MediaRecorder(this.stream);
+      // Create MediaRecorder instance with options
+      const mimeType = 'audio/webm'; // Most widely supported
+      const options = {
+        mimeType,
+        audioBitsPerSecond: 128000 // 128kbps for good quality audio
+      };
+      
+      console.log('Creating MediaRecorder with options:', options);
+      this.mediaRecorder = new MediaRecorder(this.stream, options);
       this.chunks = [];
       
       // Set up event handlers
       this.mediaRecorder.ondataavailable = (event) => {
+        console.log('MediaRecorder ondataavailable triggered, data size:', event.data.size);
         if (event.data.size > 0) {
           this.chunks.push(event.data);
           this.options.onDataAvailable(event.data);
@@ -76,13 +84,12 @@ export class AudioCapture {
       };
       
       this.mediaRecorder.onstart = () => {
+        console.log('MediaRecorder started');
         this.isRecording = true;
         this.options.onStart();
         
-        // Setup chunk timer if requested
-        if (this.options.chunkDuration > 0) {
-          this.setupChunkTimer();
-        }
+        // Always set up chunk timer for regular audio data
+        this.setupChunkTimer();
       };
       
       this.mediaRecorder.onstop = () => {
@@ -92,11 +99,15 @@ export class AudioCapture {
       };
       
       this.mediaRecorder.onerror = (event) => {
-        this.options.onError(new Error(`MediaRecorder error: ${event.error}`));
+        console.error('MediaRecorder error:', event);
+        this.options.onError(new Error(`MediaRecorder error encountered`));
       };
       
-      // Start recording
-      this.mediaRecorder.start();
+      // Start recording with timeslice parameter to get regular data chunks
+      // This ensures ondataavailable is called at regular intervals (every 1 second)
+      const timeslice = 1000; // 1 second chunks
+      console.log('Starting MediaRecorder with timeslice:', timeslice, 'ms');
+      this.mediaRecorder.start(timeslice);
       return true;
     } catch (error) {
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
@@ -144,9 +155,19 @@ export class AudioCapture {
   private setupChunkTimer(): void {
     this.clearChunkTimer();
     
+    console.log('Setting up chunk timer with interval:', this.options.chunkDuration, 'ms');
+    
+    // Make sure chunkDuration is reasonable (between 1000ms and 5000ms)
+    const interval = Math.min(Math.max(this.options.chunkDuration, 1000), 5000);
+    
     this.chunkTimer = window.setInterval(() => {
-      this.requestData();
-    }, this.options.chunkDuration);
+      console.log('Chunk timer fired, requesting data chunk');
+      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+        this.requestData();
+      } else {
+        console.warn('Cannot request data, recorder not in recording state');
+      }
+    }, interval);
   }
   
   /**
