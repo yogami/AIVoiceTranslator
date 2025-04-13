@@ -62,7 +62,7 @@ export const TeacherInterface: React.FC = () => {
     autoConnect: true
   });
   
-  // Request microphone permission on mount
+  // Request microphone permission on mount - only once
   useEffect(() => {
     // Check if browser supports required audio APIs
     if (typeof navigator === 'undefined' || 
@@ -72,16 +72,33 @@ export const TeacherInterface: React.FC = () => {
       return;
     }
     
-    console.log('Initializing microphone permissions...');
-    requestPermission().then((success) => {
-      console.log('Permission request result:', success);
-      if (success) {
-        loadDevices();
+    // One-time initialization
+    let isMounted = true;
+    
+    async function initMicrophone() {
+      console.log('Initializing microphone...');
+      try {
+        // First, try to just load devices - this works if permission is already granted
+        await loadDevices();
+        
+        // If we didn't get any devices but we're still mounted, try requesting permission
+        if (isMounted && devices.length === 0 && !isLoading) {
+          console.log('No devices found, requesting permission...');
+          const success = await requestPermission();
+          console.log('Permission request result:', success);
+        }
+      } catch (err) {
+        console.error('Error initializing microphone:', err);
       }
-    }).catch(err => {
-      console.error('Error during permission request:', err);
-    });
-  }, [requestPermission, loadDevices]);
+    }
+    
+    initMicrophone();
+    
+    return () => {
+      isMounted = false;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - run only once on mount
   
   // Play a preview of the translation
   const handlePreviewAudio = (audioUrl: string) => {

@@ -55,9 +55,6 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
 
     setAudioCapture(capture);
 
-    // Load available devices
-    loadDevices();
-
     // Clean up on unmount
     return () => {
       if (capture.isActive()) {
