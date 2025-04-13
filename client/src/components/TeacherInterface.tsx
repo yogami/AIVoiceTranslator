@@ -63,8 +63,22 @@ export const TeacherInterface: React.FC = () => {
   
   // Request microphone permission on mount
   useEffect(() => {
-    requestPermission().then(() => {
-      loadDevices();
+    // Check if browser supports required audio APIs
+    if (typeof navigator === 'undefined' || 
+        !navigator.mediaDevices || 
+        !navigator.mediaDevices.getUserMedia) {
+      console.error('Browser does not support required audio APIs');
+      return;
+    }
+    
+    console.log('Initializing microphone permissions...');
+    requestPermission().then((success) => {
+      console.log('Permission request result:', success);
+      if (success) {
+        loadDevices();
+      }
+    }).catch(err => {
+      console.error('Error during permission request:', err);
     });
   }, [requestPermission, loadDevices]);
   

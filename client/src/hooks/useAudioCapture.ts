@@ -147,10 +147,24 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
   const requestPermission = useCallback(async () => {
     try {
       setIsLoading(true);
+      console.log('Requesting microphone permission...');
+      
+      // Check if we have permissions already
+      if (navigator?.permissions?.query) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          console.log('Microphone permission status:', permissionStatus.state);
+        } catch (e) {
+          console.warn('Could not query microphone permission status:', e);
+        }
+      }
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Microphone permission granted, access stream obtained');
       
       // Stop the stream right away, we just needed the permission
       stream.getTracks().forEach(track => track.stop());
+      console.log('Audio tracks stopped');
       
       // Refresh device list after getting permission
       await loadDevices();
@@ -158,6 +172,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
       setIsLoading(false);
       return true;
     } catch (err) {
+      console.error('Error requesting microphone permission:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       setIsLoading(false);
       return false;

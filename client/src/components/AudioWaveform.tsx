@@ -40,7 +40,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
         />
       ))}
       
-      <style jsx>{`
+      <style>{`
         .active-wave .bar {
           animation-name: sound;
           animation-timing-function: linear;
