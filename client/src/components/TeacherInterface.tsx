@@ -42,6 +42,7 @@ export const TeacherInterface: React.FC = () => {
     devices,
     selectedDeviceId,
     error: audioError,
+    isLoading,
     startRecording,
     stopRecording,
     toggleRecording,
@@ -111,7 +112,9 @@ export const TeacherInterface: React.FC = () => {
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-medium text-gray-700">Microphone</Label>
                 <div className="flex items-center">
-                  {devices.length === 0 ? (
+                  {isLoading ? (
+                    <span className="text-xs text-gray-500">Loading...</span>
+                  ) : devices.length === 0 ? (
                     <Button 
                       size="sm" 
                       variant="outline" 
@@ -121,10 +124,13 @@ export const TeacherInterface: React.FC = () => {
                       Allow Mic Access
                     </Button>
                   ) : (
-                    <Switch
-                      checked={isRecording}
-                      onCheckedChange={toggleRecording}
-                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-success font-medium">Enabled</span>
+                      <Switch
+                        checked={isRecording}
+                        onCheckedChange={toggleRecording}
+                      />
+                    </div>
                   )}
                 </div>
               </div>
