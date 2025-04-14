@@ -2,10 +2,11 @@
  * Test Runner for Benedictaitor
  * 
  * This script runs all the tests for the Benedictaitor application:
- * 1. Comprehensive End-to-End Test - Tests the entire application flow with mocked components
- * 2. Speech Integration Test - Tests the real-time speech transcription functionality
- * 3. Simple Tests - Tests various utility functions
- * 4. WebSocket Tests - Tests WebSocket client communication
+ * 1. Real End-to-End Test - Tests the actual server implementation with real audio data
+ * 2. Comprehensive End-to-End Test - Tests the entire application flow with mocked components
+ * 3. Speech Integration Test - Tests the real-time speech transcription functionality
+ * 4. Simple Tests - Tests various utility functions
+ * 5. WebSocket Tests - Tests WebSocket client communication
  */
 
 import { execSync } from 'child_process';
@@ -15,6 +16,11 @@ console.log('🎤 BENEDICTAITOR TEST SUITE RUNNER 🎤');
 console.log('=============================================================');
 
 const tests = [
+  {
+    name: 'Real End-to-End Test',
+    command: 'node real-e2e-test.js',
+    description: 'Tests the actual server implementation with real audio data'
+  },
   {
     name: 'Comprehensive End-to-End Test',
     command: 'node comprehensive-e2e-test.js',
