@@ -67,12 +67,22 @@ export function useTranslation(options: UseTranslationOptions) {
   // Handle new translations
   useEffect(() => {
     const handleTranslation = (data: { data: TranslationPayload }) => {
-      const { translatedText, audio, timestamp, latency } = data.data;
+      const { translatedText, audio, timestamp, latency, originalText } = data.data;
+      
+      // Add logs to help debug
+      console.log('Translation received:', { 
+        translatedText, 
+        originalText, 
+        hasAudio: !!audio,
+        timestamp
+      });
       
       // Only update UI if we have meaningful text
       if (translatedText && translatedText.trim()) {
         // Update current speech - trim to remove newlines
-        setCurrentSpeech(translatedText.trim());
+        const cleanText = translatedText.trim();
+        console.log('Setting current speech to:', cleanText);
+        setCurrentSpeech(cleanText);
         
         // Create audio URL for playback
         const audioUrl = `data:audio/mp3;base64,${audio}`;
@@ -83,7 +93,7 @@ export function useTranslation(options: UseTranslationOptions) {
           ...prev,
           {
             id: Date.now(),
-            text: translatedText.trim(),
+            text: cleanText,
             timestamp
           }
         ]);
