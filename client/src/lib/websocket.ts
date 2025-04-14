@@ -59,21 +59,28 @@ export class WebSocketClient {
     if (!this.ws) return;
 
     this.ws.onopen = () => {
-      console.log('WebSocket connection established');
+      console.log('WebSocket connection established with readyState:', this.ws?.readyState);
       this.status = 'connected';
       this.reconnectAttempts = 0;
       this.notifyListeners('status', this.status);
       
-      // Register with server
-      this.register(this.role, this.languageCode);
+      // Add a small delay before sending the registration
+      // This helps ensure the server is fully ready to process our message
+      setTimeout(() => {
+        console.log('Registering with server after connection delay');
+        // Register with server
+        this.register(this.role, this.languageCode);
+      }, 500);
     };
 
     this.ws.onmessage = (event) => {
       try {
+        console.log('WebSocket message received:', event.data.slice(0, 100) + (event.data.length > 100 ? '...' : ''));
         const data = JSON.parse(event.data);
         
         // Handle initial connection confirmation
         if (data.type === 'connection' && data.status === 'connected' && data.sessionId) {
+          console.log('Received connection confirmation with sessionId:', data.sessionId);
           this.sessionId = data.sessionId;
           this.notifyListeners('sessionId', this.sessionId);
         }
@@ -85,15 +92,46 @@ export class WebSocketClient {
       }
     };
 
-    this.ws.onclose = () => {
-      console.log('WebSocket connection closed');
+    this.ws.onclose = (event) => {
+      console.log(`WebSocket connection closed - Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}, Clean: ${event.wasClean}`);
+      console.log('WebSocket readyState at close:', this.ws?.readyState);
+      
       this.status = 'disconnected';
       this.notifyListeners('status', this.status);
+      
+      // Log common WebSocket close codes
+      if (event.code === 1000) {
+        console.log('Normal closure - The connection successfully completed the operation');
+      } else if (event.code === 1001) {
+        console.log('Going away - The endpoint is going away (server shutdown or browser page navigation)');
+      } else if (event.code === 1002) {
+        console.log('Protocol error - The endpoint terminated due to a protocol error');
+      } else if (event.code === 1003) {
+        console.log('Unsupported data - The endpoint terminated because it received data of a type it cannot accept');
+      } else if (event.code === 1005) {
+        console.log('No status received - No status code was received in the close');
+      } else if (event.code === 1006) {
+        console.log('Abnormal closure - The connection was closed abnormally (e.g., without sending a close frame)');
+      } else if (event.code === 1007) {
+        console.log('Invalid frame payload data - The endpoint terminated because a message contained data inconsistent with its type');
+      } else if (event.code === 1008) {
+        console.log('Policy violation - The endpoint terminated because it received a message that violates its policy');
+      } else if (event.code === 1009) {
+        console.log('Message too big - The endpoint terminated because it received a message too large to process');
+      } else if (event.code === 1010) {
+        console.log('Missing extension - The client terminated because it expected the server to negotiate an extension it did not');
+      } else if (event.code === 1011) {
+        console.log('Internal error - The server terminated because it encountered an unexpected condition');
+      } else if (event.code === 1015) {
+        console.log('TLS handshake failure - The connection was closed due to a TLS handshake failure');
+      }
+      
       this.attemptReconnect();
     };
 
     this.ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      console.log('WebSocket readyState at error:', this.ws?.readyState);
       this.status = 'disconnected';
       this.notifyListeners('status', this.status);
       this.notifyListeners('error', error);

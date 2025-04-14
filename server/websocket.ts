@@ -22,8 +22,10 @@ export class TranslationWebSocketServer {
   }
 
   private initialize() {
-    this.wss.on('connection', (ws) => {
-      console.log('New WebSocket connection established');
+    this.wss.on('connection', (ws, req) => {
+      // Log detailed information about the connection request
+      console.log(`New WebSocket connection from ${req.socket.remoteAddress}, path: ${req.url}`);
+      console.log(`Headers: ${JSON.stringify(req.headers, null, 2)}`);
       
       // Initialize connection with default values
       this.connections.set(ws, {
@@ -36,14 +38,20 @@ export class TranslationWebSocketServer {
       // Handle messages from clients
       ws.on('message', async (message) => {
         try {
+          console.log(`Received message from client, length: ${message.toString().length}`);
           const data = JSON.parse(message.toString());
+          console.log(`Parsed message type: ${data.type}`);
           await this.handleMessage(ws, data);
         } catch (error) {
           console.error('Error handling message:', error);
-          ws.send(JSON.stringify({ 
-            type: 'error', 
-            error: 'Invalid message format'
-          }));
+          try {
+            ws.send(JSON.stringify({ 
+              type: 'error', 
+              error: 'Invalid message format'
+            }));
+          } catch (sendError) {
+            console.error('Error sending error message to client:', sendError);
+          }
         }
       });
 
@@ -59,13 +67,32 @@ export class TranslationWebSocketServer {
         console.log(`Remaining connections: ${stats.totalConnections} (Teachers: ${stats.teacherCount}, Students: ${stats.studentCount})`);
       });
 
+      // Log any errors
+      ws.on('error', (error) => {
+        console.error('WebSocket connection error:', error);
+      });
+
       // Send initial connection confirmation
-      ws.send(JSON.stringify({ 
-        type: 'connection', 
-        status: 'connected',
-        sessionId: this.connections.get(ws)?.sessionId 
-      }));
+      try {
+        const sessionId = this.connections.get(ws)?.sessionId;
+        console.log(`Sending connection confirmation with sessionId: ${sessionId}`);
+        ws.send(JSON.stringify({ 
+          type: 'connection', 
+          status: 'connected',
+          sessionId: sessionId
+        }));
+        console.log('Connection confirmation sent successfully');
+      } catch (error) {
+        console.error('Error sending initial connection confirmation:', error);
+      }
     });
+    
+    // Log any server-level errors
+    this.wss.on('error', (error) => {
+      console.error('WebSocket server error:', error);
+    });
+    
+    console.log(`WebSocket server initialized and listening on path: ${this.wss.options.path}`);
   }
 
   private async handleMessage(ws: WebSocket, data: any) {
