@@ -309,10 +309,11 @@ export const TeacherInterface: React.FC = () => {
             
             <div className="bg-gray-50 rounded p-3 border">
               <h3 className="text-sm font-medium mb-2">Current Speech</h3>
-              <p className="text-sm text-gray-700 min-h-[60px]">
-                {translation.currentSpeech || 
-                 'The transcript of your speech will appear here in real-time...'}
-              </p>
+              <div className="text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words">
+                {translation.currentSpeech ? 
+                  translation.currentSpeech : 
+                  'The transcript of your speech will appear here in real-time...'}
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -99,12 +99,18 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       writeFileSync(tempFilePath, audioBuffer);
       
       // Use the OpenAI Whisper API for transcription
+      console.log('Sending file for transcription: ' + tempFilePath);
+      
       const transcription = await openai.audio.transcriptions.create({
         file: createReadStream(tempFilePath),
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
-        response_format: "text"
+        response_format: "json",
+        temperature: 0.2, // Lower temperature for more accurate transcription
+        prompt: "This is classroom speech in an educational setting." // Provide context to improve accuracy
       });
+      
+      console.log('Full transcription response:', JSON.stringify(transcription));
       
       // Clean up the temporary file
       try {
@@ -114,7 +120,16 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       }
       
       console.log('Transcription successful:', transcription);
-      return transcription || "";
+      
+      // Extract text from JSON response
+      if (typeof transcription === 'object' && 'text' in transcription) {
+        return transcription.text;
+      } else if (typeof transcription === 'string') {
+        return transcription;
+      } else {
+        console.warn('Unexpected transcription response format:', transcription);
+        return ""; 
+      }
     } catch (apiError: any) {
       console.error('OpenAI API error during transcription:', apiError);
       
