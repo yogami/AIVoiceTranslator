@@ -1,13 +1,10 @@
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  extensionsToTreatAsEsm: ['.ts'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      useESM: true,
-    }],
+    '^.+\\.tsx?$': ['ts-jest'],
   },
-  moduleNameMapper: {
-    '^(\\.{1,2}/.*)\\.js$': '$1',
-  },
+  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
+  // Set a timeout of 10 seconds max per test
+  testTimeout: 10000,
 };

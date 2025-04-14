@@ -47,6 +47,12 @@ run_websocket_tests() {
   npx jest websocket-client
 }
 
+# Function to run simple tests
+run_simple_tests() {
+  echo "Running simple utility tests (no framework required)..."
+  node run-simple-tests.js
+}
+
 # Show usage if no arguments provided
 if [ "$#" -eq 0 ]; then
   echo "Usage: ./run-tests.sh [option]"
@@ -59,6 +65,7 @@ if [ "$#" -eq 0 ]; then
   echo "  unit           - Run all Jest unit tests"
   echo "  utils          - Run utility unit tests"
   echo "  websocket      - Run WebSocket client unit tests"
+  echo "  simple         - Run simple utility tests without frameworks"
   exit 1
 fi
 
@@ -88,9 +95,12 @@ case "$1" in
   websocket)
     run_websocket_tests
     ;;
+  simple)
+    run_simple_tests
+    ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket]"
+    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket|simple]"
     exit 1
     ;;
 esac
