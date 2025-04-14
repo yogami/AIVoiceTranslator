@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# This script helps run Cypress tests without modifying package.json
+# This script helps run tests without modifying package.json
 
 # Make the script executable
 chmod +x run-tests.sh
 
-# Functions for different test commands
-run_all_tests() {
-  echo "Running all Cypress tests..."
+# Functions for Cypress test commands
+run_cypress_tests() {
+  echo "Running all Cypress end-to-end tests..."
   npx cypress run
 }
 
@@ -17,36 +17,55 @@ open_cypress() {
 }
 
 run_teacher_tests() {
-  echo "Running teacher interface tests..."
+  echo "Running teacher interface E2E tests..."
   npx cypress run --spec 'cypress/e2e/teacher-interface.cy.ts'
 }
 
 run_student_tests() {
-  echo "Running student interface tests..."
+  echo "Running student interface E2E tests..."
   npx cypress run --spec 'cypress/e2e/student-interface.cy.ts'
 }
 
 run_navigation_tests() {
-  echo "Running navigation tests..."
+  echo "Running navigation E2E tests..."
   npx cypress run --spec 'cypress/e2e/navigation.cy.ts'
+}
+
+# Functions for Jest test commands
+run_jest_tests() {
+  echo "Running all Jest unit tests..."
+  npx jest
+}
+
+run_utils_tests() {
+  echo "Running utility unit tests..."
+  npx jest openai-utils
+}
+
+run_websocket_tests() {
+  echo "Running WebSocket client unit tests..."
+  npx jest websocket-client
 }
 
 # Show usage if no arguments provided
 if [ "$#" -eq 0 ]; then
   echo "Usage: ./run-tests.sh [option]"
   echo "Options:"
-  echo "  all        - Run all tests"
-  echo "  open       - Open Cypress test runner"
-  echo "  teacher    - Run teacher interface tests"
-  echo "  student    - Run student interface tests"
-  echo "  navigation - Run navigation tests"
+  echo "  e2e            - Run all Cypress E2E tests"
+  echo "  open           - Open Cypress test runner"
+  echo "  teacher        - Run teacher interface E2E tests"
+  echo "  student        - Run student interface E2E tests"
+  echo "  navigation     - Run navigation E2E tests"
+  echo "  unit           - Run all Jest unit tests"
+  echo "  utils          - Run utility unit tests"
+  echo "  websocket      - Run WebSocket client unit tests"
   exit 1
 fi
 
 # Parse command line argument
 case "$1" in
-  all)
-    run_all_tests
+  e2e)
+    run_cypress_tests
     ;;
   open)
     open_cypress
@@ -60,9 +79,18 @@ case "$1" in
   navigation)
     run_navigation_tests
     ;;
+  unit)
+    run_jest_tests
+    ;;
+  utils)
+    run_utils_tests
+    ;;
+  websocket)
+    run_websocket_tests
+    ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: ./run-tests.sh [all|open|teacher|student|navigation]"
+    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket]"
     exit 1
     ;;
 esac
