@@ -340,11 +340,11 @@ export class TranslationWebSocketServer {
             text: result.translatedText
           });
           
-          // Broadcast to students who selected this language
+          // Broadcast to students who selected this language AND ALSO to the teacher
           for (const [ws, conn] of this.connections.entries()) {
             if (
-              conn.role === 'student' && 
-              conn.languageCode === targetLanguage &&
+              (conn.role === 'student' && conn.languageCode === targetLanguage ||
+               conn.role === 'teacher' && conn.sessionId === sessionId) &&
               ws.readyState === WebSocket.OPEN
             ) {
               ws.send(JSON.stringify({
@@ -360,6 +360,7 @@ export class TranslationWebSocketServer {
                   latency
                 }
               }));
+              console.log(`Sent translation to ${conn.role} with language ${conn.languageCode}`);
             }
           }
         } catch (error) {
