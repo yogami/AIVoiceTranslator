@@ -23,20 +23,29 @@ export async function translateSpeech(
     // Step 1: Transcribe audio to text
     const transcribedText = await transcribeAudio(audioBuffer);
     
+    // If transcription is empty (due to short audio or other issues), return empty result
+    if (!transcribedText) {
+      return {
+        originalText: "",
+        translatedText: "",
+        audioBuffer: Buffer.from([])
+      };
+    }
+    
     // Step 2: Translate text if needed
     let translatedText = transcribedText;
-    if (sourceLanguage !== targetLanguage) {
+    if (sourceLanguage !== targetLanguage && transcribedText.trim().length > 0) {
       try {
         translatedText = await translateText(transcribedText, sourceLanguage, targetLanguage);
       } catch (translationError) {
         console.error('Error in translation, using original text:', translationError);
-        translatedText = `[Could not translate] ${transcribedText}`;
+        translatedText = transcribedText; // Just use original text if translation fails
       }
     }
     
     // Step 3: Convert to speech if not returning to original speaker
     let audioResponse = audioBuffer;
-    if (sourceLanguage !== targetLanguage) {
+    if (sourceLanguage !== targetLanguage && translatedText.trim().length > 0) {
       try {
         audioResponse = await textToSpeech(translatedText, targetLanguage);
       } catch (ttsError) {
@@ -55,11 +64,11 @@ export async function translateSpeech(
     };
   } catch (error) {
     console.error('Error in speech translation:', error);
-    // Return a graceful error message
+    // Return an empty result instead of an error message
     return {
-      originalText: "Error processing speech",
-      translatedText: "Error in translation process. Please try again.",
-      audioBuffer: Buffer.from([]) // Empty buffer
+      originalText: "",
+      translatedText: "",
+      audioBuffer: Buffer.from([])
     };
   }
 }
@@ -76,10 +85,11 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       return "No API key available. Please provide an OpenAI API key.";
     }
     
-    // Check if buffer is sufficient for transcription
-    if (audioBuffer.byteLength < 100) {
-      console.warn('Audio buffer too small for transcription');
-      return "Audio input too short to transcribe.";
+    // Check if buffer is sufficient for transcription - at least 8000 bytes (about 0.5 sec of audio)
+    // This helps avoid the "Audio file is too short" error from OpenAI
+    if (audioBuffer.byteLength < 8000) {
+      console.warn(`Audio buffer too small for transcription: ${audioBuffer.byteLength} bytes`);
+      return ""; // Return empty string for short audio chunks
     }
     
     // Create a temporary file for the audio buffer
@@ -97,12 +107,17 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       });
       
       // Clean up the temporary file
-      unlinkSync(tempFilePath);
+      try {
+        unlinkSync(tempFilePath);
+      } catch (unlinkError) {
+        console.error('Error deleting temporary file:', unlinkError);
+      }
       
       console.log('Transcription successful:', transcription);
-      return transcription || "Could not transcribe audio.";
-    } catch (apiError) {
+      return transcription || "";
+    } catch (apiError: any) {
       console.error('OpenAI API error during transcription:', apiError);
+      
       // Clean up the temporary file even if there's an error
       try {
         unlinkSync(tempFilePath);
@@ -110,12 +125,18 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         console.error('Error deleting temporary file:', unlinkError);
       }
       
-      // Fallback for API issues
-      return "Error transcribing audio with OpenAI. Please try again.";
+      // Special handling for "audio_too_short" error
+      if (apiError.code === 'audio_too_short') {
+        console.warn('Audio too short for OpenAI API');
+        return ""; // Return empty for too short audio
+      }
+      
+      // For other API errors
+      return ""; // Return empty instead of error message
     }
   } catch (error: any) {
     console.error('Error in transcription:', error);
-    return "Error processing audio data.";
+    return ""; // Return empty instead of error message
   }
 }
 

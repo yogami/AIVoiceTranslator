@@ -322,6 +322,14 @@ export class TranslationWebSocketServer {
         try {
           // Use the processed buffer with WAV header for the OpenAI API
           const result = await translateSpeech(processedBuffer, sourceLanguage, targetLanguage);
+          
+          // Skip empty translations (likely from short audio chunks)
+          if (!result.originalText && !result.translatedText) {
+            console.log('Empty transcription result, skipping translation broadcasting');
+            this.sendProcessingComplete(teacherConnection, [targetLanguage]);
+            continue; // Skip to the next language
+          }
+          
           console.log(`Translation complete: "${result.originalText}" -> "${result.translatedText}"`);
           
           // Calculate latency
@@ -394,6 +402,22 @@ export class TranslationWebSocketServer {
           error: 'Failed to process audio for translation'
         }));
       }
+    }
+  }
+
+  // Helper method to send processing complete notification
+  private sendProcessingComplete(teacherConnection: UserConnection, targetLanguages: string[]) {
+    if (teacherConnection.ws.readyState === WebSocket.OPEN) {
+      teacherConnection.ws.send(JSON.stringify({
+        type: 'processing_complete',
+        data: {
+          timestamp: new Date().toISOString(),
+          targetLanguages,
+          latency: 0,
+          role: teacherConnection.role,
+          roleConfirmed: true
+        }
+      }));
     }
   }
 
