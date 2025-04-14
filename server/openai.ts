@@ -1,6 +1,8 @@
 import OpenAI from "openai";
+import * as fs from 'fs';
+import { writeFileSync, unlinkSync, createReadStream } from 'fs';
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+// the newest OpenAI model is "gpt-4o" which was released May 13, 2024
 const apiKey = process.env.OPENAI_API_KEY || "";
 
 // Initialize OpenAI client
@@ -82,20 +84,20 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     
     // Create a temporary file for the audio buffer
     const tempFilePath = '/tmp/audio-to-transcribe.wav';
-    const fs = require('fs');
-    fs.writeFileSync(tempFilePath, audioBuffer);
     
     try {
+      writeFileSync(tempFilePath, audioBuffer);
+      
       // Use the OpenAI Whisper API for transcription
       const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tempFilePath),
+        file: createReadStream(tempFilePath),
         model: "whisper-1",
-        language: "en", // You can make this dynamic based on sourceLanguage
+        language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "text"
       });
       
       // Clean up the temporary file
-      fs.unlinkSync(tempFilePath);
+      unlinkSync(tempFilePath);
       
       console.log('Transcription successful:', transcription);
       return transcription || "Could not transcribe audio.";
@@ -103,12 +105,12 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       console.error('OpenAI API error during transcription:', apiError);
       // Clean up the temporary file even if there's an error
       try {
-        fs.unlinkSync(tempFilePath);
+        unlinkSync(tempFilePath);
       } catch (unlinkError) {
         console.error('Error deleting temporary file:', unlinkError);
       }
       
-      // Fallback to simulated response in case of API issues
+      // Fallback for API issues
       return "Error transcribing audio with OpenAI. Please try again.";
     }
   } catch (error: any) {
