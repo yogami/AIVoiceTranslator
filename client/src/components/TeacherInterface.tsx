@@ -45,6 +45,7 @@ export const TeacherInterface: React.FC = () => {
     isLoading,
     startRecording,
     stopRecording,
+    forceStop,
     toggleRecording,
     selectDevice,
     loadDevices,
@@ -156,7 +157,15 @@ export const TeacherInterface: React.FC = () => {
                           className="px-2 py-1 h-7 text-xs"
                           onClick={() => {
                             console.log('Stop recording button clicked');
-                            stopRecording();
+                            // Try normal stop first
+                            const result = stopRecording();
+                            console.log('Stop recording result:', result);
+                            
+                            // If still recording, force stop as a fallback
+                            if (isRecording) {
+                              console.log('Recording still active, using emergency force stop');
+                              forceStop();
+                            }
                           }}
                         >
                           Stop

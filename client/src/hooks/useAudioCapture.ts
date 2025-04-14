@@ -236,6 +236,43 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
     }
   }, [audioCapture, isRecording, loadDevices]);
 
+  // Force stop method - to be used as a last resort when normal stop doesn't work
+  const forceStop = useCallback(() => {
+    console.log('FORCE STOP called - emergency microphone shutdown');
+    
+    // Reset state first
+    setIsRecording(false);
+    
+    if (!audioCapture) return false;
+    
+    try {
+      // Try the normal stop first
+      audioCapture.stop();
+      
+      // Use MediaDevices API directly to stop all tracks as fallback
+      if (navigator.mediaDevices) {
+        console.log('Force stopping all active media tracks');
+        // This will stop ALL media tracks in the browser
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            stream.getTracks().forEach(track => {
+              try {
+                track.stop();
+              } catch (e) {
+                console.error('Error stopping track:', e);
+              }
+            });
+          })
+          .catch(e => console.error('Error accessing media devices for force stop:', e));
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Error in force stop:', err);
+      return false;
+    }
+  }, [audioCapture]);
+
   return {
     isRecording,
     devices,
@@ -246,6 +283,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
     isSupportedBrowser,
     startRecording,
     stopRecording,
+    forceStop,         // Add the new force stop method
     toggleRecording,
     selectDevice,
     loadDevices,
