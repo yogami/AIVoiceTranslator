@@ -64,10 +64,29 @@ export class AudioCapture {
       this.stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       // Create MediaRecorder instance with options
-      const mimeType = 'audio/webm'; // Most widely supported
+      // Try different MIME types to ensure compatibility
+      let mimeType = 'audio/webm';
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+        'audio/wav',
+        'audio/mpeg'
+      ];
+      
+      // Find the first supported MIME type
+      for (const type of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type;
+          console.log(`Found supported MIME type: ${mimeType}`);
+          break;
+        }
+      }
+      
       const options = {
         mimeType,
-        audioBitsPerSecond: 128000 // 128kbps for good quality audio
+        audioBitsPerSecond: 256000 // 256kbps for higher quality audio
       };
       
       console.log('Creating MediaRecorder with options:', options);

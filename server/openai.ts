@@ -103,6 +103,30 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       return ""; // Return empty string for short audio chunks
     }
     
+    // Debug audio file format by examining the first 32 bytes
+    try {
+      const firstBytes = audioBuffer.slice(0, 32);
+      const hexDump = firstBytes.toString('hex').match(/.{1,2}/g)?.join(' ') || '';
+      console.log(`Audio buffer header (hex): ${hexDump}`);
+      
+      // Check if file has a valid WAV header
+      if (audioBuffer.length > 12) {
+        const isWav = 
+          audioBuffer[0] === 0x52 && // R
+          audioBuffer[1] === 0x49 && // I
+          audioBuffer[2] === 0x46 && // F
+          audioBuffer[3] === 0x46 && // F
+          audioBuffer[8] === 0x57 && // W
+          audioBuffer[9] === 0x41 && // A
+          audioBuffer[10] === 0x56 && // V
+          audioBuffer[11] === 0x45;  // E
+        
+        console.log(`Audio buffer has valid WAV header: ${isWav}`);
+      }
+    } catch (debugError) {
+      console.error('Error during audio debug:', debugError);
+    }
+    
     // Create a temporary file for the audio buffer
     const tempFilePath = '/tmp/audio-to-transcribe.wav';
     
@@ -112,13 +136,14 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       // Use the OpenAI Whisper API for transcription
       console.log('Sending file for transcription: ' + tempFilePath);
       
+      // Use a different prompt strategy to force Whisper to listen for actual content
       const transcription = await openai.audio.transcriptions.create({
         file: createReadStream(tempFilePath),
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
-        temperature: 0.2 // Lower temperature for more accurate transcription
-        // Removing the prompt as it's causing issues with transcription
+        temperature: 0.0, // Use lowest temperature for precise transcription
+        prompt: "The speaker is giving a lecture or explanation. Transcribe their actual words, not background noise." // Guide the model
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
