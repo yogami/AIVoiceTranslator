@@ -60,6 +60,19 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     console.log(`Audio saved to temporary file: ${tempFilePath}`);
     
     try {
+      // Check file size and content
+      const stats = fs.statSync(tempFilePath);
+      console.log(`File size: ${stats.size} bytes`);
+      
+      // Check if the OpenAI API key is properly set
+      if (!apiKey) {
+        throw new Error('OpenAI API key is not set');
+      }
+      
+      // Debug log - verify the first few bytes to check if it's a valid WAV file
+      const headerBytes = fs.readFileSync(tempFilePath, { length: 12 });
+      console.log('File header bytes:', headerBytes.toString('hex'));
+      
       // Use the file path for transcription
       const transcription = await openai.audio.transcriptions.create({
         file: fs.createReadStream(tempFilePath),
@@ -80,6 +93,16 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     }
   } catch (error) {
     console.error('Error in transcription:', error);
+    
+    // For improved error handling, check specific errors
+    if (error.toString().includes('401')) {
+      console.error('Authentication error - Check your OpenAI API key');
+    } else if (error.toString().includes('invalid_file_format')) {
+      console.error('Invalid file format - Audio file may be corrupted or in an unsupported format');
+    } else if (error.toString().includes('file_too_large')) {
+      console.error('File too large - Audio file exceeds size limit');
+    }
+    
     throw error;
   }
 }
