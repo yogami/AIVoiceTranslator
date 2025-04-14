@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { TranslationPayload } from '@/lib/websocket';
+import { TranslationPayload, wsClient } from '@/lib/websocket';
 
 interface Transcript {
   id: number;
@@ -40,6 +40,7 @@ export function useTranslation(options: UseTranslationOptions) {
     sessionId,
     sendAudio,
     updateLanguage,
+    updateRole,
     addEventListener,
     requestTranscripts
   } = useWebSocket({
@@ -47,6 +48,16 @@ export function useTranslation(options: UseTranslationOptions) {
     languageCode: options.languageCode,
     autoConnect: options.autoConnect,
   });
+  
+  // For teacher role, ensure it's locked as early as possible
+  useEffect(() => {
+    if (options.role === 'teacher') {
+      // Use the WebSocket client imported at the top of the file
+      // Set and lock the role - this is a critical step that prevents role switching
+      wsClient.setRoleAndLock('teacher');
+      console.log('useTranslation: Teacher role locked at hook initialization');
+    }
+  }, [options.role]);
 
   // Update language when changed
   useEffect(() => {

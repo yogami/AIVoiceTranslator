@@ -32,13 +32,56 @@ export class TranslationWebSocketServer {
       console.log(`New WebSocket connection from ${req.socket.remoteAddress}, path: ${req.url}`);
       console.log(`Headers: ${JSON.stringify(req.headers, null, 2)}`);
       
-      // Initialize connection with default values
-      this.connections.set(ws, {
+      // Create a session ID for this connection
+      const sessionId = `session_${Date.now()}_${this.sessionCounter++}`;
+      
+      // Extract role and language info from query parameters if available
+      // This allows setting the role immediately on connection
+      let initialRole: 'teacher' | 'student' = 'student';
+      let initialLanguage = 'en-US';
+      
+      try {
+        if (req.url) {
+          const urlParts = req.url.split('?');
+          if (urlParts.length > 1) {
+            const params = new URLSearchParams(urlParts[1]);
+            if (params.get('role') === 'teacher') {
+              initialRole = 'teacher';
+              console.log(`Setting initial role to 'teacher' from URL query parameter`);
+            }
+            if (params.get('language')) {
+              initialLanguage = params.get('language') as string;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing URL query parameters:', error);
+      }
+      
+      // Initialize connection with values
+      const connection: UserConnection = {
         ws,
-        role: 'student', // Default role
-        languageCode: 'en-US', // Default language
-        sessionId: `session_${Date.now()}_${this.sessionCounter++}`
-      });
+        role: initialRole,
+        languageCode: initialLanguage,
+        sessionId
+      };
+      
+      this.connections.set(ws, connection);
+      
+      // Send confirmation to client with role information
+      try {
+        console.log(`Sending connection confirmation with sessionId: ${sessionId}`);
+        ws.send(JSON.stringify({
+          type: 'connection',
+          status: 'connected',
+          sessionId,
+          role: initialRole,
+          languageCode: initialLanguage
+        }));
+        console.log('Connection confirmation sent successfully');
+      } catch (err) {
+        console.error('Failed to send connection confirmation:', err);
+      }
 
       // Handle messages from clients
       ws.on('message', async (message) => {
@@ -77,19 +120,7 @@ export class TranslationWebSocketServer {
         console.error('WebSocket connection error:', error);
       });
 
-      // Send initial connection confirmation
-      try {
-        const sessionId = this.connections.get(ws)?.sessionId;
-        console.log(`Sending connection confirmation with sessionId: ${sessionId}`);
-        ws.send(JSON.stringify({ 
-          type: 'connection', 
-          status: 'connected',
-          sessionId: sessionId
-        }));
-        console.log('Connection confirmation sent successfully');
-      } catch (error) {
-        console.error('Error sending initial connection confirmation:', error);
-      }
+      // Connection confirmation was already sent above, no need to send it again
     });
     
     // Log any server-level errors
@@ -135,9 +166,18 @@ export class TranslationWebSocketServer {
         break;
 
       case 'audio':
+        // Check if role is in payload and use it to validate or correct server-side role
+        if (payload.role === 'teacher' && connection.role !== 'teacher') {
+          console.log(`CRITICAL: Found role mismatch! Payload has teacher but connection has ${connection.role}. Fixing...`);
+          connection.role = 'teacher';
+          this.connections.set(ws, connection);
+        }
+        
         // Process audio from teacher and broadcast translations
-        if (connection.role === 'teacher' && payload.audio) {
-          console.log(`Received audio message from teacher, data length: ${payload.audio.length}`);
+        const effectiveRole = payload.role || connection.role;
+        
+        if ((effectiveRole === 'teacher' || connection.role === 'teacher') && payload.audio) {
+          console.log(`Received audio message from teacher (effectiveRole=${effectiveRole}, connectionRole=${connection.role}), data length: ${payload.audio.length}`);
           try {
             await this.processAndBroadcastAudio(connection, payload.audio);
           } catch (err) {
@@ -327,14 +367,16 @@ export class TranslationWebSocketServer {
         }
       }
       
-      // Also send back confirmation to the teacher
+      // Also send back confirmation to the teacher with role verification
       if (teacherConnection.ws.readyState === WebSocket.OPEN) {
         teacherConnection.ws.send(JSON.stringify({
           type: 'processing_complete',
           data: {
             timestamp: new Date().toISOString(),
             targetLanguages: Array.from(targetLanguages),
-            latency: Date.now() - startTime
+            latency: Date.now() - startTime,
+            role: teacherConnection.role,  // Return the role for verification
+            roleConfirmed: true  // Explicitly confirm the teacher role is set correctly
           }
         }));
       }

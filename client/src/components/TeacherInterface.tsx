@@ -12,6 +12,7 @@ import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useTranslation } from '@/hooks/useTranslation';
 import { formatLatency, formatDuration } from '@/lib/openai';
 import { Mic, Languages, Play, Timer, Plus, CheckCircle } from 'lucide-react';
+import { wsClient } from '@/lib/websocket';
 
 interface Languages {
   id: number;
@@ -22,6 +23,37 @@ interface Languages {
 
 export const TeacherInterface: React.FC = () => {
   const [selectedInputLanguage, setSelectedInputLanguage] = useState('en-US');
+  const [roleInitialized, setRoleInitialized] = useState(false);
+
+  // CRITICAL: Lock the role as 'teacher' immediately when component mounts
+  // This is to prevent race conditions with other component registrations
+  useEffect(() => {
+    if (!roleInitialized) {
+      // We access the WebSocket client imported at the top of the file
+      
+      // Set and lock the role to 'teacher'
+      wsClient.setRoleAndLock('teacher');
+      
+      // Add a periodic check to make sure role remains locked
+      const roleCheckInterval = setInterval(() => {
+        const currentRole = wsClient.currentRole;
+        const isLocked = wsClient.isRoleLocked;
+        
+        console.log(`TeacherInterface: Role check - current=${currentRole}, locked=${isLocked}`);
+        
+        if (currentRole !== 'teacher' || !isLocked) {
+          console.warn('TeacherInterface: Role was changed or unlocked! Re-locking...');
+          wsClient.setRoleAndLock('teacher');
+        }
+      }, 5000); // Check every 5 seconds
+      
+      setRoleInitialized(true);
+      console.log('TeacherInterface: Initialized and locked role as teacher');
+      
+      // Clear interval on component unmount
+      return () => clearInterval(roleCheckInterval);
+    }
+  }, [roleInitialized]);
   
   // Fetch available languages
   const { data: languages = [] } = useQuery<Languages[]>({

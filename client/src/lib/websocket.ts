@@ -35,6 +35,10 @@ export class WebSocketClient {
   private role: UserRole = 'student';
   private languageCode: string = 'en-US';
   private roleLocked: boolean = false; // Flag to prevent role from being changed after initial setting
+  
+  // Make role and roleLocked accessible for diagnostics and status checking
+  public get currentRole(): UserRole { return this.role; }
+  public get isRoleLocked(): boolean { return this.roleLocked; }
 
   constructor() {
     this.setupEventHandlers = this.setupEventHandlers.bind(this);
@@ -49,9 +53,14 @@ export class WebSocketClient {
     this.notifyListeners('status', this.status);
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
     
-    console.log(`Connecting to WebSocket at ${wsUrl}`);
+    // Include role and language as query parameters for immediate server-side role assignment
+    const params = new URLSearchParams();
+    params.append('role', this.role);
+    params.append('language', this.languageCode);
+    const wsUrl = `${protocol}//${window.location.host}/ws?${params.toString()}`;
+    
+    console.log(`Connecting to WebSocket at ${wsUrl} with role=${this.role}, language=${this.languageCode}`);
     this.ws = new WebSocket(wsUrl);
     this.setupEventHandlers();
   }
@@ -84,6 +93,50 @@ export class WebSocketClient {
           console.log('Received connection confirmation with sessionId:', data.sessionId);
           this.sessionId = data.sessionId;
           this.notifyListeners('sessionId', this.sessionId);
+          
+          // Store server-provided role and language if available
+          if (data.role) {
+            console.log(`Server confirmed connection with role: ${data.role}`);
+            
+            // Only override our role if it's not locked
+            if (!this.roleLocked) {
+              this.role = data.role;
+              
+              // Auto-lock the role if it's set to 'teacher'
+              if (data.role === 'teacher') {
+                console.log('Auto-locking role as teacher from server confirmation');
+                this.roleLocked = true;
+              }
+            } else if (this.role !== data.role) {
+              console.warn(`Server sent role ${data.role} but client has locked role ${this.role}. Keeping ${this.role}.`);
+              
+              // Re-register with our locked role to ensure server is updated
+              setTimeout(() => {
+                this.register(this.role, this.languageCode);
+              }, 100);
+            }
+          }
+          
+          if (data.languageCode) {
+            console.log(`Server confirmed connection with language: ${data.languageCode}`);
+            this.languageCode = data.languageCode;
+          }
+        }
+        
+        // Handle role verification messages
+        if (data.type === 'processing_complete' && data.data && data.data.roleConfirmed) {
+          console.log(`Server processed audio as role: ${data.data.role}`);
+          
+          // Check for role mismatch
+          if (data.data.role !== this.role) {
+            console.warn(`Role mismatch detected! Server has ${data.data.role}, client has ${this.role}`);
+            
+            if (this.roleLocked) {
+              // Re-register our locked role
+              console.log(`Re-registering locked role ${this.role}`);
+              this.register(this.role, this.languageCode);
+            }
+          }
         }
         
         // Notify all listeners for this message type
@@ -190,11 +243,15 @@ export class WebSocketClient {
       return false;
     }
     
+    // Log current role and locked state to verify
+    console.log(`WebSocketClient: Audio sent from role=${this.role}, locked=${this.roleLocked}`);
+    
     try {
       return this.send({
         type: 'audio',
         payload: {
-          audio: audioData
+          audio: audioData,
+          role: this.role  // Explicitly include role in payload for validation
         }
       });
     } catch (err) {

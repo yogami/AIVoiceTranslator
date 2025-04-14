@@ -92,7 +92,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   // Register when role or language changes
   useEffect(() => {
     if (status === 'connected') {
-      wsClient.register(role, languageCode);
+      // For teacher role, use the locked method to prevent future changes
+      if (role === 'teacher') {
+        wsClient.setRoleAndLock('teacher');
+      } else {
+        wsClient.register(role, languageCode);
+      }
     }
   }, [role, languageCode, status]);
 
@@ -115,7 +120,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const updateRole = useCallback((newRole: UserRole) => {
     setRole(newRole);
     if (status === 'connected') {
-      wsClient.register(newRole, languageCode);
+      // For critical 'teacher' role, use the locked method
+      if (newRole === 'teacher') {
+        wsClient.setRoleAndLock(newRole);
+      } else {
+        wsClient.register(newRole, languageCode);
+      }
     }
   }, [status, languageCode]);
 
@@ -123,7 +133,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const updateLanguage = useCallback((newLanguageCode: string) => {
     setLanguageCode(newLanguageCode);
     if (status === 'connected') {
-      wsClient.register(role, newLanguageCode);
+      // Ensure we don't accidentally change the role when updating language
+      if (role === 'teacher') {
+        // For teacher role, preserve the role lock by using a special method
+        const currentRoleInWsClient = (wsClient as any).role;
+        if (currentRoleInWsClient === 'teacher') {
+          // If already set as teacher and locked, simply send a register message
+          wsClient.register('teacher', newLanguageCode);
+        } else {
+          // If not already locked as teacher, set and lock it
+          wsClient.setRoleAndLock('teacher');
+        }
+      } else {
+        wsClient.register(role, newLanguageCode);
+      }
     }
   }, [status, role]);
 
