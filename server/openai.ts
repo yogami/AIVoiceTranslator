@@ -106,8 +106,8 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
-        temperature: 0.2, // Lower temperature for more accurate transcription
-        prompt: "This is classroom speech in an educational setting." // Provide context to improve accuracy
+        temperature: 0.2 // Lower temperature for more accurate transcription
+        // Removing the prompt as it's causing issues with transcription
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
