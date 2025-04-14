@@ -112,8 +112,25 @@ These mocks ensure tests can run in CI environments and produce consistent resul
 
 Our tests verify that:
 
+### Simple Utility Tests
 - Core utility functions work correctly with various inputs
-- WebSocket communication follows expected patterns
+- Language code to voice mapping is accurate
+- Language code to name mapping is correct
+- Time formatting functions handle edge cases properly
+
+### WebSocket Tests
+- WebSocket connection lifecycle works as expected
+- Status changes are properly tracked and reported
+- Messages are correctly sent and received
+- Disconnection is handled gracefully
+
+### Audio Utility Tests
+- Blob to Base64 conversion functions correctly
+- Base64 to ArrayBuffer conversion is accurate 
+- Audio element creation from Base64 works properly
+- Duration formatting handles various time inputs
+
+### End-to-End Tests
 - Recording can be started and stopped properly
 - The UI accurately reflects the current application state
 - Language selection works correctly
@@ -163,3 +180,34 @@ For CI/CD environments, the unit tests can be run without special configuration.
 - Add more comprehensive error condition testing
 - Add snapshot tests for UI components
 - Implement API mocking for more reliable testing
+
+## Troubleshooting Common Testing Issues
+
+### Permission Issues
+If you encounter "Permission denied" errors when running the test script:
+```
+bash: line 1: ./run-tests.sh: Permission denied
+```
+Fix by making the script executable:
+```bash
+chmod +x run-tests.sh
+```
+
+### TypeScript Errors in Test Files
+The TypeScript compiler may show errors in test files due to:
+1. Custom Cypress commands not being recognized
+2. Jest types not being properly loaded
+3. Missing type definitions for mock objects
+
+These errors can be ignored if the tests run successfully, or you can add appropriate type definitions.
+
+### Test Runner Dependencies
+If you encounter errors with Jest or Cypress not being found:
+1. Ensure all dependencies are installed
+2. Fall back to the simple test runner which has no framework dependencies
+
+### Environment-Specific Issues
+On some platforms, WebSocket or MediaRecorder APIs may behave differently. Our tests include:
+- Environment detection and fallbacks
+- Browser API mocking for Node.js environment
+- Robust error handling for missing APIs
