@@ -206,6 +206,8 @@ export class WebSocketClient {
     this.role = role;
     this.languageCode = languageCode;
     
+    console.log(`WebSocketClient: Registering with role=${role}, languageCode=${languageCode}`);
+    
     return this.send({
       type: 'register',
       payload: {

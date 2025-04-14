@@ -10,9 +10,10 @@ import { Home, ArrowLeft } from 'lucide-react';
 const TeacherPage: React.FC = () => {
   const [isHelpModalOpen, setIsHelpModalOpen] = React.useState(false);
   
-  // Initialize WebSocket
+  // Initialize WebSocket with teacher role
   const { status: connectionStatus } = useWebSocket({
-    autoConnect: true
+    autoConnect: true,
+    role: 'teacher'
   });
   
   return (
