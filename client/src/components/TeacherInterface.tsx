@@ -149,18 +149,31 @@ export const TeacherInterface: React.FC = () => {
                           <span className="text-gray-600">Enabled</span>
                         }
                       </span>
-                      <Switch
-                        checked={isRecording}
-                        onCheckedChange={(checked) => {
-                          console.log('Toggle switch changed to:', checked);
-                          // Explicitly call start or stop based on the desired state
-                          if (checked) {
-                            startRecording();
-                          } else {
+                      {isRecording ? (
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          className="px-2 py-1 h-7 text-xs"
+                          onClick={() => {
+                            console.log('Stop recording button clicked');
                             stopRecording();
-                          }
-                        }}
-                      />
+                          }}
+                        >
+                          Stop
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          className="px-2 py-1 h-7 text-xs"
+                          onClick={() => {
+                            console.log('Start recording button clicked');
+                            startRecording();
+                          }}
+                        >
+                          Record
+                        </Button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -201,20 +201,27 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
         
         setIsLoading(false);
         return true;
-      } catch (mediaError) {
-        console.error('Error accessing microphone:', mediaError);
+      } catch (error) {
+        console.error('Error accessing microphone:', error);
         
         // Provide user-friendly error messages based on the error
         let userMessage = 'Could not access microphone. ';
         
-        if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
-          userMessage += 'Permission was denied. Please allow microphone access in your browser settings.';
-        } else if (mediaError.name === 'NotFoundError') {
-          userMessage += 'No microphone found. Please connect a microphone and try again.';
-        } else if (mediaError.name === 'NotReadableError' || mediaError.name === 'AbortError') {
-          userMessage += 'Microphone is already in use by another application or not working properly.';
+        // Cast to any to access error properties (not ideal but works for browser errors)
+        const mediaError = error as any;
+        
+        if (mediaError && typeof mediaError === 'object') {
+          if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
+            userMessage += 'Permission was denied. Please allow microphone access in your browser settings.';
+          } else if (mediaError.name === 'NotFoundError') {
+            userMessage += 'No microphone found. Please connect a microphone and try again.';
+          } else if (mediaError.name === 'NotReadableError' || mediaError.name === 'AbortError') {
+            userMessage += 'Microphone is already in use by another application or not working properly.';
+          } else {
+            userMessage += `Error: ${mediaError.message || mediaError.name || 'Unknown error'}`;
+          }
         } else {
-          userMessage += `Error: ${mediaError.message || mediaError.name || 'Unknown error'}`;
+          userMessage += 'Unknown error occurred.';
         }
         
         setError(new Error(userMessage));
