@@ -34,6 +34,7 @@ export class WebSocketClient {
   private sessionId: string | null = null;
   private role: UserRole = 'student';
   private languageCode: string = 'en-US';
+  private roleLocked: boolean = false; // Flag to prevent role from being changed after initial setting
 
   constructor() {
     this.setupEventHandlers = this.setupEventHandlers.bind(this);
@@ -203,14 +204,22 @@ export class WebSocketClient {
   }
 
   public register(role: UserRole, languageCode: string) {
-    // Only update if changes are needed
-    const roleChanged = this.role !== role;
+    // Only allow role to be changed if it's not locked
+    const roleChanged = this.role !== role && !this.roleLocked;
     const languageChanged = this.languageCode !== languageCode;
     
     if (roleChanged || languageChanged) {
       if (roleChanged) {
         console.log(`WebSocketClient: Changing role from ${this.role} to ${role}`);
         this.role = role;
+        
+        // Lock the role when set to 'teacher' to prevent it from changing later
+        if (role === 'teacher') {
+          console.log(`WebSocketClient: Locking role as '${role}'`);
+          this.roleLocked = true;
+        }
+      } else if (this.roleLocked && role !== this.role) {
+        console.warn(`WebSocketClient: Role change from '${this.role}' to '${role}' rejected - role is locked`);
       }
       
       if (languageChanged) {
@@ -218,12 +227,12 @@ export class WebSocketClient {
         this.languageCode = languageCode;
       }
       
-      console.log(`WebSocketClient: Registering with role=${role}, languageCode=${languageCode}`);
+      console.log(`WebSocketClient: Registering with role=${this.role}, languageCode=${languageCode}`);
       
       return this.send({
         type: 'register',
         payload: {
-          role,
+          role: this.role, // Use the current role which may not have changed if locked
           languageCode
         }
       });
@@ -281,6 +290,30 @@ export class WebSocketClient {
 
   public getSessionId() {
     return this.sessionId;
+  }
+  
+  /**
+   * Explicitly set the role and lock it to prevent any changes
+   * This is used for critical roles like 'teacher' that shouldn't change
+   */
+  public setRoleAndLock(role: UserRole): boolean {
+    console.log(`WebSocketClient: Setting role to '${role}' and locking it`);
+    // Set the role
+    this.role = role;
+    this.roleLocked = true;
+    
+    // Register with the server if we're connected
+    if (this.status === 'connected') {
+      return this.send({
+        type: 'register',
+        payload: {
+          role: this.role,
+          languageCode: this.languageCode
+        }
+      });
+    }
+    
+    return false;
   }
 }
 
