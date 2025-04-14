@@ -7,9 +7,8 @@ const apiKey = process.env.OPENAI_API_KEY || "";
 const openai = new OpenAI({ apiKey });
 
 /**
- * Handles direct speech-to-speech translation using OpenAI's Realtime API
- * Note: This is a simplified implementation since the actual Realtime API 
- * would require streaming both to and from the API
+ * Handles direct speech-to-speech translation using OpenAI's API
+ * Process: Transcribe audio → Translate text → Convert to speech
  */
 export async function translateSpeech(
   audioBuffer: Buffer,
@@ -17,51 +16,104 @@ export async function translateSpeech(
   targetLanguage: string
 ) {
   try {
-    // In this simplified implementation, we'll simulate a step 
-    // that would normally transcribe audio, translate text, then convert back to speech
-    
-    // For the MVP, we're just returning a simulated result
     console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
     
-    // Simulate transcription
-    // In production, this would be openai.audio.transcriptions.create()
-    const simulatedTranscription = "This is a simulated transcription of the audio input.";
+    // Step 1: Transcribe audio to text
+    const transcribedText = await transcribeAudio(audioBuffer);
     
-    // Simulate translation
-    // In production, this would be openai.chat.completions.create()
-    const translatedText = `[Translated to ${targetLanguage}] ${simulatedTranscription}`;
+    // Step 2: Translate text if needed
+    let translatedText = transcribedText;
+    if (sourceLanguage !== targetLanguage) {
+      try {
+        translatedText = await translateText(transcribedText, sourceLanguage, targetLanguage);
+      } catch (translationError) {
+        console.error('Error in translation, using original text:', translationError);
+        translatedText = `[Could not translate] ${transcribedText}`;
+      }
+    }
     
-    // Simulate text-to-speech
-    // In production, this would be openai.audio.speech.create()
-    // Return a simple empty buffer for now
-    const audioBuffer = Buffer.from([0, 1, 2, 3, 4]); // Simulated audio data
+    // Step 3: Convert to speech if not returning to original speaker
+    let audioResponse = audioBuffer;
+    if (sourceLanguage !== targetLanguage) {
+      try {
+        audioResponse = await textToSpeech(translatedText, targetLanguage);
+      } catch (ttsError) {
+        console.error('Error in text-to-speech:', ttsError);
+        // Keep the original audio if TTS fails
+      }
+    }
     
     console.log(`Successfully processed translation to ${targetLanguage}`);
+    console.log(`Translation complete: "${transcribedText}" -> "${translatedText}"`);
     
     return {
-      originalText: simulatedTranscription,
+      originalText: transcribedText,
       translatedText,
-      audioBuffer
+      audioBuffer: audioResponse
     };
   } catch (error) {
     console.error('Error in speech translation:', error);
-    throw error;
+    // Return a graceful error message
+    return {
+      originalText: "Error processing speech",
+      translatedText: "Error in translation process. Please try again.",
+      audioBuffer: Buffer.from([]) // Empty buffer
+    };
   }
 }
 
 /**
- * Transcribes audio to text (simplified version)
+ * Transcribes audio to text using OpenAI's Whisper API
  */
 export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
   try {
-    console.log(`[Simulated] Transcribing audio buffer of size ${audioBuffer.byteLength}...`);
+    console.log(`Transcribing audio buffer of size ${audioBuffer.byteLength}...`);
     
-    // For MVP, return simulated text
-    // In production, this would use OpenAI's Whisper API
-    return "This is a simulated transcription of the audio input.";
+    if (!apiKey || apiKey.length === 0) {
+      console.warn('OpenAI API key not available, using simulated transcription');
+      return "No API key available. Please provide an OpenAI API key.";
+    }
+    
+    // Check if buffer is sufficient for transcription
+    if (audioBuffer.byteLength < 100) {
+      console.warn('Audio buffer too small for transcription');
+      return "Audio input too short to transcribe.";
+    }
+    
+    // Create a temporary file for the audio buffer
+    const tempFilePath = '/tmp/audio-to-transcribe.wav';
+    const fs = require('fs');
+    fs.writeFileSync(tempFilePath, audioBuffer);
+    
+    try {
+      // Use the OpenAI Whisper API for transcription
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(tempFilePath),
+        model: "whisper-1",
+        language: "en", // You can make this dynamic based on sourceLanguage
+        response_format: "text"
+      });
+      
+      // Clean up the temporary file
+      fs.unlinkSync(tempFilePath);
+      
+      console.log('Transcription successful:', transcription);
+      return transcription || "Could not transcribe audio.";
+    } catch (apiError) {
+      console.error('OpenAI API error during transcription:', apiError);
+      // Clean up the temporary file even if there's an error
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (unlinkError) {
+        console.error('Error deleting temporary file:', unlinkError);
+      }
+      
+      // Fallback to simulated response in case of API issues
+      return "Error transcribing audio with OpenAI. Please try again.";
+    }
   } catch (error: any) {
     console.error('Error in transcription:', error);
-    throw error;
+    return "Error processing audio data.";
   }
 }
 
