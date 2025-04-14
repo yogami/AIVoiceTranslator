@@ -331,7 +331,14 @@ export class TranslationWebSocketServer {
             continue; // Skip to the next language
           }
           
-          console.log(`Translation complete: "${result.originalText}" -> "${result.translatedText}"`);
+          // Log detailed information about the transcription
+          console.log(`TRANSCRIPTION DETAILS:`);
+          console.log(`- Original text: "${result.originalText}"`);
+          console.log(`- Translated text: "${result.translatedText}"`);
+          console.log(`- Text length: ${result.translatedText?.length || 0} chars`);
+          console.log(`- Source language: ${sourceLanguage}`);
+          console.log(`- Target language: ${targetLanguage}`);
+          console.log(`- Audio buffer length: ${result.audioBuffer?.length || 0} bytes`);
           
           // Calculate latency
           const latency = Date.now() - startTime;

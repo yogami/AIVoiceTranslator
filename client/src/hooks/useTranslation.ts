@@ -66,34 +66,63 @@ export function useTranslation(options: UseTranslationOptions) {
 
   // Handle new translations
   useEffect(() => {
-    const handleTranslation = (data: { data: TranslationPayload }) => {
+    const handleTranslation = (data: any) => {
+      console.log('Translation event received:', data);
+      
+      if (!data || !data.data) {
+        console.error('Invalid translation data structure:', data);
+        return;
+      }
+      
       const { translatedText, audio, timestamp, latency, originalText } = data.data;
       
-      // Add logs to help debug
-      console.log('Translation received:', { 
+      // Add detailed logs to help debug
+      console.log('Translation data details:', { 
         translatedText, 
         originalText, 
         hasAudio: !!audio,
-        timestamp
+        timestamp,
+        dataType: typeof data,
+        translatedTextType: typeof translatedText
       });
       
-      // Only update UI if we have meaningful text
-      if (translatedText && translatedText.trim()) {
-        // Update current speech - trim to remove newlines
-        const cleanText = translatedText.trim();
-        console.log('Setting current speech to:', cleanText);
-        setCurrentSpeech(cleanText);
+      // Force update UI regardless of text content for debugging
+      let textToDisplay = translatedText;
+      
+      // Handle different text scenarios
+      if (!textToDisplay) {
+        console.log('No text in translation, using placeholder');
+        textToDisplay = "(No text received)";
+      } else if (typeof textToDisplay !== 'string') {
+        console.log('Translation text is not a string:', textToDisplay);
+        textToDisplay = String(textToDisplay);
+      } else {
+        textToDisplay = textToDisplay.trim();
+        console.log('Setting current speech to:', textToDisplay);
+      }
+      
+      // Always update the UI so we know we're receiving events
+      setCurrentSpeech(textToDisplay);
         
-        // Create audio URL for playback
+      // Create audio URL for playback if we have audio
+      if (audio) {
         const audioUrl = `data:audio/mp3;base64,${audio}`;
         setAudioUrl(audioUrl);
         
+        // Auto play if student and not paused
+        if (options.role === 'student' && !isPaused) {
+          playAudio(audioUrl);
+        }
+      }
+      
+      // Only add to transcripts and update metrics if we have real content
+      if (textToDisplay && textToDisplay !== "(No text received)") {
         // Add to transcripts
         setTranscripts(prev => [
           ...prev,
           {
             id: Date.now(),
-            text: cleanText,
+            text: textToDisplay,
             timestamp
           }
         ]);
@@ -109,13 +138,6 @@ export function useTranslation(options: UseTranslationOptions) {
             startTime: prev.startTime
           };
         });
-        
-        // Auto play if student and not paused
-        if (options.role === 'student' && !isPaused) {
-          playAudio(audioUrl);
-        }
-      } else {
-        console.log('Empty or whitespace-only translation received, ignoring');
       }
     };
     
