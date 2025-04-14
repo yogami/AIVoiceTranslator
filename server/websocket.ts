@@ -104,8 +104,16 @@ export class TranslationWebSocketServer {
     switch (type) {
       case 'register':
         // Update connection info
-        if (payload.role) connection.role = payload.role;
+        if (payload.role) {
+          console.log(`Changing connection role from ${connection.role} to ${payload.role}`);
+          connection.role = payload.role;
+        }
         if (payload.languageCode) connection.languageCode = payload.languageCode;
+        
+        // Update the server-side connection record
+        this.connections.set(ws, connection);
+        
+        console.log(`Updated connection: role=${connection.role}, languageCode=${connection.languageCode}`);
         
         ws.send(JSON.stringify({ 
           type: 'register', 
