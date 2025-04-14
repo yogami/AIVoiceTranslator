@@ -245,9 +245,13 @@ async function runEndToEndTest() {
     // Inject audio mocks before page loads
     await page.evaluateOnNewDocument(AUDIO_MOCK_SCRIPT);
     
-    // Navigate to the application
+    // Navigate to the application (using the Replit URL)
     console.log('Navigating to the teacher interface...');
-    await page.goto('http://localhost:5000/teacher', { waitUntil: 'networkidle0' });
+    const appUrl = process.env.REPL_SLUG 
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co/teacher`
+      : 'http://localhost:5000/teacher';
+    console.log(`Opening URL: ${appUrl}`);
+    await page.goto(appUrl, { waitUntil: 'networkidle0' });
     
     // Wait a moment for WebSocket connection to establish
     await page.waitForTimeout(2000);

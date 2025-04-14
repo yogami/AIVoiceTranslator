@@ -295,11 +295,12 @@ export class TranslationWebSocketServer {
       
       // Get all unique target languages from student connections
       const targetLanguages = new Set<string>();
-      for (const conn of this.connections.values()) {
+      // Use Array.from to convert iterator to array first to avoid TS downlevelIteration error
+      Array.from(this.connections.values()).forEach(conn => {
         if (conn.role === 'student' && conn.languageCode !== sourceLanguage) {
           targetLanguages.add(conn.languageCode);
         }
-      }
+      });
 
       // Track processing times for latency calculation
       const startTime = Date.now();
@@ -314,7 +315,8 @@ export class TranslationWebSocketServer {
       }
 
       // Process each language separately and handle errors independently
-      for (const targetLanguage of targetLanguages) {
+      // Use Array.from to convert Set iterator to array to avoid TS downlevelIteration error
+      for (const targetLanguage of Array.from(targetLanguages)) {
         console.log(`Translating from ${sourceLanguage} to ${targetLanguage}...`);
         
         try {
@@ -341,7 +343,8 @@ export class TranslationWebSocketServer {
           });
           
           // Broadcast to students who selected this language AND ALSO to the teacher
-          for (const [ws, conn] of this.connections.entries()) {
+          // Use Array.from to convert entries iterator to array to avoid TS downlevelIteration error
+          for (const [ws, conn] of Array.from(this.connections.entries())) {
             if (
               (conn.role === 'student' && conn.languageCode === targetLanguage ||
                conn.role === 'teacher' && conn.sessionId === sessionId) &&
