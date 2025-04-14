@@ -238,6 +238,109 @@ export class AudioCapture {
   }
   
   /**
+   * Force stop method - more aggressive approach to stopping audio capture
+   * Use this when the normal stop method doesn't work
+   */
+  public forceStop(): boolean {
+    console.log('AudioCapture: EMERGENCY FORCE STOP called');
+    
+    // First, immediately set recording state to false
+    this.isRecording = false;
+    
+    try {
+      // Clear any timers
+      this.clearChunkTimer();
+      
+      // More aggressive cleaning of the MediaRecorder
+      if (this.mediaRecorder) {
+        try {
+          // Try to stop if in recording or paused state
+          if (this.mediaRecorder.state === 'recording' || this.mediaRecorder.state === 'paused') {
+            console.log('AudioCapture: Force stopping MediaRecorder');
+            this.mediaRecorder.stop();
+          }
+        } catch (e) {
+          console.warn('AudioCapture: Error during force stop of MediaRecorder:', e);
+        }
+        
+        // Remove all event listeners to prevent further callbacks
+        try {
+          console.log('AudioCapture: Removing all MediaRecorder event listeners');
+          this.mediaRecorder.ondataavailable = null;
+          this.mediaRecorder.onstart = null;
+          this.mediaRecorder.onstop = null;
+          this.mediaRecorder.onerror = null;
+        } catch (e) {
+          console.warn('AudioCapture: Error removing MediaRecorder listeners:', e);
+        }
+      }
+      
+      // Aggressively stop all tracks
+      if (this.stream) {
+        try {
+          console.log('AudioCapture: Force stopping all media tracks');
+          this.stream.getTracks().forEach(track => {
+            try {
+              console.log(`AudioCapture: Force stopping track (${track.kind}, enabled=${track.enabled})`);
+              track.stop();
+            } catch (e) {
+              console.warn('AudioCapture: Error stopping track during force stop:', e);
+            }
+          });
+        } catch (e) {
+          console.warn('AudioCapture: Error during force stop of stream tracks:', e);
+        }
+      }
+      
+      // Last resort - try to stop any other active media tracks in the browser
+      try {
+        console.log('AudioCapture: Trying to stop any other active media tracks');
+        if (navigator.mediaDevices) {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(tempStream => {
+              tempStream.getTracks().forEach(track => {
+                try {
+                  track.stop();
+                } catch (e) {
+                  console.warn('AudioCapture: Error stopping additional tracks:', e);
+                }
+              });
+            })
+            .catch(e => console.error('AudioCapture: Error accessing media for cleanup:', e));
+        }
+      } catch (e) {
+        console.warn('AudioCapture: Error during media devices cleanup:', e);
+      }
+      
+      // Clear all resources
+      this.mediaRecorder = null;
+      this.stream = null;
+      this.chunks = [];
+      
+      // Call the onStop callback
+      try {
+        if (this.options.onStop) {
+          this.options.onStop();
+        }
+      } catch (e) {
+        console.warn('AudioCapture: Error in onStop callback during force stop:', e);
+      }
+      
+      console.log('AudioCapture: Force stop completed');
+      return true;
+    } catch (err) {
+      console.error('AudioCapture: Critical error during force stop:', err);
+      
+      // Still clear everything
+      this.mediaRecorder = null;
+      this.stream = null;
+      this.chunks = [];
+      
+      return false;
+    }
+  }
+  
+  /**
    * Check if currently recording
    */
   public isActive(): boolean {

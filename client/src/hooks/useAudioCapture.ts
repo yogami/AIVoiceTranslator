@@ -273,6 +273,11 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
     }
   }, [audioCapture]);
 
+  // Helper to expose the audio capture instance for direct access in critical situations
+  const getAudioCaptureInstance = useCallback(() => {
+    return audioCapture;
+  }, [audioCapture]);
+
   return {
     isRecording,
     devices,
@@ -287,6 +292,7 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
     toggleRecording,
     selectDevice,
     loadDevices,
-    requestPermission
+    requestPermission,
+    getAudioCaptureInstance  // Add direct access to instance for emergency situations
   };
 }

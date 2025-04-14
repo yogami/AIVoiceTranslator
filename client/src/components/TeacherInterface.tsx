@@ -49,6 +49,7 @@ export const TeacherInterface: React.FC = () => {
     toggleRecording,
     selectDevice,
     loadDevices,
+    getAudioCaptureInstance,
     requestPermission
   } = useAudioCapture({
     onDataAvailable: (base64Data) => {
@@ -157,14 +158,46 @@ export const TeacherInterface: React.FC = () => {
                           className="px-2 py-1 h-7 text-xs"
                           onClick={() => {
                             console.log('Stop recording button clicked');
-                            // Try normal stop first
-                            const result = stopRecording();
-                            console.log('Stop recording result:', result);
                             
-                            // If still recording, force stop as a fallback
-                            if (isRecording) {
-                              console.log('Recording still active, using emergency force stop');
-                              forceStop();
+                            try {
+                              // First attempt - normal stop via hook
+                              console.log('1. Trying normal stopRecording method');
+                              const result = stopRecording();
+                              console.log('Normal stop result:', result);
+                              
+                              // Second attempt - if still recording, use forceStop
+                              setTimeout(() => {
+                                if (isRecording) {
+                                  console.log('2. Still recording, using forceStop method');
+                                  forceStop();
+                                  
+                                  // Third attempt - try getting the instance directly
+                                  setTimeout(() => {
+                                    if (isRecording) {
+                                      console.log('3. Still recording, using emergency direct instance access');
+                                      const captureInstance = getAudioCaptureInstance();
+                                      if (captureInstance) {
+                                        console.log('Calling forceStop directly on instance');
+                                        captureInstance.forceStop();
+                                      }
+                                      
+                                      // Last resort - try to stop all media in browser
+                                      if (navigator.mediaDevices) {
+                                        console.log('4. EMERGENCY: Stopping all media tracks in browser');
+                                        navigator.mediaDevices.getUserMedia({ audio: true })
+                                          .then(stream => {
+                                            stream.getTracks().forEach(track => {
+                                              track.stop();
+                                            });
+                                          })
+                                          .catch(e => console.error('Error in emergency cleanup:', e));
+                                      }
+                                    }
+                                  }, 300);
+                                }
+                              }, 200);
+                            } catch (e) {
+                              console.error('Error while stopping recording:', e);
                             }
                           }}
                         >
