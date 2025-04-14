@@ -18,6 +18,11 @@ export class TranslationWebSocketServer {
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
+    
+    // Clear any existing connections before initializing
+    this.connections = new Map();
+    this.sessionCounter = 0;
+    
     this.initialize();
   }
 
@@ -97,9 +102,16 @@ export class TranslationWebSocketServer {
 
   private async handleMessage(ws: WebSocket, data: any) {
     const connection = this.connections.get(ws);
-    if (!connection) return;
+    if (!connection) {
+      console.error('Received message from unknown connection!');
+      return;
+    }
 
     const { type, payload } = data;
+    
+    // Debug current connection state
+    console.log(`Processing message type=${type} from connection: role=${connection.role}, languageCode=${connection.languageCode}`);
+    
 
     switch (type) {
       case 'register':

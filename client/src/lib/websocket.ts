@@ -203,18 +203,33 @@ export class WebSocketClient {
   }
 
   public register(role: UserRole, languageCode: string) {
-    this.role = role;
-    this.languageCode = languageCode;
+    // Only update if changes are needed
+    const roleChanged = this.role !== role;
+    const languageChanged = this.languageCode !== languageCode;
     
-    console.log(`WebSocketClient: Registering with role=${role}, languageCode=${languageCode}`);
-    
-    return this.send({
-      type: 'register',
-      payload: {
-        role,
-        languageCode
+    if (roleChanged || languageChanged) {
+      if (roleChanged) {
+        console.log(`WebSocketClient: Changing role from ${this.role} to ${role}`);
+        this.role = role;
       }
-    });
+      
+      if (languageChanged) {
+        console.log(`WebSocketClient: Changing language from ${this.languageCode} to ${languageCode}`);
+        this.languageCode = languageCode;
+      }
+      
+      console.log(`WebSocketClient: Registering with role=${role}, languageCode=${languageCode}`);
+      
+      return this.send({
+        type: 'register',
+        payload: {
+          role,
+          languageCode
+        }
+      });
+    }
+    
+    return false;
   }
 
   public requestTranscripts(sessionId: string, languageCode: string) {
