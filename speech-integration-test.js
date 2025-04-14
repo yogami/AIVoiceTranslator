@@ -1,8 +1,13 @@
 /**
- * Speech-to-Text Integration Test
+ * Comprehensive Speech-to-Text Integration Test for Benedictaitor
  * 
- * This test creates a simulated speech audio file with the text "This is a test message"
- * and tests the transcription functionality by simulating the full WebSocket workflow.
+ * This test simulates the full WebSocket workflow:
+ * 1. Creates a simulated speech audio file with the text "This is a test message"
+ * 2. Tests WebSocket connection establishment
+ * 3. Tests role registration (teacher)
+ * 4. Tests audio transcription
+ * 5. Verifies translation accuracy
+ * 6. Checks transcript storage
  */
 
 // Base64 encoded minimal WAV representing "This is a test message"
