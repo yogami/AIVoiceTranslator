@@ -10,11 +10,28 @@ import { Home, ArrowLeft } from 'lucide-react';
 const TeacherPage: React.FC = () => {
   const [isHelpModalOpen, setIsHelpModalOpen] = React.useState(false);
   
-  // Initialize WebSocket with teacher role
-  const { status: connectionStatus } = useWebSocket({
-    autoConnect: true,
-    role: 'teacher'
-  });
+  // Use a basic status indicator without initializing another WebSocket connection
+  const [connectionStatus, setConnectionStatus] = React.useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+
+  // This will get updated by the TeacherInterface component
+  React.useEffect(() => {
+    const wsClient = window.wsClient;
+    const updateStatus = (status: any) => {
+      setConnectionStatus(status);
+    };
+    
+    if (wsClient) {
+      wsClient.addEventListener('status', updateStatus);
+      // Initial status
+      setConnectionStatus(wsClient.getStatus());
+    }
+    
+    return () => {
+      if (wsClient) {
+        wsClient.removeEventListener('status', updateStatus);
+      }
+    };
+  }, []);
   
   return (
     <div className="bg-gray-100 min-h-screen flex flex-col">

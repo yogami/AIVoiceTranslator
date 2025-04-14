@@ -286,3 +286,15 @@ export class WebSocketClient {
 
 // Create a singleton instance
 export const wsClient = new WebSocketClient();
+
+// Make the WebSocket client available globally for debugging and status access
+declare global {
+  interface Window {
+    wsClient: WebSocketClient;
+  }
+}
+
+// Set the global instance
+if (typeof window !== 'undefined') {
+  window.wsClient = wsClient;
+}
