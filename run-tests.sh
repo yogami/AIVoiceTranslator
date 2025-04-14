@@ -47,25 +47,37 @@ run_websocket_tests() {
   npx jest websocket-client
 }
 
-# Function to run simple tests
+# Functions to run simple tests
 run_simple_tests() {
   echo "Running simple utility tests (no framework required)..."
   node run-simple-tests.js
+}
+
+run_simple_websocket_tests() {
+  echo "Running simple WebSocket client tests (no framework required)..."
+  node run-websocket-tests.js
 }
 
 # Show usage if no arguments provided
 if [ "$#" -eq 0 ]; then
   echo "Usage: ./run-tests.sh [option]"
   echo "Options:"
+  echo "  # Cypress E2E Tests (require system dependencies)"
   echo "  e2e            - Run all Cypress E2E tests"
   echo "  open           - Open Cypress test runner"
   echo "  teacher        - Run teacher interface E2E tests"
   echo "  student        - Run student interface E2E tests"
   echo "  navigation     - Run navigation E2E tests"
+  echo ""
+  echo "  # Jest Unit Tests (require Jest to be properly configured)"
   echo "  unit           - Run all Jest unit tests"
-  echo "  utils          - Run utility unit tests"
-  echo "  websocket      - Run WebSocket client unit tests"
-  echo "  simple         - Run simple utility tests without frameworks"
+  echo "  utils          - Run utility unit tests with Jest"
+  echo "  websocket      - Run WebSocket client unit tests with Jest"
+  echo ""
+  echo "  # Simple Tests (no dependencies or frameworks required)"
+  echo "  simple         - Run simple utility tests"
+  echo "  simple-websocket - Run simple WebSocket client tests"
+  echo "  all-simple     - Run all simple tests"
   exit 1
 fi
 
@@ -98,9 +110,16 @@ case "$1" in
   simple)
     run_simple_tests
     ;;
+  simple-websocket)
+    run_simple_websocket_tests
+    ;;
+  all-simple)
+    run_simple_tests
+    run_simple_websocket_tests
+    ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket|simple]"
+    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket|simple|simple-websocket|all-simple]"
     exit 1
     ;;
 esac

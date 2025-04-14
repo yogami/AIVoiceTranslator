@@ -50,16 +50,35 @@ E2E tests are organized in the `cypress/e2e` directory and test the application'
 
 We've included a convenient shell script to run tests without modifying package.json. Use the following commands:
 
-### Unit Tests (Jest)
+### Unit Tests
+
+#### Simple Tests (No Framework Required)
 
 ```bash
-# Run all unit tests
+# Run simple utility tests
+./run-tests.sh simple
+
+# Run simple WebSocket client tests
+./run-tests.sh simple-websocket
+
+# Run all simple tests
+./run-tests.sh all-simple
+```
+
+These tests run directly with Node.js without requiring any testing framework, making them ideal for quick validation and environments where testing frameworks might be difficult to set up. They provide a lightweight alternative to the more complex testing frameworks.
+
+#### Jest Tests (If Available)
+
+```bash
+# Run all unit tests with Jest
 ./run-tests.sh unit
 
-# Run specific unit test categories
+# Run specific unit test categories with Jest
 ./run-tests.sh utils     # Run OpenAI utility tests
 ./run-tests.sh websocket # Run WebSocket client tests
 ```
+
+Note: Jest tests require additional configuration and may not run in all environments due to dependency requirements.
 
 ### End-to-End Tests (Cypress)
 
