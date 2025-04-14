@@ -128,6 +128,15 @@ export class TranslationWebSocketServer {
       const sourceLanguage = teacherConnection.languageCode;
       const sessionId = teacherConnection.sessionId;
       
+      // Check if OpenAI API key is available
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        console.error('ERROR: OpenAI API key is not set. Please set the OPENAI_API_KEY environment variable.');
+        throw new Error('OpenAI API key is not set');
+      } else {
+        console.log('OpenAI API key is available (length:', apiKey.length, ')');
+      }
+      
       // Get all unique target languages from student connections
       const targetLanguages = new Set<string>();
       for (const conn of this.connections.values()) {
