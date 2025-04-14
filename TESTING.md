@@ -61,6 +61,9 @@ We've included a convenient shell script to run tests without modifying package.
 # Run simple WebSocket client tests
 ./run-tests.sh simple-websocket
 
+# Run simple audio utilities tests
+./run-tests.sh simple-audio
+
 # Run all simple tests
 ./run-tests.sh all-simple
 ```
@@ -117,6 +120,33 @@ Our tests verify that:
 - Navigation between pages functions as expected
 - Audio visualization components respond properly to state changes
 - Error handling functions as designed
+
+## Test Results and Interpretation
+
+When running tests, you'll see output like this:
+
+```
+Testing getVoiceForLanguage:
+  en-US -> alloy (expected: alloy)
+  es -> shimmer (expected: shimmer)
+  unknown -> alloy (expected: alloy)
+```
+
+This indicates:
+- The test name ("Testing getVoiceForLanguage")
+- Each test case with input (e.g., "en-US") and actual/expected output
+- Whether the test passed (shown by matching values)
+
+For WebSocket tests, success looks like:
+
+```
+Test 1: Connection management
+  ✅ PASS: Initial status should be disconnected
+  ...
+  ✅ PASS: Status should be connected after connect()
+```
+
+Each ✅ indicates a passing assertion. If a test fails, you'll see ❌ with details about what went wrong, helping you quickly identify and fix issues.
 
 ## Running Tests in Different Environments
 

@@ -58,6 +58,11 @@ run_simple_websocket_tests() {
   node run-websocket-tests.js
 }
 
+run_simple_audio_tests() {
+  echo "Running simple audio utilities tests (no framework required)..."
+  node run-audio-utils-tests.js
+}
+
 # Show usage if no arguments provided
 if [ "$#" -eq 0 ]; then
   echo "Usage: ./run-tests.sh [option]"
@@ -77,6 +82,7 @@ if [ "$#" -eq 0 ]; then
   echo "  # Simple Tests (no dependencies or frameworks required)"
   echo "  simple         - Run simple utility tests"
   echo "  simple-websocket - Run simple WebSocket client tests"
+  echo "  simple-audio   - Run simple audio utilities tests"
   echo "  all-simple     - Run all simple tests"
   exit 1
 fi
@@ -113,13 +119,17 @@ case "$1" in
   simple-websocket)
     run_simple_websocket_tests
     ;;
+  simple-audio)
+    run_simple_audio_tests
+    ;;
   all-simple)
     run_simple_tests
     run_simple_websocket_tests
+    run_simple_audio_tests
     ;;
   *)
     echo "Unknown option: $1"
-    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket|simple|simple-websocket|all-simple]"
+    echo "Usage: ./run-tests.sh [e2e|open|teacher|student|navigation|unit|utils|websocket|simple|simple-websocket|simple-audio|all-simple]"
     exit 1
     ;;
 esac
