@@ -117,7 +117,28 @@ export class TranslationWebSocketServer {
       case 'audio':
         // Process audio from teacher and broadcast translations
         if (connection.role === 'teacher' && payload.audio) {
-          await this.processAndBroadcastAudio(connection, payload.audio);
+          console.log(`Received audio message from teacher, data length: ${payload.audio.length}`);
+          try {
+            await this.processAndBroadcastAudio(connection, payload.audio);
+          } catch (err) {
+            console.error('Error in processAndBroadcastAudio:', err);
+            // Try to notify teacher about the error
+            try {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  error: 'Failed to process audio: ' + (err instanceof Error ? err.message : String(err))
+                }));
+              }
+            } catch (sendErr) {
+              console.error('Failed to send error message to client:', sendErr);
+            }
+          }
+        } else {
+          console.log(`Received audio message but conditions not met:`, 
+            `role=${connection.role}`, 
+            `hasAudio=${!!payload.audio}`,
+            `audioLength=${payload.audio ? payload.audio.length : 0}`);
         }
         break;
 
