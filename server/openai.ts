@@ -32,6 +32,17 @@ export async function translateSpeech(
       };
     }
     
+    // Filter out known API artifact - the OpenAI API sometimes returns just "you" 
+    // regardless of actual speech content
+    if (/^you[.!?,;]*$/i.test(transcribedText.trim())) {
+      console.log('Filtering out known OpenAI API artifact: "you" - this is not actual speech content');
+      return {
+        originalText: "",
+        translatedText: "",
+        audioBuffer: Buffer.from([])
+      };
+    }
+    
     // Step 2: Translate text if needed
     let translatedText = transcribedText;
     if (sourceLanguage !== targetLanguage && transcribedText.trim().length > 0) {
