@@ -69,38 +69,43 @@ export function useTranslation(options: UseTranslationOptions) {
     const handleTranslation = (data: { data: TranslationPayload }) => {
       const { translatedText, audio, timestamp, latency } = data.data;
       
-      // Update current speech
-      setCurrentSpeech(translatedText);
-      
-      // Create audio URL for playback
-      const audioUrl = `data:audio/mp3;base64,${audio}`;
-      setAudioUrl(audioUrl);
-      
-      // Add to transcripts
-      setTranscripts(prev => [
-        ...prev,
-        {
-          id: Date.now(),
-          text: translatedText,
-          timestamp
-        }
-      ]);
-      
-      // Update metrics
-      setMetrics(prev => {
-        const newCount = prev.translationsCount + 1;
-        const newAvgLatency = (prev.averageLatency * prev.translationsCount + latency) / newCount;
+      // Only update UI if we have meaningful text
+      if (translatedText && translatedText.trim()) {
+        // Update current speech - trim to remove newlines
+        setCurrentSpeech(translatedText.trim());
         
-        return {
-          averageLatency: newAvgLatency,
-          translationsCount: newCount,
-          startTime: prev.startTime
-        };
-      });
-      
-      // Auto play if student and not paused
-      if (options.role === 'student' && !isPaused) {
-        playAudio(audioUrl);
+        // Create audio URL for playback
+        const audioUrl = `data:audio/mp3;base64,${audio}`;
+        setAudioUrl(audioUrl);
+        
+        // Add to transcripts
+        setTranscripts(prev => [
+          ...prev,
+          {
+            id: Date.now(),
+            text: translatedText.trim(),
+            timestamp
+          }
+        ]);
+        
+        // Update metrics
+        setMetrics(prev => {
+          const newCount = prev.translationsCount + 1;
+          const newAvgLatency = (prev.averageLatency * prev.translationsCount + latency) / newCount;
+          
+          return {
+            averageLatency: newAvgLatency,
+            translationsCount: newCount,
+            startTime: prev.startTime
+          };
+        });
+        
+        // Auto play if student and not paused
+        if (options.role === 'student' && !isPaused) {
+          playAudio(audioUrl);
+        }
+      } else {
+        console.log('Empty or whitespace-only translation received, ignoring');
       }
     };
     

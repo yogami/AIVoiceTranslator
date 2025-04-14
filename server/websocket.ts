@@ -227,13 +227,14 @@ export class TranslationWebSocketServer {
 
   private async processAndBroadcastAudio(teacherConnection: UserConnection, audioBase64: string) {
     try {
-      console.log(`Processing audio data (length: ${audioBase64.length}) from teacher...`);
-      
       // Validate the audio data
       if (!audioBase64 || audioBase64.length < 100) {
-        console.error('Received invalid or too small audio data');
-        throw new Error('Invalid audio data received');
+        console.log('Received invalid or too small audio data (length: ' + (audioBase64 ? audioBase64.length : 0) + ')');
+        this.sendProcessingComplete(teacherConnection, [teacherConnection.languageCode]);
+        return; // Exit early instead of throwing an error
       }
+      
+      console.log(`Processing audio data (length: ${audioBase64.length}) from teacher...`);
       
       // Convert base64 audio to buffer
       const audioBuffer = Buffer.from(audioBase64, 'base64');
