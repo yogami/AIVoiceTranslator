@@ -59,6 +59,11 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     
     console.log(`Audio saved to temporary file: ${tempFilePath}`);
     
+    // Write to a separate file we can debug later
+    const debugFile = path.join(process.cwd(), `debug-audio-${Date.now()}.wav`);
+    fs.writeFileSync(debugFile, audioBuffer);
+    console.log(`Debug audio file saved to: ${debugFile}`);
+    
     try {
       // Check file size and content
       const stats = fs.statSync(tempFilePath);
@@ -70,18 +75,31 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       }
       
       // Debug log - verify the first few bytes to check if it's a valid WAV file
-      const headerBytes = fs.readFileSync(tempFilePath, { length: 12 });
-      console.log('File header bytes:', headerBytes.toString('hex'));
+      const headerBytes = fs.readFileSync(tempFilePath, { length: 44 });
+      console.log('File header bytes (first 44 bytes for WAV header):', headerBytes.toString('hex'));
+     
+      // Debug log to file
+      fs.appendFileSync('./server-stderr.log', `\n[${new Date().toISOString()}] Processing audio file: ${tempFilePath}, size: ${stats.size} bytes\n`);
+      fs.appendFileSync('./server-stderr.log', `Header bytes: ${headerBytes.toString('hex')}\n`);
       
       // Use the file path for transcription
-      const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tempFilePath),
-        model: "whisper-1",
-        language: "en", // Default to English
-      });
-      
-      console.log(`Transcription successful: "${transcription.text}"`);
-      return transcription.text;
+      try {
+        console.log('Calling OpenAI Whisper API with stream...');
+        
+        const transcription = await openai.audio.transcriptions.create({
+          file: fs.createReadStream(tempFilePath),
+          model: "whisper-1",
+          language: "en", // Default to English
+        });
+        
+        console.log(`Transcription successful: "${transcription.text}"`);
+        fs.appendFileSync('./server-stderr.log', `Transcription result: "${transcription.text}"\n`);
+        return transcription.text;
+      } catch (apiError) {
+        console.error('Error from OpenAI API:', apiError);
+        fs.appendFileSync('./server-stderr.log', `OpenAI API Error: ${JSON.stringify(apiError)}\n`);
+        throw apiError;
+      }
     } finally {
       // Clean up the temporary file
       try {
