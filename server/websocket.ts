@@ -48,9 +48,15 @@ export class TranslationWebSocketServer {
       });
 
       // Handle connection close
-      ws.on('close', () => {
-        console.log('WebSocket connection closed');
+      ws.on('close', (code, reason) => {
+        const connection = this.connections.get(ws);
+        console.log(`WebSocket connection closed - Code: ${code}, Reason: ${reason ? reason.toString() : 'No reason provided'}`);
+        console.log(`Connection details - Role: ${connection?.role}, Language: ${connection?.languageCode}, Session: ${connection?.sessionId}`);
         this.connections.delete(ws);
+        
+        // Log current connection stats
+        const stats = this.getStats();
+        console.log(`Remaining connections: ${stats.totalConnections} (Teachers: ${stats.teacherCount}, Students: ${stats.studentCount})`);
       });
 
       // Send initial connection confirmation

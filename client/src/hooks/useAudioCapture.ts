@@ -144,37 +144,90 @@ export function useAudioCapture(options: UseAudioCaptureOptions = {}) {
   const requestPermission = useCallback(async () => {
     try {
       setIsLoading(true);
+      setError(null); // Clear any previous errors
       console.log('Requesting microphone permission...');
       
-      // Check if we have permissions already
+      // Check current permission status if API is available
+      let currentPermission = 'unknown';
       if (navigator?.permissions?.query) {
         try {
           const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-          console.log('Microphone permission status:', permissionStatus.state);
+          currentPermission = permissionStatus.state;
+          console.log('Current microphone permission status:', currentPermission);
+          
+          // Set up a listener for permission changes
+          permissionStatus.onchange = () => {
+            console.log('Microphone permission changed to:', permissionStatus.state);
+            
+            // If permission was revoked, we need to update our state and potentially stop recording
+            if (permissionStatus.state === 'denied' && isRecording && audioCapture) {
+              console.log('Permission revoked while recording, stopping...');
+              audioCapture.stop();
+              setIsRecording(false);
+              setError(new Error('Microphone permission was revoked'));
+            }
+            
+            // If permission was granted, reload devices
+            if (permissionStatus.state === 'granted') {
+              console.log('Permission was granted, loading devices...');
+              loadDevices();
+            }
+          };
         } catch (e) {
           console.warn('Could not query microphone permission status:', e);
         }
       }
       
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      console.log('Microphone permission granted, access stream obtained');
+      // If permission is already denied, show a more helpful message
+      if (currentPermission === 'denied') {
+        const message = 'Microphone access was previously denied. Please reset permissions in your browser settings and try again.';
+        console.warn(message);
+        setError(new Error(message));
+        setIsLoading(false);
+        return false;
+      }
       
-      // Stop the stream right away, we just needed the permission
-      stream.getTracks().forEach(track => track.stop());
-      console.log('Audio tracks stopped');
-      
-      // Refresh device list after getting permission
-      await loadDevices();
-      
-      setIsLoading(false);
-      return true;
+      // Otherwise, proceed with requesting permission
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Microphone permission granted, access stream obtained');
+        
+        // Stop the stream right away, we just needed the permission
+        stream.getTracks().forEach(track => track.stop());
+        console.log('Audio tracks stopped');
+        
+        // Refresh device list after getting permission
+        await loadDevices();
+        
+        setIsLoading(false);
+        return true;
+      } catch (mediaError) {
+        console.error('Error accessing microphone:', mediaError);
+        
+        // Provide user-friendly error messages based on the error
+        let userMessage = 'Could not access microphone. ';
+        
+        if (mediaError.name === 'NotAllowedError' || mediaError.name === 'PermissionDeniedError') {
+          userMessage += 'Permission was denied. Please allow microphone access in your browser settings.';
+        } else if (mediaError.name === 'NotFoundError') {
+          userMessage += 'No microphone found. Please connect a microphone and try again.';
+        } else if (mediaError.name === 'NotReadableError' || mediaError.name === 'AbortError') {
+          userMessage += 'Microphone is already in use by another application or not working properly.';
+        } else {
+          userMessage += `Error: ${mediaError.message || mediaError.name || 'Unknown error'}`;
+        }
+        
+        setError(new Error(userMessage));
+        setIsLoading(false);
+        return false;
+      }
     } catch (err) {
-      console.error('Error requesting microphone permission:', err);
+      console.error('Unexpected error requesting microphone permission:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       setIsLoading(false);
       return false;
     }
-  }, [loadDevices]);
+  }, [audioCapture, isRecording, loadDevices]);
 
   return {
     isRecording,

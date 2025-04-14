@@ -120,45 +120,78 @@ export class AudioCapture {
    */
   public stop(): boolean {
     console.log('AudioCapture: Stopping recording...');
-    if (!this.isRecording) {
+    
+    // Immediately set recording state to false to prevent multiple stop calls
+    // or UI state updates before the actual stopping is complete
+    const wasRecording = this.isRecording;
+    this.isRecording = false;
+    
+    if (!wasRecording) {
       console.log('AudioCapture: Not recording, nothing to stop');
       return false;
     }
     
     try {
+      // Always clear the chunk timer first to prevent additional data requests
       this.clearChunkTimer();
       
-      // First pause the MediaRecorder to avoid state errors
-      if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-        console.log('AudioCapture: Stopping MediaRecorder');
-        this.mediaRecorder.stop();
-      } else {
-        console.log('AudioCapture: MediaRecorder not in recording state, cannot stop');
+      // Safely stop MediaRecorder if it exists and is recording
+      try {
+        if (this.mediaRecorder) {
+          if (this.mediaRecorder.state === 'recording') {
+            console.log('AudioCapture: Stopping MediaRecorder');
+            this.mediaRecorder.stop();
+          } else if (this.mediaRecorder.state === 'paused') {
+            console.log('AudioCapture: MediaRecorder was paused, resuming before stopping');
+            this.mediaRecorder.resume();
+            this.mediaRecorder.stop();
+          } else {
+            console.log(`AudioCapture: MediaRecorder in unexpected state: ${this.mediaRecorder.state}`);
+          }
+        }
+      } catch (recorderError) {
+        console.error('AudioCapture: Error stopping MediaRecorder:', recorderError);
+        // Continue execution to clean up other resources
       }
       
-      // Stop and release all tracks
-      if (this.stream) {
-        console.log('AudioCapture: Stopping and releasing audio tracks');
-        this.stream.getTracks().forEach(track => track.stop());
-        this.stream = null;
+      // Always stop and release all tracks
+      try {
+        if (this.stream) {
+          console.log('AudioCapture: Stopping and releasing audio tracks');
+          this.stream.getTracks().forEach(track => {
+            try {
+              track.stop();
+            } catch (trackError) {
+              console.error('AudioCapture: Error stopping track:', trackError);
+            }
+          });
+        }
+      } catch (streamError) {
+        console.error('AudioCapture: Error handling media stream:', streamError);
       }
       
-      // Reset state
-      this.isRecording = false;
+      // Reset all resources
+      this.stream = null;
       this.mediaRecorder = null;
       this.chunks = [];
       
       console.log('AudioCapture: Recording stopped successfully');
+      
+      // Notify about stop even if there were minor errors
+      this.options.onStop();
+      
       return true;
     } catch (error) {
-      console.error('AudioCapture: Error stopping recording:', error);
+      console.error('AudioCapture: Critical error stopping recording:', error);
       this.options.onError(error instanceof Error ? error : new Error(String(error)));
       
-      // Force reset state even on error
-      this.isRecording = false;
-      this.mediaRecorder = null;
+      // Make sure state is reset in any case
       this.stream = null;
+      this.mediaRecorder = null;
       this.chunks = [];
+      
+      // Still notify stop since we've reset the state
+      this.options.onStop();
       
       return false;
     }

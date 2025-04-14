@@ -153,7 +153,12 @@ export const TeacherInterface: React.FC = () => {
                         checked={isRecording}
                         onCheckedChange={(checked) => {
                           console.log('Toggle switch changed to:', checked);
-                          toggleRecording();
+                          // Explicitly call start or stop based on the desired state
+                          if (checked) {
+                            startRecording();
+                          } else {
+                            stopRecording();
+                          }
                         }}
                       />
                     </div>
