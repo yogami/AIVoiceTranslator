@@ -91,8 +91,13 @@ export function useTranslation(options: UseTranslationOptions) {
       
       // Handle different text scenarios
       if (!textToDisplay) {
-        console.log('No text in translation, using placeholder');
-        textToDisplay = "(No text received)";
+        console.log('No text in translation, may be filtered test content');
+        // Show more informative message about test content
+        if (data.data.filtered === true || originalText === '') {
+          textToDisplay = "⚠️ Detected test audio pattern (YouTube-style content). Please use real speech.";
+        } else {
+          textToDisplay = "(Waiting for speech...)";
+        }
       } else if (typeof textToDisplay !== 'string') {
         console.log('Translation text is not a string:', textToDisplay);
         textToDisplay = String(textToDisplay);

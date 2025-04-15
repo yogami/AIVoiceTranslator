@@ -484,9 +484,32 @@ export class TranslationWebSocketServer {
           // Use the processed buffer with WAV header for the OpenAI API
           const result = await translateSpeech(processedBuffer, sourceLanguage, targetLanguage);
           
-          // Skip empty translations (likely from short audio chunks)
+          // Skip empty translations (likely from short audio chunks or filtered content)
           if (!result.originalText && !result.translatedText) {
             console.log('Empty transcription result, skipping translation broadcasting');
+            // Still send a notification to the client, but with a filtered flag
+            for (const [ws, conn] of Array.from(this.connections.entries())) {
+              if (
+                (conn.role === 'student' && conn.languageCode === targetLanguage ||
+                 conn.role === 'teacher' && conn.sessionId === sessionId) &&
+                ws.readyState === WebSocket.OPEN
+              ) {
+                ws.send(JSON.stringify({
+                  type: 'translation',
+                  data: {
+                    sessionId,
+                    sourceLanguage,
+                    targetLanguage,
+                    originalText: "",
+                    translatedText: "",
+                    filtered: true,  // Add this flag to indicate it was filtered
+                    timestamp: new Date().toISOString(),
+                    latency: Date.now() - startTime
+                  }
+                }));
+                console.log(`Sent filtered content notification to ${conn.role} with language ${conn.languageCode}`);
+              }
+            }
             this.sendProcessingComplete(teacherConnection, [targetLanguage]);
             continue; // Skip to the next language
           }
