@@ -139,13 +139,16 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       console.log('Sending read stream to OpenAI API');
       console.log('Enhancing audio parameters for better transcription results...');
       
+      // Using a new prompt with a higher temperature to try to overcome the YouTube hallucination issue
+      console.log('MODIFIED: Using new transcription parameters to avoid YouTube-style hallucinations...');
+      
       const transcription = await openai.audio.transcriptions.create({
         file: createReadStream(tempFilePath),
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
-        temperature: 0.0, // Use lowest temperature for precise transcription
-        prompt: "Transcribe any audible speech precisely. The audio may contain natural pauses, background noise, or incomplete sentences. Detect and transcribe only the actual spoken words, do not include any text that isn't actually spoken.",
+        temperature: 0.3, // Using higher temperature to avoid deterministic hallucinations
+        prompt: "This is classroom speech in an educational setting. The speaker is talking about academic topics. Transcribe exactly what is spoken, do not add YouTube-style phrases like 'like and subscribe' or 'thanks for watching'. If you cannot clearly hear anything, return an empty string.",
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
