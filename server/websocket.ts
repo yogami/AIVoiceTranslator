@@ -306,18 +306,54 @@ export class TranslationWebSocketServer {
         break;
 
       case 'audio':
-        // Check if role is in payload and use it to validate or correct server-side role
-        if (payload.role === 'teacher' && connection.role !== 'teacher') {
-          console.log(`CRITICAL: Found role mismatch! Payload has teacher but connection has ${connection.role}. Fixing...`);
-          connection.role = 'teacher';
-          this.connections.set(ws, connection);
+        // EMERGENCY FIX: If the payload contains 'role=teacher', treat this as a teacher connection
+        // regardless of the connection's current role
+        if (payload.role === 'teacher') {
+          if (connection.role !== 'teacher') {
+            console.log(`CRITICAL: Teacher role in payload but connection has ${connection.role}. Fixing connection role...`);
+            connection.role = 'teacher';
+            this.connections.set(ws, connection);
+            
+            // Notify the client that we've updated their role
+            ws.send(JSON.stringify({ 
+              type: 'register', 
+              status: 'success',
+              data: { role: 'teacher', languageCode: connection.languageCode, forcedUpdate: true }
+            }));
+          }
+          
+          // Process the audio since we now know it's from a teacher
+          if (payload.audio) {
+            console.log(`Processing teacher audio (payload.role=teacher), data length: ${payload.audio.length}`);
+            try {
+              // Temporarily create a teacher connection for processing if needed
+              const teacherConnection = {
+                ...connection,
+                role: 'teacher' // Ensure role is teacher for processing
+              };
+              
+              await this.processAndBroadcastAudio(teacherConnection, payload.audio);
+            } catch (err) {
+              console.error('Error in processAndBroadcastAudio:', err);
+              // Try to notify teacher about the error
+              try {
+                if (ws.readyState === WebSocket.OPEN) {
+                  ws.send(JSON.stringify({
+                    type: 'error',
+                    error: 'Failed to process audio: ' + (err instanceof Error ? err.message : String(err))
+                  }));
+                }
+              } catch (sendErr) {
+                console.error('Failed to send error message to client:', sendErr);
+              }
+            }
+          } else {
+            console.log('Received teacher audio message but no audio data was included');
+          }
         }
-        
-        // Process audio from teacher and broadcast translations
-        const effectiveRole = payload.role || connection.role;
-        
-        if ((effectiveRole === 'teacher' || connection.role === 'teacher') && payload.audio) {
-          console.log(`Received audio message from teacher (effectiveRole=${effectiveRole}, connectionRole=${connection.role}), data length: ${payload.audio.length}`);
+        // Original logic for non-overridden connections
+        else if (connection.role === 'teacher' && payload.audio) {
+          console.log(`Received audio message from teacher connection, data length: ${payload.audio.length}`);
           try {
             await this.processAndBroadcastAudio(connection, payload.audio);
           } catch (err) {
@@ -337,6 +373,7 @@ export class TranslationWebSocketServer {
         } else {
           console.log(`Received audio message but conditions not met:`, 
             `role=${connection.role}`, 
+            `payload.role=${payload.role || 'not set'}`,
             `hasAudio=${!!payload.audio}`,
             `audioLength=${payload.audio ? payload.audio.length : 0}`);
         }
