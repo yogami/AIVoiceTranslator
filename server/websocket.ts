@@ -9,6 +9,7 @@ interface UserConnection {
   role: 'teacher' | 'student';
   languageCode: string;
   sessionId: string;
+  lastActivity: number; // Timestamp to track last client activity
 }
 
 export class TranslationWebSocketServer {
@@ -63,13 +64,13 @@ export class TranslationWebSocketServer {
         ws,
         role: initialRole,
         languageCode: initialLanguage,
-        sessionId
+        sessionId,
+        lastActivity: Date.now() // Initialize activity timestamp
       };
       
       this.connections.set(ws, connection);
       
-      // Initialize lastActivity timestamp for this connection
-      connection.lastActivity = Date.now();
+      // lastActivity already initialized in the connection object
       
       // Set up server-side ping interval to keep connection alive
       const pingInterval = setInterval(() => {
