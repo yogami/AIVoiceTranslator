@@ -194,6 +194,9 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         /^hello(?: world)?\.?$/i
       ];
       
+      // DIAGNOSTIC: Log the exact transcription from OpenAI for debugging
+      console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${transcribedText}"`);
+      
       // Check if it's an allowed test phrase first
       const isAllowedTestPhrase = allowedTestPhrases.some(pattern => pattern.test(transcribedText.trim()));
       if (isAllowedTestPhrase) {
