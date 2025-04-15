@@ -327,9 +327,10 @@ export class TranslationWebSocketServer {
             console.log(`Processing teacher audio (payload.role=teacher), data length: ${payload.audio.length}`);
             try {
               // Temporarily create a teacher connection for processing if needed
-              const teacherConnection = {
+              // Use type assertion to ensure TypeScript recognizes it correctly
+              const teacherConnection: UserConnection = {
                 ...connection,
-                role: 'teacher' // Ensure role is teacher for processing
+                role: 'teacher' as 'teacher' // Explicit type cast to satisfy TypeScript
               };
               
               await this.processAndBroadcastAudio(teacherConnection, payload.audio);

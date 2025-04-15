@@ -49,6 +49,7 @@ export class WebSocketClient {
 
   public connect() {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      console.log('WebSocket already connected or connecting - disconnect first if you need to reconnect with new params');
       return;
     }
 
@@ -60,19 +61,25 @@ export class WebSocketClient {
     // Include role and language as query parameters for immediate server-side role assignment
     const params = new URLSearchParams();
     
-    // CRITICAL FIX: Ensure role param is correct, especially if roleLocked is true
-    if (this.roleLocked && this.role === 'teacher') {
-      console.log('Critical: Connecting with locked teacher role!');
-      params.append('role', 'teacher'); // Force teacher role in URL when locked
-    } else {
-      params.append('role', this.role);
-    }
+    // EMERGENCY FIX: Always use this.role directly for connection
+    const connectionRole = this.role;
+    console.log(`[CRITICAL] Connecting WebSocket with role=${connectionRole}, locked=${this.roleLocked}`);
+    params.append('role', connectionRole);
     
     params.append('language', this.languageCode);
     const wsUrl = `${protocol}//${window.location.host}/ws?${params.toString()}`;
     
-    console.log(`Connecting to WebSocket at ${wsUrl} with role=${params.get('role')}, language=${this.languageCode}, roleLocked=${this.roleLocked}`);
-    this.ws = new WebSocket(wsUrl);
+    // Double-check the URL doesn't have any issues
+    if (connectionRole === 'teacher' && !wsUrl.includes('role=teacher')) {
+      console.error('CRITICAL ERROR: URL does not contain teacher role! Manual override required.');
+      const forcedUrl = `${protocol}//${window.location.host}/ws?role=teacher&language=${this.languageCode}`;
+      console.log(`Forcing URL to: ${forcedUrl}`);
+      this.ws = new WebSocket(forcedUrl);
+    } else {
+      console.log(`Connecting to WebSocket at ${wsUrl} with explicit query params: role=${params.get('role')}, language=${params.get('language')}`);
+      this.ws = new WebSocket(wsUrl);
+    }
+    
     this.setupEventHandlers();
   }
 
@@ -379,15 +386,23 @@ export class WebSocketClient {
       return false;
     }
     
+    // CRITICAL: If this is a teacher interface, always force the role to be 'teacher'
+    let audioRole = this.role;
+    if (this.roleLocked) {
+      audioRole = 'teacher';
+    }
+    
     // Log current role and locked state to verify
-    console.log(`WebSocketClient: Audio sent from role=${this.role}, locked=${this.roleLocked}`);
+    console.log(`WebSocketClient: Audio sent from role=${audioRole} (client role=${this.role}), locked=${this.roleLocked}`);
     
     try {
+      // Include role both at top level and in payload for maximum compatibility
       return this.send({
         type: 'audio',
+        role: audioRole, // Top-level role field
         payload: {
           audio: audioData,
-          role: this.role  // Explicitly include role in payload for validation
+          role: audioRole  // Explicitly include role in payload for validation
         }
       });
     } catch (err) {
