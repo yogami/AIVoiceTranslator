@@ -505,7 +505,7 @@ export class WebSocketClient {
     }
   }
 
-  public getStatus() {
+  public getStatus(): WebSocketStatus {
     return this.status;
   }
 
