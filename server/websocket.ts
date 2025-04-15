@@ -68,6 +68,25 @@ export class TranslationWebSocketServer {
       
       this.connections.set(ws, connection);
       
+      // Set up server-side ping interval to keep connection alive
+      const pingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            console.log(`Sending server-initiated ping to connection ${sessionId}`);
+            ws.send(JSON.stringify({
+              type: 'ping',
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            console.error('Error sending server ping:', error);
+            clearInterval(pingInterval);
+          }
+        } else {
+          console.log(`Connection ${sessionId} is no longer open (readyState=${ws.readyState}), stopping ping interval`);
+          clearInterval(pingInterval);
+        }
+      }, 15000); // Send ping every 15 seconds
+      
       // Send confirmation to client with role information
       try {
         console.log(`Sending connection confirmation with sessionId: ${sessionId}`);
