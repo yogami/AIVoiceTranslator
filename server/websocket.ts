@@ -85,7 +85,7 @@ export class TranslationWebSocketServer {
           console.log(`Connection ${sessionId} is no longer open (readyState=${ws.readyState}), stopping ping interval`);
           clearInterval(pingInterval);
         }
-      }, 15000); // Send ping every 15 seconds
+      }, 5000); // Send ping every 5 seconds (reduced from 15 seconds)
       
       // Send confirmation to client with role information
       try {
@@ -122,11 +122,25 @@ export class TranslationWebSocketServer {
         }
       });
 
+      // Create a tracking variable for the ping interval
+      const pingIntervalRef = { interval: pingInterval };
+      
+      // Store the ping interval reference on the ws object for cleanup
+      (ws as any)._pingInterval = pingIntervalRef;
+      
       // Handle connection close
       ws.on('close', (code, reason) => {
         const connection = this.connections.get(ws);
         console.log(`WebSocket connection closed - Code: ${code}, Reason: ${reason ? reason.toString() : 'No reason provided'}`);
         console.log(`Connection details - Role: ${connection?.role}, Language: ${connection?.languageCode}, Session: ${connection?.sessionId}`);
+        
+        // Clean up the ping interval
+        if ((ws as any)._pingInterval?.interval) {
+          clearInterval((ws as any)._pingInterval.interval);
+          console.log(`Cleared ping interval for connection ${connection?.sessionId}`);
+        }
+        
+        // Remove from connections map
         this.connections.delete(ws);
         
         // Log current connection stats
