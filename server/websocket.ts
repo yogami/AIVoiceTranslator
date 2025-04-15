@@ -732,7 +732,8 @@ export class TranslationWebSocketServer {
     let receivedCount = 0;
     
     // Broadcast to all applicable connections (teacher + students with matching language)
-    for (const [ws, conn] of this.connections.entries()) {
+    // Convert Map.entries() to Array to avoid downlevelIteration issues
+    for (const [ws, conn] of Array.from(this.connections.entries())) {
       const isRelevantTeacher = conn.role === 'teacher' && conn.sessionId === sessionId;
       const isRelevantStudent = conn.role === 'student' && conn.languageCode === targetLanguage;
       
