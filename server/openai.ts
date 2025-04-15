@@ -187,11 +187,20 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       ];
       
       // Add an allowlist for legitimate test phrases that should bypass the filter
+      // Greatly expand our allowlist to catch more variations
       const allowedTestPhrases = [
-        /^this is a test(?: message)?\.?$/i,
-        /^testing(?: 1,? 2,? 3)?\.?$/i,
-        /^test(?: audio)?\.?$/i,
-        /^hello(?: world)?\.?$/i
+        /this is a test/i,
+        /testing/i,
+        /test/i,
+        /hello/i,
+        /hi there/i,
+        /can you hear me/i,
+        /testing.*microphone/i,
+        /check.*check/i,
+        /mic test/i,
+        /sample speech/i,
+        /today we will/i,
+        /let.*try/i
       ];
       
       // DIAGNOSTIC: Log the exact transcription from OpenAI for debugging
