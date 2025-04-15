@@ -65,6 +65,41 @@ export class WebSocketClient {
     this.setupEventHandlers();
   }
 
+  // Keep-alive ping interval reference
+  private keepAlivePingInterval: number | null = null;
+  
+  // Start sending keep-alive pings to prevent timeouts
+  private startKeepAlivePing() {
+    // Clear any existing ping interval
+    this.stopKeepAlivePing();
+    
+    // Send a ping every 15 seconds
+    this.keepAlivePingInterval = window.setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        console.log('Sending WebSocket keep-alive ping');
+        // Send a simple ping message
+        this.send({
+          type: 'ping',
+          timestamp: Date.now()
+        });
+      } else {
+        console.warn('Cannot send keep-alive ping, WebSocket not open');
+        // If connection is lost, attempt to reconnect
+        if (this.ws?.readyState !== WebSocket.CONNECTING) {
+          this.attemptReconnect();
+        }
+      }
+    }, 15000); // 15 seconds
+  }
+  
+  // Stop the keep-alive pings
+  private stopKeepAlivePing() {
+    if (this.keepAlivePingInterval !== null) {
+      clearInterval(this.keepAlivePingInterval);
+      this.keepAlivePingInterval = null;
+    }
+  }
+  
   private setupEventHandlers() {
     if (!this.ws) return;
 
@@ -80,6 +115,9 @@ export class WebSocketClient {
         console.log('Registering with server after connection delay');
         // Register with server
         this.register(this.role, this.languageCode);
+        
+        // Add a keep-alive ping to prevent the connection from timing out
+        this.startKeepAlivePing();
       }, 500);
     };
 
@@ -198,8 +236,8 @@ export class WebSocketClient {
       return;
     }
 
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
-    console.log(`Attempting to reconnect in ${delay}ms`);
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
     
     if (this.reconnectTimeout !== null) {
       clearTimeout(this.reconnectTimeout);
@@ -207,6 +245,14 @@ export class WebSocketClient {
     
     this.reconnectTimeout = window.setTimeout(() => {
       this.reconnectAttempts++;
+      
+      // Make sure we're actually disconnected before trying to reconnect
+      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+        console.log('Reconnect not needed - already connected or connecting');
+        return;
+      }
+      
+      console.log('Executing reconnect attempt');
       this.connect();
     }, delay);
   }
