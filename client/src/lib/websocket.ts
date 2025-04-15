@@ -387,6 +387,42 @@ export class WebSocketClient {
       return false;
     }
   }
+  
+  /**
+   * Send transcription text directly to the server (used by Web Speech API implementation)
+   * This bypasses the audio processing pipeline and sends text directly for translation
+   * @param text The transcribed text to send for translation
+   * @returns true if the message was sent successfully, false otherwise
+   */
+  public sendTranscription(text: string) {
+    console.log('WebSocketClient: Sending transcription text:', text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+    
+    // Only send if we're connected
+    if (this.status !== 'connected') {
+      console.warn('WebSocketClient: Cannot send transcription - not connected');
+      return false;
+    }
+    
+    // Only teachers can send transcriptions
+    if (this.role !== 'teacher') {
+      console.warn('WebSocketClient: Only teachers can send transcriptions, current role:', this.role);
+      return false;
+    }
+    
+    try {
+      return this.send({
+        type: 'transcription',
+        payload: {
+          text: text,
+          role: this.role,
+          languageCode: this.languageCode
+        }
+      });
+    } catch (err) {
+      console.error('WebSocketClient: Error sending transcription:', err);
+      return false;
+    }
+  }
 
   public register(role: UserRole, languageCode: string) {
     // Only allow role to be changed if it's not locked

@@ -703,6 +703,86 @@ export class TranslationWebSocketServer {
       }));
     }
   }
+  
+  /**
+   * Broadcast a translation to appropriate clients
+   * @param teacherConnection The teacher connection that sent the original message
+   * @param originalText The original transcribed text
+   * @param translatedText The translated text
+   * @param sourceLanguage The source language
+   * @param targetLanguage The target language
+   */
+  private broadcastTranslation(
+    teacherConnection: UserConnection,
+    originalText: string,
+    translatedText: string,
+    sourceLanguage: string,
+    targetLanguage: string
+  ): void {
+    // Calculate broadcast timestamp
+    const timestamp = new Date().toISOString();
+    const sessionId = teacherConnection.sessionId;
+    
+    // Log the translation
+    console.log(`Broadcasting translation from ${sourceLanguage} to ${targetLanguage}:`);
+    console.log(`- Original: "${originalText}"`);
+    console.log(`- Translated: "${translatedText}"`);
+    
+    // Track which connections received the translation
+    let receivedCount = 0;
+    
+    // Broadcast to all applicable connections (teacher + students with matching language)
+    for (const [ws, conn] of this.connections.entries()) {
+      const isRelevantTeacher = conn.role === 'teacher' && conn.sessionId === sessionId;
+      const isRelevantStudent = conn.role === 'student' && conn.languageCode === targetLanguage;
+      
+      if ((isRelevantTeacher || isRelevantStudent) && ws.readyState === WebSocket.OPEN) {
+        try {
+          // Send the translation
+          ws.send(JSON.stringify({
+            type: 'translation',
+            data: {
+              sessionId,
+              sourceLanguage,
+              targetLanguage,
+              originalText,
+              translatedText,
+              timestamp
+            }
+          }));
+          
+          receivedCount++;
+          
+          console.log(`✓ Sent translation to ${conn.role} with language ${conn.languageCode}`);
+        } catch (error) {
+          console.error(`Error sending translation to ${conn.role}:`, error);
+        }
+      }
+    }
+    
+    console.log(`Translation broadcasted to ${receivedCount} connection(s)`);
+    
+    // Also store the translation in the database via storage
+    try {
+      // Store translation record
+      storage.addTranslation({
+        sourceLanguage,
+        targetLanguage,
+        originalText,
+        translatedText,
+        latency: 0 // No latency data for direct transcription
+      }).catch(err => console.error('Error storing translation:', err));
+      
+      // Store transcript record for the target language
+      storage.addTranscript({
+        sessionId,
+        language: targetLanguage,
+        text: translatedText
+      }).catch(err => console.error('Error storing transcript:', err));
+    } catch (error) {
+      console.error('Error storing translation/transcript:', error);
+    }
+  }
 
   // Helper method to check if a buffer has a WAV header
   private hasWavHeader(buffer: Buffer): boolean {

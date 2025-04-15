@@ -265,17 +265,9 @@ export function useTranscription({
       return false;
     }
     
-    // Send as a transcription message
-    return wsConnection.socket ? wsConnection.send({
-      type: 'transcription',
-      payload: {
-        text,
-        language,
-        role: wsConnection.role,
-        sessionId: wsConnection.sessionId
-      }
-    }) : false;
-  }, [wsConnection, language]);
+    // Send as a transcription message using the wsClient sendTranscription method
+    return wsClient.sendTranscription(text);
+  }, [wsConnection]);
   
   return {
     isTranscribing,

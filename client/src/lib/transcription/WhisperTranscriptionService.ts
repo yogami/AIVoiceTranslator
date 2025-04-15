@@ -3,7 +3,8 @@ import {
   TranscriptionOptions, 
   TranscriptionListeners,
   TranscriptionResult,
-  TranscriptionError
+  TranscriptionError,
+  TranscriptionErrorType
 } from './TranscriptionService';
 import { wsClient } from '../websocket';
 
