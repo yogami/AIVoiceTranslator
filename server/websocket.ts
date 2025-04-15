@@ -257,6 +257,35 @@ export class TranslationWebSocketServer {
         }));
         break;
         
+      case 'webSpeechTranscription':
+        // Handle Web Speech API transcription specifically as a fallback source
+        if (connection.role !== 'teacher') {
+          console.warn('Received webSpeechTranscription from non-teacher role:', connection.role);
+          // Only teachers are allowed to send transcriptions
+          break;
+        }
+        
+        if (!payload.text || typeof payload.text !== 'string') {
+          console.warn('Received webSpeechTranscription with invalid text:', payload.text);
+          break;
+        }
+        
+        console.log(`Received Web Speech API fallback transcription: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
+        console.log(`🔊 FALLBACK - WEB SPEECH API TEXT: "${payload.text}"`);
+        
+        // Store the latest Web Speech API transcription for fallback use
+        const webSpeechSessionKey = `${connection.role}_${connection.sessionId}`;
+        this.latestWebSpeechTranscriptions.set(webSpeechSessionKey, {
+          text: payload.text,
+          timestamp: Date.now(),
+          sourceLang: connection.languageCode
+        });
+        
+        // We don't immediately translate the Web Speech transcriptions
+        // They are used as fallback when processAndBroadcastAudio gets empty results from Whisper
+        console.log('Stored Web Speech API fallback transcription for future use');
+        break;
+        
       case 'transcription':
         // Handle direct text transcription from Web Speech API
         if (connection.role !== 'teacher') {
@@ -638,7 +667,7 @@ export class TranslationWebSocketServer {
             const recentWebSpeechTranscription = this.latestWebSpeechTranscriptions.get(sessionKey);
             
             if (recentWebSpeechTranscription && 
-                Date.now() - recentWebSpeechTranscription.timestamp < 5000) { // Use only if less than 5 seconds old
+                Date.now() - recentWebSpeechTranscription.timestamp < 10000) { // Use only if less than 10 seconds old
               // Use the Web Speech API transcription as fallback
               console.log(`Using Web Speech API transcription as fallback: "${recentWebSpeechTranscription.text}"`);
               console.log(`FALLBACK ACTIVE: Using Web Speech API result instead of Whisper API`);

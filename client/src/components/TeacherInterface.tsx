@@ -451,7 +451,7 @@ export const TeacherInterface: React.FC = () => {
                       </div>
                       <div><strong>Current Transcript:</strong> {webSpeech.transcript || '(empty)'}</div>
                       {webSpeech.error && (
-                        <div className="text-red-500"><strong>Error:</strong> {webSpeech.error}</div>
+                        <div className="text-red-500"><strong>Error:</strong> {String(webSpeech.error)}</div>
                       )}
                     </div>
                     
