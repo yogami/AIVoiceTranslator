@@ -311,7 +311,7 @@ export class TranslationWebSocketServer {
         const isTeacherAudio = 
           (payload.role === 'teacher') ||                  // Payload explicitly says teacher
           (connection.role === 'teacher') ||               // Connection registered as teacher
-          (message.role === 'teacher') ||                  // Top-level message has teacher role
+          ((message as any).role === 'teacher') ||         // Top-level message has teacher role
           (payload?.roleLocked === true);                 // Role is locked, likely a teacher
           
         if (isTeacherAudio) {
@@ -368,7 +368,7 @@ export class TranslationWebSocketServer {
           console.log(`Received audio message but not treating as teacher audio:`, 
             `connection.role=${connection.role}`, 
             `payload.role=${payload.role || 'not set'}`,
-            `message.role=${message.role || 'not set'}`,
+            `message.role=${(message as any).role || 'not set'}`,
             `hasAudio=${!!payload.audio}`,
             `audioLength=${payload.audio ? payload.audio.length : 0}`);
         }

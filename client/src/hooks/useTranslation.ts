@@ -52,11 +52,12 @@ export function useTranslation(options: UseTranslationOptions) {
   
   // For teacher role, ensure it's locked as early as possible
   useEffect(() => {
-    if (options.role === 'teacher') {
+    // Check both the role option and the forceTeacherRole flag
+    if (options.role === 'teacher' || options.forceTeacherRole) {
       // Use the WebSocket client imported at the top of the file
       // Set and lock the role - this is a critical step that prevents role switching
       wsClient.setRoleAndLock('teacher');
-      console.log('useTranslation: Teacher role locked at hook initialization');
+      console.log('useTranslation: Teacher role locked at hook initialization (forced:', !!options.forceTeacherRole, ')');
     }
   }, [options.role]);
 
