@@ -145,6 +145,21 @@ export class TranslationWebSocketServer {
     
 
     switch (type) {
+      case 'ping':
+        // Respond to ping messages to keep the connection alive
+        if (ws.readyState === WebSocket.OPEN) {
+          console.log('Received ping, sending pong response');
+          try {
+            ws.send(JSON.stringify({
+              type: 'pong',
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            console.error('Error sending pong response:', error);
+          }
+        }
+        break;
+        
       case 'register':
         // Update connection info
         if (payload.role) {

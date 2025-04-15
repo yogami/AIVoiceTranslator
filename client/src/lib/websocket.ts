@@ -27,7 +27,7 @@ export interface TranslationPayload {
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10; // Increased max attempts
   private reconnectTimeout: number | null = null;
   private listeners: Map<string, ((data: any) => void)[]> = new Map();
   private status: WebSocketStatus = 'disconnected';
@@ -73,23 +73,32 @@ export class WebSocketClient {
     // Clear any existing ping interval
     this.stopKeepAlivePing();
     
-    // Send a ping every 15 seconds
+    // Send a ping every 10 seconds (reduced from 15 seconds for more reliability)
     this.keepAlivePingInterval = window.setInterval(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         console.log('Sending WebSocket keep-alive ping');
-        // Send a simple ping message
-        this.send({
-          type: 'ping',
-          timestamp: Date.now()
-        });
+        try {
+          // Send a simple ping message
+          this.send({
+            type: 'ping',
+            timestamp: Date.now()
+          });
+        } catch (err) {
+          console.error('Error sending keep-alive ping:', err);
+          // If sending fails, try to reconnect
+          this.attemptReconnect();
+        }
       } else {
-        console.warn('Cannot send keep-alive ping, WebSocket not open');
+        console.warn('Cannot send keep-alive ping, WebSocket not open (readyState: ' + 
+                    (this.ws ? this.ws.readyState : 'null') + ')');
+        
         // If connection is lost, attempt to reconnect
-        if (this.ws?.readyState !== WebSocket.CONNECTING) {
+        if (!this.ws || (this.ws.readyState !== WebSocket.CONNECTING && this.ws.readyState !== WebSocket.OPEN)) {
+          console.log('Connection appears lost, attempting reconnect');
           this.attemptReconnect();
         }
       }
-    }, 15000); // 15 seconds
+    }, 10000); // 10 seconds
   }
   
   // Stop the keep-alive pings
@@ -231,12 +240,24 @@ export class WebSocketClient {
   }
 
   private attemptReconnect() {
+    // Reset and create a new connection if we hit max attempts
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('Max reconnect attempts reached');
-      return;
+      console.log('Max reconnect attempts reached, resetting connection and trying once more');
+      this.stopKeepAlivePing();
+      this.reconnectAttempts = 0;
+      if (this.ws) {
+        try {
+          // Force close the existing socket if it's still around
+          this.ws.close();
+        } catch (err) {
+          console.error('Error closing socket during reset:', err);
+        }
+        this.ws = null;
+      }
     }
 
-    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+    // Use exponential backoff with a minimum of 1s and maximum of 5s
+    const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 5000);
     console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
     
     if (this.reconnectTimeout !== null) {
@@ -252,7 +273,19 @@ export class WebSocketClient {
         return;
       }
       
+      // Clean up any existing socket
+      if (this.ws) {
+        try {
+          this.ws.close();
+        } catch (err) {
+          console.error('Error closing existing socket before reconnect:', err);
+        }
+        this.ws = null;
+      }
+      
       console.log('Executing reconnect attempt');
+      this.status = 'connecting';
+      this.notifyListeners('status', this.status);
       this.connect();
     }, delay);
   }
