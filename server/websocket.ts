@@ -244,6 +244,66 @@ export class TranslationWebSocketServer {
           data: { role: connection.role, languageCode: connection.languageCode }
         }));
         break;
+        
+      case 'transcription':
+        // Handle direct text transcription from Web Speech API
+        if (connection.role !== 'teacher') {
+          console.warn('Received transcription message from non-teacher role:', connection.role);
+          // Only teachers are allowed to send transcriptions
+          break;
+        }
+        
+        if (!payload.text || typeof payload.text !== 'string') {
+          console.warn('Received transcription message with invalid text:', payload.text);
+          break;
+        }
+        
+        console.log(`Received Web Speech API transcription: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
+        
+        // Get list of target languages (include the source language for recording)
+        const targetLanguages = Array.from(this.connections.values())
+          .filter(conn => conn.role === 'student' || conn.sessionId === connection.sessionId)
+          .map(conn => conn.languageCode)
+          .filter((lang, index, self) => self.indexOf(lang) === index); // Unique languages
+          
+        console.log(`Translating to ${targetLanguages.length} languages:`, targetLanguages);
+        
+        // Process transcription and translate to all required languages
+        targetLanguages.forEach(async (targetLanguage) => {
+          try {
+            if (targetLanguage === connection.languageCode) {
+              // If target language is the same as source, no translation needed
+              this.broadcastTranslation(
+                connection,
+                payload.text,
+                payload.text, // Same text for source & target
+                connection.languageCode,
+                targetLanguage
+              );
+            } else {
+              // Translate to target language using OpenAI
+              const { originalText, translatedText } = await translateSpeech(
+                Buffer.from(''), // Empty buffer since we're using pre-transcribed text
+                connection.languageCode,
+                targetLanguage,
+                payload.text // Pass the transcribed text from Web Speech API
+              );
+              
+              // Broadcast the translation to clients
+              this.broadcastTranslation(
+                connection,
+                originalText,
+                translatedText,
+                connection.languageCode,
+                targetLanguage
+              );
+            }
+          } catch (error) {
+            console.error(`Error translating from ${connection.languageCode} to ${targetLanguage}:`, error);
+          }
+        });
+        
+        break;
 
       case 'audio':
         // Check if role is in payload and use it to validate or correct server-side role
@@ -297,67 +357,6 @@ export class TranslationWebSocketServer {
         }
         break;
         
-      case 'transcription':
-        // Handle direct transcription from Web Speech API
-        if ((connection.role === 'teacher' || payload.role === 'teacher') && payload.text) {
-          console.log(`Received direct transcription from browser Web Speech API: "${payload.text}"`);
-          
-          // Prepare targets to translate to
-          let targetLanguages: string[] = [connection.languageCode]; // Start with source language
-          
-          // Find other connected students with different language preferences
-          for (const conn of Array.from(this.connections.values())) {
-            if (conn.role === 'student' && !targetLanguages.includes(conn.languageCode)) {
-              targetLanguages.push(conn.languageCode);
-            }
-          }
-          
-          try {
-            // Process each language translation separately
-            for (const targetLanguage of targetLanguages) {
-              console.log(`Web Speech API - Translating from ${connection.languageCode} to ${targetLanguage}...`);
-              
-              // Only translate if needed (different languages)
-              if (targetLanguage !== connection.languageCode) {
-                try {
-                  // Use the OpenAI API for translation (not transcription)
-                  const { translatedText } = await translateSpeech(
-                    Buffer.from(''), // Empty buffer since we're just translating text
-                    connection.languageCode,
-                    targetLanguage,
-                    payload.text // Pass the text directly
-                  );
-                  
-                  // Send to appropriate clients
-                  this.broadcastTranslation(
-                    connection,
-                    payload.text,
-                    translatedText || payload.text,
-                    connection.languageCode,
-                    targetLanguage
-                  );
-                } catch (error) {
-                  console.error(`Error translating from ${connection.languageCode} to ${targetLanguage}:`, error);
-                }
-              } else {
-                // Same language, just broadcast the original
-                this.broadcastTranslation(
-                  connection,
-                  payload.text,
-                  payload.text,
-                  connection.languageCode,
-                  targetLanguage
-                );
-              }
-            }
-            
-            console.log(`Processed Web Speech API transcription: "${payload.text}"`);
-          } catch (error) {
-            console.error('Error processing Web Speech API transcription:', error);
-          }
-        }
-        break;
-
       default:
         ws.send(JSON.stringify({ 
           type: 'error', 

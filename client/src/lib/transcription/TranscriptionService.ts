@@ -1,34 +1,44 @@
 /**
- * TranscriptionService interface - defines the common API for all transcription services
- * 
- * This allows different transcription engines to be swapped in and out easily.
+ * Basic result of a transcription operation
  */
-
-export type TranscriptionResult = {
+export interface TranscriptionResult {
   text: string;
   isFinal: boolean;
   confidence?: number;
   languageCode?: string;
-};
+}
 
+/**
+ * Possible error types in transcription
+ */
 export type TranscriptionErrorType = 
   | 'permission_denied'
+  | 'network_error' 
   | 'not_supported'
-  | 'network_error'
   | 'unknown';
 
-export type TranscriptionError = {
+/**
+ * Error object for transcription errors
+ */
+export interface TranscriptionError {
   type: TranscriptionErrorType;
   message: string;
   original?: Error;
-};
+}
 
+/**
+ * Options for configuring transcription services
+ */
 export interface TranscriptionOptions {
   language?: string;
   continuous?: boolean;
   interimResults?: boolean;
+  role?: 'teacher' | 'student';
 }
 
+/**
+ * Listeners for transcription events
+ */
 export interface TranscriptionListeners {
   onTranscriptionResult?: (result: TranscriptionResult) => void;
   onTranscriptionError?: (error: TranscriptionError) => void;
@@ -36,34 +46,37 @@ export interface TranscriptionListeners {
   onTranscriptionEnd?: () => void;
 }
 
+/**
+ * Common interface for all transcription services
+ */
 export interface TranscriptionService {
   /**
-   * Check if this transcription service is supported in the current environment
+   * Check if this service is supported in the current environment
    */
   isSupported(): boolean;
   
   /**
-   * Start transcription
+   * Start the transcription process
    */
-  start(): boolean;
+  start(): boolean | Promise<boolean>;
   
   /**
-   * Stop transcription
+   * Stop the transcription process
    */
   stop(): boolean;
   
   /**
-   * Abort transcription (immediate stop)
+   * Abort transcription and clean up all resources
    */
   abort(): boolean;
   
   /**
-   * Check if currently transcribing
+   * Check if transcription is active
    */
   isActive(): boolean;
   
   /**
-   * Update transcription parameters
+   * Update transcription options
    */
   updateOptions(options: TranscriptionOptions): void;
   

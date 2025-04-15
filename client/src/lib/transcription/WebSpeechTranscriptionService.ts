@@ -3,7 +3,8 @@ import {
   TranscriptionOptions, 
   TranscriptionListeners,
   TranscriptionResult,
-  TranscriptionError
+  TranscriptionError,
+  TranscriptionErrorType
 } from './TranscriptionService';
 
 // Type definitions for the Web Speech API
@@ -23,13 +24,28 @@ interface SpeechRecognitionErrorEvent extends Event {
   message: string;
 }
 
+// Define SpeechRecognition type
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  maxAlternatives: number;
+  onstart: (event: Event) => void;
+  onend: (event: Event) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
 // Override Window interface to include Web Speech API
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-    mozSpeechRecognition: typeof SpeechRecognition;
-    msSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: { new(): SpeechRecognition };
+    webkitSpeechRecognition: { new(): SpeechRecognition };
+    mozSpeechRecognition: { new(): SpeechRecognition };
+    msSpeechRecognition: { new(): SpeechRecognition };
   }
 }
 
