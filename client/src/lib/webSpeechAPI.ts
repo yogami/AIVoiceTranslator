@@ -3,6 +3,70 @@
  * An alternative to OpenAI Whisper API for local transcription
  */
 
+// Define custom types for the Web Speech API because TypeScript doesn't 
+// include these by default
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+  interpretation: any;
+}
+
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+  length: number;
+}
+
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+  length: number;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+// Declare the SpeechRecognition class
+interface SpeechRecognition extends EventTarget {
+  grammar: any;
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  serviceURI: string;
+  
+  start(): void;
+  stop(): void;
+  abort(): void;
+  
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+  onstart: (() => void) | null;
+  onnomatch: (() => void) | null;
+  onsoundstart: (() => void) | null;
+  onsoundend: (() => void) | null;
+  onspeechstart: (() => void) | null;
+  onspeechend: (() => void) | null;
+  onaudiostart: (() => void) | null;
+  onaudioend: (() => void) | null;
+}
+
+// Declare the constructor
+interface SpeechRecognitionConstructor {
+  new (): SpeechRecognition;
+  prototype: SpeechRecognition;
+}
+
+// Declare the global interface extensions
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
 interface WebSpeechResult {
   transcript: string;
   isFinal: boolean;
@@ -40,7 +104,7 @@ export class WebSpeechRecognizer {
   private initRecognition() {
     // Browser compatibility for SpeechRecognition
     const SpeechRecognition = window.SpeechRecognition || 
-                             (window as any).webkitSpeechRecognition;
+                             window.webkitSpeechRecognition;
     
     if (!SpeechRecognition) {
       console.error('SpeechRecognition is not supported in this browser');
@@ -53,7 +117,7 @@ export class WebSpeechRecognizer {
     this.recognition.continuous = true;
     this.recognition.maxAlternatives = 1;
     
-    this.recognition.onresult = (event) => {
+    this.recognition.onresult = (event: SpeechRecognitionEvent) => {
       if (!this.onResultCallback) return;
       
       const lastResult = event.results[event.results.length - 1];
@@ -66,7 +130,7 @@ export class WebSpeechRecognizer {
       });
     };
     
-    this.recognition.onerror = (event) => {
+    this.recognition.onerror = (event: any) => {
       if (this.onErrorCallback) {
         this.onErrorCallback(event);
       }

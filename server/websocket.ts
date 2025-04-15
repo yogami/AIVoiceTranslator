@@ -303,24 +303,58 @@ export class TranslationWebSocketServer {
           console.log(`Received direct transcription from browser Web Speech API: "${payload.text}"`);
           
           // Prepare targets to translate to
-          let targetLanguages = [connection.languageCode]; // Start with source language
+          let targetLanguages: string[] = [connection.languageCode]; // Start with source language
           
           // Find other connected students with different language preferences
-          for (const [, conn] of this.connections) {
+          for (const conn of Array.from(this.connections.values())) {
             if (conn.role === 'student' && !targetLanguages.includes(conn.languageCode)) {
               targetLanguages.push(conn.languageCode);
             }
           }
           
-          // Skip OpenAI transcription since we already have it from the browser
-          // and go straight to translation and broadcasting
-          await this.translateAndBroadcast(
-            teacherConnection,
-            payload.text,
-            targetLanguages
-          );
-          
-          console.log(`Processed Web Speech API transcription: "${payload.text}"`);
+          try {
+            // Process each language translation separately
+            for (const targetLanguage of targetLanguages) {
+              console.log(`Web Speech API - Translating from ${connection.languageCode} to ${targetLanguage}...`);
+              
+              // Only translate if needed (different languages)
+              if (targetLanguage !== connection.languageCode) {
+                try {
+                  // Use the OpenAI API for translation (not transcription)
+                  const { translatedText } = await translateSpeech(
+                    Buffer.from(''), // Empty buffer since we're just translating text
+                    connection.languageCode,
+                    targetLanguage,
+                    payload.text // Pass the text directly
+                  );
+                  
+                  // Send to appropriate clients
+                  this.broadcastTranslation(
+                    connection,
+                    payload.text,
+                    translatedText || payload.text,
+                    connection.languageCode,
+                    targetLanguage
+                  );
+                } catch (error) {
+                  console.error(`Error translating from ${connection.languageCode} to ${targetLanguage}:`, error);
+                }
+              } else {
+                // Same language, just broadcast the original
+                this.broadcastTranslation(
+                  connection,
+                  payload.text,
+                  payload.text,
+                  connection.languageCode,
+                  targetLanguage
+                );
+              }
+            }
+            
+            console.log(`Processed Web Speech API transcription: "${payload.text}"`);
+          } catch (error) {
+            console.error('Error processing Web Speech API transcription:', error);
+          }
         }
         break;
 

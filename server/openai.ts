@@ -1,318 +1,222 @@
-import OpenAI from "openai";
-import * as fs from 'fs';
-import { writeFileSync, unlinkSync, createReadStream } from 'fs';
-import path from 'path';
+import fs from 'fs';
+import OpenAI from 'openai';
+import { storage } from './storage';
 
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-const apiKey = process.env.OPENAI_API_KEY || "";
+// Initialize OpenAI client with API key from environment
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Initialize OpenAI client
-const openai = new OpenAI({ apiKey });
-
-/**
- * Handles direct speech-to-speech translation using OpenAI's API
- * Process: Transcribe audio → Translate text → Convert to speech
- */
-export async function translateSpeech(
-  audioBuffer: Buffer,
-  sourceLanguage: string,
-  targetLanguage: string
-) {
-  try {
-    console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
-    
-    // Step 1: Transcribe audio to text
-    const transcribedText = await transcribeAudio(audioBuffer);
-    
-    // If transcription is empty (due to short audio or other issues), return empty result
-    if (!transcribedText) {
-      return {
-        originalText: "",
-        translatedText: "",
-        audioBuffer: Buffer.from([])
-      };
-    }
-    
-    // Filter out known API artifact - the OpenAI API sometimes returns just "you" 
-    // regardless of actual speech content
-    if (/^you[.!?,;]*$/i.test(transcribedText.trim())) {
-      console.log('Filtering out known OpenAI API artifact: "you" - this is not actual speech content');
-      return {
-        originalText: "",
-        translatedText: "",
-        audioBuffer: Buffer.from([])
-      };
-    }
-    
-    // Step 2: Translate text if needed
-    let translatedText = transcribedText;
-    if (sourceLanguage !== targetLanguage && transcribedText.trim().length > 0) {
-      try {
-        translatedText = await translateText(transcribedText, sourceLanguage, targetLanguage);
-      } catch (translationError) {
-        console.error('Error in translation, using original text:', translationError);
-        translatedText = transcribedText; // Just use original text if translation fails
-      }
-    }
-    
-    // Step 3: Convert to speech if not returning to original speaker
-    let audioResponse = audioBuffer;
-    if (sourceLanguage !== targetLanguage && translatedText.trim().length > 0) {
-      try {
-        audioResponse = await textToSpeech(translatedText, targetLanguage);
-      } catch (ttsError) {
-        console.error('Error in text-to-speech:', ttsError);
-        // Keep the original audio if TTS fails
-      }
-    }
-    
-    console.log(`Successfully processed translation to ${targetLanguage}`);
-    console.log(`Translation complete: "${transcribedText}" -> "${translatedText}"`);
-    
-    return {
-      originalText: transcribedText,
-      translatedText,
-      audioBuffer: audioResponse
-    };
-  } catch (error) {
-    console.error('Error in speech translation:', error);
-    // Return an empty result instead of an error message
-    return {
-      originalText: "",
-      translatedText: "",
-      audioBuffer: Buffer.from([])
-    };
-  }
+// Define response interface for the translation function
+interface TranslationResult {
+  originalText: string;
+  translatedText: string;
+  audioBuffer: Buffer;
 }
 
 /**
- * Transcribes audio to text using OpenAI's Whisper API
+ * Transcribe and translate speech using OpenAI Whisper and GPT models
+ * 
+ * @param audioBuffer - Buffer containing audio data to transcribe
+ * @param sourceLanguage - Language code of the source audio
+ * @param targetLanguage - Language code to translate to
+ * @param preTranscribedText - (Optional) If you already have the transcribed text, provide it to skip transcription
+ * @returns - Object containing original text, translated text and audio buffer
  */
-export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
-  try {
-    console.log(`Transcribing audio buffer of size ${audioBuffer.byteLength}...`);
-    
-    if (!apiKey || apiKey.length === 0) {
-      console.warn('OpenAI API key not available, using simulated transcription');
-      return "No API key available. Please provide an OpenAI API key.";
+export async function translateSpeech(
+  audioBuffer: Buffer, 
+  sourceLanguage: string, 
+  targetLanguage: string,
+  preTranscribedText?: string
+): Promise<TranslationResult> {
+  console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
+  
+  let originalText: string;
+  
+  // If text is already provided, skip transcription step
+  if (preTranscribedText) {
+    console.log(`Using pre-transcribed text instead of audio: "${preTranscribedText}"`);
+    originalText = preTranscribedText;
+  } else {
+    // Handle empty or too small audio buffer
+    if (!audioBuffer || audioBuffer.length < 1000) {
+      console.log(`Audio buffer too small for transcription: ${audioBuffer?.length} bytes`);
+      return { 
+        originalText: '', 
+        translatedText: '', 
+        audioBuffer: Buffer.from('') 
+      };
     }
     
-    // Check if buffer is sufficient for transcription - at least 8000 bytes (about 0.5 sec of audio)
-    if (audioBuffer.byteLength < 8000) {
-      console.warn(`Audio buffer too small for transcription: ${audioBuffer.byteLength} bytes`);
-      return ""; // Return empty string for short audio chunks
-    }
+    // Transcribe audio
+    console.log(`Transcribing audio buffer of size ${audioBuffer.length}...`);
     
-    // Debug audio file format
+    // Log some info about the audio buffer for debugging
+    console.log(`Audio buffer header (hex): ${audioBuffer.slice(0, 32).toString('hex')}`);
+    console.log(`Audio buffer has valid WAV header: ${audioBuffer.slice(0, 4).toString() === 'RIFF'}`);
+    
+    // Save the buffer to a temporary file for easier manipulation
+    const tempFilePath = '/home/runner/workspace/temp-audio.wav';
+    fs.writeFileSync(tempFilePath, audioBuffer);
+    console.log(`Saved audio buffer to temporary file: ${tempFilePath}`);
+    
+    // Create stream from file
+    const audioReadStream = fs.createReadStream(tempFilePath);
+    console.log('Sending read stream to OpenAI API');
+    
     try {
-      const firstBytes = audioBuffer.slice(0, 32);
-      const hexDump = firstBytes.toString('hex').match(/.{1,2}/g)?.join(' ') || '';
-      console.log(`Audio buffer header (hex): ${hexDump}`);
-      
-      // Check if file has a valid WAV header
-      if (audioBuffer.length > 12) {
-        const isWav = 
-          audioBuffer[0] === 0x52 && // R
-          audioBuffer[1] === 0x49 && // I
-          audioBuffer[2] === 0x46 && // F
-          audioBuffer[3] === 0x46 && // F
-          audioBuffer[8] === 0x57 && // W
-          audioBuffer[9] === 0x41 && // A
-          audioBuffer[10] === 0x56 && // V
-          audioBuffer[11] === 0x45;  // E
-        
-        console.log(`Audio buffer has valid WAV header: ${isWav}`);
-      }
-    } catch (debugError) {
-      console.error('Error during audio debug:', debugError);
-    }
-    
-    // Create a temporary file for the audio buffer
-    const tempFilePath = path.join(process.cwd(), 'temp-audio.wav');
-    
-    try {
-      // Write the buffer to a temporary file
-      writeFileSync(tempFilePath, audioBuffer);
-      console.log(`Saved audio buffer to temporary file: ${tempFilePath}`);
-      
-      // Use the OpenAI Whisper API for transcription
-      console.log('Sending read stream to OpenAI API');
+      // Apply specific parameters to avoid hallucinations
       console.log('Enhancing audio parameters for better transcription results...');
-      
-      // Using a new prompt with a higher temperature to try to overcome the YouTube hallucination issue
       console.log('MODIFIED: Using new transcription parameters to avoid YouTube-style hallucinations...');
       
-      const transcription = await openai.audio.transcriptions.create({
-        file: createReadStream(tempFilePath),
-        model: "whisper-1",
-        language: "en", // Make dynamic based on sourceLanguage if needed
-        response_format: "json",
-        temperature: 0.3, // Using higher temperature to avoid deterministic hallucinations
-        prompt: "This is classroom speech in an educational setting. The speaker is talking about academic topics. Transcribe exactly what is spoken, do not add YouTube-style phrases like 'like and subscribe' or 'thanks for watching'. If you cannot clearly hear anything, return an empty string.",
+      // Transcribe with OpenAI Whisper API
+      const transcriptionResponse = await openai.audio.transcriptions.create({
+        file: audioReadStream,
+        model: 'whisper-1',
+        language: sourceLanguage.split('-')[0],  // Use just the language part (e.g., 'en' from 'en-US')
+        response_format: 'json',
+        temperature: 0.0,  // Use low temperature for more accurate transcription
+        prompt: 'If you cannot hear anything, return an empty string.'
       });
-      
-      console.log('Full transcription response:', JSON.stringify(transcription));
       
       // Clean up the temporary file
       try {
-        unlinkSync(tempFilePath);
+        fs.unlinkSync(tempFilePath);
         console.log(`Deleted temporary file: ${tempFilePath}`);
-      } catch (unlinkError) {
-        console.error('Error deleting temporary file:', unlinkError);
+      } catch (err) {
+        console.error('Error cleaning up temporary file:', err);
       }
       
-      console.log('Transcription successful:', transcription);
+      // Log the full response for debugging
+      console.log(`Full transcription response: ${JSON.stringify(transcriptionResponse)}`);
       
-      // Extract text from JSON response
-      let transcribedText = '';
-      if (typeof transcription === 'object' && 'text' in transcription) {
-        transcribedText = transcription.text;
-      } else if (typeof transcription === 'string') {
-        transcribedText = transcription;
+      // Use the detected text or empty string if not found
+      if (transcriptionResponse.text) {
+        originalText = transcriptionResponse.text;
+        console.log(`Transcription successful: { text: '${originalText}' }`);
+        console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${originalText}"`);
       } else {
-        console.warn('Unexpected transcription response format:', JSON.stringify(transcription));
-        return ""; 
+        console.log('Transcription returned no text');
+        originalText = '';
       }
+    } catch (error) {
+      console.error('Error during transcription:', error);
       
-      // Filter out common YouTube-style phrases that are appearing incorrectly in transcriptions
-      const youtubePatterns = [
-        /(?:please|don't forget to) like,? (?:and )?(subscribe|share)/i,
-        /(?:please|don't forget to) (subscribe|like|share|comment)/i,
-        /(?:thanks|thank you) for watching/i,
-        /if you (find|found) this (?:video|content) (helpful|useful)/i,
-        /(?:post|leave|put).*(?:in the comments)/i,
-        /(?:please|make sure to) (?:hit|click|press|tap|smash) (?:the|that) (like|subscribe) button/i,
-        /for more information,? (?:visit|check out) (?:www\.)?([a-zA-Z0-9]+\.(?:gov|com|org|net))/i,
-        /my website (?:at|is|can be found at) (?:www\.)?([a-zA-Z0-9]+\.(?:com|org|net))/i,
-        /visit (?:our|my) website at/i,
-        /for more (?:videos|content|tutorials)/i,
-        /visit www\.fema\.gov/i
-      ];
-      
-      // Add an allowlist for legitimate test phrases that should bypass the filter
-      // Greatly expand our allowlist to catch more variations
-      const allowedTestPhrases = [
-        /this is a test/i,
-        /testing/i,
-        /test/i,
-        /hello/i,
-        /hi there/i,
-        /can you hear me/i,
-        /testing.*microphone/i,
-        /check.*check/i,
-        /mic test/i,
-        /sample speech/i,
-        /today we will/i,
-        /let.*try/i
-      ];
-      
-      // DIAGNOSTIC: Log the exact transcription from OpenAI for debugging
-      console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${transcribedText}"`);
-      
-      // Check if it's an allowed test phrase first
-      const isAllowedTestPhrase = allowedTestPhrases.some(pattern => pattern.test(transcribedText.trim()));
-      if (isAllowedTestPhrase) {
-        console.log(`Detected allowed test phrase: "${transcribedText}"`);
-        return transcribedText; // Allow these phrases through
-      }
-      
-      // TEMPORARILY BYPASSING CONTENT FILTERING TO SEE ACTUAL TRANSCRIPTIONS
-      // Check if the transcription matches YouTube patterns
-      const matchesYoutubePattern = youtubePatterns.some(pattern => pattern.test(transcribedText));
-      
-      if (matchesYoutubePattern) {
-        console.warn('⚠️ DETECTED YOUTUBE-STYLE PHRASE IN TRANSCRIPTION, but allowing it through for testing:');
-        console.warn(`Suspicious text: "${transcribedText}"`);
-        console.warn('Normally this would be filtered out, but we are allowing it to pass through for diagnosis');
-        // Temporarily allow the YouTube content through to see what's happening
-        return transcribedText;
-      }
-      
-      return transcribedText;
-      
-    } catch (apiError: any) {
-      console.error('OpenAI API error during transcription:', apiError);
-      
-      // Clean up the temporary file if there's an error
+      // Clean up the temporary file in case of error
       try {
-        unlinkSync(tempFilePath);
+        fs.unlinkSync(tempFilePath);
         console.log(`Deleted temporary file after error: ${tempFilePath}`);
-      } catch (unlinkError) {
-        console.error('Error deleting temporary file after API error:', unlinkError);
+      } catch (err) {
+        console.error('Error cleaning up temporary file:', err);
       }
       
-      // Special handling for "audio_too_short" error
-      if (apiError.code === 'audio_too_short') {
-        console.warn('Audio too short for OpenAI API');
-        return ""; // Return empty for too short audio
-      }
-      
-      // For other API errors
-      return ""; // Return empty instead of error message
+      throw error;
     }
-  } catch (error: any) {
-    console.error('Error in transcription:', error);
-    return ""; // Return empty instead of error message
   }
-}
-
-/**
- * Translates text from source to target language
- */
-export async function translateText(
-  text: string, 
-  sourceLanguage: string, 
-  targetLanguage: string
-): Promise<string> {
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are a professional translator. Translate the following text from ${sourceLanguage} to ${targetLanguage}. Maintain the tone and meaning of the original text. Only respond with the translated text, no explanations or meta-commentary.`
-        },
-        {
-          role: "user",
-          content: text
-        }
-      ]
-    });
-    
-    return completion.choices[0].message.content || "";
-  } catch (error) {
-    console.error('Error in translation:', error);
-    throw error;
-  }
-}
-
-/**
- * Converts text to speech in specified language
- */
-export async function textToSpeech(text: string, language: string): Promise<Buffer> {
-  try {
-    // Map language codes to voices
-    const voiceMap: Record<string, string> = {
-      "en-US": "alloy",
-      "es": "shimmer",
-      "de": "onyx",
-      "fr": "nova"
+  
+  // Skip empty transcriptions
+  if (!originalText) {
+    return { 
+      originalText: '', 
+      translatedText: '', 
+      audioBuffer 
     };
+  }
+  
+  // If target language is the same as source language, no translation needed
+  if (targetLanguage === sourceLanguage) {
+    console.log(`Successfully processed translation to ${targetLanguage}`);
+    console.log(`Translation complete: "${originalText}" -> "${originalText}"`);
     
-    // Default to alloy if language not found
-    const voice = voiceMap[language] || "alloy";
+    return { 
+      originalText, 
+      translatedText: originalText, 
+      audioBuffer 
+    };
+  }
+  
+  // Translate to target language
+  try {
+    const prompt = `
+      Translate this text from ${getLanguageName(sourceLanguage)} to ${getLanguageName(targetLanguage)}. 
+      Maintain the same tone and style. Return only the translation without explanations or notes.
+      
+      Original text: "${originalText}"
+      
+      Translation:
+    `;
     
-    const mp3 = await openai.audio.speech.create({
-      model: "tts-1",
-      voice,
-      input: text,
+    const translation = await openai.chat.completions.create({
+      model: 'gpt-4o', // Using the newest OpenAI model for translation
+      messages: [
+        { role: 'system', content: 'You are a professional translator with expertise in multiple languages.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 500
     });
     
-    // Convert to buffer
-    const buffer = Buffer.from(await mp3.arrayBuffer());
-    return buffer;
+    const translatedText = translation.choices[0].message.content?.trim() || originalText;
+    
+    console.log(`Successfully processed translation to ${targetLanguage}`);
+    console.log(`Translation complete: "${originalText}" -> "${translatedText}"`);
+    
+    return { 
+      originalText, 
+      translatedText, 
+      audioBuffer 
+    };
   } catch (error) {
-    console.error('Error in text-to-speech:', error);
-    throw error;
+    console.error(`Error translating to ${targetLanguage}:`, error);
+    
+    // Return original text as fallback if translation fails
+    return { 
+      originalText, 
+      translatedText: originalText, 
+      audioBuffer 
+    };
   }
+}
+
+// Helper function to get the language name from language code
+function getLanguageName(languageCode: string): string {
+  const languageMap: {[key: string]: string} = {
+    'en-US': 'English',
+    'fr-FR': 'French',
+    'es-ES': 'Spanish',
+    'de-DE': 'German',
+    'it-IT': 'Italian',
+    'ja-JP': 'Japanese',
+    'ko-KR': 'Korean',
+    'pt-BR': 'Portuguese',
+    'ru-RU': 'Russian',
+    'zh-CN': 'Chinese (Simplified)',
+    'ar-SA': 'Arabic',
+    'hi-IN': 'Hindi',
+    'tr-TR': 'Turkish',
+    'nl-NL': 'Dutch',
+    'pl-PL': 'Polish',
+    'sv-SE': 'Swedish',
+    'da-DK': 'Danish',
+    'fi-FI': 'Finnish',
+    'no-NO': 'Norwegian',
+    'cs-CZ': 'Czech',
+    'hu-HU': 'Hungarian',
+    'el-GR': 'Greek',
+    'he-IL': 'Hebrew',
+    'th-TH': 'Thai',
+    'vi-VN': 'Vietnamese',
+    'id-ID': 'Indonesian',
+    'ms-MY': 'Malay',
+    'ro-RO': 'Romanian',
+    'uk-UA': 'Ukrainian',
+    'bg-BG': 'Bulgarian',
+    'hr-HR': 'Croatian',
+    'sr-RS': 'Serbian',
+    'sk-SK': 'Slovak',
+    'sl-SI': 'Slovenian',
+    'et-EE': 'Estonian',
+    'lv-LV': 'Latvian',
+    'lt-LT': 'Lithuanian'
+  };
+  
+  return languageMap[languageCode] || languageCode.split('-')[0];
 }
