@@ -95,8 +95,9 @@ export async function translateSpeech(
         console.log(`Transcription successful: { text: '${originalText}' }`);
         console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${originalText}"`);
       } else {
-        console.log('Transcription returned no text');
+        console.log('Transcription returned no text - Whisper API failed to detect speech');
         originalText = '';
+        // Note: The WebSocketServer will handle fallback to Web Speech API if needed
       }
     } catch (error) {
       console.error('Error during transcription:', error);

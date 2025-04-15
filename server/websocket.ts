@@ -16,6 +16,12 @@ export class TranslationWebSocketServer {
   private wss: WebSocketServer;
   private connections: Map<WebSocket, UserConnection> = new Map();
   private sessionCounter: number = 0;
+  // Store the latest Web Speech API transcriptions for fallback purposes
+  private latestWebSpeechTranscriptions: Map<string, {
+    text: string;
+    timestamp: number;
+    sourceLang: string;
+  }> = new Map();
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
