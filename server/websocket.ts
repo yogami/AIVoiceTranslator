@@ -629,9 +629,59 @@ export class TranslationWebSocketServer {
           // Use the processed buffer with WAV header for the OpenAI API
           const result = await translateSpeech(processedBuffer, sourceLanguage, targetLanguage);
           
-          // Skip empty translations (likely from short audio chunks or filtered content)
+          // Check for empty translations and try to use WebSpeech API fallback if available
           if (!result.originalText && !result.translatedText) {
-            console.log('Empty transcription result, skipping translation broadcasting');
+            console.log('Empty Whisper API transcription result, checking for Web Speech API fallback');
+            
+            // Try to get a recent Web Speech API transcription from this teacher
+            const sessionKey = `${teacherConnection.role}_${teacherConnection.sessionId}`;
+            const recentWebSpeechTranscription = this.latestWebSpeechTranscriptions.get(sessionKey);
+            
+            if (recentWebSpeechTranscription && 
+                Date.now() - recentWebSpeechTranscription.timestamp < 5000) { // Use only if less than 5 seconds old
+              // Use the Web Speech API transcription as fallback
+              console.log(`Using Web Speech API transcription as fallback: "${recentWebSpeechTranscription.text}"`);
+              console.log(`FALLBACK ACTIVE: Using Web Speech API result instead of Whisper API`);
+              
+              // If the transcription is for the same language, we can use it directly
+              if (targetLanguage === sourceLanguage) {
+                // Broadcast the fallback transcription
+                this.broadcastTranslation(
+                  teacherConnection,
+                  recentWebSpeechTranscription.text,
+                  recentWebSpeechTranscription.text, // Same text for source & target
+                  sourceLanguage,
+                  targetLanguage
+                );
+                continue; // Skip to next language
+              } else {
+                // Need to translate the Web Speech result to the target language
+                try {
+                  // Translate to target language using OpenAI
+                  const { originalText, translatedText } = await translateSpeech(
+                    Buffer.from(''), // Empty buffer since we're using pre-transcribed text
+                    sourceLanguage,
+                    targetLanguage,
+                    recentWebSpeechTranscription.text // Pass the transcribed text from Web Speech API
+                  );
+                  
+                  // Broadcast the translation to clients
+                  this.broadcastTranslation(
+                    teacherConnection,
+                    originalText || recentWebSpeechTranscription.text, // Use fallback if translation failed
+                    translatedText || recentWebSpeechTranscription.text, // Use original as fallback
+                    sourceLanguage,
+                    targetLanguage
+                  );
+                  continue; // Skip to next language
+                } catch (error) {
+                  console.error(`Error translating Web Speech fallback from ${sourceLanguage} to ${targetLanguage}:`, error);
+                  // Continue to default empty translation handling
+                }
+              }
+            }
+            
+            console.log('No suitable Web Speech API fallback available, sending empty translation');
             // Still send a notification to the client, but with a filtered flag
             for (const [ws, conn] of Array.from(this.connections.entries())) {
               if (
