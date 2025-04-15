@@ -306,31 +306,43 @@ export class TranslationWebSocketServer {
         break;
 
       case 'audio':
-        // EMERGENCY FIX: If the payload contains 'role=teacher', treat this as a teacher connection
-        // regardless of the connection's current role
-        if (payload.role === 'teacher') {
+        // Process audio message - determine whether to treat this as teacher audio
+        // Check all possible cases where this could be teacher audio
+        const isTeacherAudio = 
+          (payload.role === 'teacher') ||                  // Payload explicitly says teacher
+          (connection.role === 'teacher') ||               // Connection registered as teacher
+          (message.role === 'teacher') ||                  // Top-level message has teacher role
+          (payload?.roleLocked === true);                 // Role is locked, likely a teacher
+          
+        if (isTeacherAudio) {
+          // Update connection to teacher if it's not already
           if (connection.role !== 'teacher') {
-            console.log(`CRITICAL: Teacher role in payload but connection has ${connection.role}. Fixing connection role...`);
+            console.log(`CRITICAL: Teacher audio received but connection has role=${connection.role}. Fixing connection role...`);
             connection.role = 'teacher';
             this.connections.set(ws, connection);
             
             // Notify the client that we've updated their role
-            ws.send(JSON.stringify({ 
-              type: 'register', 
-              status: 'success',
-              data: { role: 'teacher', languageCode: connection.languageCode, forcedUpdate: true }
-            }));
+            try {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ 
+                  type: 'register', 
+                  status: 'success',
+                  data: { role: 'teacher', languageCode: connection.languageCode, forcedUpdate: true }
+                }));
+              }
+            } catch (e) {
+              console.error('Failed to send role update notification:', e);
+            }
           }
           
           // Process the audio since we now know it's from a teacher
           if (payload.audio) {
-            console.log(`Processing teacher audio (payload.role=teacher), data length: ${payload.audio.length}`);
+            console.log(`Processing teacher audio (detected from role info), data length: ${payload.audio.length}`);
             try {
-              // Temporarily create a teacher connection for processing if needed
-              // Use type assertion to ensure TypeScript recognizes it correctly
+              // Ensure we have a teacher connection for processing
               const teacherConnection: UserConnection = {
                 ...connection,
-                role: 'teacher' as 'teacher' // Explicit type cast to satisfy TypeScript
+                role: 'teacher' as 'teacher' // Explicit type cast for TypeScript
               };
               
               await this.processAndBroadcastAudio(teacherConnection, payload.audio);
@@ -351,30 +363,12 @@ export class TranslationWebSocketServer {
           } else {
             console.log('Received teacher audio message but no audio data was included');
           }
-        }
-        // Original logic for non-overridden connections
-        else if (connection.role === 'teacher' && payload.audio) {
-          console.log(`Received audio message from teacher connection, data length: ${payload.audio.length}`);
-          try {
-            await this.processAndBroadcastAudio(connection, payload.audio);
-          } catch (err) {
-            console.error('Error in processAndBroadcastAudio:', err);
-            // Try to notify teacher about the error
-            try {
-              if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                  type: 'error',
-                  error: 'Failed to process audio: ' + (err instanceof Error ? err.message : String(err))
-                }));
-              }
-            } catch (sendErr) {
-              console.error('Failed to send error message to client:', sendErr);
-            }
-          }
         } else {
-          console.log(`Received audio message but conditions not met:`, 
-            `role=${connection.role}`, 
+          // Not a teacher message - log detailed info and reject
+          console.log(`Received audio message but not treating as teacher audio:`, 
+            `connection.role=${connection.role}`, 
             `payload.role=${payload.role || 'not set'}`,
+            `message.role=${message.role || 'not set'}`,
             `hasAudio=${!!payload.audio}`,
             `audioLength=${payload.audio ? payload.audio.length : 0}`);
         }
