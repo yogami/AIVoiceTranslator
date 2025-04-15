@@ -265,6 +265,15 @@ export class TranslationWebSocketServer {
         }
         
         console.log(`Received Web Speech API transcription: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
+        console.log(`📢 DIAGNOSTIC - RECEIVED WEB SPEECH API TEXT: "${payload.text}"`);
+        
+        // Store the latest Web Speech API transcription for fallback use
+        const sessionKey = `${connection.role}_${connection.sessionId}`;
+        this.latestWebSpeechTranscriptions.set(sessionKey, {
+          text: payload.text,
+          timestamp: Date.now(),
+          sourceLang: connection.languageCode
+        });
         
         // Get list of target languages (include the source language for recording)
         const targetLanguages = Array.from(this.connections.values())
@@ -825,11 +834,26 @@ export class TranslationWebSocketServer {
 
   // Helper method to check if a buffer has a WAV header
   private hasWavHeader(buffer: Buffer): boolean {
-    return buffer.length > 4 && 
+    // Check for RIFF header
+    const hasRIFF = buffer.length > 4 && 
            buffer[0] === 0x52 && // R
            buffer[1] === 0x49 && // I
            buffer[2] === 0x46 && // F
            buffer[3] === 0x46;   // F
+    
+    // Also check for WAVE format marker which should be at bytes 8-11
+    const hasWAVE = buffer.length > 11 &&
+           buffer[8] === 0x57 && // W
+           buffer[9] === 0x41 && // A
+           buffer[10] === 0x56 && // V
+           buffer[11] === 0x45;  // E
+           
+    // Log detailed information for debugging
+    if (buffer.length > 12) {
+      console.log(`WAV Header check: RIFF=${hasRIFF}, WAVE=${hasWAVE}, First 12 bytes: ${buffer.slice(0, 12).toString('hex')}`);
+    }
+    
+    return hasRIFF && hasWAVE;
   }
   
   // Helper method to detect suspicious audio patterns (likely test audio)

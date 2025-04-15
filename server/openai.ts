@@ -68,13 +68,14 @@ export async function translateSpeech(
       console.log('MODIFIED: Using new transcription parameters to avoid YouTube-style hallucinations...');
       
       // Transcribe with OpenAI Whisper API
+      // Use more optimized parameters for classroom settings
       const transcriptionResponse = await openai.audio.transcriptions.create({
         file: audioReadStream,
         model: 'whisper-1',
         language: sourceLanguage.split('-')[0],  // Use just the language part (e.g., 'en' from 'en-US')
         response_format: 'json',
-        temperature: 0.0,  // Use low temperature for more accurate transcription
-        prompt: 'If you cannot hear anything, return an empty string.'
+        temperature: 0.2,  // Slight creativity to help with harder words
+        prompt: 'This is classroom speech from a teacher. Transcribe any audible speech accurately. If there is no speech or only background noise, return an empty string.'
       });
       
       // Clean up the temporary file
