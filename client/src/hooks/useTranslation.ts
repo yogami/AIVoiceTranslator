@@ -94,7 +94,7 @@ export function useTranslation(options: UseTranslationOptions) {
         console.log('No text in translation, may be filtered test content');
         // Show more informative message about test content
         if (data.data.filtered === true || originalText === '') {
-          textToDisplay = "⚠️ Detected test audio pattern (YouTube-style content). Please use real speech.";
+          textToDisplay = "⚠️ Test Content Detected: The system detected a YouTube-style test phrase. Try speaking normal classroom content instead.";
         } else {
           textToDisplay = "(Waiting for speech...)";
         }
