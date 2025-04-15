@@ -225,6 +225,11 @@ export class TranslationWebSocketServer {
     }
   }
 
+  // Store audio chunks by connection and session for potential combining
+  private audioChunks: Map<string, Buffer[]> = new Map();
+  private lastChunkTime: Map<string, number> = new Map();
+  private minimumBufferSize = 30000; // Minimum buffer size for reliable transcription
+  
   private async processAndBroadcastAudio(teacherConnection: UserConnection, audioBase64: string) {
     try {
       // Validate the audio data
@@ -244,11 +249,7 @@ export class TranslationWebSocketServer {
       let processedBuffer = audioBuffer;
       
       // Check if the buffer already has a WAV header (should start with "RIFF")
-      const hasWavHeader = audioBuffer.length > 4 && 
-                           audioBuffer[0] === 0x52 && // R
-                           audioBuffer[1] === 0x49 && // I
-                           audioBuffer[2] === 0x46 && // F
-                           audioBuffer[3] === 0x46;   // F
+      const hasWavHeader = this.hasWavHeader(audioBuffer);
       
       if (!hasWavHeader) {
         console.log('Audio data does not have WAV header, adding one...');
@@ -280,6 +281,109 @@ export class TranslationWebSocketServer {
         // Combine header and audio data
         processedBuffer = Buffer.concat([header, audioBuffer]);
         console.log(`Added WAV header, new buffer size: ${processedBuffer.byteLength}`);
+      }
+      
+      // Get or create a unique key for this connection
+      const connectionKey = `${teacherConnection.role}_${teacherConnection.sessionId}`;
+      
+      // Initialize audio chunks collection if it doesn't exist
+      if (!this.audioChunks.has(connectionKey)) {
+        this.audioChunks.set(connectionKey, []);
+        this.lastChunkTime.set(connectionKey, Date.now());
+      }
+      
+      // Get the current audio chunks for this connection
+      const chunks = this.audioChunks.get(connectionKey) || [];
+      const currentTime = Date.now();
+      const lastTime = this.lastChunkTime.get(connectionKey) || 0;
+      const timeSinceLastChunk = currentTime - lastTime;
+      
+      // Update the last chunk time
+      this.lastChunkTime.set(connectionKey, currentTime);
+      
+      // Add current audio buffer to chunks
+      chunks.push(processedBuffer);
+      
+      // Limit the number of stored chunks to prevent memory issues (keep last 10)
+      if (chunks.length > 10) {
+        chunks.shift();
+      }
+      
+      // Update the stored chunks
+      this.audioChunks.set(connectionKey, chunks);
+      
+      // Determine if we should process now or wait for more chunks
+      let shouldProcess = false;
+      
+      // Process if this chunk is large enough by itself
+      if (processedBuffer.byteLength >= this.minimumBufferSize) {
+        console.log(`Audio chunk is large enough (${processedBuffer.byteLength} bytes), processing immediately`);
+        shouldProcess = true;
+      }
+      // Process if we have multiple chunks and long time since last chunk
+      else if (chunks.length > 1 && timeSinceLastChunk > 1000) {
+        console.log(`Processing ${chunks.length} chunks after ${timeSinceLastChunk}ms of silence`);
+        shouldProcess = true;
+      }
+      // Process if total accumulated audio is large enough
+      else if (chunks.length > 1) {
+        const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        if (totalSize >= this.minimumBufferSize) {
+          console.log(`Accumulated ${chunks.length} chunks with total size ${totalSize} bytes, processing now`);
+          shouldProcess = true;
+        }
+      }
+      
+      // If we need more data, just store this chunk and finish
+      if (!shouldProcess) {
+        console.log(`Audio chunk small (${processedBuffer.byteLength} bytes), waiting for more chunks. Total chunks: ${chunks.length}`);
+        this.sendProcessingComplete(teacherConnection, [teacherConnection.languageCode]);
+        return;
+      }
+      
+      // Combine all chunks if there are multiple
+      if (chunks.length > 1) {
+        // Get all PCM data from the chunks
+        const dataChunks = [];
+        let totalLength = 0;
+        
+        // For the first chunk, keep the entire WAV file (header + data)
+        const firstChunk = chunks[0];
+        dataChunks.push(firstChunk);
+        totalLength += firstChunk.byteLength;
+        
+        // For subsequent chunks, extract only the PCM data (skip WAV header)
+        for (let i = 1; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          // Skip the 44-byte WAV header if it has one
+          if (this.hasWavHeader(chunk) && chunk.byteLength > 44) {
+            const audioData = chunk.subarray(44);
+            dataChunks.push(audioData);
+            totalLength += audioData.byteLength;
+          } else {
+            dataChunks.push(chunk);
+            totalLength += chunk.byteLength;
+          }
+        }
+        
+        // Create a combined buffer
+        processedBuffer = Buffer.concat(dataChunks, totalLength);
+        
+        // Update the WAV header for the combined data
+        if (this.hasWavHeader(processedBuffer) && processedBuffer.byteLength > 44) {
+          // Update chunk size (file size - 8)
+          const fileSize = processedBuffer.byteLength - 8;
+          processedBuffer.writeUInt32LE(fileSize, 4);
+          
+          // Update data size (file size - 44)
+          const dataSize = processedBuffer.byteLength - 44;
+          processedBuffer.writeUInt32LE(dataSize, 40);
+        }
+        
+        console.log(`Combined ${chunks.length} chunks into buffer of size ${processedBuffer.byteLength} bytes`);
+        
+        // Clear the chunks after processing
+        this.audioChunks.set(connectionKey, []);
       }
       
       const sourceLanguage = teacherConnection.languageCode;
@@ -427,6 +531,15 @@ export class TranslationWebSocketServer {
         }
       }));
     }
+  }
+
+  // Helper method to check if a buffer has a WAV header
+  private hasWavHeader(buffer: Buffer): boolean {
+    return buffer.length > 4 && 
+           buffer[0] === 0x52 && // R
+           buffer[1] === 0x49 && // I
+           buffer[2] === 0x46 && // F
+           buffer[3] === 0x46;   // F
   }
 
   // Get statistics about current connections

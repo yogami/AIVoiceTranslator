@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import * as fs from 'fs';
 import { writeFileSync, unlinkSync, createReadStream } from 'fs';
+import path from 'path';
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
 const apiKey = process.env.OPENAI_API_KEY || "";
@@ -127,8 +128,8 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       console.error('Error during audio debug:', debugError);
     }
     
-    // Create a temporary file for the audio buffer
-    const tempFilePath = './temp-audio.wav';
+    // Create a temporary file for the audio buffer with absolute path
+    const tempFilePath = path.join(process.cwd(), 'temp-audio.wav');
     
     try {
       // Write the buffer to a temporary file
@@ -138,13 +139,16 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       // Use the OpenAI Whisper API for transcription with file read stream
       console.log('Sending read stream to OpenAI API');
       
+      console.log('Enhancing audio parameters for better transcription results...');
+      
+      // Use more parameters to improve transcription accuracy for real-world audio
       const transcription = await openai.audio.transcriptions.create({
         file: createReadStream(tempFilePath),
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
         temperature: 0.0, // Use lowest temperature for precise transcription
-        prompt: "The speaker is giving a lecture or explanation. Transcribe their actual words, not background noise." // Guide the model
+        prompt: "Transcribe any audible speech, even if it's brief or unclear. This is real-time classroom audio that might include natural pauses, background noise, or incomplete sentences. Detect and transcribe any clear human speech regardless of context.", // More forgiving prompt for real audio
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
