@@ -195,7 +195,7 @@ export class WhisperTranscriptionService implements TranscriptionService {
     });
   }
 
-  public async start(): boolean {
+  public async start(): Promise<boolean> {
     if (this.isListening) {
       console.warn('Whisper transcription: Already listening');
       return true;

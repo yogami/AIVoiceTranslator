@@ -113,9 +113,12 @@ export class WebSpeechRecognition {
       let interimTranscript = '';
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
+        // Properly access the transcript with appropriate type handling
+        const result = event.results[i];
+        const firstAlternative = result[0] || { transcript: '' };
+        const transcript = firstAlternative.transcript || '';
         
-        if (event.results[i].isFinal) {
+        if (result.isFinal) {
           finalTranscript += transcript;
         } else {
           interimTranscript += transcript;
