@@ -59,11 +59,19 @@ export class WebSocketClient {
     
     // Include role and language as query parameters for immediate server-side role assignment
     const params = new URLSearchParams();
-    params.append('role', this.role);
+    
+    // CRITICAL FIX: Ensure role param is correct, especially if roleLocked is true
+    if (this.roleLocked && this.role === 'teacher') {
+      console.log('Critical: Connecting with locked teacher role!');
+      params.append('role', 'teacher'); // Force teacher role in URL when locked
+    } else {
+      params.append('role', this.role);
+    }
+    
     params.append('language', this.languageCode);
     const wsUrl = `${protocol}//${window.location.host}/ws?${params.toString()}`;
     
-    console.log(`Connecting to WebSocket at ${wsUrl} with role=${this.role}, language=${this.languageCode}`);
+    console.log(`Connecting to WebSocket at ${wsUrl} with role=${params.get('role')}, language=${this.languageCode}, roleLocked=${this.roleLocked}`);
     this.ws = new WebSocket(wsUrl);
     this.setupEventHandlers();
   }
@@ -425,41 +433,51 @@ export class WebSocketClient {
   }
 
   public register(role: UserRole, languageCode: string) {
+    // Special handling for teacher role
+    if (role === 'teacher') {
+      console.log(`WebSocketClient: Setting teacher role and locking it`);
+      this.role = 'teacher';
+      this.roleLocked = true;
+    } 
     // Only allow role to be changed if it's not locked
-    const roleChanged = this.role !== role && !this.roleLocked;
-    const languageChanged = this.languageCode !== languageCode;
-    
-    if (roleChanged || languageChanged) {
-      if (roleChanged) {
-        console.log(`WebSocketClient: Changing role from ${this.role} to ${role}`);
-        this.role = role;
-        
-        // Lock the role when set to 'teacher' to prevent it from changing later
-        if (role === 'teacher') {
-          console.log(`WebSocketClient: Locking role as '${role}'`);
-          this.roleLocked = true;
-        }
-      } else if (this.roleLocked && role !== this.role) {
-        console.warn(`WebSocketClient: Role change from '${this.role}' to '${role}' rejected - role is locked`);
-      }
-      
-      if (languageChanged) {
-        console.log(`WebSocketClient: Changing language from ${this.languageCode} to ${languageCode}`);
-        this.languageCode = languageCode;
-      }
-      
-      console.log(`WebSocketClient: Registering with role=${this.role}, languageCode=${languageCode}`);
-      
-      return this.send({
-        type: 'register',
-        payload: {
-          role: this.role, // Use the current role which may not have changed if locked
-          languageCode
-        }
-      });
+    else if (!this.roleLocked && this.role !== role) {
+      console.log(`WebSocketClient: Changing role from ${this.role} to ${role}`);
+      this.role = role;
+    }
+    // If role is locked but requested role is different, warn and keep the locked role
+    else if (this.roleLocked && role !== this.role) {
+      console.warn(`WebSocketClient: Role change from '${this.role}' to '${role}' rejected - role is locked`);
     }
     
-    return false;
+    // Always update language if different
+    if (this.languageCode !== languageCode) {
+      console.log(`WebSocketClient: Changing language from ${this.languageCode} to ${languageCode}`);
+      this.languageCode = languageCode;
+    }
+    
+    // Always send the register message to update the server
+    console.log(`WebSocketClient: Registering with role=${this.role}, languageCode=${languageCode}, roleLocked=${this.roleLocked}`);
+    
+    // If we need to reconnect to change URL, do so
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      // If we're connected with role=student in URL but need to be teacher, reconnect
+      const url = this.ws.url;
+      if (this.role === 'teacher' && url.includes('role=student')) {
+        console.log('Need to reconnect with correct role in URL');
+        this.disconnect();
+        setTimeout(() => this.connect(), 500);
+        return true;
+      }
+    }
+    
+    return this.send({
+      type: 'register',
+      payload: {
+        role: this.role,
+        languageCode,
+        roleLocked: this.roleLocked
+      }
+    });
   }
 
   public requestTranscripts(sessionId: string, languageCode: string) {
@@ -523,18 +541,35 @@ export class WebSocketClient {
     this.role = role;
     this.roleLocked = true;
     
+    // Disconnect and reconnect if we're already connected with the wrong role in the URL
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      const url = this.ws.url;
+      if (role === 'teacher' && url.includes('role=student')) {
+        console.log('Critical: Current WebSocket URL has role=student but we need teacher. Reconnecting...');
+        this.disconnect();
+        setTimeout(() => this.connect(), 500);
+        return true;
+      }
+    }
+    
     // Register with the server if we're connected
     if (this.status === 'connected') {
       return this.send({
         type: 'register',
         payload: {
           role: this.role,
-          languageCode: this.languageCode
+          languageCode: this.languageCode,
+          roleLocked: true // Explicitly tell server this role is locked
         }
       });
     }
     
-    return false;
+    // If not connected, make sure we'll connect with the right role
+    if (this.status === 'disconnected') {
+      setTimeout(() => this.connect(), 100);
+    }
+    
+    return this.roleLocked;
   }
 }
 

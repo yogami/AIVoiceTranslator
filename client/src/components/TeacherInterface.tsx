@@ -29,22 +29,67 @@ export const TeacherInterface: React.FC = () => {
   // This is to prevent race conditions with other component registrations
   useEffect(() => {
     if (!roleInitialized) {
-      // We access the WebSocket client imported at the top of the file
+      console.log('TeacherInterface mounting: Setting and locking teacher role');
       
-      // Set and lock the role to 'teacher'
-      wsClient.setRoleAndLock('teacher');
+      // First, check if we're already connected but with the wrong role
+      if (wsClient.getStatus() === 'connected') {
+        const socket = wsClient.getSocket();
+        if (socket && socket.url.includes('role=student')) {
+          console.warn('TeacherInterface: Connected with student role! Forcing reconnect as teacher...');
+          wsClient.disconnect();
+          
+          // Wait for disconnect to complete
+          setTimeout(() => {
+            wsClient.setRoleAndLock('teacher');
+            wsClient.connect();
+          }, 500);
+        } else {
+          // Just set and lock the role
+          wsClient.setRoleAndLock('teacher');
+        }
+      } else {
+        // Not connected, so set role and connect
+        wsClient.setRoleAndLock('teacher');
+        wsClient.connect();
+      }
+      
+      // Very aggressive double-check of role after a short delay
+      setTimeout(() => {
+        if (wsClient.currentRole !== 'teacher' || !wsClient.isRoleLocked) {
+          console.warn('TeacherInterface: Role still not teacher after delay! Emergency fix...');
+          wsClient.disconnect();
+          setTimeout(() => {
+            wsClient.setRoleAndLock('teacher');
+            wsClient.connect();
+          }, 500);
+        } else {
+          console.log('TeacherInterface: Role verified as teacher after delay');
+        }
+      }, 1000);
       
       // Add a periodic check to make sure role remains locked
       const roleCheckInterval = setInterval(() => {
         const currentRole = wsClient.currentRole;
         const isLocked = wsClient.isRoleLocked;
+        const socket = wsClient.getSocket();
         
-        console.log(`TeacherInterface: Role check - current=${currentRole}, locked=${isLocked}`);
+        console.log(`TeacherInterface: Role check - current=${currentRole}, locked=${isLocked}, socket=${socket ? 'connected' : 'disconnected'}`);
         
         if (currentRole !== 'teacher' || !isLocked) {
           console.warn('TeacherInterface: Role was changed or unlocked! Re-locking...');
           wsClient.setRoleAndLock('teacher');
         }
+        
+        // Check URL in WebSocket connection
+        if (socket && socket.url.includes('role=student')) {
+          console.warn('TeacherInterface: Socket URL still contains student role! Reconnecting...');
+          wsClient.disconnect();
+          setTimeout(() => {
+            wsClient.setRoleAndLock('teacher');
+            wsClient.connect();
+          }, 500);
+        }
+        
       }, 5000); // Check every 5 seconds
       
       setRoleInitialized(true);
