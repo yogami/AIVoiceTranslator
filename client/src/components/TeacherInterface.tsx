@@ -169,6 +169,20 @@ export const TeacherInterface: React.FC = () => {
     forceTeacherRole: true // Add special flag for forced teacher role
   });
   
+  // Initialize Web Speech API for fallback transcription
+  const webSpeech = useWebSpeech({
+    enabled: isRecording, // Automatically activate when recording starts
+    language: selectedInputLanguage,
+    onTranscriptionUpdate: (text, isFinal) => {
+      // When we get a final transcription from Web Speech API, update the UI and send it to the server
+      if (isFinal && text.trim().length > 0) {
+        console.log('Received final Web Speech transcription:', text);
+        // The Web Speech API results will be sent to the server automatically via the hook
+        // The server will store them as fallback in case Whisper API returns empty results
+      }
+    }
+  });
+  
   // Keep local state of current speech for direct rendering
   const [displayedSpeech, setDisplayedSpeech] = useState<string | JSX.Element>('');
 
@@ -427,6 +441,20 @@ export const TeacherInterface: React.FC = () => {
                     <div><strong>translation.currentSpeech:</strong> {translation.currentSpeech || '(empty)'}</div>
                     <div><strong>WebSocket Status:</strong> {translation.status}</div>
                     <div><strong>Translation Count:</strong> {translation.metrics.translationsCount}</div>
+                    
+                    {/* Web Speech API Status */}
+                    <div className="mt-2 pt-2 border-t border-yellow-200">
+                      <div><strong>Web Speech API:</strong> {webSpeech.isSupported ? 'Supported' : 'Not Supported'}</div>
+                      <div><strong>Web Speech Status:</strong> {webSpeech.isRecording ? 
+                        <span className="text-green-600">Active</span> : 
+                        <span className="text-gray-500">Standby</span>}
+                      </div>
+                      <div><strong>Current Transcript:</strong> {webSpeech.transcript || '(empty)'}</div>
+                      {webSpeech.error && (
+                        <div className="text-red-500"><strong>Error:</strong> {webSpeech.error}</div>
+                      )}
+                    </div>
+                    
                     <button 
                       onClick={() => setDisplayedSpeech('This is a test speech to verify the UI updates correctly.')}
                       className="mt-2 px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-yellow-800"
