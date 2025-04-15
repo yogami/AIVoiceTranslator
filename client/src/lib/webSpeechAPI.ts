@@ -280,6 +280,84 @@ declare global {
   }
 }
 
+// Simplified WebSpeechRecognizer class for compatibility with existing code
+export class WebSpeechRecognizer {
+  private recognition: WebSpeechRecognition | null = null;
+  
+  constructor(options: { interimResults?: boolean, languageCode?: string }) {
+    this.recognition = getSpeechRecognition({
+      continuous: true,
+      interimResults: options.interimResults ?? true,
+      language: options.languageCode || 'en-US'
+    });
+  }
+  
+  isSupported(): boolean {
+    return this.recognition?.isSupported() ?? false;
+  }
+  
+  start(): boolean {
+    return this.recognition?.start() ?? false;
+  }
+  
+  stop(): boolean {
+    return this.recognition?.stop() ?? false;
+  }
+  
+  onResult(callback: (result: { transcript: string, isFinal: boolean }) => void): void {
+    if (this.recognition) {
+      this.recognition.updateParams({
+        onResult: (result) => {
+          callback({
+            transcript: result.text,
+            isFinal: result.isFinal
+          });
+        }
+      });
+    }
+  }
+  
+  onError(callback: (error: Error) => void): void {
+    if (this.recognition) {
+      this.recognition.updateParams({
+        onError: callback
+      });
+    }
+  }
+  
+  onEnd(callback: () => void): void {
+    if (this.recognition) {
+      this.recognition.updateParams({
+        onEnd: callback
+      });
+    }
+  }
+  
+  setLanguage(languageCode: string): void {
+    if (this.recognition) {
+      this.recognition.updateParams({
+        language: languageCode
+      });
+    }
+  }
+}
+
+// Send transcribed text to the server via WebSocket
+export function sendTranscribedText(text: string, socket: any, language: string): boolean {
+  if (!socket || !socket.sendTranscription) {
+    console.error('WebSocket not properly initialized for sending transcriptions');
+    return false;
+  }
+  
+  try {
+    console.log(`Sending transcribed text to server: "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}" (language: ${language})`);
+    return socket.sendTranscription(text);
+  } catch (error) {
+    console.error('Error sending transcribed text to server:', error);
+    return false;
+  }
+}
+
 // Singleton instance for easy access
 let instance: WebSpeechRecognition | null = null;
 

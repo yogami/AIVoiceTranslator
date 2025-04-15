@@ -10,6 +10,7 @@ import LanguageSelector from '@/components/LanguageSelector';
 import { apiRequest } from '@/lib/queryClient';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useWebSpeech } from '@/hooks/useWebSpeech';
 import { formatLatency, formatDuration } from '@/lib/openai';
 import { Mic, Languages, Play, Timer, Plus, CheckCircle } from 'lucide-react';
 import { wsClient } from '@/lib/websocket';
