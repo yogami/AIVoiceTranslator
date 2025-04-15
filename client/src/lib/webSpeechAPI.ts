@@ -1,6 +1,6 @@
 // Web Speech API implementation for real-time speech recognition
 
-// Define the recognition result types
+// Export our simplified result type for consumers
 export interface SpeechRecognitionResult {
   isFinal: boolean;
   text: string;
@@ -16,17 +16,26 @@ export interface SpeechRecognitionOptions {
   onEnd?: () => void;
 }
 
-// Type definitions for the Web Speech API
-// These are needed because TypeScript doesn't have built-in types for this API
-interface SpeechRecognitionEvent extends Event {
-  results: SpeechRecognitionResultList;
-  resultIndex: number;
+// Type definitions for the Web Speech API (internal use)
+// These are the official browser API types
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
 }
 
-interface SpeechRecognitionResultList {
+interface WebSpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionAlternative;
   length: number;
-  item(index: number): SpeechRecognitionResult;
-  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: {
+    [index: number]: WebSpeechRecognitionResult;
+    length: number;
+    item(index: number): WebSpeechRecognitionResult;
+  };
+  resultIndex: number;
 }
 
 interface SpeechRecognitionErrorEvent extends Event {
@@ -247,13 +256,27 @@ export class WebSpeechRecognition {
   }
 }
 
+// SpeechRecognition interface for properly typing the browser API
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onstart: () => void;
+  onend: () => void;
+}
+
 // Add type definitions for Window object
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-    mozSpeechRecognition: typeof SpeechRecognition;
-    msSpeechRecognition: typeof SpeechRecognition;
+    SpeechRecognition: {new(): SpeechRecognition};
+    webkitSpeechRecognition: {new(): SpeechRecognition};
+    mozSpeechRecognition: {new(): SpeechRecognition};
+    msSpeechRecognition: {new(): SpeechRecognition};
   }
 }
 

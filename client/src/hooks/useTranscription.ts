@@ -199,20 +199,26 @@ export function useTranscription({
     }
     
     // Ensure WebSocket is connected first
-    if (wsConnection.status !== 'connected') {
+    const connectionStatus = wsConnection.status as WebSocketStatus;
+    if (connectionStatus !== 'connected') {
       wsConnection.connect();
       
       // Wait for connection or timeout
       const connectTimeout = 3000;
       const startTime = Date.now();
       
-      // Use string comparisons instead of type assertions
-      while (wsConnection.status !== 'connected' && (Date.now() - startTime) < connectTimeout) {
+      // Wait for connection while monitoring status
+      let currentStatus: WebSocketStatus;
+      while (true) {
+        currentStatus = wsConnection.status as WebSocketStatus;
+        if (currentStatus === 'connected' || (Date.now() - startTime) >= connectTimeout) {
+          break;
+        }
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Use string comparisons instead of type assertions
-      if (wsConnection.status !== 'connected') {
+      // Check final connection status
+      if (currentStatus !== 'connected') {
         setError({
           type: 'network_error',
           message: 'Failed to connect to WebSocket server'
@@ -262,8 +268,9 @@ export function useTranscription({
   
   // Function to send transcription directly to the server
   const sendTranscriptionToServer = useCallback((text: string): boolean => {
-    // Only send if connected
-    if (wsConnection.status !== 'connected') {
+    // Only send if connected - using type assertion to avoid type issues
+    const connectionStatus = wsConnection.status as WebSocketStatus;
+    if (connectionStatus !== 'connected') {
       console.warn('Cannot send transcription - WebSocket not connected');
       return false;
     }
