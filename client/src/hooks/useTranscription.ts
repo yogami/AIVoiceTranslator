@@ -11,6 +11,7 @@ import {
   TranscriptionServiceType 
 } from '@/lib/transcription/TranscriptionFactory';
 import { useWebSocket } from './useWebSocket';
+import { WebSocketStatus } from '@/lib/websocket';
 
 // Configuration interface for the hook
 interface TranscriptionHookOptions {
@@ -205,10 +206,12 @@ export function useTranscription({
       const connectTimeout = 3000;
       const startTime = Date.now();
       
+      // Use string comparisons instead of type assertions
       while (wsConnection.status !== 'connected' && (Date.now() - startTime) < connectTimeout) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
+      // Use string comparisons instead of type assertions
       if (wsConnection.status !== 'connected') {
         setError({
           type: 'network_error',
@@ -265,8 +268,8 @@ export function useTranscription({
       return false;
     }
     
-    // Send as a transcription message using the wsClient sendTranscription method
-    return wsClient.sendTranscription(text);
+    // Send as a transcription message using the wsConnection's sendTranscription method
+    return wsConnection.sendTranscription(text);
   }, [wsConnection]);
   
   return {

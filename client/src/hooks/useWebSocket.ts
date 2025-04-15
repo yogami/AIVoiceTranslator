@@ -144,6 +144,14 @@ export function useWebSocket({
     return null;
   }, []);
   
+  // Expose the sendTranscription method for Web Speech API integration
+  const sendTranscription = useCallback((text: string): boolean => {
+    if (clientRef.current) {
+      return clientRef.current.sendTranscription(text);
+    }
+    return false;
+  }, []);
+
   return {
     status,
     sessionId,
@@ -152,6 +160,7 @@ export function useWebSocket({
     connect,
     disconnect,
     sendAudio,
+    sendTranscription,
     updateRole,
     updateLanguage,
     requestTranscripts,
