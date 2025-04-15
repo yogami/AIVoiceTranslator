@@ -68,14 +68,32 @@ export class TranslationWebSocketServer {
       
       this.connections.set(ws, connection);
       
+      // Initialize lastActivity timestamp for this connection
+      connection.lastActivity = Date.now();
+      
       // Set up server-side ping interval to keep connection alive
       const pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
+          // Check if client has been inactive for too long (30 seconds)
+          const now = Date.now();
+          const inactiveTime = now - (connection.lastActivity || now);
+          
+          if (inactiveTime > 30000) {
+            console.warn(`Connection ${sessionId} has been inactive for ${inactiveTime}ms, closing connection`);
+            try {
+              ws.close(1000, "Inactivity timeout");
+              clearInterval(pingInterval);
+              return;
+            } catch (err) {
+              console.error('Error closing inactive connection:', err);
+            }
+          }
+          
           try {
             console.log(`Sending server-initiated ping to connection ${sessionId}`);
             ws.send(JSON.stringify({
               type: 'ping',
-              timestamp: Date.now()
+              timestamp: now
             }));
           } catch (error) {
             console.error('Error sending server ping:', error);
@@ -181,15 +199,28 @@ export class TranslationWebSocketServer {
       case 'ping':
         // Respond to ping messages to keep the connection alive
         if (ws.readyState === WebSocket.OPEN) {
-          console.log('Received ping, sending pong response');
+          console.log('Received ping from client');
           try {
+            // Update the last activity time to prevent server-side ping timeouts
+            connection.lastActivity = Date.now();
+            
+            // Send pong response immediately
             ws.send(JSON.stringify({
               type: 'pong',
               timestamp: Date.now()
             }));
+            console.log('Sent pong response to client ping');
           } catch (error) {
             console.error('Error sending pong response:', error);
           }
+        }
+        break;
+        
+      case 'pong':
+        // Client responded to our ping, update activity time
+        if (ws.readyState === WebSocket.OPEN) {
+          console.log('Received pong from client, updating activity timestamp');
+          connection.lastActivity = Date.now();
         }
         break;
         

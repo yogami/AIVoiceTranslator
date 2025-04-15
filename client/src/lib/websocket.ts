@@ -152,10 +152,19 @@ export class WebSocketClient {
         console.log('WebSocket message received:', event.data.slice(0, 100) + (event.data.length > 100 ? '...' : ''));
         const data = JSON.parse(event.data);
         
-        // Handle ping/pong for keep-alive
-        if (data.type === 'pong') {
-          console.log('Received pong from server');
+        // Handle various keep-alive messages
+        if (data.type === 'pong' || data.type === 'ping') {
+          console.log(`Received ${data.type} from server`);
           this.lastPongReceived = Date.now();
+          
+          // If we received a ping, respond with a pong
+          if (data.type === 'ping') {
+            console.log('Responding to server ping with pong');
+            this.send({
+              type: 'pong',
+              timestamp: Date.now()
+            });
+          }
         }
         
         // Handle initial connection confirmation

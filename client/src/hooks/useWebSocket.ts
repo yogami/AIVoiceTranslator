@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { wsClient, WebSocketStatus, UserRole } from '@/lib/websocket';
 
 interface UseWebSocketOptions {
@@ -16,6 +16,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const [role, setRole] = useState<UserRole>(options.role || 'student');
   const [languageCode, setLanguageCode] = useState(options.languageCode || 'en-US');
 
+  // Track whether this is the primary instance of the hook
+  // This helps prevent accidental disconnection when a component using the hook unmounts
+  const isPrimaryInstance = useRef<boolean>(false);
+  
   // Handle connection status changes
   useEffect(() => {
     const handleStatusChange = (newStatus: WebSocketStatus) => {
@@ -28,10 +32,33 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     // Auto connect if specified
     if (options.autoConnect) {
       wsClient.connect();
+      
+      // Mark as primary instance if we're auto-connecting
+      // This prevents accidental disconnection when the component unmounts
+      isPrimaryInstance.current = true;
+      console.log('WebSocket: Marked as primary instance with auto-connect');
+      
+      // Store reference to our instance on window for debugging
+      if (typeof window !== 'undefined') {
+        (window as any)._primaryWebSocketInstance = true;
+      }
     }
     
     return () => {
       wsClient.removeEventListener('status', handleStatusChange);
+      
+      // Don't disconnect automatically on unmount if this is the primary instance
+      // This prevents issues when navigating between pages that use the same WebSocket
+      if (!isPrimaryInstance.current) {
+        console.log('WebSocket: Non-primary instance cleaned up (no disconnect)');
+      } else {
+        console.log('WebSocket: Primary instance clean up - connection maintained');
+        
+        // Clear the primary instance flag on window
+        if (typeof window !== 'undefined') {
+          (window as any)._primaryWebSocketInstance = false;
+        }
+      }
     };
   }, [options.autoConnect, options.onStatusChange]);
 
