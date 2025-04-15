@@ -216,14 +216,16 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         return transcribedText; // Allow these phrases through
       }
       
+      // TEMPORARILY BYPASSING CONTENT FILTERING TO SEE ACTUAL TRANSCRIPTIONS
       // Check if the transcription matches YouTube patterns
       const matchesYoutubePattern = youtubePatterns.some(pattern => pattern.test(transcribedText));
       
       if (matchesYoutubePattern) {
-        console.warn('⚠️ DETECTED YOUTUBE-STYLE PHRASE IN TRANSCRIPTION. This is likely a test audio injection:');
+        console.warn('⚠️ DETECTED YOUTUBE-STYLE PHRASE IN TRANSCRIPTION, but allowing it through for testing:');
         console.warn(`Suspicious text: "${transcribedText}"`);
-        console.warn('This text is being filtered out as it does not represent actual spoken content');
-        return ''; // Return empty string to ignore YouTube phrases
+        console.warn('Normally this would be filtered out, but we are allowing it to pass through for diagnosis');
+        // Temporarily allow the YouTube content through to see what's happening
+        return transcribedText;
       }
       
       return transcribedText;
