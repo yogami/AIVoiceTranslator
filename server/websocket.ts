@@ -296,6 +296,33 @@ export class TranslationWebSocketServer {
           }));
         }
         break;
+        
+      case 'transcription':
+        // Handle direct transcription from Web Speech API
+        if ((connection.role === 'teacher' || payload.role === 'teacher') && payload.text) {
+          console.log(`Received direct transcription from browser Web Speech API: "${payload.text}"`);
+          
+          // Prepare targets to translate to
+          let targetLanguages = [connection.languageCode]; // Start with source language
+          
+          // Find other connected students with different language preferences
+          for (const [, conn] of this.connections) {
+            if (conn.role === 'student' && !targetLanguages.includes(conn.languageCode)) {
+              targetLanguages.push(conn.languageCode);
+            }
+          }
+          
+          // Skip OpenAI transcription since we already have it from the browser
+          // and go straight to translation and broadcasting
+          await this.translateAndBroadcast(
+            teacherConnection,
+            payload.text,
+            targetLanguages
+          );
+          
+          console.log(`Processed Web Speech API transcription: "${payload.text}"`);
+        }
+        break;
 
       default:
         ws.send(JSON.stringify({ 
