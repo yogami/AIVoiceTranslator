@@ -98,13 +98,24 @@ export const TeacherInterface: React.FC = () => {
   });
   
   // Keep local state of current speech for direct rendering
-  const [displayedSpeech, setDisplayedSpeech] = useState('');
+  const [displayedSpeech, setDisplayedSpeech] = useState<string | JSX.Element>('');
 
   // Update local state when translation.currentSpeech changes
   useEffect(() => {
     console.log("TeacherInterface detected change in currentSpeech:", translation.currentSpeech);
     if (translation.currentSpeech) {
-      setDisplayedSpeech(translation.currentSpeech);
+      // Check if it's a test content warning message
+      if (translation.currentSpeech.includes("Detected test audio pattern")) {
+        // Style the warning message differently
+        setDisplayedSpeech(
+          <div className="text-amber-600 font-medium">
+            <span className="inline-block mr-2">⚠️</span> 
+            {translation.currentSpeech}
+          </div> as any
+        );
+      } else {
+        setDisplayedSpeech(translation.currentSpeech);
+      }
     }
   }, [translation.currentSpeech]);
   
@@ -326,9 +337,13 @@ export const TeacherInterface: React.FC = () => {
                 </span>
               </h3>
               <div className="current-speech text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words" data-current-speech={translation.currentSpeech}>
-                {displayedSpeech || translation.currentSpeech ? 
-                  (displayedSpeech || translation.currentSpeech) : 
-                  'The transcript of your speech will appear here in real-time...'}
+                {typeof displayedSpeech === 'object' ? (
+                  displayedSpeech
+                ) : (
+                  displayedSpeech || translation.currentSpeech ? 
+                    (displayedSpeech || translation.currentSpeech) : 
+                    'The transcript of your speech will appear here in real-time...'
+                )}
               </div>
               
               {/* Debug panel for verifying speech recognition */}
