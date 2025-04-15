@@ -123,8 +123,24 @@ import "./index.css";
   setInterval(runTestCodeChecks, 1000);
   
   // Before unloading the page
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener('beforeunload', (event) => {
+    // Disconnect the observer
     observer.disconnect();
+    
+    // Properly close WebSocket connections if they exist
+    try {
+      if (window.wsClient) {
+        console.log('Properly closing WebSocket connection before page unload');
+        window.wsClient.disconnect();
+      }
+    } catch (e) {
+      console.error('Error closing WebSocket before unload:', e);
+    }
+    
+    // For browsers that require it, return a string to trigger confirm dialog
+    // Commenting out as modern browsers ignore this value but keep here for reference
+    // event.returnValue = '';
+    // return '';
   });
   
   console.log("Test code detector initialization complete");

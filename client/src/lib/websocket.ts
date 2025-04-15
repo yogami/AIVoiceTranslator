@@ -68,14 +68,31 @@ export class WebSocketClient {
   // Keep-alive ping interval reference
   private keepAlivePingInterval: number | null = null;
   
+  // Store last pong received time for connection health monitoring
+  private lastPongReceived: number = 0;
+  
   // Start sending keep-alive pings to prevent timeouts
   private startKeepAlivePing() {
     // Clear any existing ping interval
     this.stopKeepAlivePing();
     
-    // Send a ping every 10 seconds (reduced from 15 seconds for more reliability)
+    // Initialize the last pong time
+    this.lastPongReceived = Date.now();
+    
+    // Send a ping every 5 seconds to align with server's 5-second ping interval
     this.keepAlivePingInterval = window.setInterval(() => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // Check if we've received a pong in the last 15 seconds
+        const timeSinceLastPong = Date.now() - this.lastPongReceived;
+        if (timeSinceLastPong > 15000) {
+          console.warn(`No pong received in ${timeSinceLastPong}ms, connection may be stale`);
+          
+          // Force reconnection if we haven't received a pong in a while
+          this.ws.close(3000, "No pong received");
+          this.attemptReconnect();
+          return;
+        }
+        
         console.log('Sending WebSocket keep-alive ping');
         try {
           // Send a simple ping message
@@ -98,7 +115,7 @@ export class WebSocketClient {
           this.attemptReconnect();
         }
       }
-    }, 10000); // 10 seconds
+    }, 5000); // 5 seconds to match server's interval
   }
   
   // Stop the keep-alive pings
@@ -135,11 +152,20 @@ export class WebSocketClient {
         console.log('WebSocket message received:', event.data.slice(0, 100) + (event.data.length > 100 ? '...' : ''));
         const data = JSON.parse(event.data);
         
+        // Handle ping/pong for keep-alive
+        if (data.type === 'pong') {
+          console.log('Received pong from server');
+          this.lastPongReceived = Date.now();
+        }
+        
         // Handle initial connection confirmation
         if (data.type === 'connection' && data.status === 'connected' && data.sessionId) {
           console.log('Received connection confirmation with sessionId:', data.sessionId);
           this.sessionId = data.sessionId;
           this.notifyListeners('sessionId', this.sessionId);
+          
+          // Update pong time to prevent immediate timeout
+          this.lastPongReceived = Date.now();
           
           // Store server-provided role and language if available
           if (data.role) {
@@ -291,8 +317,19 @@ export class WebSocketClient {
   }
 
   public disconnect() {
+    // Stop the keep-alive ping interval
+    this.stopKeepAlivePing();
+    
     if (this.ws) {
-      this.ws.close();
+      // Send a clean disconnect message if possible
+      try {
+        if (this.ws.readyState === WebSocket.OPEN) {
+          // Using code 1000 (normal closure) for clean disconnection
+          this.ws.close(1000, "Client initiated disconnect");
+        }
+      } catch (err) {
+        console.error('Error during clean disconnect:', err);
+      }
       this.ws = null;
     }
     
