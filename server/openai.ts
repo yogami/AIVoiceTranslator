@@ -177,7 +177,6 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         /(?:please|don't forget to) (subscribe|like|share|comment)/i,
         /(?:thanks|thank you) for watching/i,
         /if you (find|found) this (?:video|content) (helpful|useful)/i,
-        /if you have any questions/i,
         /(?:post|leave|put).*(?:in the comments)/i,
         /(?:please|make sure to) (?:hit|click|press|tap|smash) (?:the|that) (like|subscribe) button/i,
         /for more information,? (?:visit|check out) (?:www\.)?([a-zA-Z0-9]+\.(?:gov|com|org|net))/i,
@@ -186,6 +185,21 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         /for more (?:videos|content|tutorials)/i,
         /visit www\.fema\.gov/i
       ];
+      
+      // Add an allowlist for legitimate test phrases that should bypass the filter
+      const allowedTestPhrases = [
+        /^this is a test(?: message)?\.?$/i,
+        /^testing(?: 1,? 2,? 3)?\.?$/i,
+        /^test(?: audio)?\.?$/i,
+        /^hello(?: world)?\.?$/i
+      ];
+      
+      // Check if it's an allowed test phrase first
+      const isAllowedTestPhrase = allowedTestPhrases.some(pattern => pattern.test(transcribedText.trim()));
+      if (isAllowedTestPhrase) {
+        console.log(`Detected allowed test phrase: "${transcribedText}"`);
+        return transcribedText; // Allow these phrases through
+      }
       
       // Check if the transcription matches YouTube patterns
       const matchesYoutubePattern = youtubePatterns.some(pattern => pattern.test(transcribedText));
