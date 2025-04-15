@@ -127,16 +127,19 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       console.error('Error during audio debug:', debugError);
     }
     
+    // Create a temporary file for the audio buffer
+    const tempFilePath = './temp-audio.wav';
+    
     try {
-      // Skip file I/O and use the buffer directly with OpenAI API
-      console.log('Sending audio buffer directly to OpenAI API');
+      // Write the buffer to a temporary file
+      writeFileSync(tempFilePath, audioBuffer);
+      console.log(`Saved audio buffer to temporary file: ${tempFilePath}`);
       
-      // Create a virtual file from the buffer (no file system I/O)
-      const file = new File([audioBuffer], 'audio.wav', { type: 'audio/wav' });
+      // Use the OpenAI Whisper API for transcription with file read stream
+      console.log('Sending read stream to OpenAI API');
       
-      // Use a different prompt strategy to force Whisper to listen for actual content
       const transcription = await openai.audio.transcriptions.create({
-        file,
+        file: createReadStream(tempFilePath),
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
@@ -145,6 +148,14 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
+      
+      // Clean up the temporary file
+      try {
+        unlinkSync(tempFilePath);
+        console.log(`Deleted temporary file: ${tempFilePath}`);
+      } catch (unlinkError) {
+        console.error('Error deleting temporary file:', unlinkError);
+      }
       
       console.log('Transcription successful:', transcription);
       
@@ -160,7 +171,13 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     } catch (apiError: any) {
       console.error('OpenAI API error during transcription:', apiError);
       
-      // No temporary file to clean up when using the buffer directly
+      // Clean up the temporary file if there's an error
+      try {
+        unlinkSync(tempFilePath);
+        console.log(`Deleted temporary file after error: ${tempFilePath}`);
+      } catch (unlinkError) {
+        console.error('Error deleting temporary file after API error:', unlinkError);
+      }
       
       // Special handling for "audio_too_short" error
       if (apiError.code === 'audio_too_short') {
