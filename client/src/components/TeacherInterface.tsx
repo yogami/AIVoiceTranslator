@@ -97,6 +97,17 @@ export const TeacherInterface: React.FC = () => {
     autoConnect: true
   });
   
+  // Keep local state of current speech for direct rendering
+  const [displayedSpeech, setDisplayedSpeech] = useState('');
+
+  // Update local state when translation.currentSpeech changes
+  useEffect(() => {
+    console.log("TeacherInterface detected change in currentSpeech:", translation.currentSpeech);
+    if (translation.currentSpeech) {
+      setDisplayedSpeech(translation.currentSpeech);
+    }
+  }, [translation.currentSpeech]);
+  
   // Request microphone permission on mount - only once
   useEffect(() => {
     // Check if browser supports required audio APIs
@@ -308,11 +319,35 @@ export const TeacherInterface: React.FC = () => {
             </div>
             
             <div className="bg-gray-50 rounded p-3 border">
-              <h3 className="text-sm font-medium mb-2">Current Speech</h3>
-              <div className="text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words">
-                {translation.currentSpeech ? 
-                  translation.currentSpeech : 
+              <h3 className="text-sm font-medium mb-2 flex justify-between">
+                <span>Current Speech</span>
+                <span className="text-xs text-gray-500">
+                  {translation.currentSpeech ? `Transcription received at ${new Date().toLocaleTimeString()}` : ''}
+                </span>
+              </h3>
+              <div className="current-speech text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words" data-current-speech={translation.currentSpeech}>
+                {displayedSpeech || translation.currentSpeech ? 
+                  (displayedSpeech || translation.currentSpeech) : 
                   'The transcript of your speech will appear here in real-time...'}
+              </div>
+              
+              {/* Debug panel for verifying speech recognition */}
+              <div className="mt-3 p-2 border border-dashed border-yellow-300 bg-yellow-50 rounded text-xs">
+                <details>
+                  <summary className="font-medium text-yellow-700 cursor-pointer">Debug Info</summary>
+                  <div className="mt-2 space-y-1">
+                    <div><strong>displayedSpeech:</strong> {displayedSpeech || '(empty)'}</div>
+                    <div><strong>translation.currentSpeech:</strong> {translation.currentSpeech || '(empty)'}</div>
+                    <div><strong>WebSocket Status:</strong> {translation.status}</div>
+                    <div><strong>Translation Count:</strong> {translation.metrics.translationsCount}</div>
+                    <button 
+                      onClick={() => setDisplayedSpeech('This is a test speech to verify the UI updates correctly.')}
+                      className="mt-2 px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-yellow-800"
+                    >
+                      Test Display Update
+                    </button>
+                  </div>
+                </details>
               </div>
             </div>
           </CardContent>
