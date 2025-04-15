@@ -18,6 +18,7 @@ interface UseTranslationOptions {
   languageCode: string;
   role: 'teacher' | 'student';
   autoConnect?: boolean;
+  forceTeacherRole?: boolean; // Add option to force teacher role in all operations
 }
 
 export function useTranslation(options: UseTranslationOptions) {
@@ -194,8 +195,36 @@ export function useTranslation(options: UseTranslationOptions) {
   // Send audio data function
   const sendAudioData = useCallback((audioBase64: string) => {
     console.log('useTranslation: Received audio data to send, length:', audioBase64.length);
+    
+    // CRITICAL FIX: If forceTeacherRole is true, we need to ensure the audio is sent
+    // with a teacher role by manipulating the WebSocket client directly
+    if (options.forceTeacherRole) {
+      console.log('useTranslation: EMERGENCY - Forcing teacher role for audio sending');
+      
+      // Force the role to be teacher
+      wsClient.setRoleAndLock('teacher');
+      
+      // Check if we're properly connected
+      if (wsClient.getStatus() !== 'connected') {
+        console.warn('useTranslation: WebSocket not connected, attempting emergency connect');
+        wsClient.connect();
+        
+        // Wait a very short time for connection to establish
+        setTimeout(() => {
+          console.log('useTranslation: Sending audio after emergency connect attempt');
+          return wsClient.sendAudio(audioBase64);
+        }, 100);
+        
+        return true; // Return true optimistically
+      }
+      
+      // Send directly through the wsClient singleton
+      return wsClient.sendAudio(audioBase64);
+    }
+    
+    // Normal path - use the sendAudio from useWebSocket hook
     return sendAudio(audioBase64);
-  }, [sendAudio]);
+  }, [sendAudio, options.forceTeacherRole]);
 
   // Play audio
   const playAudio = useCallback((url: string) => {

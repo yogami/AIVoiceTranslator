@@ -5,17 +5,25 @@ interface WebSocketHookProps {
   autoConnect?: boolean;
   initialRole?: UserRole;
   initialLanguage?: string;
+  role?: UserRole;         // Add direct role option for backwards compatibility
+  languageCode?: string;   // Add direct languageCode option for backwards compatibility
 }
 
 export function useWebSocket({
   autoConnect = false,
   initialRole = 'student',
-  initialLanguage = 'en-US'
+  initialLanguage = 'en-US',
+  role: propRole, // Renamed to avoid conflicts
+  languageCode: propLanguageCode // Renamed to avoid conflicts
 }: WebSocketHookProps = {}) {
+  // Use prop values if provided, otherwise fall back to initial values
+  const effectiveRole = propRole || initialRole;
+  const effectiveLanguage = propLanguageCode || initialLanguage;
+  
   const [status, setStatus] = useState<WebSocketStatus>('disconnected');
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [role, setRole] = useState<UserRole>(initialRole);
-  const [languageCode, setLanguageCode] = useState<string>(initialLanguage);
+  const [currentRole, setCurrentRole] = useState<UserRole>(effectiveRole);
+  const [currentLanguageCode, setCurrentLanguageCode] = useState<string>(effectiveLanguage);
   
   // Use a ref to maintain a single instance of the WebSocketClient
   const clientRef = useRef<WebSocketClient | null>(null);
@@ -26,8 +34,11 @@ export function useWebSocket({
       clientRef.current = new WebSocketClient();
       
       // Set initial values
-      if (initialRole) {
-        clientRef.current.register(initialRole, initialLanguage);
+      clientRef.current.register(effectiveRole, effectiveLanguage);
+      
+      // If we're using the teacher role, lock it to prevent accidental changes
+      if (effectiveRole === 'teacher') {
+        clientRef.current.setRoleAndLock('teacher');
       }
     }
     
@@ -37,7 +48,7 @@ export function useWebSocket({
         clientRef.current.disconnect();
       }
     };
-  }, [initialRole, initialLanguage]);
+  }, [effectiveRole, effectiveLanguage]);
   
   // Set up event listeners
   useEffect(() => {
@@ -95,18 +106,18 @@ export function useWebSocket({
   // Update role
   const updateRole = useCallback((newRole: UserRole) => {
     if (clientRef.current) {
-      clientRef.current.register(newRole, languageCode);
-      setRole(newRole);
+      clientRef.current.register(newRole, currentLanguageCode);
+      setCurrentRole(newRole);
     }
-  }, [languageCode]);
+  }, [currentLanguageCode]);
   
   // Update language
   const updateLanguage = useCallback((newLanguageCode: string) => {
     if (clientRef.current) {
-      clientRef.current.register(role, newLanguageCode);
-      setLanguageCode(newLanguageCode);
+      clientRef.current.register(currentRole, newLanguageCode);
+      setCurrentLanguageCode(newLanguageCode);
     }
-  }, [role]);
+  }, [currentRole]);
   
   // Request transcript history
   const requestTranscripts = useCallback((language: string): boolean => {
@@ -126,7 +137,13 @@ export function useWebSocket({
   const addEventListener = useCallback((eventType: string, callback: (data: any) => void) => {
     if (clientRef.current) {
       clientRef.current.addEventListener(eventType, callback);
+      return () => {
+        if (clientRef.current) {
+          clientRef.current.removeEventListener(eventType, callback);
+        }
+      };
     }
+    return () => {};
   }, []);
   
   // Generic method to remove event listeners
@@ -155,8 +172,8 @@ export function useWebSocket({
   return {
     status,
     sessionId,
-    role,
-    languageCode,
+    role: currentRole,
+    languageCode: currentLanguageCode,
     connect,
     disconnect,
     sendAudio,

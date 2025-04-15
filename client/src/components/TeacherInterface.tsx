@@ -135,11 +135,37 @@ export const TeacherInterface: React.FC = () => {
     }
   });
   
-  // Translation setup
+  // CRITICAL FIX: Force the role to be 'teacher' and ensure it's locked
+  // This is to prevent race conditions with other components
+  useEffect(() => {
+    // Directly access the singleton instance and forcibly set the role
+    console.log('TeacherInterface: DIRECT ACCESS - Forcing wsClient to teacher role');
+    wsClient.setRoleAndLock('teacher');
+    
+    // If not connected, connect now
+    if (wsClient.getStatus() === 'disconnected') {
+      wsClient.connect();
+    }
+    
+    // Safety check - 100ms after setup
+    setTimeout(() => {
+      if (wsClient.currentRole !== 'teacher') {
+        console.error('TeacherInterface: EMERGENCY ROLE FIX - Role still not teacher after direct access');
+        wsClient.disconnect();
+        setTimeout(() => {
+          wsClient.setRoleAndLock('teacher');
+          wsClient.connect();
+        }, 100);
+      }
+    }, 100);
+  }, []);
+
+  // Translation setup with forced teacher role
   const translation = useTranslation({
     role: 'teacher',
     languageCode: selectedInputLanguage,
-    autoConnect: true
+    autoConnect: true,
+    forceTeacherRole: true // Add special flag for forced teacher role
   });
   
   // Keep local state of current speech for direct rendering
