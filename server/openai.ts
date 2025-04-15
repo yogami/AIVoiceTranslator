@@ -148,7 +148,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
         temperature: 0.0, // Use lowest temperature for precise transcription
-        prompt: "Transcribe any audible speech, even if it's brief or unclear. This is real-time classroom audio that might include natural pauses, background noise, or incomplete sentences. Detect and transcribe any clear human speech regardless of context.", // More forgiving prompt for real audio
+        prompt: "Transcribe any audible speech precisely. The audio may contain natural pauses, background noise, or incomplete sentences. Detect and transcribe only the actual spoken words, do not include any text that isn't actually spoken.", // More forgiving prompt for real audio without the test phrase
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
