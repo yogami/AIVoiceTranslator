@@ -1,233 +1,274 @@
-/**
- * Web Speech API utilities for speech recognition in the browser
- * An alternative to OpenAI Whisper API for local transcription
- */
+// Web Speech API implementation for real-time speech recognition
 
-// Define custom types for the Web Speech API because TypeScript doesn't 
-// include these by default
-interface SpeechRecognitionEvent {
+// Define the recognition result types
+export interface SpeechRecognitionResult {
+  isFinal: boolean;
+  text: string;
+}
+
+export interface SpeechRecognitionOptions {
+  language?: string;
+  continuous?: boolean;
+  interimResults?: boolean;
+  onResult?: (result: SpeechRecognitionResult) => void;
+  onError?: (error: Error) => void;
+  onStart?: () => void;
+  onEnd?: () => void;
+}
+
+// Type definitions for the Web Speech API
+// These are needed because TypeScript doesn't have built-in types for this API
+interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
   resultIndex: number;
-  interpretation: any;
 }
 
 interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
   [index: number]: SpeechRecognitionResult;
-  length: number;
 }
 
-interface SpeechRecognitionResult {
-  [index: number]: SpeechRecognitionAlternative;
-  length: number;
-  isFinal: boolean;
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message: string;
 }
 
-interface SpeechRecognitionAlternative {
-  transcript: string;
-  confidence: number;
-}
-
-// Declare the SpeechRecognition class
-interface SpeechRecognition extends EventTarget {
-  grammar: any;
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  serviceURI: string;
-  
-  start(): void;
-  stop(): void;
-  abort(): void;
-  
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: any) => void) | null;
-  onend: (() => void) | null;
-  onstart: (() => void) | null;
-  onnomatch: (() => void) | null;
-  onsoundstart: (() => void) | null;
-  onsoundend: (() => void) | null;
-  onspeechstart: (() => void) | null;
-  onspeechend: (() => void) | null;
-  onaudiostart: (() => void) | null;
-  onaudioend: (() => void) | null;
-}
-
-// Declare the constructor
-interface SpeechRecognitionConstructor {
-  new (): SpeechRecognition;
-  prototype: SpeechRecognition;
-}
-
-// Declare the global interface extensions
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognitionConstructor;
-    webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  }
-}
-
-interface WebSpeechResult {
-  transcript: string;
-  isFinal: boolean;
-}
-
-export class WebSpeechRecognizer {
-  private recognition: SpeechRecognition | null = null;
+// Define the class that will handle speech recognition
+export class WebSpeechRecognition {
+  private recognition: any = null;
   private isListening: boolean = false;
-  private onResultCallback: ((result: WebSpeechResult) => void) | null = null;
-  private onErrorCallback: ((error: any) => void) | null = null;
-  private onEndCallback: (() => void) | null = null;
+  private language: string = 'en-US';
+  private continuous: boolean = true;
   private interimResults: boolean = true;
-  private languageCode: string = 'en-US';
-  
-  constructor(options?: { 
-    interimResults?: boolean,
-    languageCode?: string
-  }) {
-    if (options) {
-      if (options.interimResults !== undefined) {
-        this.interimResults = options.interimResults;
-      }
-      if (options.languageCode) {
-        this.languageCode = options.languageCode;
-      }
-    }
-    
-    try {
-      this.initRecognition();
-    } catch (error) {
-      console.error('Error initializing Web Speech API:', error);
-    }
-  }
-  
-  private initRecognition() {
-    // Browser compatibility for SpeechRecognition
-    const SpeechRecognition = window.SpeechRecognition || 
-                             window.webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      console.error('SpeechRecognition is not supported in this browser');
+  private onResult: ((result: SpeechRecognitionResult) => void) | null = null;
+  private onError: ((error: Error) => void) | null = null;
+  private onStart: (() => void) | null = null;
+  private onEnd: (() => void) | null = null;
+
+  constructor(options: SpeechRecognitionOptions = {}) {
+    // Check if the Web Speech API is supported
+    if (!this.isSupported()) {
+      console.error('Web Speech API is not supported in this browser');
       return;
     }
-    
+
+    // Set options
+    this.language = options.language || 'en-US';
+    this.continuous = options.continuous !== undefined ? options.continuous : true;
+    this.interimResults = options.interimResults !== undefined ? options.interimResults : true;
+    this.onResult = options.onResult || null;
+    this.onError = options.onError || null;
+    this.onStart = options.onStart || null;
+    this.onEnd = options.onEnd || null;
+
+    // Initialize the recognition object
+    this.initializeRecognition();
+  }
+
+  // Check if Web Speech API is supported
+  public isSupported(): boolean {
+    return !!(window.SpeechRecognition || 
+             window.webkitSpeechRecognition || 
+             window.mozSpeechRecognition || 
+             window.msSpeechRecognition);
+  }
+
+  // Initialize the recognition object
+  private initializeRecognition(): void {
+    // Get the appropriate SpeechRecognition constructor
+    const SpeechRecognition = window.SpeechRecognition || 
+                             window.webkitSpeechRecognition || 
+                             window.mozSpeechRecognition || 
+                             window.msSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.error('SpeechRecognition is not supported');
+      return;
+    }
+
+    // Create a new instance
     this.recognition = new SpeechRecognition();
-    this.recognition.lang = this.languageCode;
+
+    // Configure the recognition object
+    this.recognition.lang = this.language;
+    this.recognition.continuous = this.continuous;
     this.recognition.interimResults = this.interimResults;
-    this.recognition.continuous = true;
-    this.recognition.maxAlternatives = 1;
-    
-    this.recognition.onresult = (event: SpeechRecognitionEvent) => {
-      if (!this.onResultCallback) return;
-      
-      const lastResult = event.results[event.results.length - 1];
-      const transcript = lastResult[0].transcript;
-      const isFinal = lastResult.isFinal;
-      
-      this.onResultCallback({
-        transcript,
-        isFinal
-      });
+
+    // Set up event handlers
+    this.recognition.onstart = () => {
+      this.isListening = true;
+      console.log('Speech recognition started');
+      if (this.onStart) this.onStart();
     };
-    
-    this.recognition.onerror = (event: any) => {
-      if (this.onErrorCallback) {
-        this.onErrorCallback(event);
+
+    this.recognition.onend = () => {
+      this.isListening = false;
+      console.log('Speech recognition ended');
+      if (this.onEnd) this.onEnd();
+    };
+
+    this.recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const text = finalTranscript || interimTranscript;
+      const isFinal = !!finalTranscript;
+
+      console.log(`Speech recognition result: ${text} (${isFinal ? 'final' : 'interim'})`);
+      
+      if (this.onResult && text) {
+        this.onResult({ 
+          text, 
+          isFinal 
+        });
       }
     };
-    
-    this.recognition.onend = () => {
-      // Auto-restart if still listening
-      if (this.isListening) {
-        try {
-          this.recognition?.start();
-        } catch (error) {
-          console.error('Error restarting speech recognition:', error);
-          this.isListening = false;
-          if (this.onEndCallback) this.onEndCallback();
-        }
-      } else if (this.onEndCallback) {
-        this.onEndCallback();
+
+    this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error, event.message);
+      if (this.onError) {
+        this.onError(new Error(`Speech recognition error: ${event.error}`));
       }
     };
   }
-  
+
+  // Start speech recognition
   public start(): boolean {
     if (!this.recognition) {
-      console.error('SpeechRecognition is not supported or not initialized');
+      console.error('Recognition not initialized');
       return false;
     }
-    
+
     if (this.isListening) {
-      return true; // Already listening
+      console.warn('Already listening');
+      return true;
     }
-    
+
     try {
       this.recognition.start();
-      this.isListening = true;
       return true;
     } catch (error) {
       console.error('Error starting speech recognition:', error);
+      if (this.onError) this.onError(error as Error);
       return false;
     }
   }
-  
-  public stop(): void {
-    if (!this.recognition || !this.isListening) {
-      return;
+
+  // Stop speech recognition
+  public stop(): boolean {
+    if (!this.recognition) {
+      console.error('Recognition not initialized');
+      return false;
     }
-    
+
+    if (!this.isListening) {
+      console.warn('Not currently listening');
+      return true;
+    }
+
     try {
       this.recognition.stop();
-      this.isListening = false;
+      return true;
     } catch (error) {
       console.error('Error stopping speech recognition:', error);
+      if (this.onError) this.onError(error as Error);
+      return false;
     }
   }
-  
-  public setLanguage(languageCode: string): void {
-    this.languageCode = languageCode;
-    if (this.recognition) {
-      this.recognition.lang = languageCode;
+
+  // Abort speech recognition (immediate stop)
+  public abort(): boolean {
+    if (!this.recognition) {
+      console.error('Recognition not initialized');
+      return false;
+    }
+
+    try {
+      this.recognition.abort();
+      return true;
+    } catch (error) {
+      console.error('Error aborting speech recognition:', error);
+      if (this.onError) this.onError(error as Error);
+      return false;
     }
   }
-  
-  public onResult(callback: (result: WebSpeechResult) => void): void {
-    this.onResultCallback = callback;
+
+  // Update recognition parameters
+  public updateParams(options: SpeechRecognitionOptions): void {
+    let needsRestart = false;
+    
+    if (options.language && options.language !== this.language) {
+      this.language = options.language;
+      if (this.recognition) this.recognition.lang = this.language;
+      needsRestart = this.isListening;
+    }
+    
+    if (options.continuous !== undefined && options.continuous !== this.continuous) {
+      this.continuous = options.continuous;
+      if (this.recognition) this.recognition.continuous = this.continuous;
+      needsRestart = this.isListening;
+    }
+    
+    if (options.interimResults !== undefined && options.interimResults !== this.interimResults) {
+      this.interimResults = options.interimResults;
+      if (this.recognition) this.recognition.interimResults = this.interimResults;
+      needsRestart = this.isListening;
+    }
+    
+    if (options.onResult) this.onResult = options.onResult;
+    if (options.onError) this.onError = options.onError;
+    if (options.onStart) this.onStart = options.onStart;
+    if (options.onEnd) this.onEnd = options.onEnd;
+    
+    // If we changed parameters that require a restart and we're currently listening
+    if (needsRestart) {
+      this.stop();
+      setTimeout(() => this.start(), 100);
+    }
   }
-  
-  public onError(callback: (error: any) => void): void {
-    this.onErrorCallback = callback;
-  }
-  
-  public onEnd(callback: () => void): void {
-    this.onEndCallback = callback;
-  }
-  
-  public isSupported(): boolean {
-    return !!(window.SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  // Check if currently listening
+  public isActive(): boolean {
+    return this.isListening;
   }
 }
 
-// Web Speech API utility for sending transcribed text to the server
-export function sendTranscribedText(
-  text: string, 
-  websocket: WebSocket,
-  sourceLanguage: string
-): void {
-  if (!text || !websocket || websocket.readyState !== WebSocket.OPEN) {
-    return;
+// Add type definitions for Window object
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+    mozSpeechRecognition: typeof SpeechRecognition;
+    msSpeechRecognition: typeof SpeechRecognition;
+  }
+}
+
+// Singleton instance for easy access
+let instance: WebSpeechRecognition | null = null;
+
+export function getSpeechRecognition(options?: SpeechRecognitionOptions): WebSpeechRecognition | null {
+  if (!instance) {
+    try {
+      instance = new WebSpeechRecognition(options);
+    } catch (error) {
+      console.error('Failed to create speech recognition instance:', error);
+      return null;
+    }
+  } else if (options) {
+    // Update existing instance with new options
+    instance.updateParams(options);
   }
   
-  // Format the transcription message
-  const message = {
-    type: 'transcription',
-    data: {
-      text,
-      sourceLanguage
-    }
-  };
-  
-  // Send the message to the server
-  websocket.send(JSON.stringify(message));
+  return instance;
 }

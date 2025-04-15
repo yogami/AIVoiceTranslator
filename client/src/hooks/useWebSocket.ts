@@ -1,194 +1,149 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { wsClient, WebSocketStatus, UserRole } from '@/lib/websocket';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { WebSocketClient, WebSocketStatus, UserRole } from '@/lib/websocket';
 
-interface UseWebSocketOptions {
+interface WebSocketHookProps {
   autoConnect?: boolean;
-  role?: UserRole;
-  languageCode?: string;
-  onMessage?: (data: any) => void;
-  onStatusChange?: (status: WebSocketStatus) => void;
-  onError?: (error: any) => void;
+  initialRole?: UserRole;
+  initialLanguage?: string;
 }
 
-export function useWebSocket(options: UseWebSocketOptions = {}) {
-  const [status, setStatus] = useState<WebSocketStatus>(wsClient.getStatus());
-  const [sessionId, setSessionId] = useState<string | null>(wsClient.getSessionId());
-  const [role, setRole] = useState<UserRole>(options.role || 'student');
-  const [languageCode, setLanguageCode] = useState(options.languageCode || 'en-US');
-
-  // Track whether this is the primary instance of the hook
-  // This helps prevent accidental disconnection when a component using the hook unmounts
-  const isPrimaryInstance = useRef<boolean>(false);
+export function useWebSocket({
+  autoConnect = false,
+  initialRole = 'student',
+  initialLanguage = 'en-US'
+}: WebSocketHookProps = {}) {
+  const [status, setStatus] = useState<WebSocketStatus>('disconnected');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [role, setRole] = useState<UserRole>(initialRole);
+  const [languageCode, setLanguageCode] = useState<string>(initialLanguage);
   
-  // Handle connection status changes
+  // Use a ref to maintain a single instance of the WebSocketClient
+  const clientRef = useRef<WebSocketClient | null>(null);
+  
+  // Create the client instance if it doesn't exist
   useEffect(() => {
+    if (!clientRef.current) {
+      clientRef.current = new WebSocketClient();
+      
+      // Set initial values
+      if (initialRole) {
+        clientRef.current.register(initialRole, initialLanguage);
+      }
+    }
+    
+    return () => {
+      // Clean up on component unmount
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+      }
+    };
+  }, [initialRole, initialLanguage]);
+  
+  // Set up event listeners
+  useEffect(() => {
+    const client = clientRef.current;
+    if (!client) return;
+    
+    // Status change handler
     const handleStatusChange = (newStatus: WebSocketStatus) => {
       setStatus(newStatus);
-      options.onStatusChange?.(newStatus);
     };
-
-    wsClient.addEventListener('status', handleStatusChange);
     
-    // Auto connect if specified
-    if (options.autoConnect) {
-      wsClient.connect();
-      
-      // Mark as primary instance if we're auto-connecting
-      // This prevents accidental disconnection when the component unmounts
-      isPrimaryInstance.current = true;
-      console.log('WebSocket: Marked as primary instance with auto-connect');
-      
-      // Store reference to our instance on window for debugging
-      if (typeof window !== 'undefined') {
-        (window as any)._primaryWebSocketInstance = true;
-      }
+    // Session ID handler
+    const handleSessionId = (id: string) => {
+      setSessionId(id);
+    };
+    
+    // Register event listeners
+    client.addEventListener('status', handleStatusChange);
+    client.addEventListener('sessionId', handleSessionId);
+    
+    // Auto-connect if specified
+    if (autoConnect && status === 'disconnected') {
+      client.connect();
     }
     
     return () => {
-      wsClient.removeEventListener('status', handleStatusChange);
-      
-      // Don't disconnect automatically on unmount if this is the primary instance
-      // This prevents issues when navigating between pages that use the same WebSocket
-      if (!isPrimaryInstance.current) {
-        console.log('WebSocket: Non-primary instance cleaned up (no disconnect)');
-      } else {
-        console.log('WebSocket: Primary instance clean up - connection maintained');
-        
-        // Clear the primary instance flag on window
-        if (typeof window !== 'undefined') {
-          (window as any)._primaryWebSocketInstance = false;
-        }
-      }
+      // Clean up event listeners
+      client.removeEventListener('status', handleStatusChange);
+      client.removeEventListener('sessionId', handleSessionId);
     };
-  }, [options.autoConnect, options.onStatusChange]);
-
-  // Handle session ID updates
-  useEffect(() => {
-    const handleSessionUpdate = (sid: string) => {
-      setSessionId(sid);
-    };
-    
-    wsClient.addEventListener('sessionId', handleSessionUpdate);
-    
-    return () => {
-      wsClient.removeEventListener('sessionId', handleSessionUpdate);
-    };
-  }, []);
-
-  // Handle generic messages
-  useEffect(() => {
-    if (!options.onMessage) return;
-    
-    const handleMessage = (data: any) => {
-      options.onMessage?.(data);
-    };
-    
-    wsClient.addEventListener('message', handleMessage);
-    
-    return () => {
-      wsClient.removeEventListener('message', handleMessage);
-    };
-  }, [options.onMessage]);
-
-  // Handle errors
-  useEffect(() => {
-    if (!options.onError) return;
-    
-    const handleError = (error: any) => {
-      options.onError?.(error);
-    };
-    
-    wsClient.addEventListener('error', handleError);
-    
-    return () => {
-      wsClient.removeEventListener('error', handleError);
-    };
-  }, [options.onError]);
-
-  // Update role and language when changed
-  useEffect(() => {
-    if (role !== options.role && options.role) {
-      setRole(options.role);
-    }
-    
-    if (languageCode !== options.languageCode && options.languageCode) {
-      setLanguageCode(options.languageCode);
-    }
-  }, [options.role, options.languageCode, role, languageCode]);
-
-  // Register when role or language changes
-  useEffect(() => {
-    if (status === 'connected') {
-      // For teacher role, use the locked method to prevent future changes
-      if (role === 'teacher') {
-        wsClient.setRoleAndLock('teacher');
-      } else {
-        wsClient.register(role, languageCode);
-      }
-    }
-  }, [role, languageCode, status]);
-
-  // Connect to WebSocket
+  }, [autoConnect, status]);
+  
+  // Connect method
   const connect = useCallback(() => {
-    wsClient.connect();
+    if (clientRef.current) {
+      clientRef.current.connect();
+    }
   }, []);
-
-  // Disconnect from WebSocket
+  
+  // Disconnect method
   const disconnect = useCallback(() => {
-    wsClient.disconnect();
+    if (clientRef.current) {
+      clientRef.current.disconnect();
+    }
   }, []);
-
+  
   // Send audio data
-  const sendAudio = useCallback((audioData: string) => {
-    return wsClient.sendAudio(audioData);
+  const sendAudio = useCallback((audioData: string): boolean => {
+    if (clientRef.current) {
+      return clientRef.current.sendAudio(audioData);
+    }
+    return false;
   }, []);
-
+  
   // Update role
   const updateRole = useCallback((newRole: UserRole) => {
-    setRole(newRole);
-    if (status === 'connected') {
-      // For critical 'teacher' role, use the locked method
-      if (newRole === 'teacher') {
-        wsClient.setRoleAndLock(newRole);
-      } else {
-        wsClient.register(newRole, languageCode);
-      }
+    if (clientRef.current) {
+      clientRef.current.register(newRole, languageCode);
+      setRole(newRole);
     }
-  }, [status, languageCode]);
-
+  }, [languageCode]);
+  
   // Update language
   const updateLanguage = useCallback((newLanguageCode: string) => {
-    setLanguageCode(newLanguageCode);
-    if (status === 'connected') {
-      // Ensure we don't accidentally change the role when updating language
-      if (role === 'teacher') {
-        // For teacher role, preserve the role lock by using a special method
-        const currentRoleInWsClient = (wsClient as any).role;
-        if (currentRoleInWsClient === 'teacher') {
-          // If already set as teacher and locked, simply send a register message
-          wsClient.register('teacher', newLanguageCode);
-        } else {
-          // If not already locked as teacher, set and lock it
-          wsClient.setRoleAndLock('teacher');
-        }
-      } else {
-        wsClient.register(role, newLanguageCode);
-      }
+    if (clientRef.current) {
+      clientRef.current.register(role, newLanguageCode);
+      setLanguageCode(newLanguageCode);
     }
-  }, [status, role]);
-
-  // Request transcripts
-  const requestTranscripts = useCallback((language: string) => {
-    if (!sessionId) return false;
-    return wsClient.requestTranscripts(sessionId, language);
+  }, [role]);
+  
+  // Request transcript history
+  const requestTranscripts = useCallback((language: string): boolean => {
+    if (clientRef.current && sessionId) {
+      return clientRef.current.send({
+        type: 'transcript_request',
+        payload: {
+          sessionId,
+          languageCode: language
+        }
+      });
+    }
+    return false;
   }, [sessionId]);
-
-  // Add event listener
+  
+  // Generic method to add event listeners
   const addEventListener = useCallback((eventType: string, callback: (data: any) => void) => {
-    wsClient.addEventListener(eventType, callback);
-    return () => wsClient.removeEventListener(eventType, callback);
+    if (clientRef.current) {
+      clientRef.current.addEventListener(eventType, callback);
+    }
   }, []);
-
+  
+  // Generic method to remove event listeners
+  const removeEventListener = useCallback((eventType: string, callback: (data: any) => void) => {
+    if (clientRef.current) {
+      clientRef.current.removeEventListener(eventType, callback);
+    }
+  }, []);
+  
+  // Get the WebSocket instance for direct use
+  const getSocket = useCallback((): WebSocket | null => {
+    if (clientRef.current) {
+      return clientRef.current.getSocket();
+    }
+    return null;
+  }, []);
+  
   return {
     status,
     sessionId,
@@ -200,6 +155,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     updateRole,
     updateLanguage,
     requestTranscripts,
-    addEventListener
+    addEventListener,
+    removeEventListener,
+    socket: getSocket()
   };
 }

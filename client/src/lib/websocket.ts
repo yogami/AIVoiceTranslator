@@ -39,6 +39,9 @@ export class WebSocketClient {
   // Make role and roleLocked accessible for diagnostics and status checking
   public get currentRole(): UserRole { return this.role; }
   public get isRoleLocked(): boolean { return this.roleLocked; }
+  
+  // Get the WebSocket instance for direct access if needed
+  public getSocket(): WebSocket | null { return this.ws; }
 
   constructor() {
     this.setupEventHandlers = this.setupEventHandlers.bind(this);
