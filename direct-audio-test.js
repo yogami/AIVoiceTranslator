@@ -11,7 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TEST_AUDIO_PATH = path.join(__dirname, 'test-message.wav');
+const TEST_AUDIO_PATH = path.join(__dirname, 'test-message-larger.wav'); // Use the larger audio file
 
 // Create the test audio file if it doesn't exist
 async function ensureTestAudioExists() {
