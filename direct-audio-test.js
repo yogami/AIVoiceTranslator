@@ -112,11 +112,13 @@ async function runTest() {
     ws.on('open', async () => {
       console.log('Connected to WebSocket server');
       
-      // Register as teacher
+      // Register as teacher - match exact format expected by server
       ws.send(JSON.stringify({
         type: 'register',
-        role: 'teacher',
-        languageCode: 'en-US'
+        payload: {
+          role: 'teacher',
+          languageCode: 'en-US'
+        }
       }));
       
       console.log('Registered as teacher');
@@ -124,13 +126,17 @@ async function runTest() {
       // Short delay to ensure registration is processed
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Send test audio
+      // Send test audio - match exact format expected by server
       const audioBase64 = await getTestAudio();
       console.log(`Sending test audio (${audioBase64.length} bytes)...`);
       
+      // The server expects the audio in a specific JSON format
       ws.send(JSON.stringify({
         type: 'audio',
-        data: audioBase64
+        payload: {
+          role: 'teacher',
+          audio: audioBase64
+        }
       }));
       
       console.log('Test audio sent, waiting for response...');
@@ -173,14 +179,18 @@ async function runTest() {
           } else if (transcriptions.length === 0) {
             console.log('❌ TEST FAILED: No transcriptions received');
             
-            // Send the audio one more time
+            // Send the audio one more time - use the correct format
             setTimeout(async () => {
               const audioBase64 = await getTestAudio();
               console.log(`Sending test audio again (${audioBase64.length} bytes)...`);
               
+              // The server expects the audio in a specific JSON format
               ws.send(JSON.stringify({
                 type: 'audio',
-                data: audioBase64
+                payload: {
+                  role: 'teacher',
+                  audio: audioBase64
+                }
               }));
             }, 1000);
           }
