@@ -190,7 +190,13 @@ export class TranslationWebSocketServer {
       return;
     }
 
-    const { type, payload } = data;
+    // Parse and destructure the message with explicit typing
+    const message = data as {
+      type: string;
+      role?: string;
+      payload: any;
+    };
+    const { type, payload } = message;
     
     // Debug current connection state
     console.log(`Processing message type=${type} from connection: role=${connection.role}, languageCode=${connection.languageCode}`);
