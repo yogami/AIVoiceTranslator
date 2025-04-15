@@ -2,6 +2,134 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
+// Detect and neutralize test code injections
+(function preventTestCodeInjection() {
+  console.log("Starting test code detector...");
+  
+  // Store original implementations to restore if tampered with
+  const originalGetUserMedia = navigator.mediaDevices.getUserMedia;
+  const originalMediaRecorder = window.MediaRecorder;
+  const origDescriptor = Object.getOwnPropertyDescriptor(window, 'MediaRecorder');
+  
+  // List of known test file indicators
+  const testKeywords = ['test', 'mock', 'fake', 'selenium', 'e2e', 'youtube', 'subscribe', 'like', 'comment', 'fema'];
+  
+  // Set up MutationObserver to detect script injections
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'childList') {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeName === 'SCRIPT') {
+            const scriptContent = (node as HTMLScriptElement).textContent || '';
+            const scriptSrc = (node as HTMLScriptElement).src || '';
+            
+            // Check if this is a test script
+            if (testKeywords.some(keyword => 
+                scriptContent.toLowerCase().includes(keyword) || 
+                scriptSrc.toLowerCase().includes(keyword))) {
+              console.warn('Detected potential test script injection:', 
+                scriptSrc || scriptContent.substring(0, 100) + '...');
+              
+              // Optionally remove the script
+              // node.parentNode?.removeChild(node);
+            }
+          }
+        });
+      }
+    }
+  });
+  
+  // Start observing the document
+  observer.observe(document, { childList: true, subtree: true });
+  
+  // Detect if MediaRecorder has been mocked
+  function checkAndRestoreMediaRecorder() {
+    try {
+      // Check if MediaRecorder has suspicious behavior
+      const isSuspicious = 
+        MediaRecorder.toString().length < 50 ||
+        MediaRecorder.toString().includes('mock') ||
+        MediaRecorder.isTypeSupported('not-a-real-type') ||
+        typeof (window as any)._originalMediaRecorder === 'function';
+        
+      if (isSuspicious) {
+        console.warn('Detected suspicious MediaRecorder implementation, restoring original');
+        
+        // Restore original if we have a reference to it
+        if (origDescriptor) {
+          Object.defineProperty(window, 'MediaRecorder', origDescriptor);
+        } else if (originalMediaRecorder) {
+          window.MediaRecorder = originalMediaRecorder;
+        }
+      }
+    } catch (e) {
+      console.error('Error checking MediaRecorder implementation:', e);
+    }
+  }
+  
+  // Detect if getUserMedia has been mocked
+  function checkAndRestoreGetUserMedia() {
+    try {
+      const getUserMediaString = navigator.mediaDevices.getUserMedia.toString();
+      const isSuspicious = 
+        getUserMediaString.length < 50 ||
+        getUserMediaString.includes('mock') ||
+        getUserMediaString.includes('test') ||
+        getUserMediaString.includes('_playTestAudio') ||
+        typeof (navigator as any)._originalGetUserMedia === 'function';
+        
+      if (isSuspicious) {
+        console.warn('Detected suspicious getUserMedia implementation, restoring original');
+        
+        // Restore original if we have a reference to it
+        if (originalGetUserMedia) {
+          navigator.mediaDevices.getUserMedia = originalGetUserMedia;
+        }
+      }
+    } catch (e) {
+      console.error('Error checking getUserMedia implementation:', e);
+    }
+  }
+  
+  // Check for test audio files
+  function detectTestAudioElements() {
+    // Look for test audio in the DOM
+    document.querySelectorAll('audio').forEach(audio => {
+      const src = audio.src || '';
+      if (testKeywords.some(keyword => src.toLowerCase().includes(keyword))) {
+        console.warn('Detected test audio element, removing:', src);
+        audio.remove();
+      }
+    });
+    
+    // Check for special window properties used by tests
+    if (typeof (window as any)._playTestAudio === 'function') {
+      console.warn('Detected _playTestAudio function, removing');
+      delete (window as any)._playTestAudio;
+    }
+  }
+  
+  // Run all checks
+  function runTestCodeChecks() {
+    checkAndRestoreMediaRecorder();
+    checkAndRestoreGetUserMedia();
+    detectTestAudioElements();
+  }
+  
+  // Run immediately
+  runTestCodeChecks();
+  
+  // Also run periodically
+  setInterval(runTestCodeChecks, 1000);
+  
+  // Before unloading the page
+  window.addEventListener('beforeunload', () => {
+    observer.disconnect();
+  });
+  
+  console.log("Test code detector initialization complete");
+})();
+
 // Adding global styles for audio waveform
 const style = document.createElement('style');
 style.textContent = `

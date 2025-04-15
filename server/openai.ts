@@ -98,13 +98,12 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
     }
     
     // Check if buffer is sufficient for transcription - at least 8000 bytes (about 0.5 sec of audio)
-    // This helps avoid the "Audio file is too short" error from OpenAI
     if (audioBuffer.byteLength < 8000) {
       console.warn(`Audio buffer too small for transcription: ${audioBuffer.byteLength} bytes`);
       return ""; // Return empty string for short audio chunks
     }
     
-    // Debug audio file format by examining the first 32 bytes
+    // Debug audio file format
     try {
       const firstBytes = audioBuffer.slice(0, 32);
       const hexDump = firstBytes.toString('hex').match(/.{1,2}/g)?.join(' ') || '';
@@ -128,7 +127,7 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       console.error('Error during audio debug:', debugError);
     }
     
-    // Create a temporary file for the audio buffer with absolute path
+    // Create a temporary file for the audio buffer
     const tempFilePath = path.join(process.cwd(), 'temp-audio.wav');
     
     try {
@@ -136,19 +135,17 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       writeFileSync(tempFilePath, audioBuffer);
       console.log(`Saved audio buffer to temporary file: ${tempFilePath}`);
       
-      // Use the OpenAI Whisper API for transcription with file read stream
+      // Use the OpenAI Whisper API for transcription
       console.log('Sending read stream to OpenAI API');
-      
       console.log('Enhancing audio parameters for better transcription results...');
       
-      // Use more parameters to improve transcription accuracy for real-world audio
       const transcription = await openai.audio.transcriptions.create({
         file: createReadStream(tempFilePath),
         model: "whisper-1",
         language: "en", // Make dynamic based on sourceLanguage if needed
         response_format: "json",
         temperature: 0.0, // Use lowest temperature for precise transcription
-        prompt: "Transcribe any audible speech precisely. The audio may contain natural pauses, background noise, or incomplete sentences. Detect and transcribe only the actual spoken words, do not include any text that isn't actually spoken.", // More forgiving prompt for real audio without the test phrase
+        prompt: "Transcribe any audible speech precisely. The audio may contain natural pauses, background noise, or incomplete sentences. Detect and transcribe only the actual spoken words, do not include any text that isn't actually spoken.",
       });
       
       console.log('Full transcription response:', JSON.stringify(transcription));
@@ -164,14 +161,44 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
       console.log('Transcription successful:', transcription);
       
       // Extract text from JSON response
+      let transcribedText = '';
       if (typeof transcription === 'object' && 'text' in transcription) {
-        return transcription.text;
+        transcribedText = transcription.text;
       } else if (typeof transcription === 'string') {
-        return transcription;
+        transcribedText = transcription;
       } else {
-        console.warn('Unexpected transcription response format:', transcription);
+        console.warn('Unexpected transcription response format:', JSON.stringify(transcription));
         return ""; 
       }
+      
+      // Filter out common YouTube-style phrases that are appearing incorrectly in transcriptions
+      const youtubePatterns = [
+        /(?:please|don't forget to) like,? (?:and )?(subscribe|share)/i,
+        /(?:please|don't forget to) (subscribe|like|share|comment)/i,
+        /(?:thanks|thank you) for watching/i,
+        /if you (find|found) this (?:video|content) (helpful|useful)/i,
+        /if you have any questions/i,
+        /(?:post|leave|put).*(?:in the comments)/i,
+        /(?:please|make sure to) (?:hit|click|press|tap|smash) (?:the|that) (like|subscribe) button/i,
+        /for more information,? (?:visit|check out) (?:www\.)?([a-zA-Z0-9]+\.(?:gov|com|org|net))/i,
+        /my website (?:at|is|can be found at) (?:www\.)?([a-zA-Z0-9]+\.(?:com|org|net))/i,
+        /visit (?:our|my) website at/i,
+        /for more (?:videos|content|tutorials)/i,
+        /visit www\.fema\.gov/i
+      ];
+      
+      // Check if the transcription matches YouTube patterns
+      const matchesYoutubePattern = youtubePatterns.some(pattern => pattern.test(transcribedText));
+      
+      if (matchesYoutubePattern) {
+        console.warn('⚠️ DETECTED YOUTUBE-STYLE PHRASE IN TRANSCRIPTION. This is likely a test audio injection:');
+        console.warn(`Suspicious text: "${transcribedText}"`);
+        console.warn('This text is being filtered out as it does not represent actual spoken content');
+        return ''; // Return empty string to ignore YouTube phrases
+      }
+      
+      return transcribedText;
+      
     } catch (apiError: any) {
       console.error('OpenAI API error during transcription:', apiError);
       

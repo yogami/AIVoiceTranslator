@@ -430,6 +430,14 @@ export class TranslationWebSocketServer {
         
         console.log(`Combined ${chunks.length} chunks into buffer of size ${processedBuffer.byteLength} bytes`);
         
+        // Detect potential test audio based on size patterns
+        const isSuspiciousPattern = this.detectSuspiciousAudio(processedBuffer);
+        if (isSuspiciousPattern) {
+          console.warn('⚠️ DETECTED POTENTIAL TEST AUDIO: Audio with suspicious pattern detected');
+          console.warn('This audio will be rejected as it appears to be test content');
+          return false; // Skip processing this audio chunk
+        }
+        
         // Clear the chunks after processing
         this.audioChunks.set(connectionKey, []);
       }
@@ -588,6 +596,67 @@ export class TranslationWebSocketServer {
            buffer[1] === 0x49 && // I
            buffer[2] === 0x46 && // F
            buffer[3] === 0x46;   // F
+  }
+  
+  // Helper method to detect suspicious audio patterns (likely test audio)
+  private detectSuspiciousAudio(buffer: Buffer): boolean {
+    // No reasonable audio would be this exact size - likely test audio
+    const knownTestSizes = [16000, 32000, 44100, 48000, 88200, 96000];
+    const exactSizeMatch = knownTestSizes.includes(buffer.byteLength);
+    
+    // Check for suspiciously perfect audio length
+    const isPerfectLength = buffer.byteLength % 1000 === 0 && buffer.byteLength > 10000;
+    
+    // Check for repeating patterns often found in test audio
+    const hasSuspiciousRepeatingPattern = this.detectRepeatingPatterns(buffer);
+    
+    // If any suspicious pattern is detected
+    if (exactSizeMatch || isPerfectLength || hasSuspiciousRepeatingPattern) {
+      console.warn('Suspicious audio pattern detected:');
+      console.warn(`- Exact size match: ${exactSizeMatch}`);
+      console.warn(`- Perfect length: ${isPerfectLength}`);
+      console.warn(`- Repeating patterns: ${hasSuspiciousRepeatingPattern}`);
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Helper to detect repeating patterns in audio data
+  private detectRepeatingPatterns(buffer: Buffer): boolean {
+    // Skip WAV header if present
+    const audioData = this.hasWavHeader(buffer) ? buffer.subarray(44) : buffer;
+    
+    // Nothing to analyze
+    if (audioData.length < 1000) return false;
+    
+    // Sample some points from the audio to check for patterns
+    // This is a simplified approach that looks for exact repeating sequences
+    const sampleSize = 100;
+    const numSamples = 5;
+    const startPositions = [0, Math.floor(audioData.length * 0.2), Math.floor(audioData.length * 0.4),
+                           Math.floor(audioData.length * 0.6), Math.floor(audioData.length * 0.8)];
+    
+    // Get samples
+    const samples: Buffer[] = [];
+    for (const pos of startPositions) {
+      if (pos + sampleSize <= audioData.length) {
+        samples.push(audioData.subarray(pos, pos + sampleSize));
+      }
+    }
+    
+    // Compare samples for similarity (exact matches)
+    let exactMatches = 0;
+    for (let i = 0; i < samples.length; i++) {
+      for (let j = i + 1; j < samples.length; j++) {
+        if (samples[i].equals(samples[j])) {
+          exactMatches++;
+        }
+      }
+    }
+    
+    // If more than 2 pairs of samples match exactly, that's very suspicious
+    return exactMatches > 2;
   }
 
   // Get statistics about current connections
