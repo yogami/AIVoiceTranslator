@@ -54,6 +54,34 @@ export class AudioCapture {
     }
 
     try {
+      // Guard against test audio files being served by client
+      const testAudioCheck = new Audio('/test-message.wav');
+      testAudioCheck.onerror = () => {
+        console.log('No test audio file detected - good!');
+      };
+      testAudioCheck.oncanplaythrough = () => {
+        console.error('WARNING: Test audio file detected at /test-message.wav. This file should be removed in production!');
+      };
+      
+      // Ensure we're not using a mocked getUserMedia from test code
+      try {
+        const getUserMediaString = navigator.mediaDevices.getUserMedia.toString();
+        if (getUserMediaString.includes('mock') ||
+            getUserMediaString.includes('test') ||
+            getUserMediaString.includes('fake') ||
+            getUserMediaString.includes('audio.src') || // Detecting e2e-selenium-test.js injection
+            getUserMediaString.length < 50) { // Real implementation will be longer
+          console.error('Detected mocked getUserMedia from test code. Using real implementation.');
+          // Try to restore original implementation if it was saved by test code
+          if (typeof (navigator as any)._originalGetUserMedia === 'function') {
+            console.log('Restoring original getUserMedia implementation');
+            navigator.mediaDevices.getUserMedia = (navigator as any)._originalGetUserMedia;
+          }
+        }
+      } catch (e) {
+        console.error('Error checking getUserMedia implementation:', e);
+      }
+      
       // Request microphone access
       const constraints: MediaStreamConstraints = {
         audio: deviceId 
@@ -82,6 +110,36 @@ export class AudioCapture {
           console.log(`Found supported MIME type: ${mimeType}`);
           break;
         }
+      }
+      
+      // Check if MediaRecorder is mocked by test code
+      try {
+        const mediaRecorderString = MediaRecorder.toString();
+        if (mediaRecorderString.includes('mock') || 
+            mediaRecorderString.includes('test') ||
+            mediaRecorderString.includes('fake') ||
+            mediaRecorderString.includes('_createTestAudioBlob') || // Detecting e2e-puppeteer-test.js injection
+            mediaRecorderString.includes('_timesliceInterval') || // Detecting e2e-puppeteer-test.js injection 
+            mediaRecorderString.length < 50) { // Real implementation will be longer
+          console.error('Detected mocked MediaRecorder from test code. Trying to use real implementation.');
+          // Try to restore original implementation if it was saved by test code
+          if (typeof (window as any)._originalMediaRecorder === 'function') {
+            console.log('Restoring original MediaRecorder implementation');
+            (window as any).MediaRecorder = (window as any)._originalMediaRecorder;
+          }
+        }
+      } catch (e) {
+        console.error('Error checking MediaRecorder implementation:', e);
+      }
+      
+      // Check if the MediaRecorder's isTypeSupported is mocked
+      // Real MediaRecorder has selective support for formats
+      const suspiciousMediaRecorderSupport = 
+        MediaRecorder.isTypeSupported('audio/not-a-real-type') ||
+        MediaRecorder.isTypeSupported('suspicious/format');
+      
+      if (suspiciousMediaRecorderSupport) {
+        console.error('Detected suspicious MediaRecorder.isTypeSupported behavior. This is likely a mock implementation.');
       }
       
       const options = {
