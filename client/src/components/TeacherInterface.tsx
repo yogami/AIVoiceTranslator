@@ -169,22 +169,34 @@ export const TeacherInterface: React.FC = () => {
     forceTeacherRole: true // Add special flag for forced teacher role
   });
   
-  // Initialize Web Speech API for fallback transcription
+  // Initialize Web Speech API as the primary transcription method
   const webSpeech = useWebSpeech({
     enabled: isRecording, // Automatically activate when recording starts
     language: selectedInputLanguage,
     onTranscriptionUpdate: (text, isFinal) => {
-      // When we get a final transcription from Web Speech API, update the UI and send it to the server
-      if (isFinal && text.trim().length > 0) {
-        console.log('Received final Web Speech transcription:', text);
-        // The Web Speech API results will be sent to the server automatically via the hook
-        // The server will store them as fallback in case Whisper API returns empty results
+      // When we get a transcription from Web Speech API, update the UI directly
+      if (text.trim().length > 0) {
+        console.log(`Received Web Speech transcription (${isFinal ? 'final' : 'interim'}):", ${text}`);
+        
+        // For development, display all transcriptions directly in the UI
+        // This bypasses the need for OpenAI Whisper API
+        if (isFinal) {
+          // Final results update the displayed speech
+          setDisplayedSpeech(text);
+          
+          // Also update the transcript list via translation system
+          translation.setCurrentSpeech(text);
+        } else {
+          // For interim results, show with a "..." to indicate it's still processing
+          setInterimDisplayedSpeech(text + "...");
+        }
       }
     }
   });
   
   // Keep local state of current speech for direct rendering
   const [displayedSpeech, setDisplayedSpeech] = useState<string | JSX.Element>('');
+  const [interimDisplayedSpeech, setInterimDisplayedSpeech] = useState<string>('');
 
   // Update local state when translation.currentSpeech changes
   useEffect(() => {
@@ -428,7 +440,9 @@ export const TeacherInterface: React.FC = () => {
                 ) : (
                   displayedSpeech || translation.currentSpeech ? 
                     (displayedSpeech || translation.currentSpeech) : 
-                    'The transcript of your speech will appear here in real-time...'
+                    interimDisplayedSpeech ? 
+                      <span className="text-gray-500 italic">{interimDisplayedSpeech}</span> :
+                      'The transcript of your speech will appear here in real-time...'
                 )}
               </div>
               
