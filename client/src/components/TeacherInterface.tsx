@@ -184,8 +184,8 @@ export const TeacherInterface: React.FC = () => {
           // Final results update the displayed speech
           setDisplayedSpeech(text);
           
-          // Also update the transcript list via translation system
-          translation.setCurrentSpeech(text);
+          // For development - we'll directly update the displayed speech instead of
+          // relying on the translation system to avoid needing an API key
         } else {
           // For interim results, show with a "..." to indicate it's still processing
           setInterimDisplayedSpeech(text + "...");
