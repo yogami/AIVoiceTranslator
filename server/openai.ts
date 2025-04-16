@@ -94,6 +94,25 @@ export async function translateSpeech(
         originalText = transcriptionResponse.text;
         console.log(`Transcription successful: { text: '${originalText}' }`);
         console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${originalText}"`);
+        
+        // Filter out cases where the model is returning the prompt or instructions
+        // List of suspicious phrases that indicate prompt leakage rather than actual speech
+        const suspiciousPhrases = [
+          "If there is no speech or only background noise, return an empty string",
+          "This is classroom speech from a teacher",
+          "Transcribe any audible speech accurately",
+          "return an empty string"
+        ];
+        
+        const isPotentialPromptLeak = suspiciousPhrases.some(phrase => 
+          originalText.includes(phrase)
+        );
+        
+        if (isPotentialPromptLeak) {
+          console.log('⚠️ DETECTED PROMPT LEAKAGE: The transcription appears to contain prompt instructions');
+          console.log('Treating this as an empty transcription and triggering fallback mechanism');
+          originalText = '';
+        }
       } else {
         console.log('Transcription returned no text - Whisper API failed to detect speech');
         originalText = '';
