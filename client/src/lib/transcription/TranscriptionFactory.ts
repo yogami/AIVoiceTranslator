@@ -6,11 +6,12 @@ import {
 import { WebSpeechTranscriptionService, getWebSpeechTranscriptionService } from './WebSpeechTranscriptionService';
 import { WhisperTranscriptionService, getWhisperTranscriptionService } from './WhisperTranscriptionService';
 import { OpenAIRealTimeTranscriptionService, getOpenAIRealTimeTranscriptionService } from './OpenAIRealTimeTranscriptionService';
+import { OpenAIStreamingTranscriptionService, getOpenAIStreamingTranscriptionService } from './OpenAIStreamingTranscriptionService';
 
 /**
  * Available transcription service types
  */
-export type TranscriptionServiceType = 'web_speech' | 'whisper' | 'openai_realtime';
+export type TranscriptionServiceType = 'web_speech' | 'whisper' | 'openai_realtime' | 'openai_streaming';
 
 /**
  * Factory class to create appropriate transcription service instances
@@ -34,6 +35,9 @@ export class TranscriptionFactory {
       case 'openai_realtime':
         return getOpenAIRealTimeTranscriptionService(options, listeners);
         
+      case 'openai_streaming':
+        return getOpenAIStreamingTranscriptionService(options, listeners);
+        
       default:
         // Default to Web Speech API as it doesn't require an API key
         console.warn(`Unknown transcription service type: ${type}, falling back to Web Speech API`);
@@ -46,7 +50,7 @@ export class TranscriptionFactory {
    * This tries different services in order of preference and returns the first supported one
    */
   public static getBestAvailableService(
-    preferredOrder: TranscriptionServiceType[] = ['openai_realtime', 'whisper', 'web_speech'],
+    preferredOrder: TranscriptionServiceType[] = ['openai_streaming', 'openai_realtime', 'whisper', 'web_speech'],
     options?: TranscriptionOptions,
     listeners?: TranscriptionListeners
   ): TranscriptionService {
@@ -63,7 +67,7 @@ export class TranscriptionFactory {
     }
     
     // If no preferred services are supported, try to return any supported service
-    const allTypes: TranscriptionServiceType[] = ['openai_realtime', 'whisper', 'web_speech'];
+    const allTypes: TranscriptionServiceType[] = ['openai_streaming', 'openai_realtime', 'whisper', 'web_speech'];
     
     for (const serviceType of allTypes) {
       // Skip if we already tried this in preferred order

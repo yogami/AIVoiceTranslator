@@ -12,7 +12,7 @@ interface TranscriptionServiceSelectorProps {
  * Component for selecting the transcription service to use
  */
 const TranscriptionServiceSelector: React.FC<TranscriptionServiceSelectorProps> = ({
-  initialValue = 'web_speech',
+  initialValue = 'openai_streaming',
   onChange,
   disabled = false
 }) => {
@@ -27,14 +27,19 @@ const TranscriptionServiceSelector: React.FC<TranscriptionServiceSelectorProps> 
       description: 'Built-in browser transcription. No API key required but limited accuracy.'
     },
     {
+      value: 'openai_streaming',
+      label: 'OpenAI Streaming API',
+      description: 'Lowest latency (<2s), true streaming API with real-time results. Requires API key.'
+    },
+    {
       value: 'openai_realtime',
-      label: 'OpenAI Real-Time',
-      description: 'High accuracy, real-time transcription using OpenAI API. Requires API key.'
+      label: 'OpenAI Near Real-Time',
+      description: 'High accuracy, optimized batch transcription using OpenAI API. Requires API key.'
     },
     {
       value: 'whisper',
-      label: 'OpenAI Whisper',
-      description: 'High accuracy but higher latency. Requires API key.'
+      label: 'OpenAI Whisper (Batch)',
+      description: 'Highest accuracy but higher latency. Requires API key.'
     }
   ];
   

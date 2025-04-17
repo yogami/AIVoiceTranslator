@@ -11,8 +11,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
   
-  // Initialize WebSocket server
+  // Initialize main WebSocket server for translations
   const wss = new TranslationWebSocketServer(httpServer);
+  
+  // Initialize the streaming transcription WebSocket server on a different path
+  const streamingWss = new WebSocketServer({ 
+    server: httpServer, 
+    path: '/ws/transcribe'
+  });
+  
+  // Set up streaming handler
+  streamingWss.on('connection', (ws, req) => {
+    console.log('New streaming transcription connection on /ws/transcribe');
+    handleStreamingConnection(ws, req);
+  });
   
   // API Routes
   
