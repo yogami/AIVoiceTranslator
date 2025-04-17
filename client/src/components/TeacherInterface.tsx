@@ -528,7 +528,7 @@ export const TeacherInterface: React.FC = () => {
                 </span>
               </h3>
               
-              {/* Completely replace the previous recognition with a direct browser API implementation */}
+              {/* Simple browser speech recognition UI */}
               <div className="p-3 bg-gray-100 rounded">
                 <div className="text-sm font-medium mb-2">Speech Recognition Status:</div>
                 <div className="mb-3">
