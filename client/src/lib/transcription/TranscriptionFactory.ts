@@ -50,10 +50,17 @@ export class TranscriptionFactory {
    * This tries different services in order of preference and returns the first supported one
    */
   public static getBestAvailableService(
-    preferredOrder: TranscriptionServiceType[] = ['openai_streaming', 'openai_realtime', 'whisper', 'web_speech'],
+    // Force using openai_streaming since we know it works reliably now
+    // This will use the server's Whisper API transcription which is more reliable
+    preferredOrder: TranscriptionServiceType[] = ['openai_streaming'],
     options?: TranscriptionOptions,
     listeners?: TranscriptionListeners
   ): TranscriptionService {
+    // Create the OpenAI streaming service directly since it's most reliable
+    console.log('Using openai_streaming transcription service directly');
+    return getOpenAIStreamingTranscriptionService(options, listeners);
+    
+    /* Original implementation, we're bypassing this to use the most reliable service
     // Try each service in order
     for (const serviceType of preferredOrder) {
       const service = this.createTranscriptionService(serviceType, options, listeners);
@@ -85,5 +92,6 @@ export class TranscriptionFactory {
     // (it will just report not supported when used)
     console.error('No transcription services are supported in this environment');
     return getWebSpeechTranscriptionService(options, listeners);
+    */
   }
 }

@@ -213,6 +213,14 @@ export class WebSpeechRecognition {
       console.error('Error aborting speech recognition:', error);
       if (this.onError) this.onError(error as Error);
       return false;
+    } finally {
+      // Force recognition re-initialization on next start
+      setTimeout(() => {
+        if (this.recognition) {
+          console.log('Reinitializing speech recognition after abort');
+          this.initializeRecognition();
+        }
+      }, 500);
     }
   }
 
@@ -270,13 +278,17 @@ interface SpeechRecognition extends EventTarget {
   onend: () => void;
 }
 
-// Add type definitions for Window object
+// Ensure there's no duplicate declarations by using conditional type exports
+interface ISpeechRecognition {
+  new(): SpeechRecognition;
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: {new(): SpeechRecognition};
-    webkitSpeechRecognition: {new(): SpeechRecognition};
-    mozSpeechRecognition: {new(): SpeechRecognition};
-    msSpeechRecognition: {new(): SpeechRecognition};
+    SpeechRecognition?: ISpeechRecognition;
+    webkitSpeechRecognition?: ISpeechRecognition;
+    mozSpeechRecognition?: ISpeechRecognition;
+    msSpeechRecognition?: ISpeechRecognition;
   }
 }
 

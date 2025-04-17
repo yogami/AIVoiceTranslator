@@ -220,16 +220,15 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
   }
 
   public start(): boolean {
-    if (!this.recognition) {
-      if (this.isSupported()) {
-        this.initializeRecognition();
-      } else {
-        this.handleError({
-          type: 'not_supported',
-          message: 'Speech recognition is not supported in this environment'
-        });
-        return false;
-      }
+    // Always re-initialize recognition on start to avoid stale instances
+    if (this.isSupported()) {
+      this.initializeRecognition();
+    } else {
+      this.handleError({
+        type: 'not_supported',
+        message: 'Speech recognition is not supported in this environment'
+      });
+      return false;
     }
 
     if (this.isListening) {
@@ -243,6 +242,15 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
       return true;
     } catch (error) {
       console.error('Web Speech API: Error starting recognition:', error);
+      
+      // If there's an error starting, force re-initialize on next attempt
+      setTimeout(() => {
+        console.log('Web Speech API: Reinitializing after start error');
+        if (this.recognition) {
+          this.initializeRecognition();
+        }
+      }, 1000);
+      
       this.handleError({
         type: 'unknown',
         message: 'Failed to start speech recognition',
