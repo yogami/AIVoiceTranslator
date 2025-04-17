@@ -15,7 +15,9 @@ export type TranscriptionErrorType =
   | 'permission_denied'
   | 'network_error' 
   | 'not_supported'
-  | 'unknown';
+  | 'unknown'
+  | 'server_error'
+  | 'connection_error';
 
 /**
  * Error object for transcription errors

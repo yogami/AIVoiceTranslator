@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { translateSpeech } from './openai';
+import { handleStreamingConnection } from './openai-streaming';
 import { storage } from './storage';
 
 // Map to store active connections by user role and language preference

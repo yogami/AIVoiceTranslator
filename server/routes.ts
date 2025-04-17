@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { TranslationWebSocketServer } from "./websocket";
+import { WebSocketServer } from "ws";
+import { handleStreamingConnection } from "./openai-streaming";
 import { z } from "zod";
 import path from "path";
 
