@@ -179,8 +179,9 @@ export const TeacherInterface: React.FC = () => {
     forceTeacherRole: true // Add special flag for forced teacher role
   });
   
-  // Skip the old transcription service completely in favor of direct Web Speech API use
-  // This is just for compatibility with existing code - it won't actually be used
+  // Initialize our transcription service with Web Speech API 
+  // Note: We're using this for consistent behavior with audio recording,
+  // rather than using SimpleBrowserSpeechRecognition separately
   const transcriptionSvc = useTranscriptionService(
     'web_speech', // Force Web Speech API use
     {
@@ -188,12 +189,19 @@ export const TeacherInterface: React.FC = () => {
       continuous: true,
       interimResults: true,
       role: 'teacher',
-      // Disable auto-start since we'll use SimpleBrowserSpeechRecognition
-      autoStart: false,
     },
     {
-      // Empty handler - we won't use this
-      onTranscriptionResult: () => {}
+      onTranscriptionResult: (result) => {
+        // When we get a transcription from the service, update the UI
+        if (result.text.trim().length > 0) {
+          console.log(`Received transcription (${result.isFinal ? 'final' : 'interim'}):", ${result.text}`);
+          
+          // Use requestAnimationFrame to reduce flicker
+          window.requestAnimationFrame(() => {
+            setDisplayedSpeech(result.text);
+          });
+        }
+      }
     }
   );
   
@@ -494,10 +502,9 @@ export const TeacherInterface: React.FC = () => {
                     Transcription Service
                   </Label>
                 </div>
-                <TranscriptionServiceSelector 
-                  value={transcriptionService}
-                  onChange={setTranscriptionService}
-                />
+                <div className="bg-blue-50 text-blue-800 p-2 text-xs rounded">
+                  Using Browser Speech API (Web Speech) - compatible with all browsers
+                </div>
               </div>
               
               {isRecording && (
@@ -521,21 +528,22 @@ export const TeacherInterface: React.FC = () => {
                 </span>
               </h3>
               
-              {/* Use our most basic and reliable speech recognition component */}
-              <SimpleBrowserSpeechRecognition
-                language={selectedInputLanguage}
-                className="my-4"
-                onTranscription={(text) => {
-                  // Update displayed speech based on browser recognition
-                  if (text && text.trim()) {
-                    console.log("✅ SimpleBrowserSpeechRecognition result:", text);
-                    // Use a stable update pattern to avoid UI flicker
-                    window.requestAnimationFrame(() => {
-                      setDisplayedSpeech(text);
-                    });
-                  }
-                }}
-              />
+              {/* Completely replace the previous recognition with a direct browser API implementation */}
+              <div className="p-3 bg-gray-100 rounded">
+                <div className="text-sm font-medium mb-2">Speech Recognition Status:</div>
+                <div className="mb-3">
+                  {isRecording ? (
+                    <div className="text-success flex items-center">
+                      <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                      Recording active - Speech will appear here
+                    </div>
+                  ) : (
+                    <div className="text-gray-500">
+                      Press the "Record" button above to start speech recognition
+                    </div>
+                  )}
+                </div>
+              </div>
               
               {/* Debug panel for verifying speech recognition */}
               <div className="mt-3 p-2 border border-dashed border-yellow-300 bg-yellow-50 rounded text-xs">
