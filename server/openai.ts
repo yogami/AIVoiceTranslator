@@ -141,19 +141,22 @@ export async function translateSpeech(
     console.log('Sending read stream to OpenAI API');
     
     try {
-      // Apply specific parameters to avoid hallucinations
-      console.log('Enhancing audio parameters for better transcription results...');
-      console.log('MODIFIED: Using new transcription parameters to avoid YouTube-style hallucinations...');
+      // Apply specific parameters to avoid hallucinations and fix the "you" issue
+      console.log('CRITICAL FIX: Using completely new transcription parameters to fix the "you" issue...');
+      console.log('Increasing temperature and adding a clear prompt to encourage complete transcription...');
       
-      // Transcribe with OpenAI Whisper API
-      // Use more optimized parameters for classroom settings
+      // Log audio file details for debugging
+      console.log(`Audio file size: ${fs.statSync(tempFilePath).size} bytes`);
+      console.log(`Audio info: ${sourceLanguage}, WAV format: ${audioBuffer.slice(0, 4).toString() === 'RIFF'}`);
+      
+      // Transcribe with OpenAI Whisper API with improved parameters
       const transcriptionResponse = await openai.audio.transcriptions.create({
         file: audioReadStream,
         model: 'whisper-1',
         language: sourceLanguage.split('-')[0],  // Use just the language part (e.g., 'en' from 'en-US')
         response_format: 'json',
-        temperature: 0.2  // Slight creativity to help with harder words
-        // Removed prompt to prevent prompt leakage
+        temperature: 0.7,  // Higher temperature to avoid getting stuck in a pattern
+        prompt: "The speaker is giving a classroom lecture or presentation. Transcribe the complete sentences being spoken, not just single words. Transcribe all spoken content accurately."
       });
       
       // Clean up the temporary file
