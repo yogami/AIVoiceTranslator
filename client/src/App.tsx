@@ -8,6 +8,7 @@ import TeacherPage from "./pages/TeacherPage";
 import StudentPage from "./pages/StudentPage";
 import QRCodePage from "./pages/QRCodePage";
 import UsageGuidePage from "./pages/UsageGuidePage";
+import TestPage from "./pages/TestPage";
 
 function Router() {
   return (
@@ -17,6 +18,7 @@ function Router() {
       <Route path="/student" component={StudentPage} />
       <Route path="/qrcode" component={QRCodePage} />
       <Route path="/guide" component={UsageGuidePage} />
+      <Route path="/test" component={TestPage} />
       <Route component={NotFound} />
     </Switch>
   );
