@@ -174,13 +174,43 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
 
       console.log(`Web Speech API: Result - ${text} (${isFinal ? 'final' : 'interim'})`);
       
-      if (this.listeners.onTranscriptionResult && text) {
-        this.listeners.onTranscriptionResult({
-          text,
-          isFinal,
-          confidence: event.results[0]?.[0]?.confidence,
-          languageCode: this.options.language
-        });
+      if (text) {
+        // CRITICAL: Directly update the UI with Web Speech API transcription
+        // This bypasses the server and avoids the OpenAI "you" transcription issue
+        console.log(`🔴 Web Speech DIRECT RESULT: "${text}" (${isFinal ? 'final' : 'interim'})`);
+        
+        // First trigger standard callback for any components listening
+        if (this.listeners.onTranscriptionResult) {
+          this.listeners.onTranscriptionResult({
+            text,
+            isFinal,
+            confidence: event.results[0]?.[0]?.confidence,
+            languageCode: this.options.language
+          });
+        }
+        
+        // HACK: Force update the displayed speech in TeacherInterface via direct DOM update
+        // This is needed because the default flow might still show "you" from the server
+        try {
+          // Use timeout to ensure this happens after React renders
+          setTimeout(() => {
+            const speechElements = document.querySelectorAll('.current-speech, .speech-text, .transcription-text');
+            if (speechElements.length > 0) {
+              speechElements.forEach(element => {
+                // Only update if it has "you" or is empty
+                const currentText = element.textContent || '';
+                if (currentText.trim() === '' || currentText.trim().toLowerCase() === 'you') {
+                  element.textContent = text;
+                  console.log(`📝 DIRECT DOM UPDATE: Set speech display to "${text}"`);
+                }
+              });
+            } else {
+              console.log('📝 Could not find speech display elements to update');
+            }
+          }, 100);
+        } catch (e) {
+          console.warn('Failed to directly update speech display:', e);
+        }
       }
     };
 
