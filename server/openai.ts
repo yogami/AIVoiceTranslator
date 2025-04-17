@@ -227,7 +227,7 @@ export async function translateSpeech(
     `;
     
     const translation = await openai.chat.completions.create({
-      model: 'gpt-4o', // Using the newest OpenAI model for translation
+      model: 'gpt-4o', // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
       messages: [
         { role: 'system', content: 'You are a professional translator with expertise in multiple languages.' },
         { role: 'user', content: prompt }
