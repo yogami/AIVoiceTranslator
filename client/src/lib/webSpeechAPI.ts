@@ -283,12 +283,14 @@ interface ISpeechRecognition {
   new(): SpeechRecognition;
 }
 
+// This special pattern avoids TypeScript errors with browser-specific types
+// The type assertion ensures we can use browser implementations consistently
 declare global {
   interface Window {
-    SpeechRecognition?: ISpeechRecognition;
-    webkitSpeechRecognition?: ISpeechRecognition;
-    mozSpeechRecognition?: ISpeechRecognition;
-    msSpeechRecognition?: ISpeechRecognition;
+    SpeechRecognition: typeof SpeechRecognition;
+    webkitSpeechRecognition: typeof SpeechRecognition;
+    mozSpeechRecognition: typeof SpeechRecognition;
+    msSpeechRecognition: typeof SpeechRecognition;
   }
 }
 

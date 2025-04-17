@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AudioWaveform from '@/components/AudioWaveform';
 import LanguageSelector from '@/components/LanguageSelector';
 import TranscriptionServiceSelector from '@/components/TranscriptionServiceSelector';
+import SimpleSpeechRecognition from '@/components/SimpleSpeechRecognition';
 import { apiRequest } from '@/lib/queryClient';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -410,36 +411,12 @@ export const TeacherInterface: React.FC = () => {
                               // Second attempt - if still recording, use forceStop
                               setTimeout(() => {
                                 if (isRecording) {
-                                  console.log('2. Still recording, using forceStop method');
+                                  console.log('2. Still recording! Trying forceStop method');
                                   forceStop();
-                                  
-                                  // Third attempt - try getting the instance directly
-                                  setTimeout(() => {
-                                    if (isRecording) {
-                                      console.log('3. Still recording, using emergency direct instance access');
-                                      const captureInstance = getAudioCaptureInstance();
-                                      if (captureInstance) {
-                                        console.log('Calling forceStop directly on instance');
-                                        captureInstance.forceStop();
-                                      }
-                                      
-                                      // Last resort - try to stop all media in browser
-                                      if (navigator.mediaDevices) {
-                                        console.log('4. EMERGENCY: Stopping all media tracks in browser');
-                                        navigator.mediaDevices.getUserMedia({ audio: true })
-                                          .then(stream => {
-                                            stream.getTracks().forEach(track => {
-                                              track.stop();
-                                            });
-                                          })
-                                          .catch(e => console.error('Error in emergency cleanup:', e));
-                                      }
-                                    }
-                                  }, 300);
                                 }
-                              }, 200);
-                            } catch (e) {
-                              console.error('Error while stopping recording:', e);
+                              }, 300);
+                            } catch (err) {
+                              console.error('Error stopping recording:', err);
                             }
                           }}
                         >
@@ -449,18 +426,20 @@ export const TeacherInterface: React.FC = () => {
                         <Button 
                           size="sm" 
                           variant="default"
-                          className="px-2 py-1 h-7 text-xs"
-                          onClick={async () => {
+                          className="px-3 py-1 h-7 text-xs"
+                          onClick={() => {
                             console.log('Start recording button clicked');
-                            // Start audio capture first
-                            startRecording();
                             
-                            // Then start transcription service
                             try {
+                              // First start the transcription service
                               console.log('Starting transcription service:', transcriptionService);
-                              await transcriptionSvc.start();
+                              transcriptionSvc.start();
+                              
+                              // Then start audio recording
+                              console.log('Starting audio recording...');
+                              startRecording();
                             } catch (err) {
-                              console.error('Failed to start transcription service:', err);
+                              console.error('Error starting recording:', err);
                             }
                           }}
                         >
@@ -472,104 +451,110 @@ export const TeacherInterface: React.FC = () => {
                 </div>
               </div>
               
-              {devices.length > 0 ? (
+              {devices.length > 0 && (
+                <div className="mb-4">
+                  <Label className="text-xs text-gray-500 mb-1" htmlFor="audioDevice">
+                    Audio Device
+                  </Label>
+                  <Select
+                    value={selectedDeviceId}
+                    onValueChange={selectDevice}
+                  >
+                    <SelectTrigger 
+                      id="audioDevice" 
+                      className="w-full text-xs h-8"
+                    >
+                      <SelectValue placeholder="Select microphone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {devices.map(device => (
+                        <SelectItem 
+                          key={device.deviceId} 
+                          value={device.deviceId}
+                          className="text-xs"
+                        >
+                          {device.label || `Microphone ${device.deviceId.slice(0, 5)}...`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              <div className="mb-4">
+                <Label className="text-xs text-gray-500 mb-1" htmlFor="inputLanguage">
+                  Speech Language
+                </Label>
                 <Select
-                  value={selectedDeviceId || ''}
-                  onValueChange={selectDevice}
-                  disabled={isRecording}
+                  value={selectedInputLanguage}
+                  onValueChange={setSelectedInputLanguage}
                 >
-                  <SelectTrigger className="w-full p-2 bg-gray-50">
-                    <SelectValue placeholder="Select microphone" />
+                  <SelectTrigger 
+                    id="inputLanguage" 
+                    className="w-full text-xs h-8"
+                  >
+                    <SelectValue placeholder="Select language" />
                   </SelectTrigger>
                   <SelectContent>
-                    {devices.map(device => (
-                      <SelectItem key={device.id} value={device.id}>
-                        {device.label}
+                    {inputLanguages.map(language => (
+                      <SelectItem 
+                        key={language.code} 
+                        value={language.code}
+                        className="text-xs"
+                      >
+                        {language.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              ) : (
-                <div className="border rounded p-3 bg-gray-50 text-center">
-                  <p className="text-sm text-gray-500">
-                    Please allow microphone access to use this feature
-                  </p>
-                </div>
-              )}
+              </div>
               
-              {audioError && (
-                <div className="mt-2 text-xs text-red-500">
-                  Error: {audioError.message}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-xs text-gray-500" htmlFor="transcriptionService">
+                    Transcription Service
+                  </Label>
+                </div>
+                <TranscriptionServiceSelector 
+                  value={transcriptionService}
+                  onChange={setTranscriptionService}
+                />
+              </div>
+              
+              {isRecording && (
+                <div className="mb-4">
+                  <Label className="text-xs text-gray-500 mb-1">
+                    Audio Levels
+                  </Label>
+                  <AudioWaveform 
+                    audioSourceId={selectedDeviceId} 
+                    className="h-12 border rounded p-2"
+                  />
                 </div>
               )}
-            </div>
-
-            <div className="mb-6">
-              <LanguageSelector
-                languages={inputLanguages}
-                selectedLanguage={selectedInputLanguage}
-                onChange={setSelectedInputLanguage}
-                label="Input Languages"
-                disabled={isRecording}
-              />
-            </div>
-            
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-sm font-medium text-gray-700">
-                  <span className="flex items-center">
-                    <Subtitles className="h-4 w-4 mr-1 text-primary" />
-                    Transcription Service
-                  </span>
-                </Label>
-              </div>
-              <TranscriptionServiceSelector
-                initialValue={transcriptionService}
-                onChange={setTranscriptionService}
-                disabled={isRecording}
-              />
-            </div>
-            
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-sm font-medium text-gray-700">Input Monitor</Label>
-              </div>
-              <div className="border rounded p-3 bg-gray-50 relative">
-                <AudioWaveform isActive={isRecording} />
-                <div className="text-xs text-gray-500 mt-2">
-                  {isRecording ? 'Recording...' : 'Not recording'}
-                </div>
-              </div>
             </div>
             
             <div className="bg-gray-50 rounded p-3 border">
               <h3 className="text-sm font-medium mb-2 flex justify-between">
-                <span>Current Speech</span>
+                <span>Speech Recognition</span>
                 <span className="text-xs text-gray-500">
-                  {translation.currentSpeech ? `Transcription received at ${new Date().toLocaleTimeString()}` : ''}
+                  Direct Browser API (No OpenAI)
                 </span>
               </h3>
-              <div className="current-speech text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words border-2 p-2 rounded bg-gray-50" data-current-speech={translation.currentSpeech}>
-                {typeof displayedSpeech === 'object' ? (
-                  displayedSpeech
-                ) : (
-                  displayedSpeech || translation.currentSpeech ? 
-                    <strong className="text-primary">{displayedSpeech || translation.currentSpeech}</strong> : 
-                    interimDisplayedSpeech ? 
-                      <span className="text-gray-500 italic">{interimDisplayedSpeech}</span> :
-                      'The transcript of your speech will appear here in real-time...'
-                )}
-              </div>
               
-              {/* Debug info to show underlying state */}
-              {(!displayedSpeech && !translation.currentSpeech) && (
-                <div className="mt-2 text-xs bg-yellow-50 p-2 rounded border border-yellow-200">
-                  <div className="text-yellow-700"><strong>Debugging Speech Display:</strong></div>
-                  <div><strong>displayedSpeech:</strong> {displayedSpeech ? `"${displayedSpeech}"` : '(empty)'}</div>
-                  <div><strong>translation.currentSpeech:</strong> {translation.currentSpeech ? `"${translation.currentSpeech}"` : '(empty)'}</div>
-                  <div><strong>interimDisplayedSpeech:</strong> {interimDisplayedSpeech ? `"${interimDisplayedSpeech}"` : '(empty)'}</div>
-                </div>
-              )}
+              {/* Use our new standalone component that bypasses OpenAI completely */}
+              <SimpleSpeechRecognition 
+                disabled={false}
+                initialLanguage={selectedInputLanguage}
+                onSpeechResult={(text) => {
+                  // Handle speech results from our standalone component
+                  if (text && text.trim()) {
+                    console.log("Direct speech recognition result:", text);
+                    // Manually update the displayed speech to reflect what was actually said
+                    setDisplayedSpeech(text);
+                  }
+                }}
+              />
               
               {/* Debug panel for verifying speech recognition */}
               <div className="mt-3 p-2 border border-dashed border-yellow-300 bg-yellow-50 rounded text-xs">
