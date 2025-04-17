@@ -155,6 +155,13 @@ export class AudioCapture {
       this.mediaRecorder.ondataavailable = (event) => {
         console.log('MediaRecorder ondataavailable triggered, data size:', event.data.size);
         if (event.data.size > 0) {
+          // BREAKPOINT: Log what is being recorded
+          console.log(`\n🔍 BREAKPOINT: AUDIO DATA CAPTURED BY USER`);
+          console.log(`🎤 Audio blob size: ${event.data.size} bytes`);
+          console.log(`🎤 Audio blob type: ${event.data.type}`);
+          console.log(`🎤 Timestamp: ${new Date().toISOString()}`);
+          console.log(`🎤 Currently saying: "This is what I am saying right now"`);
+          
           this.chunks.push(event.data);
           this.options.onDataAvailable(event.data);
         }
