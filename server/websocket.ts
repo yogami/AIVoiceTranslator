@@ -3,6 +3,7 @@ import { Server } from 'http';
 import { translateSpeech } from './openai';
 import { processStreamingAudio, finalizeStreamingSession } from './openai-streaming';
 import { storage } from './storage';
+import * as fs from 'fs';
 
 // Map to store active connections by user role and language preference
 interface UserConnection {
@@ -718,21 +719,18 @@ export class TranslationWebSocketServer {
           console.log(`🎤 Target language: ${targetLanguage}`);
           console.log(`🎤 EXACT AUDIO CONTENT CAPTURED BY USER: "Sending to OpenAI for transcription now..."`);
           
-          // Write to a permanent log file that doesn't scroll away
-          const fs = require('fs');
-          const logEntry = `
+          // Write detailed debug information to console instead of file
+          console.log(`
 =================================================================
-RECORDING DEBUG INFO - ${new Date().toISOString()}
+🔍 RECORDING DEBUG INFO - ${new Date().toISOString()}
 =================================================================
-SENDING AUDIO TO OPENAI:
+🎤 SENDING AUDIO TO OPENAI:
   - Buffer size: ${processedBuffer.length} bytes
   - WAV header present: ${this.hasWavHeader(processedBuffer)}
   - Source language: ${sourceLanguage}
   - Target language: ${targetLanguage}
   - First 32 bytes: ${processedBuffer.slice(0, 32).toString('hex')}
-=================================================================
-`;
-          fs.appendFileSync('/home/runner/workspace/speech-debug.log', logEntry);
+=================================================================`);
           
           // Use the processed buffer with WAV header for the OpenAI API
           const result = await translateSpeech(processedBuffer, sourceLanguage, targetLanguage);
@@ -744,16 +742,16 @@ SENDING AUDIO TO OPENAI:
           console.log(`🎤 EXACT TRANSCRIPTION RETURNED BY OPENAI: "${result.originalText}"`);
           console.log(`🎤 Audio buffer returned: ${result.audioBuffer ? 'Yes' : 'No'}`);
           
-          // Append transcription result to the log file
-          const resultLogEntry = `
-TRANSCRIPTION RESULT:
+          // Log transcription result to console instead of file
+          console.log(`
+=================================================================
+🔍 TRANSCRIPTION RESULT:
   - Original text: "${result.originalText}"
   - Translated text: "${result.translatedText}"
   - Text length: ${result.originalText.length} characters
   - Processing time: ${Date.now() - startTime}ms
 =================================================================
-`;
-          fs.appendFileSync('/home/runner/workspace/speech-debug.log', resultLogEntry);
+`);
           
           // Check for empty translations and try to use WebSpeech API fallback if available
           if (!result.originalText && !result.translatedText) {
