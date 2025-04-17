@@ -216,7 +216,8 @@ function sendTranscriptionError(
 export function cleanupInactiveStreamingSessions(maxAgeMs: number = 60000): void {
   const now = Date.now();
   
-  for (const [sessionId, session] of activeStreamingSessions.entries()) {
+  // Use Array.from to convert Map entries to array first (avoids downlevelIteration error)
+  for (const [sessionId, session] of Array.from(activeStreamingSessions.entries())) {
     const sessionAge = now - session.lastChunkTime;
     
     if (sessionAge > maxAgeMs) {
