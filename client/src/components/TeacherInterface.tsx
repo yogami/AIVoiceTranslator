@@ -9,6 +9,7 @@ import AudioWaveform from '@/components/AudioWaveform';
 import LanguageSelector from '@/components/LanguageSelector';
 import TranscriptionServiceSelector from '@/components/TranscriptionServiceSelector';
 import SimpleSpeechRecognition from '@/components/SimpleSpeechRecognition';
+import SimpleBrowserSpeechRecognition from '@/components/SimpleBrowserSpeechRecognition';
 import DirectSpeechTranscription from '@/components/DirectSpeechTranscription';
 import { apiRequest } from '@/lib/queryClient';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
@@ -543,16 +544,14 @@ export const TeacherInterface: React.FC = () => {
                 </span>
               </h3>
               
-              {/* Use our new standalone component that bypasses OpenAI completely */}
-              <DirectSpeechTranscription
+              {/* Use our most basic and reliable speech recognition component */}
+              <SimpleBrowserSpeechRecognition
                 language={selectedInputLanguage}
-                disabled={false}
-                autoStart={true}
                 className="my-4"
                 onTranscription={(text) => {
-                  // Update displayed speech based on direct browser recognition
+                  // Update displayed speech based on browser recognition
                   if (text && text.trim()) {
-                    console.log("⭐ Direct browser speech recognition:", text);
+                    console.log("✅ SimpleBrowserSpeechRecognition result:", text);
                     // Use a stable update pattern to avoid UI flicker
                     window.requestAnimationFrame(() => {
                       setDisplayedSpeech(text);
