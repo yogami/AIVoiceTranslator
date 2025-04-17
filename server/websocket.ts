@@ -710,8 +710,23 @@ export class TranslationWebSocketServer {
         console.log(`Translating from ${sourceLanguage} to ${targetLanguage}...`);
         
         try {
+          // BREAKPOINT 4: Log before sending to OpenAI
+          console.log(`\n🔍 BREAKPOINT 4: SENDING TO OPENAI FOR TRANSCRIPTION`);
+          console.log(`🎤 Buffer size: ${processedBuffer.length} bytes`);
+          console.log(`🎤 First 20 bytes of audio: ${processedBuffer.slice(0, 20).toString('hex')}`);
+          console.log(`🎤 Source language: ${sourceLanguage}`);
+          console.log(`🎤 Target language: ${targetLanguage}`);
+          console.log(`🎤 EXACT AUDIO CONTENT CAPTURED BY USER: "Sending to OpenAI for transcription now..."`);
+          
           // Use the processed buffer with WAV header for the OpenAI API
           const result = await translateSpeech(processedBuffer, sourceLanguage, targetLanguage);
+          
+          // BREAKPOINT 5: Log after receiving from OpenAI
+          console.log(`\n🔍 BREAKPOINT 5: RECEIVED FROM OPENAI`);
+          console.log(`🎤 Original text: "${result.originalText}"`);
+          console.log(`🎤 Translated text: "${result.translatedText}"`);
+          console.log(`🎤 EXACT TRANSCRIPTION RETURNED BY OPENAI: "${result.originalText}"`);
+          console.log(`🎤 Audio buffer returned: ${result.audioBuffer ? 'Yes' : 'No'}`)
           
           // Check for empty translations and try to use WebSpeech API fallback if available
           if (!result.originalText && !result.translatedText) {
