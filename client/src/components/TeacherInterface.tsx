@@ -204,7 +204,50 @@ export const TeacherInterface: React.FC = () => {
   const [displayedSpeech, setDisplayedSpeech] = useState<string | JSX.Element>('');
   const [interimDisplayedSpeech, setInterimDisplayedSpeech] = useState<string>('');
 
-  // Update local state when translation.currentSpeech changes
+  // Direct WebSocket event listener for raw translation data
+  useEffect(() => {
+    const handleRawTranslation = (data: any) => {
+      console.log("DIRECT TRANSLATION EVENT:", data);
+      
+      if (!data || !data.data) {
+        console.error('Invalid translation data structure:', data);
+        return;
+      }
+      
+      const { translatedText } = data.data;
+      
+      if (translatedText) {
+        console.log("DIRECT TRANSLATION TEXT RECEIVED:", translatedText);
+        
+        // Special handling for test content
+        if (translatedText.includes("Detected test audio pattern")) {
+          setDisplayedSpeech(
+            <div className="text-amber-600 font-medium">
+              <span className="inline-block mr-2">⚠️</span> 
+              {translatedText}
+            </div> as any
+          );
+        } else {
+          // Force an update by using a random key suffix
+          const displayText = translatedText.toString() + ` (${Date.now().toString().slice(-4)})`;
+          setDisplayedSpeech(displayText);
+          console.log("FORCE SET DISPLAYED SPEECH:", displayText);
+        }
+      }
+    };
+    
+    // Get direct access to the WebSocket client
+    if (wsClient) {
+      console.log("Adding direct translation event listener");
+      wsClient.addEventListener('translation', handleRawTranslation);
+      
+      return () => {
+        wsClient.removeEventListener('translation', handleRawTranslation);
+      };
+    }
+  }, []);
+  
+  // Also keep the original listener for backward compatibility
   useEffect(() => {
     console.log("TeacherInterface detected change in currentSpeech:", translation.currentSpeech);
     if (translation.currentSpeech) {
@@ -218,7 +261,10 @@ export const TeacherInterface: React.FC = () => {
           </div> as any
         );
       } else {
-        setDisplayedSpeech(translation.currentSpeech);
+        // Add timestamp to force re-render
+        const displayText = translation.currentSpeech + ` (${Date.now().toString().slice(-4)})`;
+        setDisplayedSpeech(displayText);
+        console.log("SET DISPLAYED SPEECH FROM HOOK:", displayText);
       }
     }
   }, [translation.currentSpeech]);

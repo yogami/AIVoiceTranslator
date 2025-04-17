@@ -109,7 +109,15 @@ export function useTranslation(options: UseTranslationOptions) {
       }
       
       // Always update the UI so we know we're receiving events
-      setCurrentSpeech(textToDisplay);
+      console.log('FORCE UPDATING SPEECH TEXT:', textToDisplay);
+      
+      // First set to empty to force a re-render even if the text is the same
+      setCurrentSpeech('');
+      
+      // Then set to the actual text after a tiny delay
+      setTimeout(() => {
+        setCurrentSpeech(textToDisplay);
+      }, 10);
         
       // Create audio URL for playback if we have audio
       if (audio) {
