@@ -5,11 +5,12 @@ import {
 } from './TranscriptionService';
 import { WebSpeechTranscriptionService, getWebSpeechTranscriptionService } from './WebSpeechTranscriptionService';
 import { WhisperTranscriptionService, getWhisperTranscriptionService } from './WhisperTranscriptionService';
+import { OpenAIRealTimeTranscriptionService, getOpenAIRealTimeTranscriptionService } from './OpenAIRealTimeTranscriptionService';
 
 /**
  * Available transcription service types
  */
-export type TranscriptionServiceType = 'web_speech' | 'whisper';
+export type TranscriptionServiceType = 'web_speech' | 'whisper' | 'openai_realtime';
 
 /**
  * Factory class to create appropriate transcription service instances
@@ -29,6 +30,9 @@ export class TranscriptionFactory {
         
       case 'whisper':
         return getWhisperTranscriptionService(options, listeners);
+      
+      case 'openai_realtime':
+        return getOpenAIRealTimeTranscriptionService(options, listeners);
         
       default:
         // Default to Web Speech API as it doesn't require an API key
@@ -42,7 +46,7 @@ export class TranscriptionFactory {
    * This tries different services in order of preference and returns the first supported one
    */
   public static getBestAvailableService(
-    preferredOrder: TranscriptionServiceType[] = ['whisper', 'web_speech'],
+    preferredOrder: TranscriptionServiceType[] = ['openai_realtime', 'whisper', 'web_speech'],
     options?: TranscriptionOptions,
     listeners?: TranscriptionListeners
   ): TranscriptionService {
@@ -59,7 +63,7 @@ export class TranscriptionFactory {
     }
     
     // If no preferred services are supported, try to return any supported service
-    const allTypes: TranscriptionServiceType[] = ['whisper', 'web_speech'];
+    const allTypes: TranscriptionServiceType[] = ['openai_realtime', 'whisper', 'web_speech'];
     
     for (const serviceType of allTypes) {
       // Skip if we already tried this in preferred order
