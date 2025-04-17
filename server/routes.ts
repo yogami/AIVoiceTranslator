@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { TranslationWebSocketServer } from "./websocket";
 import { z } from "zod";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
@@ -113,6 +114,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching stats:', error);
       res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+  
+  // Securely provide API keys to client
+  // This is for development/educational purposes only - in production, use a more secure approach
+  app.get('/api/config', (_req, res) => {
+    try {
+      const config = {
+        // Only provide the OpenAI API key if it exists
+        openai: process.env.OPENAI_API_KEY ? {
+          hasKey: true
+        } : {
+          hasKey: false
+        },
+        // Only provide the Anthropic API key if it exists
+        anthropic: process.env.ANTHROPIC_API_KEY ? {
+          hasKey: true
+        } : {
+          hasKey: false
+        }
+      };
+      
+      res.json(config);
+    } catch (error) {
+      console.error('Error fetching API configuration:', error);
+      res.status(500).json({ message: 'Failed to fetch API configuration' });
+    }
+  });
+  
+  // Serve index.html with injected API keys for client-side use
+  app.get('/', (_req, res, next) => {
+    try {
+      // Inject API keys into the client as environment variables
+      // This is only for development purposes - never expose API keys in production
+      const scriptContent = `
+        <script>
+          // API keys - never expose these in production
+          window.OPENAI_API_KEY = "${process.env.OPENAI_API_KEY || ''}";
+          window.ANTHROPIC_API_KEY = "${process.env.ANTHROPIC_API_KEY || ''}";
+        </script>
+      `;
+      
+      // Continue to next middleware (Vite will handle serving the actual index.html)
+      res.locals.preScript = scriptContent;
+      next();
+    } catch (error) {
+      console.error('Error injecting API keys:', error);
+      next();
     }
   });
 

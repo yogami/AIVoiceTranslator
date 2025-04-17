@@ -267,6 +267,11 @@ export class OpenAIRealTimeTranscriptionService implements TranscriptionService 
           const base64audio = base64data.split(',')[1]; // remove the data:audio/webm;base64, prefix
           
           // Call OpenAI API for real-time transcription
+          if (!this.openAIClient) {
+            console.error('OpenAI client is not available');
+            return;
+          }
+          
           const transcription = await this.openAIClient.audio.transcriptions.create({
             file: new File([audioBlob], 'audio.webm', { type: 'audio/webm' }),
             model: 'whisper-1',
