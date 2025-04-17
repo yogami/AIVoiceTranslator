@@ -2,8 +2,25 @@ import fs from 'fs';
 import OpenAI from 'openai';
 import { storage } from './storage';
 
+// Log API key status (masked for security)
+console.log(`OpenAI API key status: ${process.env.OPENAI_API_KEY ? 'Present' : 'Missing'}`);
+if (!process.env.OPENAI_API_KEY) {
+  console.error('OPENAI_API_KEY is missing or empty. This might cause API failures.');
+}
+
 // Initialize OpenAI client with API key from environment
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Add fallback to avoid crashing the server if key is missing
+let openai: OpenAI;
+try {
+  openai = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder-for-initialization-only' 
+  });
+  console.log('OpenAI client initialized successfully');
+} catch (error) {
+  console.error('Error initializing OpenAI client:', error);
+  // Create a placeholder client that will throw proper errors when methods are called
+  openai = new OpenAI({ apiKey: 'sk-placeholder-for-initialization-only' });
+}
 
 // Define response interface for the translation function
 interface TranslationResult {

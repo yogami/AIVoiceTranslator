@@ -1,10 +1,22 @@
 import OpenAI from 'openai';
 import WebSocket from 'ws';
 
+// Log API key status (masked for security)
+console.log(`OpenAI Streaming - API key status: ${process.env.OPENAI_API_KEY ? 'Present' : 'Missing'}`);
+
 // Initialize the OpenAI client with API key from environment
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Add fallback to avoid crashing the server if key is missing
+let openai: OpenAI;
+try {
+  openai = new OpenAI({ 
+    apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder-for-initialization-only' 
+  });
+  console.log('OpenAI Streaming - client initialized successfully');
+} catch (error) {
+  console.error('OpenAI Streaming - Error initializing client:', error);
+  // Create a placeholder client that will throw proper errors when methods are called
+  openai = new OpenAI({ apiKey: 'sk-placeholder-for-initialization-only' });
+}
 
 interface AudioStreamingSessionState {
   sessionId: string;
