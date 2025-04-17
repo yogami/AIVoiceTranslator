@@ -141,22 +141,24 @@ export async function translateSpeech(
     console.log('Sending read stream to OpenAI API');
     
     try {
-      // Apply specific parameters to avoid hallucinations and fix the "you" issue
-      console.log('CRITICAL FIX: Using completely new transcription parameters to fix the "you" issue...');
-      console.log('Increasing temperature and adding a clear prompt to encourage complete transcription...');
+      // EMERGENCY FIX: Complete overhaul of transcription approach
+      console.log('🚨 EMERGENCY FIX: Completely new transcription strategy to fix hallucination issues...');
+      console.log('Using minimal parameters with no prompt to avoid preconceptions');
       
       // Log audio file details for debugging
-      console.log(`Audio file size: ${fs.statSync(tempFilePath).size} bytes`);
-      console.log(`Audio info: ${sourceLanguage}, WAV format: ${audioBuffer.slice(0, 4).toString() === 'RIFF'}`);
+      const fileStats = fs.statSync(tempFilePath);
+      console.log(`Audio file size: ${fileStats.size} bytes, created: ${fileStats.mtime}`);
+      console.log(`Audio duration estimate: ~${Math.round(fileStats.size / 16000 / 2)} seconds`);
       
-      // Transcribe with OpenAI Whisper API with improved parameters
+      // Transcribe with OpenAI Whisper API with minimal parameters
+      // This approach uses no prompt and default temperature
       const transcriptionResponse = await openai.audio.transcriptions.create({
         file: audioReadStream,
         model: 'whisper-1',
-        language: sourceLanguage.split('-')[0],  // Use just the language part (e.g., 'en' from 'en-US')
-        response_format: 'json',
-        temperature: 0.7,  // Higher temperature to avoid getting stuck in a pattern
-        prompt: "The speaker is giving a classroom lecture or presentation. Transcribe the complete sentences being spoken, not just single words. Transcribe all spoken content accurately."
+        language: sourceLanguage.split('-')[0],
+        response_format: 'json'
+        // No temperature parameter = use API default
+        // No prompt parameter = no preconceptions
       });
       
       // Clean up the temporary file
