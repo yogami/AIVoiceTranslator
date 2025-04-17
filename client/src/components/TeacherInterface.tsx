@@ -486,17 +486,27 @@ export const TeacherInterface: React.FC = () => {
                   {translation.currentSpeech ? `Transcription received at ${new Date().toLocaleTimeString()}` : ''}
                 </span>
               </h3>
-              <div className="current-speech text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words" data-current-speech={translation.currentSpeech}>
+              <div className="current-speech text-sm text-gray-700 min-h-[60px] whitespace-pre-wrap break-words border-2 p-2 rounded bg-gray-50" data-current-speech={translation.currentSpeech}>
                 {typeof displayedSpeech === 'object' ? (
                   displayedSpeech
                 ) : (
                   displayedSpeech || translation.currentSpeech ? 
-                    (displayedSpeech || translation.currentSpeech) : 
+                    <strong className="text-primary">{displayedSpeech || translation.currentSpeech}</strong> : 
                     interimDisplayedSpeech ? 
                       <span className="text-gray-500 italic">{interimDisplayedSpeech}</span> :
                       'The transcript of your speech will appear here in real-time...'
                 )}
               </div>
+              
+              {/* Debug info to show underlying state */}
+              {(!displayedSpeech && !translation.currentSpeech) && (
+                <div className="mt-2 text-xs bg-yellow-50 p-2 rounded border border-yellow-200">
+                  <div className="text-yellow-700"><strong>Debugging Speech Display:</strong></div>
+                  <div><strong>displayedSpeech:</strong> {displayedSpeech ? `"${displayedSpeech}"` : '(empty)'}</div>
+                  <div><strong>translation.currentSpeech:</strong> {translation.currentSpeech ? `"${translation.currentSpeech}"` : '(empty)'}</div>
+                  <div><strong>interimDisplayedSpeech:</strong> {interimDisplayedSpeech ? `"${interimDisplayedSpeech}"` : '(empty)'}</div>
+                </div>
+              )}
               
               {/* Debug panel for verifying speech recognition */}
               <div className="mt-3 p-2 border border-dashed border-yellow-300 bg-yellow-50 rounded text-xs">
