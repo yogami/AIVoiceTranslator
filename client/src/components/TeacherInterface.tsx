@@ -20,6 +20,9 @@ import { Mic, Languages, Play, Timer, Plus, CheckCircle, Subtitles } from 'lucid
 import { wsClient } from '@/lib/websocket';
 import { TranscriptionServiceType } from '@/lib/transcription/TranscriptionFactory';
 
+// Force Web Speech API as the only option since OpenAI credits are depleted
+const TRANSCRIPTION_SERVICE: TranscriptionServiceType = 'web_speech';
+
 interface Languages {
   id: number;
   code: string;
@@ -30,7 +33,8 @@ interface Languages {
 export const TeacherInterface: React.FC = () => {
   const [selectedInputLanguage, setSelectedInputLanguage] = useState('en-US');
   const [roleInitialized, setRoleInitialized] = useState(false);
-  const [transcriptionService, setTranscriptionService] = useState<TranscriptionServiceType>('web_speech');
+  // Always use Web Speech API since OpenAI is out of credits
+  const [transcriptionService, setTranscriptionService] = useState<TranscriptionServiceType>(TRANSCRIPTION_SERVICE);
 
   // CRITICAL: Lock the role as 'teacher' immediately when component mounts
   // This is to prevent race conditions with other component registrations
@@ -175,44 +179,21 @@ export const TeacherInterface: React.FC = () => {
     forceTeacherRole: true // Add special flag for forced teacher role
   });
   
-  // Initialize transcription service based on the user's selection
+  // Skip the old transcription service completely in favor of direct Web Speech API use
+  // This is just for compatibility with existing code - it won't actually be used
   const transcriptionSvc = useTranscriptionService(
-    transcriptionService, // Use the selected service type
+    'web_speech', // Force Web Speech API use
     {
       language: selectedInputLanguage,
       continuous: true,
       interimResults: true,
       role: 'teacher',
+      // Disable auto-start since we'll use SimpleBrowserSpeechRecognition
+      autoStart: false,
     },
     {
-      onTranscriptionResult: (result) => {
-        // When we get a transcription from the service, update the UI
-        if (result.text.trim().length > 0) {
-          console.log(`Received transcription (${result.isFinal ? 'final' : 'interim'}):", ${result.text}`);
-          
-          // CRITICAL: Ignore all results that are just "you" from OpenAI hallucination
-          if (result.text.trim().toLowerCase() === "you") {
-            console.log("⚠️ IGNORING 'you' HALLUCINATION FROM OPENAI");
-            return; // Don't update the UI with these problematic results
-          }
-          
-          // Special handling for Web Speech results to avoid flicker
-          const showText = result.text.trim();
-          
-          // Use requestAnimationFrame to reduce flicker
-          window.requestAnimationFrame(() => {
-            if (result.isFinal) {
-              // Final results update the displayed speech
-              setDisplayedSpeech(showText);
-              // Also clear any interim text to avoid weird overlapping states
-              setInterimDisplayedSpeech("");
-            } else {
-              // For interim results, show with a "..." to indicate it's still processing
-              setInterimDisplayedSpeech(showText + "...");
-            }
-          });
-        }
-      }
+      // Empty handler - we won't use this
+      onTranscriptionResult: () => {}
     }
   );
   
@@ -297,13 +278,9 @@ export const TeacherInterface: React.FC = () => {
       wsClient.register('teacher', selectedInputLanguage);
     }
     
-    // Update the language in the transcription service by recreating it with new options
-    if (transcriptionSvc) {
-      console.log(`Updating transcription service language to ${selectedInputLanguage}`);
-      // Rather than trying to update options, we'll just switch to the same service type
-      // This will trigger a recreation of the service with the updated language
-      transcriptionSvc.switchServiceType(transcriptionService);
-    }
+    // The TranscriptionService is now just a placeholder that we're not really using
+    // Instead of recreating it, just log that we would update the language
+    console.log(`Speech recognition language updated to ${selectedInputLanguage}`);
   }, [selectedInputLanguage, transcriptionService]);
   
   // Request microphone permission on mount - only once
