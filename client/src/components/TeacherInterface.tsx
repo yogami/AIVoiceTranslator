@@ -223,6 +223,23 @@ export const TeacherInterface: React.FC = () => {
     }
   }, [translation.currentSpeech]);
   
+  // Update transcription service when selected language changes
+  useEffect(() => {
+    // Update the language in the WebSocket client
+    if (wsClient && wsClient.currentRole === 'teacher') {
+      console.log(`Updating WebSocket language to ${selectedInputLanguage}`);
+      wsClient.register('teacher', selectedInputLanguage);
+    }
+    
+    // Update the language in the transcription service by recreating it with new options
+    if (transcriptionSvc) {
+      console.log(`Updating transcription service language to ${selectedInputLanguage}`);
+      // Rather than trying to update options, we'll just switch to the same service type
+      // This will trigger a recreation of the service with the updated language
+      transcriptionSvc.switchServiceType(transcriptionService);
+    }
+  }, [selectedInputLanguage, transcriptionService]);
+  
   // Request microphone permission on mount - only once
   useEffect(() => {
     // Check if browser supports required audio APIs
@@ -318,6 +335,10 @@ export const TeacherInterface: React.FC = () => {
                             console.log('Stop recording button clicked');
                             
                             try {
+                              // Stop transcription service first
+                              console.log('Stopping transcription service:', transcriptionService);
+                              transcriptionSvc.stop();
+                            
                               // First attempt - normal stop via hook
                               console.log('1. Trying normal stopRecording method');
                               const result = stopRecording();
@@ -366,9 +387,18 @@ export const TeacherInterface: React.FC = () => {
                           size="sm" 
                           variant="default"
                           className="px-2 py-1 h-7 text-xs"
-                          onClick={() => {
+                          onClick={async () => {
                             console.log('Start recording button clicked');
+                            // Start audio capture first
                             startRecording();
+                            
+                            // Then start transcription service
+                            try {
+                              console.log('Starting transcription service:', transcriptionService);
+                              await transcriptionSvc.start();
+                            } catch (err) {
+                              console.error('Failed to start transcription service:', err);
+                            }
                           }}
                         >
                           Record
@@ -481,11 +511,11 @@ export const TeacherInterface: React.FC = () => {
                     {/* Transcription Service Status */}
                     <div className="mt-2 pt-2 border-t border-yellow-200">
                       <div><strong>Service Type:</strong> {transcriptionService}</div>
-                      <div><strong>Status:</strong> {transcriptionSvc.isRecording ? 
+                      <div><strong>Status:</strong> {transcriptionSvc.isActive ? 
                         <span className="text-green-600">Active</span> : 
                         <span className="text-gray-500">Standby</span>}
                       </div>
-                      <div><strong>Current Transcript:</strong> {transcriptionSvc.transcript || '(empty)'}</div>
+                      <div><strong>Current Transcript:</strong> {transcriptionSvc.currentText || transcriptionSvc.finalText || '(empty)'}</div>
                       {transcriptionSvc.error && (
                         <div className="text-red-500"><strong>Error:</strong> {String(transcriptionSvc.error)}</div>
                       )}
