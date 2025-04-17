@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { translateSpeech } from './openai';
-import { handleStreamingConnection } from './openai-streaming';
+import { processStreamingAudio, finalizeStreamingSession } from './openai-streaming';
 import { storage } from './storage';
 
 // Map to store active connections by user role and language preference
@@ -436,6 +436,60 @@ export class TranslationWebSocketServer {
           ws.send(JSON.stringify({
             type: 'transcript_history',
             data: transcripts
+          }));
+        }
+        break;
+        
+      case 'streaming_audio':
+        // Handle streaming audio chunks for real-time transcription
+        if (connection.role !== 'teacher') {
+          console.warn('Received streaming audio from non-teacher role:', connection.role);
+          // Only teachers are allowed to send audio for transcription
+          break;
+        }
+          
+        if (!payload.audio) {
+          console.warn('Received streaming_audio message with missing audio data');
+          break;
+        }
+          
+        console.log(`Processing streaming audio chunk, isFirstChunk: ${payload.isFirstChunk}`);
+        
+        try {
+          // Process the streaming audio using OpenAI
+          await processStreamingAudio(
+            ws,
+            connection.sessionId,
+            payload.audio,
+            payload.isFirstChunk || false,
+            payload.languageCode || connection.languageCode
+          );
+        } catch (error) {
+          console.error('Error processing streaming audio:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: 'Failed to process streaming audio'
+          }));
+        }
+        break;
+          
+      case 'stop_streaming':
+        // Finalize streaming session when client stops recording
+        if (connection.role !== 'teacher') {
+          console.warn('Received stop_streaming from non-teacher role:', connection.role);
+          break;
+        }
+          
+        console.log(`Finalizing streaming session: ${connection.sessionId}`);
+        
+        try {
+          // Finalize the streaming session and get any remaining transcription
+          await finalizeStreamingSession(ws, connection.sessionId);
+        } catch (error) {
+          console.error('Error finalizing streaming session:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: 'Failed to finalize streaming session'
           }));
         }
         break;

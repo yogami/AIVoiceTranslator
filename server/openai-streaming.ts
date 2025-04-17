@@ -1,214 +1,232 @@
-import { WebSocket } from 'ws';
 import OpenAI from 'openai';
-import fs from 'fs';
-import path from 'path';
-import { Readable } from 'stream';
+import WebSocket from 'ws';
 
-// Initialize OpenAI client
-let openaiClient: OpenAI | null = null;
+// Initialize the OpenAI client with API key from environment
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+interface AudioStreamingSessionState {
+  sessionId: string;
+  language: string;
+  isProcessing: boolean;
+  audioBuffer: Buffer[];
+  lastChunkTime: number;
+  transcriptionText: string;
+  transcriptionInProgress: boolean;
+}
+
+// Map of active audio streaming sessions
+const activeStreamingSessions = new Map<string, AudioStreamingSessionState>();
 
 /**
- * Get or create an OpenAI client instance
+ * Process streaming audio data from WebSocket
+ * @param ws WebSocket connection
+ * @param sessionId Unique session ID
+ * @param audioBase64 Base64-encoded audio data
+ * @param isFirstChunk Whether this is the first chunk in a new stream
+ * @param language Language code for transcription (e.g., 'en-US')
  */
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY environment variable is not set');
+export async function processStreamingAudio(
+  ws: WebSocket,
+  sessionId: string,
+  audioBase64: string,
+  isFirstChunk: boolean,
+  language: string
+): Promise<void> {
+  try {
+    // Convert base64 to buffer
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
+    
+    // Initialize session if it's the first chunk or doesn't exist
+    if (isFirstChunk || !activeStreamingSessions.has(sessionId)) {
+      console.log(`[OpenAI Streaming] Starting new streaming session: ${sessionId}, language: ${language}`);
+      
+      activeStreamingSessions.set(sessionId, {
+        sessionId,
+        language,
+        isProcessing: false,
+        audioBuffer: [audioBuffer],
+        lastChunkTime: Date.now(),
+        transcriptionText: '',
+        transcriptionInProgress: false
+      });
+    } else {
+      // Add to existing session
+      const session = activeStreamingSessions.get(sessionId);
+      if (session) {
+        session.audioBuffer.push(audioBuffer);
+        session.lastChunkTime = Date.now();
+      }
     }
     
-    openaiClient = new OpenAI({
-      apiKey: apiKey
-    });
+    // Process if we have enough audio data and not already processing
+    const session = activeStreamingSessions.get(sessionId);
+    if (session && !session.transcriptionInProgress) {
+      // Start processing in the background
+      processAudioChunks(ws, sessionId).catch(error => {
+        console.error(`[OpenAI Streaming] Error processing audio chunks:`, error);
+        sendTranscriptionError(ws, 'Error processing audio stream', 'server_error');
+      });
+    }
+  } catch (error) {
+    console.error('[OpenAI Streaming] Error processing streaming audio:', error);
+    sendTranscriptionError(ws, 'Failed to process audio data', 'server_error');
   }
-  
-  return openaiClient;
 }
 
 /**
- * Handle WebSocket connections for real-time audio streaming
+ * Process accumulated audio chunks for a session
+ * @param ws WebSocket connection
+ * @param sessionId Session ID
  */
-export function handleStreamingConnection(ws: WebSocket, req: any) {
-  console.log('New streaming transcription connection');
+async function processAudioChunks(ws: WebSocket, sessionId: string): Promise<void> {
+  const session = activeStreamingSessions.get(sessionId);
+  if (!session || session.audioBuffer.length === 0) return;
   
-  // Parse language from query parameters
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const language = url.searchParams.get('language') || 'en-US';
+  // Mark as processing to prevent concurrent processing
+  session.transcriptionInProgress = true;
   
-  // Get language code for OpenAI (just the first part)
-  const languageCode = language.split('-')[0];
-  
-  console.log(`Streaming transcription language: ${language} (code: ${languageCode})`);
-  
-  // Track active stream
-  let activeStream: any = null;
-  
-  // Client configuration
-  let clientConfig = {
-    language: languageCode,
-    interimResults: true
-  };
-  
-  // Handle WebSocket messages
-  ws.on('message', async (message: Buffer) => {
-    try {
-      const msgData = JSON.parse(message.toString());
-      
-      switch (msgData.type) {
-        case 'config':
-          // Update client configuration
-          clientConfig = {
-            ...clientConfig,
-            ...msgData
-          };
-          console.log('Updated streaming configuration:', clientConfig);
-          break;
-          
-        case 'audio_data':
-          // Process audio data
-          const audioBase64 = msgData.data;
-          const audioBuffer = Buffer.from(audioBase64, 'base64');
-          
-          // Call OpenAI API for streaming transcription
-          await processAudioChunk(audioBuffer, ws, clientConfig);
-          break;
-          
-        case 'end':
-          // End the session
-          if (activeStream) {
-            try {
-              // Close any active streams
-              activeStream = null;
-            } catch (error) {
-              console.error('Error closing active stream:', error);
-            }
-          }
-          break;
-          
-        default:
-          console.warn('Unknown message type:', msgData.type);
-      }
-    } catch (error) {
-      console.error('Error processing WebSocket message:', error);
-      sendError(ws, 'Error processing message: ' + (error as Error).message);
+  try {
+    // Create a single buffer from all chunks
+    const combinedBuffer = Buffer.concat(session.audioBuffer);
+    
+    // Only keep the last ~5 seconds of audio to maintain context but reduce processing load
+    // This is a balance between latency and accuracy
+    const maxBufferSize = 5 * 128000; // ~5 seconds at 128kbps
+    
+    if (combinedBuffer.length > maxBufferSize) {
+      // Clear buffer and keep only the most recent audio
+      session.audioBuffer = [combinedBuffer.slice(-maxBufferSize)];
+    } else {
+      // Clear processed audio chunks
+      session.audioBuffer = [];
     }
-  });
-  
-  // Handle WebSocket close
-  ws.on('close', () => {
-    console.log('Streaming transcription connection closed');
-    if (activeStream) {
-      try {
-        // Clean up any resources
-        activeStream = null;
-      } catch (error) {
-        console.error('Error closing active stream on connection close:', error);
-      }
+    
+    // Skip processing if buffer is too small (avoid sending tiny chunks)
+    if (combinedBuffer.length < 2000) {
+      session.transcriptionInProgress = false;
+      return;
     }
-  });
-  
-  // Handle WebSocket errors
-  ws.on('error', (error) => {
-    console.error('Streaming transcription WebSocket error:', error);
-  });
-  
-  // Send initial connection confirmation
-  ws.send(JSON.stringify({
-    type: 'connected',
-    message: 'Streaming transcription service connected',
-    language: language
-  }));
-  
-  /**
-   * Process an audio chunk and send results back to client
-   */
-  async function processAudioChunk(audioBuffer: Buffer, ws: WebSocket, config: any) {
-    try {
-      // Get OpenAI client
-      const openai = getOpenAIClient();
-      
-      // Create temporary file from buffer 
-      // (OpenAI API requires a file or readable stream)
-      const tempFilePath = path.join(process.cwd(), 'temp-audio-chunk.webm');
-      fs.writeFileSync(tempFilePath, audioBuffer);
-      
-      // Create readable stream from the temporary file
-      const audioStream = fs.createReadStream(tempFilePath);
-      
-      // Note: In a production environment, we would use a proper streaming approach
-      // without temporary files, but this is simplified for demonstration
-      
-      // Call OpenAI API for real-time transcription
-      // Note: the newest OpenAI model is "gpt-4o" which was released May 13, 2024
-      const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(tempFilePath),
-        model: 'whisper-1',
-        language: config.language,
-        response_format: 'verbose_json',
-        temperature: 0.2,
-        prompt: 'This is speech from a classroom setting.'
+    
+    // Create a blob for the OpenAI API
+    const webmBlob = new Blob([combinedBuffer], { type: 'audio/webm' });
+    
+    // Convert Blob to File object
+    const file = new File([webmBlob], 'audio.webm', { type: 'audio/webm' });
+    
+    // Transcribe using OpenAI API
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('model', 'whisper-1');
+    formData.append('language', session.language.split('-')[0]); // OpenAI expects 'en' not 'en-US'
+    formData.append('response_format', 'json');
+    
+    const transcription = await openai.audio.transcriptions.create({
+      file: file,
+      model: 'whisper-1',
+      language: session.language.split('-')[0],
+      response_format: 'json',
+    });
+    
+    // Get the transcription text
+    if (transcription.text && transcription.text.trim() !== '') {
+      // Send back transcription result
+      sendTranscriptionResult(ws, {
+        text: transcription.text,
+        isFinal: false,
+        languageCode: session.language
       });
-      
-      // Clean up temporary file
-      try { fs.unlinkSync(tempFilePath); } catch (e) { /* ignore cleanup errors */ }
-      
-      // Process results
-      if (transcription && transcription.text) {
-        // Send final result
-        sendFinalResult(ws, transcription.text);
-        
-        // If we have segments and interim results are enabled, also send the first segment as interim
-        if (config.interimResults && 
-            transcription.segments && 
-            Array.isArray(transcription.segments) && 
-            transcription.segments.length > 0) {
-          
-          // Send the first segment as an interim result
-          // In a real streaming API, we would get multiple interim results
-          sendInterimResult(ws, transcription.segments[0].text);
-        }
-      }
-    } catch (error) {
-      console.error('Error processing audio chunk:', error);
-      sendError(ws, 'Error processing audio: ' + (error as Error).message);
     }
+  } catch (error) {
+    console.error('[OpenAI Streaming] Error transcribing audio:', error);
+    sendTranscriptionError(ws, 'Failed to transcribe audio', 'server_error');
+  } finally {
+    // Mark as done processing
+    session.transcriptionInProgress = false;
   }
-  
-  /**
-   * Send an interim (partial) result
-   */
-  function sendInterimResult(ws: WebSocket, text: string) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'interim_result',
-        text: text,
-        confidence: 0.7
-      }));
+}
+
+/**
+ * Finalize a streaming session
+ * @param ws WebSocket connection
+ * @param sessionId Session ID
+ */
+export async function finalizeStreamingSession(ws: WebSocket, sessionId: string): Promise<void> {
+  try {
+    const session = activeStreamingSessions.get(sessionId);
+    if (!session) return;
+    
+    // Process any remaining audio
+    if (session.audioBuffer.length > 0) {
+      await processAudioChunks(ws, sessionId);
     }
+    
+    // Send final transcription
+    sendTranscriptionResult(ws, {
+      text: session.transcriptionText,
+      isFinal: true,
+      languageCode: session.language
+    });
+    
+    // Clean up the session
+    activeStreamingSessions.delete(sessionId);
+    console.log(`[OpenAI Streaming] Finalized and closed streaming session: ${sessionId}`);
+  } catch (error) {
+    console.error('[OpenAI Streaming] Error finalizing streaming session:', error);
   }
-  
-  /**
-   * Send a final result
-   */
-  function sendFinalResult(ws: WebSocket, text: string) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'final_result',
-        text: text,
-        confidence: 0.9
-      }));
-    }
+}
+
+/**
+ * Send a transcription result over WebSocket
+ */
+function sendTranscriptionResult(
+  ws: WebSocket, 
+  result: { text: string; isFinal: boolean; languageCode: string; confidence?: number }
+): void {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'transcription',
+      ...result
+    }));
   }
+}
+
+/**
+ * Send a transcription error over WebSocket
+ */
+function sendTranscriptionError(
+  ws: WebSocket, 
+  message: string, 
+  errorType: string = 'server_error'
+): void {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'error',
+      message,
+      errorType
+    }));
+  }
+}
+
+/**
+ * Clean up inactive streaming sessions
+ * This should be called periodically to prevent memory leaks
+ */
+export function cleanupInactiveStreamingSessions(maxAgeMs: number = 60000): void {
+  const now = Date.now();
   
-  /**
-   * Send an error message
-   */
-  function sendError(ws: WebSocket, errorMessage: string) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'error',
-        error: errorMessage
-      }));
+  for (const [sessionId, session] of activeStreamingSessions.entries()) {
+    const sessionAge = now - session.lastChunkTime;
+    
+    if (sessionAge > maxAgeMs) {
+      console.log(`[OpenAI Streaming] Cleaning up inactive streaming session: ${sessionId}, age: ${sessionAge}ms`);
+      activeStreamingSessions.delete(sessionId);
     }
   }
 }
+
+// Set up a cleanup interval
+setInterval(() => {
+  cleanupInactiveStreamingSessions();
+}, 30000); // Check every 30 seconds

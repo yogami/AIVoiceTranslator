@@ -3,7 +3,6 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { TranslationWebSocketServer } from "./websocket";
 import { WebSocketServer } from "ws";
-import { handleStreamingConnection } from "./openai-streaming";
 import { z } from "zod";
 import path from "path";
 
@@ -14,17 +13,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize main WebSocket server for translations
   const wss = new TranslationWebSocketServer(httpServer);
   
-  // Initialize the streaming transcription WebSocket server on a different path
-  const streamingWss = new WebSocketServer({ 
-    server: httpServer, 
-    path: '/ws/transcribe'
-  });
-  
-  // Set up streaming handler
-  streamingWss.on('connection', (ws, req) => {
-    console.log('New streaming transcription connection on /ws/transcribe');
-    handleStreamingConnection(ws, req);
-  });
+  // No longer needed - our streaming functionality will be handled by the main WebSocket server
   
   // API Routes
   
