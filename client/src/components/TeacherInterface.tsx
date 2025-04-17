@@ -7,13 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AudioWaveform from '@/components/AudioWaveform';
 import LanguageSelector from '@/components/LanguageSelector';
+import TranscriptionServiceSelector from '@/components/TranscriptionServiceSelector';
 import { apiRequest } from '@/lib/queryClient';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useWebSpeech } from '@/hooks/useWebSpeech';
+import { useTranscriptionService } from '@/hooks/useTranscriptionService';
 import { formatLatency, formatDuration } from '@/lib/openai';
-import { Mic, Languages, Play, Timer, Plus, CheckCircle } from 'lucide-react';
+import { Mic, Languages, Play, Timer, Plus, CheckCircle, Subtitles } from 'lucide-react';
 import { wsClient } from '@/lib/websocket';
+import { TranscriptionServiceType } from '@/lib/transcription/TranscriptionFactory';
 
 interface Languages {
   id: number;
@@ -25,6 +27,7 @@ interface Languages {
 export const TeacherInterface: React.FC = () => {
   const [selectedInputLanguage, setSelectedInputLanguage] = useState('en-US');
   const [roleInitialized, setRoleInitialized] = useState(false);
+  const [transcriptionService, setTranscriptionService] = useState<TranscriptionServiceType>('web_speech');
 
   // CRITICAL: Lock the role as 'teacher' immediately when component mounts
   // This is to prevent race conditions with other component registrations
@@ -169,30 +172,33 @@ export const TeacherInterface: React.FC = () => {
     forceTeacherRole: true // Add special flag for forced teacher role
   });
   
-  // Initialize Web Speech API as the primary transcription method
-  const webSpeech = useWebSpeech({
-    enabled: isRecording, // Automatically activate when recording starts
-    language: selectedInputLanguage,
-    onTranscriptionUpdate: (text, isFinal) => {
-      // When we get a transcription from Web Speech API, update the UI directly
-      if (text.trim().length > 0) {
-        console.log(`Received Web Speech transcription (${isFinal ? 'final' : 'interim'}):", ${text}`);
-        
-        // For development, display all transcriptions directly in the UI
-        // This bypasses the need for OpenAI Whisper API
-        if (isFinal) {
-          // Final results update the displayed speech
-          setDisplayedSpeech(text);
+  // Initialize transcription service based on the user's selection
+  const transcriptionSvc = useTranscriptionService(
+    transcriptionService, // Use the selected service type
+    {
+      language: selectedInputLanguage,
+      continuous: true,
+      interimResults: true,
+      role: 'teacher',
+    },
+    {
+      onTranscriptionResult: (result) => {
+        // When we get a transcription from the service, update the UI
+        if (result.text.trim().length > 0) {
+          console.log(`Received transcription (${result.isFinal ? 'final' : 'interim'}):", ${result.text}`);
           
-          // For development - we'll directly update the displayed speech instead of
-          // relying on the translation system to avoid needing an API key
-        } else {
-          // For interim results, show with a "..." to indicate it's still processing
-          setInterimDisplayedSpeech(text + "...");
+          // For development, display all transcriptions directly in the UI
+          if (result.isFinal) {
+            // Final results update the displayed speech
+            setDisplayedSpeech(result.text);
+          } else {
+            // For interim results, show with a "..." to indicate it's still processing
+            setInterimDisplayedSpeech(result.text + "...");
+          }
         }
       }
     }
-  });
+  );
   
   // Keep local state of current speech for direct rendering
   const [displayedSpeech, setDisplayedSpeech] = useState<string | JSX.Element>('');
@@ -415,6 +421,22 @@ export const TeacherInterface: React.FC = () => {
               />
             </div>
             
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-medium text-gray-700">
+                  <span className="flex items-center">
+                    <Subtitles className="h-4 w-4 mr-1 text-primary" />
+                    Transcription Service
+                  </span>
+                </Label>
+              </div>
+              <TranscriptionServiceSelector
+                initialValue={transcriptionService}
+                onChange={setTranscriptionService}
+                disabled={isRecording}
+              />
+            </div>
+            
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-sm font-medium text-gray-700">Input Monitor</Label>
@@ -456,16 +478,16 @@ export const TeacherInterface: React.FC = () => {
                     <div><strong>WebSocket Status:</strong> {translation.status}</div>
                     <div><strong>Translation Count:</strong> {translation.metrics.translationsCount}</div>
                     
-                    {/* Web Speech API Status */}
+                    {/* Transcription Service Status */}
                     <div className="mt-2 pt-2 border-t border-yellow-200">
-                      <div><strong>Web Speech API:</strong> {webSpeech.isSupported ? 'Supported' : 'Not Supported'}</div>
-                      <div><strong>Web Speech Status:</strong> {webSpeech.isRecording ? 
+                      <div><strong>Service Type:</strong> {transcriptionService}</div>
+                      <div><strong>Status:</strong> {transcriptionSvc.isRecording ? 
                         <span className="text-green-600">Active</span> : 
                         <span className="text-gray-500">Standby</span>}
                       </div>
-                      <div><strong>Current Transcript:</strong> {webSpeech.transcript || '(empty)'}</div>
-                      {webSpeech.error && (
-                        <div className="text-red-500"><strong>Error:</strong> {String(webSpeech.error)}</div>
+                      <div><strong>Current Transcript:</strong> {transcriptionSvc.transcript || '(empty)'}</div>
+                      {transcriptionSvc.error && (
+                        <div className="text-red-500"><strong>Error:</strong> {String(transcriptionSvc.error)}</div>
                       )}
                     </div>
                     

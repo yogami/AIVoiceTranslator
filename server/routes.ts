@@ -143,26 +143,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Serve index.html with injected API keys for client-side use
-  app.get('/', (_req, res, next) => {
+  // Serve endpoints that can be used to securely retrieve API keys for client-side use
+  app.get('/api/keys/openai', (_req, res) => {
     try {
-      // Inject API keys into the client as environment variables
-      // This is only for development purposes - never expose API keys in production
-      const scriptContent = `
-        <script>
-          // API keys - never expose these in production
-          window.OPENAI_API_KEY = "${process.env.OPENAI_API_KEY || ''}";
-          window.ANTHROPIC_API_KEY = "${process.env.ANTHROPIC_API_KEY || ''}";
-        </script>
-      `;
-      
-      // Continue to next middleware (Vite will handle serving the actual index.html)
-      res.locals.preScript = scriptContent;
-      next();
+      // Only provide key info, not the actual key
+      const hasKey = !!process.env.OPENAI_API_KEY;
+      res.json({ hasKey });
     } catch (error) {
-      console.error('Error injecting API keys:', error);
-      next();
+      console.error('Error fetching OpenAI API key status:', error);
+      res.status(500).json({ message: 'Failed to fetch API key status' });
     }
+  });
+  
+  app.get('/api/keys/anthropic', (_req, res) => {
+    try {
+      // Only provide key info, not the actual key
+      const hasKey = !!process.env.ANTHROPIC_API_KEY;
+      res.json({ hasKey });
+    } catch (error) {
+      console.error('Error fetching Anthropic API key status:', error);
+      res.status(500).json({ message: 'Failed to fetch API key status' });
+    }
+  });
+  
+  // API key middleware to inject keys as a global variable in the JavaScript environment
+  app.use((req, res, next) => {
+    // Only inject on HTML requests
+    if (req.headers.accept?.includes('text/html')) {
+      // Create a middleware that hooks into the response
+      const originalSend = res.send;
+      
+      res.send = function(body) {
+        if (typeof body === 'string' && body.includes('</head>')) {
+          // Inject API keys as global variables
+          const scriptContent = `
+<script>
+  // API Keys - NEVER expose these in production
+  window.OPENAI_API_KEY = "${process.env.OPENAI_API_KEY || ''}";
+  window.ANTHROPIC_API_KEY = "${process.env.ANTHROPIC_API_KEY || ''}";
+</script>`;
+          
+          // Insert before closing head tag
+          body = body.replace('</head>', scriptContent + '\n</head>');
+        }
+        
+        return originalSend.call(this, body);
+      };
+    }
+    
+    next();
   });
 
   return httpServer;
