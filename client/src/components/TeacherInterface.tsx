@@ -228,10 +228,12 @@ export const TeacherInterface: React.FC = () => {
             </div> as any
           );
         } else {
-          // Force an update by using a random key suffix
-          const displayText = translatedText.toString() + ` (${Date.now().toString().slice(-4)})`;
-          setDisplayedSpeech(displayText);
-          console.log("FORCE SET DISPLAYED SPEECH:", displayText);
+          // Force UI update but don't change the display text
+          setDisplayedSpeech('');
+          setTimeout(() => {
+            setDisplayedSpeech(translatedText.toString());
+            console.log("FORCE SET DISPLAYED SPEECH:", translatedText);
+          }, 10);
         }
       }
     };
@@ -261,10 +263,12 @@ export const TeacherInterface: React.FC = () => {
           </div> as any
         );
       } else {
-        // Add timestamp to force re-render
-        const displayText = translation.currentSpeech + ` (${Date.now().toString().slice(-4)})`;
-        setDisplayedSpeech(displayText);
-        console.log("SET DISPLAYED SPEECH FROM HOOK:", displayText);
+        // Force UI update but don't change the display text
+        setDisplayedSpeech('');
+        setTimeout(() => {
+          setDisplayedSpeech(translation.currentSpeech);
+          console.log("SET DISPLAYED SPEECH FROM HOOK:", translation.currentSpeech);
+        }, 10);
       }
     }
   }, [translation.currentSpeech]);
