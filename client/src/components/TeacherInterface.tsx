@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
@@ -187,14 +187,27 @@ export const TeacherInterface: React.FC = () => {
         if (result.text.trim().length > 0) {
           console.log(`Received transcription (${result.isFinal ? 'final' : 'interim'}):", ${result.text}`);
           
-          // For development, display all transcriptions directly in the UI
-          if (result.isFinal) {
-            // Final results update the displayed speech
-            setDisplayedSpeech(result.text);
-          } else {
-            // For interim results, show with a "..." to indicate it's still processing
-            setInterimDisplayedSpeech(result.text + "...");
+          // CRITICAL: Ignore all results that are just "you" from OpenAI hallucination
+          if (result.text.trim().toLowerCase() === "you") {
+            console.log("⚠️ IGNORING 'you' HALLUCINATION FROM OPENAI");
+            return; // Don't update the UI with these problematic results
           }
+          
+          // Special handling for Web Speech results to avoid flicker
+          const showText = result.text.trim();
+          
+          // Use requestAnimationFrame to reduce flicker
+          window.requestAnimationFrame(() => {
+            if (result.isFinal) {
+              // Final results update the displayed speech
+              setDisplayedSpeech(showText);
+              // Also clear any interim text to avoid weird overlapping states
+              setInterimDisplayedSpeech("");
+            } else {
+              // For interim results, show with a "..." to indicate it's still processing
+              setInterimDisplayedSpeech(showText + "...");
+            }
+          });
         }
       }
     }
