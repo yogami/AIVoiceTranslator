@@ -46,9 +46,9 @@ export async function translateSpeech(
 ): Promise<TranslationResult> {
   console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
   
-  // DEVELOPMENT MODE: Check if API key is missing or invalid
-  if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.includes('sk-proj-')) {
-    console.log('DEV MODE: Using synthetic translation data due to missing/invalid API key');
+  // DEVELOPMENT MODE: Check if API key is missing
+  if (!process.env.OPENAI_API_KEY) {
+    console.log('DEV MODE: Using synthetic translation data due to missing API key');
     
     // Get the transcription from WebSpeech API if available
     const transcribedText = preTranscribedText || 'This is a development mode transcription.';
@@ -152,8 +152,8 @@ export async function translateSpeech(
         model: 'whisper-1',
         language: sourceLanguage.split('-')[0],  // Use just the language part (e.g., 'en' from 'en-US')
         response_format: 'json',
-        temperature: 0.2,  // Slight creativity to help with harder words
-        prompt: 'This is classroom speech from a teacher. Transcribe any audible speech accurately. If there is no speech or only background noise, return an empty string.'
+        temperature: 0.2  // Slight creativity to help with harder words
+        // Removed prompt to prevent prompt leakage
       });
       
       // Clean up the temporary file
