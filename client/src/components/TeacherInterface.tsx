@@ -535,13 +535,27 @@ export const TeacherInterface: React.FC = () => {
                   {isRecording ? (
                     <div className="text-success flex items-center">
                       <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                      Recording active - Speech will appear here
+                      Recording active
                     </div>
                   ) : (
                     <div className="text-gray-500">
                       Press the "Record" button above to start speech recognition
                     </div>
                   )}
+                </div>
+                
+                {/* Current Speech Display - ADDED THIS SECTION */}
+                <div className="mt-4">
+                  <div className="text-sm font-medium mb-2">Current Speech:</div>
+                  <div className="p-3 bg-white border rounded-md min-h-[60px] shadow-sm">
+                    {displayedSpeech ? (
+                      <div className="text-md">{displayedSpeech}</div>
+                    ) : (
+                      <div className="text-gray-400 italic">
+                        {isRecording ? "Speak now..." : "No speech detected yet"}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               
