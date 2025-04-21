@@ -137,7 +137,13 @@ export class WebSpeechRecognition {
       const text = finalTranscript || interimTranscript;
       const isFinal = !!finalTranscript;
 
-      console.log(`Speech recognition result: ${text} (${isFinal ? 'final' : 'interim'})`);
+      // Client-side debug breakpoint
+      console.log(`\n===== CLIENT-SIDE SPEECH RECOGNITION =====`);
+      console.log(`🎙️ Web Speech API: Result - ${text} (${isFinal ? 'final' : 'interim'})`);
+      console.log(`🎙️ Language: ${this.language}`);
+      console.log(`🎙️ Final: ${isFinal}`);
+      console.log(`🎙️ Timestamp: ${new Date().toISOString()}`);
+      console.log(`===== END CLIENT-SIDE SPEECH RECOGNITION =====\n`);
       
       if (this.onResult && text) {
         this.onResult({ 

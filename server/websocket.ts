@@ -301,8 +301,16 @@ export class TranslationWebSocketServer {
           break;
         }
         
-        console.log(`Received Web Speech API transcription: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
-        console.log(`📢 DIAGNOSTIC - RECEIVED WEB SPEECH API TEXT: "${payload.text}"`);
+        // =========== DEBUG BREAKPOINT START ===========
+        console.log(`\n========== SPEECH RECOGNITION DEBUG BREAKPOINT ==========`);
+        console.log(`🎙️ USER SPEECH DETECTED: "${payload.text}"`);
+        console.log(`🎙️ LANGUAGE: ${connection.languageCode}`);
+        console.log(`🎙️ ROLE: ${connection.role}`);
+        console.log(`🎙️ SESSION: ${connection.sessionId}`);
+        console.log(`🎙️ TIMESTAMP: ${new Date().toISOString()}`);
+        console.log(`🎙️ MESSAGE TYPE: Web Speech API (Browser-based recognition)`);
+        console.log(`========== DEBUG BREAKPOINT END ==========\n`);
+        // =========== DEBUG BREAKPOINT END ===========
         
         // Store the latest Web Speech API transcription for fallback use
         const sessionKey = `${connection.role}_${connection.sessionId}`;
