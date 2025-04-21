@@ -99,7 +99,7 @@ export class TranslationWebSocketServer {
           }
           
           try {
-            console.log(`Sending server-initiated ping to connection ${sessionId}`);
+            // Don't log ping messages to reduce noise
             ws.send(JSON.stringify({
               type: 'ping',
               timestamp: now
@@ -132,9 +132,13 @@ export class TranslationWebSocketServer {
       // Handle messages from clients
       ws.on('message', async (message) => {
         try {
-          console.log(`Received message from client, length: ${message.toString().length}`);
           const data = JSON.parse(message.toString());
-          console.log(`Parsed message type: ${data.type}`);
+          
+          // Only log non-ping/pong messages to reduce console noise
+          if (data.type !== 'ping' && data.type !== 'pong') {
+            console.log(`Received message from client, type: ${data.type}, length: ${message.toString().length}`);
+          }
+          
           await this.handleMessage(ws, data);
         } catch (error) {
           console.error('Error handling message:', error);
@@ -206,15 +210,17 @@ export class TranslationWebSocketServer {
     };
     const { type, payload } = message;
     
-    // Debug current connection state
-    console.log(`Processing message type=${type} from connection: role=${connection.role}, languageCode=${connection.languageCode}`);
+    // Debug current connection state - skip ping/pong messages to reduce noise
+    if (type !== 'ping' && type !== 'pong') {
+      console.log(`Processing message type=${type} from connection: role=${connection.role}, languageCode=${connection.languageCode}`);
+    }
     
 
     switch (type) {
       case 'ping':
         // Respond to ping messages to keep the connection alive
         if (ws.readyState === WebSocket.OPEN) {
-          console.log('Received ping from client');
+          // Silently handle ping messages
           try {
             // Update the last activity time to prevent server-side ping timeouts
             connection.lastActivity = Date.now();
@@ -224,7 +230,6 @@ export class TranslationWebSocketServer {
               type: 'pong',
               timestamp: Date.now()
             }));
-            console.log('Sent pong response to client ping');
           } catch (error) {
             console.error('Error sending pong response:', error);
           }
@@ -234,7 +239,7 @@ export class TranslationWebSocketServer {
       case 'pong':
         // Client responded to our ping, update activity time
         if (ws.readyState === WebSocket.OPEN) {
-          console.log('Received pong from client, updating activity timestamp');
+          // Silently update the timestamp
           connection.lastActivity = Date.now();
         }
         break;
