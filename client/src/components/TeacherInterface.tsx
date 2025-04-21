@@ -199,6 +199,19 @@ export const TeacherInterface: React.FC = () => {
           // Use requestAnimationFrame to reduce flicker
           window.requestAnimationFrame(() => {
             setDisplayedSpeech(result.text);
+            
+            // Also update interimDisplayedSpeech if this is an interim result
+            if (!result.isFinal) {
+              setInterimDisplayedSpeech(result.text);
+            } else {
+              setInterimDisplayedSpeech('');
+              
+              // For final results, also send to the WebSocket server to broadcast to students
+              if (wsClient) {
+                console.log('Sending final transcription to server:', result.text);
+                wsClient.sendTranscription(result.text);
+              }
+            }
           });
         }
       }
@@ -219,7 +232,19 @@ export const TeacherInterface: React.FC = () => {
         return;
       }
       
-      const { translatedText } = data.data;
+      const { translatedText, originalText } = data.data;
+      
+      // Add debugging for audio
+      if (data.data.audio) {
+        console.log("Received audio with translation, length:", 
+          data.data.audio.substring(0, 100).length > 90 ? data.data.audio.length : data.data.audio);
+      }
+      
+      // Skip automatic 'You' responses from OpenAI
+      if (translatedText === 'You' || translatedText === 'Thanks for watching!') {
+        console.log("Skipping known problematic response:", translatedText);
+        return;
+      }
       
       if (translatedText) {
         console.log("DIRECT TRANSLATION TEXT RECEIVED:", translatedText);
@@ -233,12 +258,16 @@ export const TeacherInterface: React.FC = () => {
             </div> as any
           );
         } else {
-          // Force UI update but don't change the display text
-          setDisplayedSpeech('');
-          setTimeout(() => {
-            setDisplayedSpeech(translatedText.toString());
-            console.log("FORCE SET DISPLAYED SPEECH:", translatedText);
-          }, 10);
+          // Only update if we have meaningful content (longer than just a few characters)
+          // This prevents "You" from overriding real transcriptions
+          if (translatedText.length > 5) {
+            // Force UI update but don't change the display text
+            setDisplayedSpeech('');
+            setTimeout(() => {
+              setDisplayedSpeech(translatedText.toString());
+              console.log("FORCE SET DISPLAYED SPEECH:", translatedText);
+            }, 10);
+          }
         }
       }
     };
@@ -258,6 +287,13 @@ export const TeacherInterface: React.FC = () => {
   useEffect(() => {
     console.log("TeacherInterface detected change in currentSpeech:", translation.currentSpeech);
     if (translation.currentSpeech) {
+      // Skip automatic 'You' responses from OpenAI
+      if (translation.currentSpeech === 'You' || translation.currentSpeech === 'you' || 
+          translation.currentSpeech === 'Thanks for watching!') {
+        console.log("Skipping known problematic response from hook:", translation.currentSpeech);
+        return;
+      }
+      
       // Check if it's a test content warning message
       if (translation.currentSpeech.includes("Detected test audio pattern")) {
         // Style the warning message differently
@@ -267,7 +303,8 @@ export const TeacherInterface: React.FC = () => {
             {translation.currentSpeech}
           </div> as any
         );
-      } else {
+      } else if (translation.currentSpeech.length > 5) {
+        // Only update if we have meaningful content
         // Force UI update but don't change the display text
         setDisplayedSpeech('');
         setTimeout(() => {
