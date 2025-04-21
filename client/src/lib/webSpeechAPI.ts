@@ -285,18 +285,13 @@ interface SpeechRecognition extends EventTarget {
 }
 
 // Ensure there's no duplicate declarations by using conditional type exports
-interface ISpeechRecognition {
-  new(): SpeechRecognition;
-}
-
 // This special pattern avoids TypeScript errors with browser-specific types
-// The type assertion ensures we can use browser implementations consistently
 declare global {
   interface Window {
-    SpeechRecognition: ISpeechRecognition;
-    webkitSpeechRecognition: ISpeechRecognition;
-    mozSpeechRecognition: ISpeechRecognition;
-    msSpeechRecognition: ISpeechRecognition;
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+    mozSpeechRecognition: any;
+    msSpeechRecognition: any;
   }
 }
 

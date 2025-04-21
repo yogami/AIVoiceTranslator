@@ -567,128 +567,20 @@ export class TranslationWebSocketServer {
         console.log('Audio data does not have WAV header (but we\'re not using it for transcription)');
       }
       
+      // We no longer need to process the audio for transcription, but we'll keep
+      // the audio buffer tracking for compatibility and future expansion
+
       // Get or create a unique key for this connection
       const connectionKey = `${teacherConnection.role}_${teacherConnection.sessionId}`;
       
-      // Initialize audio chunks collection if it doesn't exist
-      if (!this.audioChunks.has(connectionKey)) {
-        this.audioChunks.set(connectionKey, []);
-        this.lastChunkTime.set(connectionKey, Date.now());
-      }
-      
-      // Get the current audio chunks for this connection
-      const chunks = this.audioChunks.get(connectionKey) || [];
-      const currentTime = Date.now();
-      const lastTime = this.lastChunkTime.get(connectionKey) || 0;
-      const timeSinceLastChunk = currentTime - lastTime;
-      
-      // Update the last chunk time
-      this.lastChunkTime.set(connectionKey, currentTime);
-      
-      // Add current audio buffer to chunks
-      chunks.push(processedBuffer);
-      
-      // Limit the number of stored chunks to prevent memory issues (keep last 10)
-      if (chunks.length > 10) {
-        chunks.shift();
-      }
-      
-      // Update the stored chunks
-      this.audioChunks.set(connectionKey, chunks);
-      
-      // Determine if we should process now or wait for more chunks
-      let shouldProcess = false;
-      
-      // Process if this chunk is large enough by itself
-      if (processedBuffer.byteLength >= this.minimumBufferSize) {
-        console.log(`Audio chunk is large enough (${processedBuffer.byteLength} bytes), processing immediately`);
-        shouldProcess = true;
-      }
-      // Process if we have multiple chunks and long time since last chunk
-      else if (chunks.length > 1 && timeSinceLastChunk > 1000) {
-        console.log(`Processing ${chunks.length} chunks after ${timeSinceLastChunk}ms of silence`);
-        shouldProcess = true;
-      }
-      // Process if total accumulated audio is large enough
-      else if (chunks.length > 1) {
-        const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-        if (totalSize >= this.minimumBufferSize) {
-          console.log(`Accumulated ${chunks.length} chunks with total size ${totalSize} bytes, processing now`);
-          shouldProcess = true;
-        }
-      }
-      
-      // If we need more data, just store this chunk and finish
-      if (!shouldProcess) {
-        console.log(`Audio chunk small (${processedBuffer.byteLength} bytes), waiting for more chunks. Total chunks: ${chunks.length}`);
-        this.sendProcessingComplete(teacherConnection, [teacherConnection.languageCode]);
-        return;
-      }
-      
-      // Combine all chunks if there are multiple
-      if (chunks.length > 1) {
-        // Get all PCM data from the chunks
-        const dataChunks = [];
-        let totalLength = 0;
-        
-        // For the first chunk, keep the entire WAV file (header + data)
-        const firstChunk = chunks[0];
-        dataChunks.push(firstChunk);
-        totalLength += firstChunk.byteLength;
-        
-        // For subsequent chunks, extract only the PCM data (skip WAV header)
-        for (let i = 1; i < chunks.length; i++) {
-          const chunk = chunks[i];
-          // Skip the 44-byte WAV header if it has one
-          if (this.hasWavHeader(chunk) && chunk.byteLength > 44) {
-            const audioData = chunk.subarray(44);
-            dataChunks.push(audioData);
-            totalLength += audioData.byteLength;
-          } else {
-            dataChunks.push(chunk);
-            totalLength += chunk.byteLength;
-          }
-        }
-        
-        // Create a combined buffer
-        processedBuffer = Buffer.concat(dataChunks, totalLength);
-        
-        // Update the WAV header for the combined data
-        if (this.hasWavHeader(processedBuffer) && processedBuffer.byteLength > 44) {
-          // Update chunk size (file size - 8)
-          const fileSize = processedBuffer.byteLength - 8;
-          processedBuffer.writeUInt32LE(fileSize, 4);
-          
-          // Update data size (file size - 44)
-          const dataSize = processedBuffer.byteLength - 44;
-          processedBuffer.writeUInt32LE(dataSize, 40);
-        }
-        
-        console.log(`Combined ${chunks.length} chunks into buffer of size ${processedBuffer.byteLength} bytes`);
-        
-        // Detect potential test audio based on size patterns
-        const isSuspiciousPattern = this.detectSuspiciousAudio(processedBuffer);
-        if (isSuspiciousPattern) {
-          console.warn('⚠️ DETECTED POTENTIAL TEST AUDIO: Audio with suspicious pattern detected');
-          console.warn('This audio will be rejected as it appears to be test content');
-          return false; // Skip processing this audio chunk
-        }
-        
-        // Clear the chunks after processing
-        this.audioChunks.set(connectionKey, []);
-      }
+      // Track last activity time
+      this.lastChunkTime.set(connectionKey, Date.now());
       
       const sourceLanguage = teacherConnection.languageCode;
       const sessionId = teacherConnection.sessionId;
       
-      // Check if OpenAI API key is available
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        console.error('ERROR: OpenAI API key is not set. Please set the OPENAI_API_KEY environment variable.');
-        throw new Error('OpenAI API key is not set');
-      } else {
-        console.log('OpenAI API key is available (length:', apiKey.length, ')');
-      }
+      // Get the Web Speech transcription to use
+      const transcribedText = recentWebSpeech.text;
       
       // Get all unique target languages from student connections
       const targetLanguages = new Set<string>();
@@ -717,197 +609,71 @@ export class TranslationWebSocketServer {
         console.log(`Translating from ${sourceLanguage} to ${targetLanguage}...`);
         
         try {
-          // BREAKPOINT 4: Log before sending to OpenAI
-          console.log(`\n🔍 BREAKPOINT 4: SENDING TO OPENAI FOR TRANSCRIPTION`);
-          console.log(`🎤 Buffer size: ${processedBuffer.length} bytes`);
-          console.log(`🎤 First 20 bytes of audio: ${processedBuffer.slice(0, 20).toString('hex')}`);
-          console.log(`🎤 Source language: ${sourceLanguage}`);
-          console.log(`🎤 Target language: ${targetLanguage}`);
-          console.log(`🎤 EXACT AUDIO CONTENT CAPTURED BY USER: "Sending to OpenAI for transcription now..."`);
-          
-          // Write detailed debug information to console instead of file
-          console.log(`
-=================================================================
-🔍 RECORDING DEBUG INFO - ${new Date().toISOString()}
-=================================================================
-🎤 SENDING AUDIO TO OPENAI:
-  - Buffer size: ${processedBuffer.length} bytes
-  - WAV header present: ${this.hasWavHeader(processedBuffer)}
-  - Source language: ${sourceLanguage}
-  - Target language: ${targetLanguage}
-  - First 32 bytes: ${processedBuffer.slice(0, 32).toString('hex')}
-=================================================================`);
-          
-          // Use the processed buffer with WAV header for the OpenAI API
-          const result = await translateSpeech(processedBuffer, sourceLanguage, targetLanguage);
-          
-          // BREAKPOINT 5: Log after receiving from OpenAI
-          console.log(`\n🔍 BREAKPOINT 5: RECEIVED FROM OPENAI`);
-          console.log(`🎤 Original text: "${result.originalText}"`);
-          console.log(`🎤 Translated text: "${result.translatedText}"`);
-          console.log(`🎤 EXACT TRANSCRIPTION RETURNED BY OPENAI: "${result.originalText}"`);
-          console.log(`🎤 Audio buffer returned: ${result.audioBuffer ? 'Yes' : 'No'}`);
-          
-          // Log transcription result to console instead of file
-          console.log(`
-=================================================================
-🔍 TRANSCRIPTION RESULT:
-  - Original text: "${result.originalText}"
-  - Translated text: "${result.translatedText}"
-  - Text length: ${result.originalText.length} characters
-  - Processing time: ${Date.now() - startTime}ms
-=================================================================
-`);
-          
-          // Check for empty translations and try to use WebSpeech API fallback if available
-          if (!result.originalText && !result.translatedText) {
-            console.log('Empty Whisper API transcription result, checking for Web Speech API fallback');
+          // For same language, no translation needed
+          if (targetLanguage === sourceLanguage) {
+            // Use the Web Speech transcription directly
+            console.log(`🔍 USING WEB SPEECH API TRANSCRIPTION FOR SAME LANGUAGE`);
+            console.log(`🎤 Text: "${transcribedText}"`);
             
-            // Try to get a recent Web Speech API transcription from this teacher
-            const sessionKey = `${teacherConnection.role}_${teacherConnection.sessionId}`;
-            const recentWebSpeechTranscription = this.latestWebSpeechTranscriptions.get(sessionKey);
+            // Broadcast the transcription without translation
+            this.broadcastTranslation(
+              teacherConnection,
+              transcribedText,
+              transcribedText, // Same text for source & target
+              sourceLanguage,
+              targetLanguage
+            );
+          } else {
+            // For different languages, we need to translate
+            console.log(`🔍 TRANSLATING WEB SPEECH API TRANSCRIPTION`);
+            console.log(`🎤 Original text: "${transcribedText}"`);
+            console.log(`🎤 Source language: ${sourceLanguage}`);
+            console.log(`🎤 Target language: ${targetLanguage}`);
             
-            if (recentWebSpeechTranscription && 
-                Date.now() - recentWebSpeechTranscription.timestamp < 10000) { // Use only if less than 10 seconds old
-              // Use the Web Speech API transcription as fallback
-              console.log(`Using Web Speech API transcription as fallback: "${recentWebSpeechTranscription.text}"`);
-              console.log(`FALLBACK ACTIVE: Using Web Speech API result instead of Whisper API`);
+            try {
+              // Translate using OpenAI
+              const { originalText, translatedText } = await translateSpeech(
+                Buffer.from(''), // Empty buffer since we're using pre-transcribed text
+                sourceLanguage,
+                targetLanguage,
+                transcribedText // Pass the transcribed text from Web Speech API
+              );
               
-              // If the transcription is for the same language, we can use it directly
-              if (targetLanguage === sourceLanguage) {
-                // Broadcast the fallback transcription
-                this.broadcastTranslation(
-                  teacherConnection,
-                  recentWebSpeechTranscription.text,
-                  recentWebSpeechTranscription.text, // Same text for source & target
-                  sourceLanguage,
-                  targetLanguage
-                );
-                continue; // Skip to next language
-              } else {
-                // Need to translate the Web Speech result to the target language
-                try {
-                  // Translate to target language using OpenAI
-                  const { originalText, translatedText } = await translateSpeech(
-                    Buffer.from(''), // Empty buffer since we're using pre-transcribed text
-                    sourceLanguage,
-                    targetLanguage,
-                    recentWebSpeechTranscription.text // Pass the transcribed text from Web Speech API
-                  );
-                  
-                  // Broadcast the translation to clients
-                  this.broadcastTranslation(
-                    teacherConnection,
-                    originalText || recentWebSpeechTranscription.text, // Use fallback if translation failed
-                    translatedText || recentWebSpeechTranscription.text, // Use original as fallback
-                    sourceLanguage,
-                    targetLanguage
-                  );
-                  continue; // Skip to next language
-                } catch (error) {
-                  console.error(`Error translating Web Speech fallback from ${sourceLanguage} to ${targetLanguage}:`, error);
-                  // Continue to default empty translation handling
-                }
-              }
-            }
-            
-            console.log('No suitable Web Speech API fallback available, sending empty translation');
-            // Still send a notification to the client, but with a filtered flag
-            for (const [ws, conn] of Array.from(this.connections.entries())) {
-              if (
-                (conn.role === 'student' && conn.languageCode === targetLanguage ||
-                 conn.role === 'teacher' && conn.sessionId === sessionId) &&
-                ws.readyState === WebSocket.OPEN
-              ) {
-                ws.send(JSON.stringify({
-                  type: 'translation',
-                  data: {
-                    sessionId,
-                    sourceLanguage,
-                    targetLanguage,
-                    originalText: "",
-                    translatedText: "",
-                    filtered: true,  // Add this flag to indicate it was filtered
-                    timestamp: new Date().toISOString(),
-                    latency: Date.now() - startTime
-                  }
-                }));
-                console.log(`Sent filtered content notification to ${conn.role} with language ${conn.languageCode}`);
-              }
-            }
-            this.sendProcessingComplete(teacherConnection, [targetLanguage]);
-            continue; // Skip to the next language
-          }
-          
-          // Log detailed information about the transcription
-          console.log(`TRANSCRIPTION DETAILS:`);
-          console.log(`- Original text: "${result.originalText}"`);
-          console.log(`- Translated text: "${result.translatedText}"`);
-          console.log(`- Text length: ${result.translatedText?.length || 0} chars`);
-          console.log(`- Source language: ${sourceLanguage}`);
-          console.log(`- Target language: ${targetLanguage}`);
-          console.log(`- Audio buffer length: ${result.audioBuffer?.length || 0} bytes`);
-          
-          // Calculate latency
-          const latency = Date.now() - startTime;
-        
-          // Store translation and transcript
-          await storage.addTranslation({
-            sourceLanguage,
-            targetLanguage,
-            originalText: result.originalText,
-            translatedText: result.translatedText,
-            latency
-          });
-          
-          await storage.addTranscript({
-            sessionId,
-            language: targetLanguage,
-            text: result.translatedText
-          });
-          
-          // Broadcast to students who selected this language AND ALSO to the teacher
-          // Use Array.from to convert entries iterator to array to avoid TS downlevelIteration error
-          for (const [ws, conn] of Array.from(this.connections.entries())) {
-            if (
-              (conn.role === 'student' && conn.languageCode === targetLanguage ||
-               conn.role === 'teacher' && conn.sessionId === sessionId) &&
-              ws.readyState === WebSocket.OPEN
-            ) {
-              ws.send(JSON.stringify({
-                type: 'translation',
-                data: {
-                  sessionId,
-                  sourceLanguage,
-                  targetLanguage,
-                  originalText: result.originalText,
-                  translatedText: result.translatedText,
-                  audio: result.audioBuffer.toString('base64'),
-                  timestamp: new Date().toISOString(),
-                  latency
-                }
-              }));
-              console.log(`Sent translation to ${conn.role} with language ${conn.languageCode}`);
+              console.log(`🔍 TRANSLATION RESULT:`);
+              console.log(`🎤 Original text: "${originalText || transcribedText}"`);
+              console.log(`🎤 Translated text: "${translatedText || transcribedText}"`);
+              
+              // Broadcast the translation to clients
+              this.broadcastTranslation(
+                teacherConnection,
+                originalText || transcribedText, // Use original text if translation failed
+                translatedText || transcribedText, // Use original as fallback
+                sourceLanguage,
+                targetLanguage
+              );
+            } catch (error) {
+              console.error(`Error translating from ${sourceLanguage} to ${targetLanguage}:`, error);
+              
+              // In case of error, send the original text as both source and translation
+              this.broadcastTranslation(
+                teacherConnection,
+                transcribedText,
+                transcribedText, // Use original text as fallback
+                sourceLanguage,
+                targetLanguage
+              );
             }
           }
+          
+          // Send processing complete notification
+          this.sendProcessingComplete(teacherConnection, [targetLanguage]);
         } catch (error) {
           console.error(`Error processing translation from ${sourceLanguage} to ${targetLanguage}:`, error);
         }
       }
       
-      // Also send back confirmation to the teacher with role verification
-      if (teacherConnection.ws.readyState === WebSocket.OPEN) {
-        teacherConnection.ws.send(JSON.stringify({
-          type: 'processing_complete',
-          data: {
-            timestamp: new Date().toISOString(),
-            targetLanguages: Array.from(targetLanguages),
-            latency: Date.now() - startTime,
-            role: teacherConnection.role,  // Return the role for verification
-            roleConfirmed: true  // Explicitly confirm the teacher role is set correctly
-          }
-        }));
-      }
+      // Send final completion notification to the teacher with all target languages
+      this.sendProcessingComplete(teacherConnection, Array.from(targetLanguages));
     } catch (error) {
       console.error('Error processing audio:', error);
       
