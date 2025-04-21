@@ -527,51 +527,44 @@ export class TranslationWebSocketServer {
       if (!audioBase64 || audioBase64.length < 100) {
         console.log('Received invalid or too small audio data (length: ' + (audioBase64 ? audioBase64.length : 0) + ')');
         this.sendProcessingComplete(teacherConnection, [teacherConnection.languageCode]);
-        return; // Exit early instead of throwing an error
+        return false; // Exit early instead of throwing an error
       }
       
       console.log(`Processing audio data (length: ${audioBase64.length}) from teacher...`);
       
-      // Convert base64 audio to buffer
+      // Check if we have a recent Web Speech API transcription to use
+      const webSpeechSessionKey = `${teacherConnection.role}_${teacherConnection.sessionId}`;
+      const recentWebSpeech = this.latestWebSpeechTranscriptions.get(webSpeechSessionKey);
+      
+      if (!recentWebSpeech || !recentWebSpeech.text) {
+        console.log(`⚠️ No Web Speech API transcription found for ${webSpeechSessionKey}, cannot process audio`);
+        return false;
+      }
+      
+      // Check if the Web Speech transcription is recent enough (within 3 seconds)
+      const timeSinceTranscription = Date.now() - recentWebSpeech.timestamp;
+      if (timeSinceTranscription > 3000) {
+        console.log(`⚠️ Web Speech API transcription is too old (${timeSinceTranscription}ms), ignoring`);
+        return false;
+      }
+      
+      // Log the transcription that we'll be using
+      console.log(`\n========== USING WEB SPEECH API TRANSCRIPTION ==========`);
+      console.log(`🎙️ TEXT: "${recentWebSpeech.text}"`);
+      console.log(`🎙️ SOURCE LANGUAGE: ${recentWebSpeech.sourceLang}`);
+      console.log(`🎙️ TIMESTAMP: ${new Date(recentWebSpeech.timestamp).toISOString()}`);
+      console.log(`🎙️ AGE: ${timeSinceTranscription}ms`);
+      console.log(`========== END WEB SPEECH API TRANSCRIPTION ==========\n`);
+      
+      // For logging and compatibility, we'll keep the audio buffer conversion
       const audioBuffer = Buffer.from(audioBase64, 'base64');
       console.log(`Converted audio data to buffer (size: ${audioBuffer.byteLength})`);
       
-      // Add WAV header if missing (browser's MediaRecorder typically sends raw audio data)
-      let processedBuffer = audioBuffer;
-      
-      // Check if the buffer already has a WAV header (should start with "RIFF")
+      // Check if the buffer has a WAV header (just for logging purposes now)
       const hasWavHeader = this.hasWavHeader(audioBuffer);
       
       if (!hasWavHeader) {
-        console.log('Audio data does not have WAV header, adding one...');
-        // This is a simplified WAV header for 16-bit mono PCM at 44.1kHz
-        // In a production app, we would create a proper header based on the actual audio format
-        const header = Buffer.from([
-          0x52, 0x49, 0x46, 0x46, // "RIFF"
-          0x24, 0x00, 0x00, 0x00, // Chunk size (placeholder)
-          0x57, 0x41, 0x56, 0x45, // "WAVE"
-          0x66, 0x6d, 0x74, 0x20, // "fmt "
-          0x10, 0x00, 0x00, 0x00, // Format chunk size (16)
-          0x01, 0x00,             // Format tag (1 = PCM)
-          0x01, 0x00,             // Channels (1 = mono)
-          0x44, 0xac, 0x00, 0x00, // Sample rate (44100)
-          0x88, 0x58, 0x01, 0x00, // Bytes per second (44100*2)
-          0x02, 0x00,             // Block align (2 bytes per sample)
-          0x10, 0x00,             // Bits per sample (16)
-          0x64, 0x61, 0x74, 0x61, // "data"
-          0x00, 0x00, 0x00, 0x00  // Data size (placeholder)
-        ]);
-        
-        // Update chunk size (file size - 8)
-        const fileSize = header.length + audioBuffer.length - 8;
-        header.writeUInt32LE(fileSize, 4);
-        
-        // Update data size
-        header.writeUInt32LE(audioBuffer.length, 40);
-        
-        // Combine header and audio data
-        processedBuffer = Buffer.concat([header, audioBuffer]);
-        console.log(`Added WAV header, new buffer size: ${processedBuffer.byteLength}`);
+        console.log('Audio data does not have WAV header (but we\'re not using it for transcription)');
       }
       
       // Get or create a unique key for this connection
