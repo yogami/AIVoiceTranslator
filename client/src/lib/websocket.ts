@@ -444,6 +444,20 @@ export class WebSocketClient {
     }
     
     try {
+      // CRITICAL FIX: Send both 'webSpeechTranscription' AND 'transcription' messages
+      // This ensures compatibility with both message handlers on the server
+      
+      // First send 'webSpeechTranscription' to store the text for audio processing
+      console.log('WebSocketClient: Sending webSpeechTranscription...');
+      this.send({
+        type: 'webSpeechTranscription',
+        text: text,
+        timestamp: Date.now(),
+        language: this.languageCode
+      });
+      
+      // Then send 'transcription' for immediate display
+      console.log('WebSocketClient: Sending transcription...');
       return this.send({
         type: 'transcription',
         payload: {

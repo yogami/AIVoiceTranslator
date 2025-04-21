@@ -298,9 +298,10 @@ export class TranslationWebSocketServer {
         
         // For debugging purposes, list all stored Web Speech keys
         console.log('🔍 All stored Web Speech session keys:');
-        for (const [key, value] of this.latestWebSpeechTranscriptions.entries()) {
+        // Convert to array first to avoid TypeScript downlevelIteration issues
+        Array.from(this.latestWebSpeechTranscriptions.entries()).forEach(([key, value]) => {
           console.log(`   - ${key}: ${value.text.substring(0, 30)}... (${new Date(value.timestamp).toISOString()})`);
-        }
+        });
         
         // We don't immediately translate the Web Speech transcriptions
         // They are used as fallback when processAndBroadcastAudio gets empty results from Whisper
