@@ -277,8 +277,14 @@ export class TranslationWebSocketServer {
           break;
         }
         
-        console.log(`Received Web Speech API fallback transcription: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
-        console.log(`🔊 FALLBACK - WEB SPEECH API TEXT: "${payload.text}"`);
+        // Use clear visual delimiters for debugging
+        console.log('======================================================');
+        console.log(`✅ RECEIVED WEB SPEECH API TRANSCRIPTION FROM CLIENT`);
+        console.log(`👤 Connection Role: ${connection.role}`);
+        console.log(`🔑 Connection Session ID: ${connection.sessionId}`);
+        console.log(`🗣️ Text: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
+        console.log(`🌐 Language: ${connection.languageCode}`);
+        console.log('======================================================');
         
         // Store the latest Web Speech API transcription for fallback use
         const webSpeechSessionKey = `${connection.role}_${connection.sessionId}`;
@@ -288,9 +294,16 @@ export class TranslationWebSocketServer {
           sourceLang: connection.languageCode
         });
         
+        console.log(`📦 Stored Web Speech API transcription with key: ${webSpeechSessionKey}`);
+        
+        // For debugging purposes, list all stored Web Speech keys
+        console.log('🔍 All stored Web Speech session keys:');
+        for (const [key, value] of this.latestWebSpeechTranscriptions.entries()) {
+          console.log(`   - ${key}: ${value.text.substring(0, 30)}... (${new Date(value.timestamp).toISOString()})`);
+        }
+        
         // We don't immediately translate the Web Speech transcriptions
         // They are used as fallback when processAndBroadcastAudio gets empty results from Whisper
-        console.log('Stored Web Speech API fallback transcription for future use');
         break;
         
       case 'transcription':

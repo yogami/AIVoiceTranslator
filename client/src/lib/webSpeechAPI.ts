@@ -285,13 +285,16 @@ interface SpeechRecognition extends EventTarget {
 }
 
 // Ensure there's no duplicate declarations by using conditional type exports
-// This special pattern avoids TypeScript errors with browser-specific types
+// Define a generic constructor type that works for all speech recognition implementations
+type SpeechRecognitionConstructor = new () => SpeechRecognition;
+
+// This pattern avoids TypeScript errors with browser-specific types
 declare global {
   interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-    mozSpeechRecognition: any;
-    msSpeechRecognition: any;
+    SpeechRecognition: SpeechRecognitionConstructor | undefined;
+    webkitSpeechRecognition: SpeechRecognitionConstructor | undefined;
+    mozSpeechRecognition: SpeechRecognitionConstructor | undefined;
+    msSpeechRecognition: SpeechRecognitionConstructor | undefined;
   }
 }
 
