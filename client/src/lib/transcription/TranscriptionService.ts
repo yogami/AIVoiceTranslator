@@ -1,89 +1,71 @@
 /**
- * Basic result of a transcription operation
+ * Represents the possible states of a transcription service
+ */
+export type TranscriptionState = 'inactive' | 'recording' | 'paused' | 'error';
+
+/**
+ * Represents a transcription result from the speech recognition service
  */
 export interface TranscriptionResult {
+  /** The transcribed text */
   text: string;
+  
+  /** Whether this is a final result or an interim result that might change */
   isFinal: boolean;
-  confidence?: number;
-  languageCode?: string;
+  
+  /** Timestamp when the result was generated */
+  timestamp: number;
+  
+  /** Language code for the transcription */
+  language: string;
 }
 
 /**
- * Possible error types in transcription
- */
-export type TranscriptionErrorType = 
-  | 'permission_denied'
-  | 'network_error' 
-  | 'not_supported'
-  | 'unknown'
-  | 'server_error'
-  | 'connection_error';
-
-/**
- * Error object for transcription errors
- */
-export interface TranscriptionError {
-  type: TranscriptionErrorType;
-  message: string;
-  original?: Error;
-}
-
-/**
- * Options for configuring transcription services
- */
-export interface TranscriptionOptions {
-  language?: string;
-  continuous?: boolean;
-  interimResults?: boolean;
-  role?: 'teacher' | 'student';
-}
-
-/**
- * Listeners for transcription events
- */
-export interface TranscriptionListeners {
-  onTranscriptionResult?: (result: TranscriptionResult) => void;
-  onTranscriptionError?: (error: TranscriptionError) => void;
-  onTranscriptionStart?: () => void;
-  onTranscriptionEnd?: () => void;
-}
-
-/**
- * Common interface for all transcription services
+ * Abstract interface for any transcription service implementation
+ * This provides a common API for different transcription services (Web Speech API, OpenAI, etc.)
  */
 export interface TranscriptionService {
   /**
-   * Check if this service is supported in the current environment
+   * Start the transcription service
+   * @returns Promise that resolves to true if started successfully, false otherwise
    */
-  isSupported(): boolean;
+  start(): Promise<boolean>;
   
   /**
-   * Start the transcription process
-   */
-  start(): boolean | Promise<boolean>;
-  
-  /**
-   * Stop the transcription process
+   * Stop the transcription service
+   * @returns true if stopped successfully, false otherwise
    */
   stop(): boolean;
   
   /**
-   * Abort transcription and clean up all resources
+   * Get the current state of the transcription service
+   * @returns The current state
    */
-  abort(): boolean;
+  getState(): TranscriptionState;
   
   /**
-   * Check if transcription is active
+   * Set the language for transcription
+   * @param language The language code (e.g., 'en-US', 'es-ES')
    */
-  isActive(): boolean;
+  setLanguage(language: string): void;
   
   /**
-   * Update transcription options
+   * Get the current language setting
+   * @returns The current language code
    */
-  updateOptions(options: TranscriptionOptions): void;
+  getLanguage(): string;
   
   /**
-   * Update event listeners
+   * Register an event listener
+   * @param event The event name (start, stop, result, finalResult, error, etc.)
+   * @param callback The function to call when the event occurs
    */
-  updateListeners(listeners: TranscriptionListeners): void;
+  on(event: string, callback: Function): void;
+  
+  /**
+   * Remove an event listener
+   * @param event The event name
+   * @param callback The function to remove
+   */
+  off(event: string, callback: Function): void;
 }
