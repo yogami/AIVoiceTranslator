@@ -1,6 +1,66 @@
 import { TranscriptionService, TranscriptionState, TranscriptionResult } from './TranscriptionService';
 
 /**
+ * Options that can be passed to configure the Web Speech API based transcription service
+ */
+export interface WebSpeechOptions {
+  continuous?: boolean;
+  interimResults?: boolean;
+  maxAlternatives?: number;
+  language?: string;
+}
+
+/**
+ * Type for event listener map
+ */
+export type EventListenerMap = Record<string, Function[]>;
+
+/**
+ * Factory function to create a new Web Speech API transcription service
+ * 
+ * @param options Configuration options for the speech recognition
+ * @param listeners Initial event listeners to register
+ * @returns A new WebSpeechTranscriptionService instance
+ */
+export function getWebSpeechTranscriptionService(
+  options?: WebSpeechOptions,
+  listeners?: EventListenerMap
+): WebSpeechTranscriptionService {
+  const service = new WebSpeechTranscriptionService();
+  
+  // Apply options if provided
+  if (options) {
+    if (options.language) {
+      service.setLanguage(options.language);
+    }
+    
+    const recognitionOptions: Record<string, any> = {};
+    if (options.continuous !== undefined) {
+      recognitionOptions.continuous = options.continuous;
+    }
+    if (options.interimResults !== undefined) {
+      recognitionOptions.interimResults = options.interimResults;
+    }
+    if (options.maxAlternatives !== undefined) {
+      recognitionOptions.maxAlternatives = options.maxAlternatives;
+    }
+    
+    service.updateOptions(recognitionOptions);
+  }
+  
+  // Register initial listeners if provided
+  if (listeners) {
+    Object.entries(listeners).forEach(([event, callbackList]) => {
+      callbackList.forEach(callback => {
+        service.on(event, callback);
+      });
+    });
+  }
+  
+  return service;
+}
+
+/**
  * Implementation of the TranscriptionService using the Web Speech API
  */
 export class WebSpeechTranscriptionService implements TranscriptionService {
