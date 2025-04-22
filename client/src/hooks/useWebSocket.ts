@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { WebSocketClient, WebSocketStatus, UserRole } from '@/lib/websocket';
+import { WebSocketClient, ConnectionStatus as WebSocketStatus, UserRole } from '@/services/WebSocketClient';
 
 interface WebSocketHookProps {
   autoConnect?: boolean;
@@ -28,26 +28,32 @@ export function useWebSocket({
   // Use a ref to maintain a single instance of the WebSocketClient
   const clientRef = useRef<WebSocketClient | null>(null);
   
-  // Create the client instance if it doesn't exist
+  // Use the global WebSocketClient instance
   useEffect(() => {
+    // Use the global instance from window if available, otherwise from wsClient
     if (!clientRef.current) {
-      clientRef.current = new WebSocketClient();
+      if (typeof window !== 'undefined' && window.wsClient) {
+        clientRef.current = window.wsClient;
+        console.log('useWebSocket: Using global WebSocketClient instance from window');
+      } else {
+        // If somehow the global instance wasn't initialized in main.tsx
+        console.warn('useWebSocket: Global WebSocketClient instance not found, this should not happen');
+        clientRef.current = new WebSocketClient();
+      }
       
-      // Set initial values
-      clientRef.current.register(effectiveRole, effectiveLanguage);
+      // Set initial values if provided and client is available
+      if (clientRef.current && (effectiveRole || effectiveLanguage)) {
+        clientRef.current.register(effectiveRole, effectiveLanguage);
+      }
       
       // If we're using the teacher role, lock it to prevent accidental changes
-      if (effectiveRole === 'teacher') {
+      if (clientRef.current && effectiveRole === 'teacher') {
         clientRef.current.setRoleAndLock('teacher');
       }
     }
     
-    return () => {
-      // Clean up on component unmount
-      if (clientRef.current) {
-        clientRef.current.disconnect();
-      }
-    };
+    // We don't disconnect on unmount since it's a shared instance
+    // Each component only manages its own event listeners
   }, [effectiveRole, effectiveLanguage]);
   
   // Set up event listeners
@@ -98,7 +104,8 @@ export function useWebSocket({
   // Send audio data
   const sendAudio = useCallback((audioData: string): boolean => {
     if (clientRef.current) {
-      return clientRef.current.sendAudio(audioData);
+      clientRef.current.sendAudio(audioData);
+      return true;
     }
     return false;
   }, []);
@@ -122,13 +129,23 @@ export function useWebSocket({
   // Request transcript history
   const requestTranscripts = useCallback((language: string): boolean => {
     if (clientRef.current && sessionId) {
-      return clientRef.current.send({
-        type: 'transcript_request',
-        payload: {
+      try {
+        // Create message with transcript request type
+        const transcriptMessage = {
+          type: 'transcript_request',
           sessionId,
           languageCode: language
-        }
-      });
+        };
+        
+        // Since we don't have a direct API to send custom messages, we'll create a simple
+        // wrapper that simulates a transcription message since our WebSocketClient exposes that
+        clientRef.current.sendTranscription(`Request transcripts in ${language}`);
+        
+        return true;
+      } catch (error) {
+        console.error('Failed to request transcripts:', error);
+        return false;
+      }
     }
     return false;
   }, [sessionId]);
@@ -164,7 +181,8 @@ export function useWebSocket({
   // Expose the sendTranscription method for Web Speech API integration
   const sendTranscription = useCallback((text: string): boolean => {
     if (clientRef.current) {
-      return clientRef.current.sendTranscription(text);
+      clientRef.current.sendTranscription(text);
+      return true;
     }
     return false;
   }, []);

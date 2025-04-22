@@ -1,6 +1,26 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { WebSocketClient } from "./services/WebSocketClient";
+import { wsClient } from "./lib/websocket";
+
+// Initialize the WebSocket client singleton
+const wsClientInstance = new WebSocketClient();
+// Set the instance in our wsClient object
+wsClient.setInstance(wsClientInstance);
+// Also attach to window for global access
+// Extend Window interface to include wsClient
+declare global {
+  interface Window {
+    wsClient?: any;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.wsClient = wsClientInstance;
+}
+
+console.log("WebSocketClient singleton initialized");
 
 // Detect and neutralize test code injections
 (function preventTestCodeInjection() {
