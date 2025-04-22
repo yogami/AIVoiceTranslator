@@ -13,11 +13,11 @@ export interface TranscriptionResult {
   /** Whether this is a final result or an interim result that might change */
   isFinal: boolean;
   
-  /** Timestamp when the result was generated */
-  timestamp: number;
-  
   /** Language code for the transcription */
   language: string;
+  
+  /** Confidence score of the transcription (0-1) */
+  confidence?: number;
 }
 
 /**
@@ -25,6 +25,12 @@ export interface TranscriptionResult {
  * This provides a common API for different transcription services (Web Speech API, OpenAI, etc.)
  */
 export interface TranscriptionService {
+  /**
+   * Check if this transcription service is supported in the current environment
+   * @returns true if supported, false otherwise
+   */
+  isSupported(): boolean;
+  
   /**
    * Start the transcription service
    * @returns Promise that resolves to true if started successfully, false otherwise
@@ -36,6 +42,12 @@ export interface TranscriptionService {
    * @returns true if stopped successfully, false otherwise
    */
   stop(): boolean;
+  
+  /**
+   * Emergency stop of transcription service
+   * @returns true if aborted successfully, false otherwise
+   */
+  abort(): boolean;
   
   /**
    * Get the current state of the transcription service
@@ -56,6 +68,18 @@ export interface TranscriptionService {
   getLanguage(): string;
   
   /**
+   * Check if the service is currently active (recording)
+   * @returns true if active, false otherwise
+   */
+  isActive(): boolean;
+  
+  /**
+   * Update options for the transcription service
+   * @param options Options object with configuration settings
+   */
+  updateOptions(options: any): void;
+  
+  /**
    * Register an event listener
    * @param event The event name (start, stop, result, finalResult, error, etc.)
    * @param callback The function to call when the event occurs
@@ -68,4 +92,9 @@ export interface TranscriptionService {
    * @param callback The function to remove
    */
   off(event: string, callback: Function): void;
+  
+  /**
+   * Update all event listeners (used after recreating internal resources)
+   */
+  updateListeners(): void;
 }
