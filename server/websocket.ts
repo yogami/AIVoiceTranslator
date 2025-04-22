@@ -370,8 +370,8 @@ export class TranslationWebSocketServer {
               // If target language is the same as source, no translation needed
               this.broadcastTranslation(
                 connection,
-                payload.text,
-                payload.text, // Same text for source & target
+                transcriptText,
+                transcriptText, // Same text for source & target
                 connection.languageCode,
                 targetLanguage
               );
@@ -381,7 +381,7 @@ export class TranslationWebSocketServer {
                 Buffer.from(''), // Empty buffer since we're using pre-transcribed text
                 connection.languageCode,
                 targetLanguage,
-                payload.text // Pass the transcribed text from Web Speech API
+                transcriptText // Pass the transcribed text from Web Speech API
               );
               
               // Broadcast the translation to clients
