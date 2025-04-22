@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { WebSocketClient, ConnectionStatus as WebSocketStatus, UserRole } from '@/services/WebSocketClient';
+// Using relative imports to avoid path resolution issues
+import { WebSocketClient, ConnectionStatus as WebSocketStatus, UserRole } from '../services/WebSocketClient';
+import { wsClient } from '../lib/websocket';
 
 interface WebSocketHookProps {
   autoConnect?: boolean;
@@ -28,27 +30,51 @@ export function useWebSocket({
   // Use a ref to maintain a single instance of the WebSocketClient
   const clientRef = useRef<WebSocketClient | null>(null);
   
-  // Use the global WebSocketClient instance
+  // Use the global WebSocketClient instance (following Dependency Inversion Principle)
   useEffect(() => {
-    // Use the global instance from window if available, otherwise from wsClient
+    // Get the client instance from either the global window object or the wsClient utility
     if (!clientRef.current) {
+      // First try to get from window global (primary source)
       if (typeof window !== 'undefined' && window.wsClient) {
         clientRef.current = window.wsClient;
         console.log('useWebSocket: Using global WebSocketClient instance from window');
-      } else {
-        // If somehow the global instance wasn't initialized in main.tsx
-        console.warn('useWebSocket: Global WebSocketClient instance not found, this should not happen');
+      } 
+      // Then try the wsClient utility (secondary source)
+      else if (wsClient && wsClient.getInstance()) {
+        clientRef.current = wsClient.getInstance()!; 
+        console.log('useWebSocket: Using global WebSocketClient instance from wsClient utility');
+      }
+      // As a last resort, create a new instance (should never happen in normal operation)
+      else {
+        console.warn('useWebSocket: Global WebSocketClient instance not found, creating a local instance');
+        console.warn('This might indicate an initialization error in main.tsx');
         clientRef.current = new WebSocketClient();
+        
+        // If we created a new instance, we should register it globally
+        if (typeof window !== 'undefined') {
+          window.wsClient = clientRef.current;
+        }
+        if (wsClient) {
+          wsClient.setInstance(clientRef.current);
+        }
       }
       
-      // Set initial values if provided and client is available
-      if (clientRef.current && (effectiveRole || effectiveLanguage)) {
-        clientRef.current.register(effectiveRole, effectiveLanguage);
-      }
-      
-      // If we're using the teacher role, lock it to prevent accidental changes
-      if (clientRef.current && effectiveRole === 'teacher') {
-        clientRef.current.setRoleAndLock('teacher');
+      // Initialize the client with role and language if provided
+      if (clientRef.current) {
+        // Log the connection status
+        console.log(`useWebSocket: Current connection status: ${clientRef.current.getStatus()}`);
+        
+        // Set initial values if provided
+        if (effectiveRole || effectiveLanguage) {
+          clientRef.current.register(effectiveRole, effectiveLanguage);
+          console.log(`useWebSocket: Registered with role=${effectiveRole}, language=${effectiveLanguage}`);
+        }
+        
+        // Lock the role if it's a teacher
+        if (effectiveRole === 'teacher') {
+          clientRef.current.setRoleAndLock('teacher');
+          console.log('useWebSocket: Locked role as teacher');
+        }
       }
     }
     

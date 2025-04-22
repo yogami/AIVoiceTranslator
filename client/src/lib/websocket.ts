@@ -4,12 +4,16 @@
  * Helper functions for WebSocket client operations
  */
 
-// Using a getter function to avoid circular dependency issues
-let _wsClientInstance: any = null;
+// Import the WebSocketClient type (not the actual class) to avoid circular dependencies
+import type { WebSocketClient } from '../services/WebSocketClient';
 
+// Using a getter function to avoid circular dependency issues
+let _wsClientInstance: WebSocketClient | null = null;
+
+// Following Interface Segregation Principle - provide only the methods needed
 export const wsClient = {
-  getInstance: () => _wsClientInstance,
-  setInstance: (instance: any) => {
+  getInstance: (): WebSocketClient | null => _wsClientInstance,
+  setInstance: (instance: WebSocketClient): WebSocketClient => {
     _wsClientInstance = instance;
     return _wsClientInstance;
   }

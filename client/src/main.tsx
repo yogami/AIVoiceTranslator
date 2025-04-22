@@ -9,10 +9,10 @@ const wsClientInstance = new WebSocketClient();
 // Set the instance in our wsClient object
 wsClient.setInstance(wsClientInstance);
 // Also attach to window for global access
-// Extend Window interface to include wsClient
+// Extend Window interface to include wsClient (Liskov Substitution Principle - adding proper types)
 declare global {
   interface Window {
-    wsClient?: any;
+    wsClient?: WebSocketClient;
   }
 }
 

@@ -1,11 +1,16 @@
 /**
  * WebSocket Client Service
  * 
- * Handles real-time communication between teacher and student interfaces
- * using the utility functions from ../lib/websocket.ts
+ * Handles real-time communication between teacher and student interfaces.
+ * This class implements the WebSocket functionality directly to avoid circular dependencies.
+ * 
+ * Following SOLID principles:
+ * - Single Responsibility: Handles only WebSocket communication
+ * - Open/Closed: Extensible for new message types without modification
+ * - Liskov Substitution: Conforms to expected WebSocket behavior
+ * - Interface Segregation: Provides specific methods for specific tasks
+ * - Dependency Inversion: Can be used by different components through abstractions
  */
-// NOTE: We're not importing from websocket.ts to avoid circular dependencies
-// Instead, we'll implement the needed utility functions directly in this class
 
 // Connection status type
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
