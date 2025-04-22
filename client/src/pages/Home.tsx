@@ -45,6 +45,28 @@ export const Home: React.FC = () => {
             </Button>
           </Link>
         </div>
+        
+        {/* Developer Testing Tools */}
+        <div className="mb-6 p-4 border rounded-md bg-gray-50">
+          <h3 className="text-sm font-semibold mb-2 text-gray-500">Developer Testing Tools</h3>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/speechtest">
+              <Button variant="outline" size="sm">Speech Test</Button>
+            </Link>
+            <Link href="/test">
+              <Button variant="outline" size="sm">WebSocket Test</Button>
+            </Link>
+            <Link href="/simple-test.html">
+              <Button variant="outline" size="sm">Simple Teacher Test</Button>
+            </Link>
+            <Link href="/simple-test-student.html">
+              <Button variant="outline" size="sm">Simple Student Test</Button>
+            </Link>
+            <Link href="/websocket-diagnostics.html">
+              <Button variant="outline" size="sm">WebSocket Diagnostics</Button>
+            </Link>
+          </div>
+        </div>
         <div className="flex flex-col sm:flex-row gap-6 mb-6">
           <Card className="flex-1">
             <CardContent className="p-6">

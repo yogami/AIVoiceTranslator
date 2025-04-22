@@ -10,6 +10,7 @@ import QRCodePage from "./pages/QRCodePage";
 import UsageGuidePage from "./pages/UsageGuidePage";
 import TestPage from "./pages/TestPage";
 import FixedTestPage from "./pages/FixedTestPage";
+import SpeechTestPage from "./pages/SpeechTestPage";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/guide" component={UsageGuidePage} />
       <Route path="/test" component={TestPage} />
       <Route path="/fixedtest" component={FixedTestPage} />
+      <Route path="/speechtest" component={SpeechTestPage} />
       <Route component={NotFound} />
     </Switch>
   );
