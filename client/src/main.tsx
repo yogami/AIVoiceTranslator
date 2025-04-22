@@ -1,23 +1,18 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { WebSocketClient } from "./services/WebSocketClient";
-import { wsClient } from "./lib/websocket";
+import { webSocketClient } from "./lib/websocket";
 
-// Initialize the WebSocket client singleton
-const wsClientInstance = new WebSocketClient();
-// Set the instance in our wsClient object
-wsClient.setInstance(wsClientInstance);
-// Also attach to window for global access
-// Extend Window interface to include wsClient (Liskov Substitution Principle - adding proper types)
+// Extend Window interface to include WebSocketClient
 declare global {
   interface Window {
-    wsClient?: WebSocketClient;
+    webSocketClient?: typeof webSocketClient;
   }
 }
 
+// Attach singleton to window for global access
 if (typeof window !== 'undefined') {
-  window.wsClient = wsClientInstance;
+  window.webSocketClient = webSocketClient;
 }
 
 console.log("WebSocketClient singleton initialized");
@@ -149,9 +144,9 @@ console.log("WebSocketClient singleton initialized");
     
     // Properly close WebSocket connections if they exist
     try {
-      if (window.wsClient) {
+      if (window.webSocketClient) {
         console.log('Properly closing WebSocket connection before page unload');
-        window.wsClient.disconnect();
+        window.webSocketClient.disconnect();
       }
     } catch (e) {
       console.error('Error closing WebSocket before unload:', e);

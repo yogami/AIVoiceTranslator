@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple WebSocket Test</title>
+    <title>Student WebSocket Test</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
@@ -30,7 +30,7 @@
             margin-bottom: 8px;
         }
         button {
-            background-color: #4CAF50;
+            background-color: #2196F3;
             color: white;
             border: none;
             padding: 10px 15px;
@@ -69,13 +69,6 @@
             color: #8a6d3b;
             border: 1px solid #faebcc;
         }
-        textarea {
-            width: 100%;
-            padding: 8px;
-            margin-bottom: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
         .logs {
             height: 200px;
             overflow-y: auto;
@@ -113,21 +106,55 @@
             background-color: #2196F3;
             color: white;
         }
-        .role-buttons, .language-buttons {
+        .language-buttons {
             display: flex;
             gap: 8px;
             margin-bottom: 16px;
         }
-        .role-buttons button, .language-buttons button {
+        .language-buttons button {
             flex: 1;
         }
-        .role-buttons button.active, .language-buttons button.active {
+        .language-buttons button.active {
             background-color: #333;
+        }
+        .translations {
+            height: 300px;
+            overflow-y: auto;
+            background-color: white;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 16px;
+        }
+        .translation-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            border-radius: 4px;
+        }
+        .translation-time {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .translation-text {
+            font-size: 16px;
+        }
+        .student-header {
+            background-color: #2196F3;
+            color: white;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <h1>Simple WebSocket Test</h1>
+    <div class="student-header">STUDENT VIEW</div>
+    <h1>Real-time Translation Receiver</h1>
     
     <div class="card">
         <div class="card-title">Connection</div>
@@ -138,32 +165,25 @@
         </div>
         <div>
             <span>Role:</span>
-            <span id="role" class="badge">Unset</span>
+            <span id="role" class="badge student">student</span>
         </div>
         <div>
             <span>Language:</span>
-            <span id="language" class="badge">en-US</span>
+            <span id="language" class="badge">es-ES</span>
         </div>
         <div style="margin-top: 16px;">
-            <button id="connect-btn">Connect</button>
+            <button id="connect-btn">Connect as Student</button>
             <button id="disconnect-btn" class="disconnect" disabled>Disconnect</button>
         </div>
     </div>
     
     <div class="card">
-        <div class="card-title">Role & Language</div>
+        <div class="card-title">Language Selection</div>
         <div>
-            <div>Role:</div>
-            <div class="role-buttons">
-                <button id="teacher-btn">Teacher</button>
-                <button id="student-btn">Student</button>
-            </div>
-        </div>
-        <div>
-            <div>Language:</div>
+            <div>Preferred Language:</div>
             <div class="language-buttons">
-                <button id="en-btn" class="active">English</button>
-                <button id="es-btn">Spanish</button>
+                <button id="en-btn">English</button>
+                <button id="es-btn" class="active">Spanish</button>
                 <button id="fr-btn">French</button>
                 <button id="de-btn">German</button>
             </div>
@@ -171,46 +191,26 @@
     </div>
     
     <div class="card">
-        <div class="card-title">Send Message</div>
-        <textarea id="message" rows="4" placeholder="Type a message to send..."></textarea>
-        <button id="send-btn" disabled>Send Transcription</button>
+        <div class="card-title">Incoming Translations</div>
+        <div id="translations" class="translations">
+            <div style="text-align: center; color: #666; margin-top: 100px;">
+                No translations received yet. <br>
+                Connect as a student and wait for the teacher to speak.
+            </div>
+        </div>
     </div>
     
     <div class="card">
-        <div class="card-title">Logs</div>
+        <div class="card-title">Connection Logs</div>
         <div id="logs" class="logs"></div>
-    </div>
-    
-    <div class="card">
-        <div class="card-title">Server Response Status</div>
-        <div style="display: flex; align-items: center; margin-bottom: 10px;">
-            <div style="width: 15px; height: 15px; border-radius: 50%; background-color: #4CAF50; margin-right: 10px;"></div>
-            <div><strong>WebSocket Server is working correctly</strong></div>
-        </div>
-        <div style="margin-top: 10px; font-style: italic;">Server logs confirm that:</div>
-        <ul style="margin-top: 5px; padding-left: 20px;">
-            <li>✓ WebSocket connection was established successfully</li>
-            <li>✓ Your messages were received by the server</li>
-            <li>✓ Your role and language preferences were registered</li>
-            <li>✓ The server is properly processing transcription events</li>
-        </ul>
-        <div style="margin-top: 15px; padding: 10px; background-color: #f5f5f5; border-radius: 4px; font-size: 14px;">
-            <p>No translations are being generated because there are no student connections. To see translations:</p>
-            <ol style="padding-left: 20px;">
-                <li>Open another browser window at /simple-test.html</li>
-                <li>Connect as a "Student" in the second window</li>
-                <li>Send messages from the "Teacher" window</li>
-                <li>Observe translations in the "Student" window</li>
-            </ol>
-        </div>
     </div>
 
     <script>
         // Variables
         let socket = null;
         let sessionId = null;
-        let role = 'teacher';
-        let language = 'en-US';
+        let role = 'student';
+        let language = 'es-ES';
         let connected = false;
         
         // Elements
@@ -220,14 +220,11 @@
         const languageEl = document.getElementById('language');
         const connectBtn = document.getElementById('connect-btn');
         const disconnectBtn = document.getElementById('disconnect-btn');
-        const teacherBtn = document.getElementById('teacher-btn');
-        const studentBtn = document.getElementById('student-btn');
         const enBtn = document.getElementById('en-btn');
         const esBtn = document.getElementById('es-btn');
         const frBtn = document.getElementById('fr-btn');
         const deBtn = document.getElementById('de-btn');
-        const messageInput = document.getElementById('message');
-        const sendBtn = document.getElementById('send-btn');
+        const translationsEl = document.getElementById('translations');
         const logsEl = document.getElementById('logs');
         
         // Connect to WebSocket
@@ -278,10 +275,22 @@
                         successNote.style.borderRadius = '4px';
                         successNote.style.border = '1px solid #d6e9c6';
                         successNote.style.fontWeight = 'bold';
-                        successNote.textContent = '✓ CONNECTION SUCCESSFUL! WebSocket is working properly.';
+                        successNote.textContent = '✓ CONNECTION SUCCESSFUL! Waiting for teacher translations...';
                         
                         // Insert at the top
                         document.body.insertBefore(successNote, document.body.firstChild);
+                        
+                        // Auto-remove after 5 seconds
+                        setTimeout(() => {
+                            successNote.style.opacity = '0';
+                            successNote.style.transition = 'opacity 1s';
+                            setTimeout(() => successNote.remove(), 1000);
+                        }, 5000);
+                    }
+                    
+                    // Handle translation message
+                    if (message.type === 'translation') {
+                        addTranslation(message.text, message.originalLanguage, message.translatedLanguage);
                     }
                 } catch (e) {
                     log(`Error parsing message: ${e.message}`, 'error');
@@ -340,55 +349,47 @@
             log(`Registered as ${role} with language ${language}`);
         }
         
-        // Send transcription
-        function sendTranscription(text) {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-                log('Cannot send - not connected', 'error');
-                return;
+        // Add a translation to the list
+        function addTranslation(text, originalLanguage, translatedLanguage) {
+            // Clear initial message if this is the first translation
+            if (translationsEl.querySelector('div[style*="text-align: center"]')) {
+                translationsEl.innerHTML = '';
             }
             
-            const message = {
-                type: 'transcription',
-                text: text
+            const translationItem = document.createElement('div');
+            translationItem.className = 'translation-item';
+            
+            const timeEl = document.createElement('div');
+            timeEl.className = 'translation-time';
+            timeEl.textContent = `${new Date().toLocaleTimeString()} · ${getLanguageName(originalLanguage)} → ${getLanguageName(translatedLanguage)}`;
+            
+            const textEl = document.createElement('div');
+            textEl.className = 'translation-text';
+            textEl.textContent = text;
+            
+            translationItem.appendChild(timeEl);
+            translationItem.appendChild(textEl);
+            
+            translationsEl.appendChild(translationItem);
+            translationsEl.scrollTop = translationsEl.scrollHeight;
+            
+            // Highlight for a moment
+            setTimeout(() => {
+                translationItem.style.backgroundColor = '#f0f8ff';
+                translationItem.style.transition = 'background-color 1.5s';
+            }, 1000);
+        }
+        
+        // Get language name from code
+        function getLanguageName(code) {
+            const languages = {
+                'en-US': 'English',
+                'es-ES': 'Spanish',
+                'fr-FR': 'French',
+                'de-DE': 'German'
             };
             
-            socket.send(JSON.stringify(message));
-            log(`Sent transcription: ${text}`);
-            
-            // Show success feedback
-            const msgContainer = document.createElement('div');
-            msgContainer.style.padding = '10px';
-            msgContainer.style.margin = '10px 0';
-            msgContainer.style.backgroundColor = '#d9edf7';
-            msgContainer.style.color = '#31708f';
-            msgContainer.style.borderRadius = '4px';
-            msgContainer.style.border = '1px solid #bce8f1';
-            
-            const title = document.createElement('div');
-            title.style.fontWeight = 'bold';
-            title.style.marginBottom = '5px';
-            title.textContent = '✓ MESSAGE SENT SUCCESSFULLY!';
-            
-            const content = document.createElement('div');
-            content.textContent = `Text: "${text}"`;
-            
-            const serverMsg = document.createElement('div'); 
-            serverMsg.style.marginTop = '5px';
-            serverMsg.textContent = 'The server logs show this message was received correctly.';
-            
-            msgContainer.appendChild(title);
-            msgContainer.appendChild(content);
-            msgContainer.appendChild(serverMsg);
-            
-            // Insert above the logs section
-            document.querySelector('.card:last-child').before(msgContainer);
-            
-            // Auto-remove after 8 seconds
-            setTimeout(() => {
-                msgContainer.style.opacity = '0';
-                msgContainer.style.transition = 'opacity 1s';
-                setTimeout(() => msgContainer.remove(), 1000);
-            }, 8000);
+            return languages[code] || code;
         }
         
         // Set status
@@ -402,7 +403,6 @@
             connected = isConnected;
             connectBtn.disabled = isConnected;
             disconnectBtn.disabled = !isConnected;
-            sendBtn.disabled = !isConnected;
         }
         
         // Add a log entry
@@ -417,18 +417,6 @@
         // Event Listeners
         connectBtn.addEventListener('click', connect);
         disconnectBtn.addEventListener('click', disconnect);
-        
-        teacherBtn.addEventListener('click', () => {
-            teacherBtn.classList.add('active');
-            studentBtn.classList.remove('active');
-            register('teacher', language);
-        });
-        
-        studentBtn.addEventListener('click', () => {
-            studentBtn.classList.add('active');
-            teacherBtn.classList.remove('active');
-            register('student', language);
-        });
         
         enBtn.addEventListener('click', () => {
             enBtn.classList.add('active');
@@ -462,19 +450,8 @@
             register(role, 'de-DE');
         });
         
-        sendBtn.addEventListener('click', () => {
-            const text = messageInput.value.trim();
-            if (text) {
-                sendTranscription(text);
-                messageInput.value = '';
-            } else {
-                log('Cannot send empty message', 'error');
-            }
-        });
-        
         // Init
-        teacherBtn.classList.add('active');
-        log('Page loaded. Click Connect to start.');
+        log('Page loaded. Click "Connect as Student" to start receiving translations.');
     </script>
 </body>
 </html>

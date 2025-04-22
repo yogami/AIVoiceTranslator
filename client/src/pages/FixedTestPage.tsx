@@ -1,418 +1,302 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { Textarea } from '../components/ui/textarea';
-import { WebSocketClient, ConnectionStatus as WebSocketStatus, UserRole } from '../services/WebSocketClient';
+import React, { useState, useEffect, useRef } from 'react';
+import { webSocketClient, ConnectionStatus, UserRole } from '../lib/websocket';
 
 /**
- * Test Page for WebSocket Functionality
- * 
- * This page provides a simple interface to test WebSocket functionality:
- * - Connection management (connect/disconnect)
- * - Role management (teacher/student)
- * - Sending transcription/audio messages
- * - Receiving messages from server
- * - Session information display
+ * Fixed Test Page
+ * A simple page to test WebSocket functionality with direct access to the singleton
  */
-export default function FixedTestPage() {
-  // State
-  const [status, setStatus] = useState<WebSocketStatus>('disconnected');
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [role, setRole] = useState<UserRole>('teacher');
-  const [languageCode, setLanguageCode] = useState<string>('en-US');
-  const [wsClient, setWsClient] = useState<WebSocketClient | null>(null);
+const FixedTestPage: React.FC = () => {
+  // State 
+  const [status, setStatus] = useState<ConnectionStatus>(webSocketClient.getStatus());
+  const [sessionId, setSessionId] = useState<string | null>(webSocketClient.getSessionId());
+  const [role, setRole] = useState<UserRole | null>(webSocketClient.getRole() || 'teacher');
+  const [language, setLanguage] = useState<string>(webSocketClient.getLanguageCode() || 'en-US');
+  const [message, setMessage] = useState<string>('');
+  const [translations, setTranslations] = useState<string[]>([]);
+  const [logs, setLogs] = useState<string[]>([]);
   
-  // State for log messages
-  const [logs, setLogs] = useState<{ type: string; message: string; timestamp: Date }[]>([]);
-  // State for transcription text
-  const [transcriptionText, setTranscriptionText] = useState('');
-  // State for last received message
-  const [lastMessage, setLastMessage] = useState<any>(null);
-  // State for translation messages
-  const [translations, setTranslations] = useState<any[]>([]);
+  const logsRef = useRef<HTMLDivElement>(null);
   
-  // Initialize WebSocket client
-  useEffect(() => {
-    // Use the global instance if available
-    if (typeof window !== 'undefined' && window.wsClient) {
-      setWsClient(window.wsClient);
-      addLog('info', 'Using global WebSocketClient instance');
-      
-      // Set up status listener
-      window.wsClient.addEventListener('status', (newStatus: WebSocketStatus) => {
-        setStatus(newStatus);
-        addLog('status', `Status changed to: ${newStatus}`);
-      });
-      
-      // Set up session ID listener
-      window.wsClient.addEventListener('connection', (message: any) => {
-        if (message.sessionId) {
-          setSessionId(message.sessionId);
-          addLog('info', `Received session ID: ${message.sessionId}`);
-        }
-      });
-      
-      // Set up message listener
-      window.wsClient.addEventListener('message', (message: any) => {
-        setLastMessage(message);
-        addLog('received', `Received message: ${JSON.stringify(message)}`);
-        
-        // Process translation messages
-        if (message.type === 'translation') {
-          setTranslations(prev => [...prev, message]);
-        }
-      });
-      
-      return () => {
-        // No need to remove listeners - this is a global instance
-      };
-    } else {
-      addLog('error', 'WebSocketClient instance not found in window object');
-      
-      // Create a new instance
-      const client = new WebSocketClient();
-      setWsClient(client);
-      addLog('info', 'Created new WebSocketClient instance');
-      
-      // Set up listeners
-      client.addEventListener('status', (newStatus: WebSocketStatus) => {
-        setStatus(newStatus);
-        addLog('status', `Status changed to: ${newStatus}`);
-      });
-      
-      client.addEventListener('connection', (message: any) => {
-        if (message.sessionId) {
-          setSessionId(message.sessionId);
-          addLog('info', `Received session ID: ${message.sessionId}`);
-        }
-      });
-      
-      client.addEventListener('message', (message: any) => {
-        setLastMessage(message);
-        addLog('received', `Received message: ${JSON.stringify(message)}`);
-        
-        // Process translation messages
-        if (message.type === 'translation') {
-          setTranslations(prev => [...prev, message]);
-        }
-      });
-      
-      return () => {
-        // Clean up
-        client.disconnect();
-      };
-    }
-  }, []);
-  
-  // Add a log message
-  const addLog = (type: string, message: string) => {
-    setLogs(prev => [...prev, { type, message, timestamp: new Date() }]);
-  };
-  
-  // Clear logs
-  const clearLogs = () => {
-    setLogs([]);
-  };
-  
-  // Connect to WebSocket server
-  const connect = () => {
-    if (wsClient) {
-      wsClient.connect();
-      addLog('info', 'Connecting to WebSocket server...');
-    } else {
-      addLog('error', 'WebSocketClient instance not available');
+  // Connect to WebSocket
+  const handleConnect = async () => {
+    addLog('Connecting...');
+    
+    try {
+      await webSocketClient.connect();
+      addLog('Connected successfully');
+      registerRoleAndLanguage();
+    } catch (error) {
+      addLog(`Connection error: ${error}`);
     }
   };
   
-  // Disconnect from WebSocket server
-  const disconnect = () => {
-    if (wsClient) {
-      wsClient.disconnect();
-      addLog('info', 'Disconnected from WebSocket server');
-    } else {
-      addLog('error', 'WebSocketClient instance not available');
+  // Disconnect from WebSocket
+  const handleDisconnect = () => {
+    webSocketClient.disconnect();
+    addLog('Disconnected');
+  };
+  
+  // Register role and language
+  const registerRoleAndLanguage = () => {
+    webSocketClient.register(role as UserRole, language);
+    addLog(`Registered as ${role} with language ${language}`);
+  };
+  
+  // Change role
+  const handleRoleChange = (newRole: UserRole) => {
+    setRole(newRole);
+    if (status === 'connected') {
+      webSocketClient.register(newRole, language);
+      addLog(`Changed role to ${newRole}`);
     }
   };
   
-  // Update role
-  const updateRole = (newRole: UserRole) => {
-    if (wsClient) {
-      wsClient.register(newRole, languageCode);
-      setRole(newRole);
-      addLog('info', `Role updated to: ${newRole}`);
-    } else {
-      addLog('error', 'WebSocketClient instance not available');
+  // Change language
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage);
+    if (status === 'connected') {
+      webSocketClient.register(role as UserRole, newLanguage);
+      addLog(`Changed language to ${newLanguage}`);
     }
   };
   
-  // Update language
-  const updateLanguage = (newLanguageCode: string) => {
-    if (wsClient) {
-      wsClient.register(role, newLanguageCode);
-      setLanguageCode(newLanguageCode);
-      addLog('info', `Language updated to: ${newLanguageCode}`);
-    } else {
-      addLog('error', 'WebSocketClient instance not available');
-    }
-  };
-  
-  // Send test message
-  const sendTestMessage = () => {
-    if (!wsClient) {
-      addLog('error', 'WebSocketClient instance not available');
+  // Send transcription
+  const handleSendMessage = () => {
+    if (!message.trim()) {
+      addLog('Cannot send empty message');
       return;
     }
     
-    if (transcriptionText.trim()) {
-      try {
-        wsClient.sendTranscription(transcriptionText);
-        addLog('sent', `Sent transcription: "${transcriptionText}"`);
-      } catch (error) {
-        addLog('error', `Failed to send transcription: ${error}`);
-      }
-    } else {
-      addLog('warning', 'Cannot send empty transcription');
-    }
+    webSocketClient.sendTranscription(message);
+    addLog(`Sent: ${message}`);
+    setMessage('');
   };
   
-  // Format timestamp
-  const formatTimestamp = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  // Add log
+  const addLog = (text: string) => {
+    setLogs((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${text}`]);
+    
+    // Scroll to bottom of logs
+    setTimeout(() => {
+      if (logsRef.current) {
+        logsRef.current.scrollTop = logsRef.current.scrollHeight;
+      }
+    }, 0);
   };
+  
+  // Setup event listeners
+  useEffect(() => {
+    // Status change listener
+    const handleStatusChange = (newStatus: ConnectionStatus) => {
+      setStatus(newStatus);
+    };
+    
+    // Connection established listener
+    const handleConnection = (message: any) => {
+      if (message?.type === 'connection' && message?.sessionId) {
+        setSessionId(message.sessionId);
+        addLog(`Connected with session ID: ${message.sessionId}`);
+      }
+    };
+    
+    // Translation listener
+    const handleTranslation = (translation: any) => {
+      if (translation?.text) {
+        const translationText = `[${translation.originalLanguage} → ${translation.translatedLanguage}] ${translation.text}`;
+        setTranslations((prev) => [...prev, translationText]);
+        addLog(`Received translation: ${translationText}`);
+      }
+    };
+    
+    // Error listener
+    const handleError = (error: any) => {
+      addLog(`WebSocket error: ${error}`);
+    };
+    
+    // Close listener
+    const handleClose = (event: any) => {
+      addLog(`Connection closed: ${event?.code} ${event?.reason || 'No reason provided'}`);
+    };
+    
+    // Add event listeners
+    webSocketClient.addEventListener('status', handleStatusChange);
+    webSocketClient.addEventListener('message', handleConnection);
+    webSocketClient.addEventListener('translation', handleTranslation);
+    webSocketClient.addEventListener('error', handleError);
+    webSocketClient.addEventListener('close', handleClose);
+    
+    // Initial log
+    addLog('Page initialized. Click Connect to start.');
+    
+    // Remove event listeners on cleanup
+    return () => {
+      webSocketClient.removeEventListener('status', handleStatusChange);
+      webSocketClient.removeEventListener('message', handleConnection);
+      webSocketClient.removeEventListener('translation', handleTranslation);
+      webSocketClient.removeEventListener('error', handleError);
+      webSocketClient.removeEventListener('close', handleClose);
+    };
+  }, []);
   
   return (
-    <div className="container max-w-6xl mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">WebSocket Testing Interface (Fixed)</h1>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">Fixed WebSocket Test Page</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Connection Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Connection Status</CardTitle>
-            <CardDescription>Manage WebSocket connection</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4">
-              <span className="font-semibold mr-2">Status:</span>
-              <Badge variant={status === 'connected' ? 'default' : status === 'connecting' ? 'outline' : 'destructive'}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Connection</h2>
+          
+          <div className="mb-4">
+            <div className="mb-2">Status: 
+              <span className={`ml-2 px-2 py-1 rounded text-sm font-medium ${
+                status === 'connected' ? 'bg-green-100 text-green-800' : 
+                status === 'connecting' ? 'bg-yellow-100 text-yellow-800' : 
+                status === 'error' ? 'bg-red-100 text-red-800' : 
+                'bg-gray-100 text-gray-800'
+              }`}>
                 {status}
-              </Badge>
+              </span>
             </div>
-            {sessionId && (
-              <div className="mb-4">
-                <span className="font-semibold mr-2">Session ID:</span>
-                <code className="bg-muted p-1 rounded text-xs">{sessionId}</code>
-              </div>
-            )}
-            <div className="mb-4">
-              <span className="font-semibold mr-2">Role:</span>
-              <Badge variant="outline" className="capitalize">
-                {role}
-              </Badge>
-            </div>
-            <div className="mb-4">
-              <span className="font-semibold mr-2">Language:</span>
-              <Badge variant="outline">
-                {languageCode}
-              </Badge>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button onClick={connect} disabled={status === 'connected' || status === 'connecting'}>
-              Connect
-            </Button>
-            <Button onClick={disconnect} disabled={status === 'disconnected'} variant="destructive">
-              Disconnect
-            </Button>
-          </CardFooter>
-        </Card>
-        
-        {/* Role Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Role & Language</CardTitle>
-            <CardDescription>Change your role and language settings</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <span className="font-semibold mb-2 block">Select Role:</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={role === 'teacher' ? 'default' : 'outline'}
-                    onClick={() => updateRole('teacher')}
-                    className="w-full"
-                  >
-                    Teacher
-                  </Button>
-                  <Button
-                    variant={role === 'student' ? 'default' : 'outline'}
-                    onClick={() => updateRole('student')}
-                    className="w-full"
-                  >
-                    Student
-                  </Button>
-                </div>
-              </div>
-              
-              <div>
-                <span className="font-semibold mb-2 block">Select Language:</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={languageCode === 'en-US' ? 'default' : 'outline'}
-                    onClick={() => updateLanguage('en-US')}
-                    className="w-full"
-                  >
-                    English
-                  </Button>
-                  <Button
-                    variant={languageCode === 'es-ES' ? 'default' : 'outline'}
-                    onClick={() => updateLanguage('es-ES')}
-                    className="w-full"
-                  >
-                    Spanish
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Button
-                    variant={languageCode === 'fr-FR' ? 'default' : 'outline'}
-                    onClick={() => updateLanguage('fr-FR')}
-                    className="w-full"
-                  >
-                    French
-                  </Button>
-                  <Button
-                    variant={languageCode === 'de-DE' ? 'default' : 'outline'}
-                    onClick={() => updateLanguage('de-DE')}
-                    className="w-full"
-                  >
-                    German
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Message Sending */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Send Messages</CardTitle>
-            <CardDescription>Send test messages to the server</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="transcription" className="font-semibold mb-2 block">Transcription Text:</label>
-                <Textarea
-                  id="transcription"
-                  placeholder="Enter text to send as transcription..."
-                  value={transcriptionText}
-                  onChange={(e) => setTranscriptionText(e.target.value)}
-                  rows={4}
-                />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex justify-between">
-            <Button
-              onClick={sendTestMessage}
-              disabled={status !== 'connected' || !transcriptionText.trim()}
+            
+            <div className="mb-2">Session ID: <span className="font-mono text-sm">{sessionId || 'None'}</span></div>
+          </div>
+          
+          <div className="flex space-x-2 mb-6">
+            <button 
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              onClick={handleConnect}
+              disabled={status === 'connected' || status === 'connecting'}
             >
-              Send Transcription
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-      
-      <div className="mt-8">
-        <Tabs defaultValue="messages">
-          <TabsList className="mb-4">
-            <TabsTrigger value="messages">Received Messages</TabsTrigger>
-            <TabsTrigger value="translations">Translations</TabsTrigger>
-            <TabsTrigger value="logs">Log History</TabsTrigger>
-          </TabsList>
+              Connect
+            </button>
+            
+            <button 
+              className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+              onClick={handleDisconnect}
+              disabled={status !== 'connected'}
+            >
+              Disconnect
+            </button>
+          </div>
           
-          <TabsContent value="messages" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Last Received Message</CardTitle>
-                <CardDescription>The most recent message from the server</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <pre className="bg-muted p-4 rounded overflow-auto max-h-48">
-                  {lastMessage ? JSON.stringify(lastMessage, null, 2) : 'No messages received yet'}
-                </pre>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <h3 className="text-lg font-medium mb-2">Role</h3>
+          <div className="flex space-x-2 mb-4">
+            <button 
+              className={`px-4 py-2 rounded ${role === 'teacher' ? 'bg-green-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => handleRoleChange('teacher')}
+            >
+              Teacher
+            </button>
+            
+            <button 
+              className={`px-4 py-2 rounded ${role === 'student' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => handleRoleChange('student')}
+            >
+              Student
+            </button>
+          </div>
           
-          <TabsContent value="translations" className="mt-0">
-            <Card>
-              <CardHeader>
-                <CardTitle>Translation Messages</CardTitle>
-                <CardDescription>Translated messages received from the server</CardDescription>
-              </CardHeader>
-              <CardContent>
+          <h3 className="text-lg font-medium mb-2">Language</h3>
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            <button 
+              className={`px-4 py-2 rounded ${language === 'en-US' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => handleLanguageChange('en-US')}
+            >
+              English
+            </button>
+            
+            <button 
+              className={`px-4 py-2 rounded ${language === 'es-ES' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => handleLanguageChange('es-ES')}
+            >
+              Spanish
+            </button>
+            
+            <button 
+              className={`px-4 py-2 rounded ${language === 'fr-FR' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => handleLanguageChange('fr-FR')}
+            >
+              French
+            </button>
+            
+            <button 
+              className={`px-4 py-2 rounded ${language === 'de-DE' ? 'bg-purple-500 text-white' : 'bg-gray-200'}`}
+              onClick={() => handleLanguageChange('de-DE')}
+            >
+              German
+            </button>
+          </div>
+          
+          {role === 'teacher' && (
+            <div>
+              <h3 className="text-lg font-medium mb-2">Send Message</h3>
+              <div className="flex space-x-2">
+                <input 
+                  type="text" 
+                  className="flex-1 px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && status === 'connected' && handleSendMessage()}
+                  placeholder="Type a message..."
+                  disabled={status !== 'connected'}
+                />
+                
+                <button 
+                  className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                  onClick={handleSendMessage}
+                  disabled={status !== 'connected' || !message.trim()}
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Logs</h2>
+          <div 
+            ref={logsRef}
+            className="h-64 overflow-y-auto p-4 bg-gray-100 rounded font-mono text-sm"
+          >
+            {logs.map((log, index) => (
+              <div key={index} className="mb-1">{log}</div>
+            ))}
+          </div>
+          
+          {role === 'student' && (
+            <>
+              <h2 className="text-xl font-semibold mt-6 mb-4">Translations</h2>
+              <div className="h-64 overflow-y-auto p-4 bg-blue-50 rounded">
                 {translations.length > 0 ? (
-                  <div className="space-y-4">
-                    {translations.slice().reverse().map((translation, index) => (
-                      <div key={index} className="border rounded p-4">
-                        <div className="font-semibold">Original: <span className="font-normal">{translation.data.originalText}</span></div>
-                        <div className="font-semibold mt-2">Translated ({translation.data.languageCode}): <span className="font-normal">{translation.data.translatedText}</span></div>
-                      </div>
-                    ))}
-                  </div>
+                  translations.map((translation, index) => (
+                    <div key={index} className="mb-2 p-2 bg-white rounded shadow-sm">
+                      {translation}
+                    </div>
+                  ))
                 ) : (
-                  <div className="text-center py-8 text-muted-foreground">
+                  <div className="text-center text-gray-500 py-6">
                     No translations received yet
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="logs" className="mt-0">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Log History</CardTitle>
-                  <CardDescription>WebSocket communication logs</CardDescription>
-                </div>
-                <Button variant="outline" size="sm" onClick={clearLogs}>
-                  Clear Logs
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-muted p-4 rounded h-96 overflow-auto font-mono text-sm">
-                  {logs.length > 0 ? (
-                    logs.map((log, index) => (
-                      <div
-                        key={index}
-                        className={`mb-1 ${
-                          log.type === 'error' ? 'text-red-500' :
-                          log.type === 'warning' ? 'text-amber-500' :
-                          log.type === 'received' ? 'text-green-500' :
-                          log.type === 'sent' ? 'text-blue-500' :
-                          'text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        [{formatTimestamp(log.timestamp)}] [{log.type.toUpperCase()}] {log.message}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No logs yet
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+      
+      <div className="mt-8 p-4 bg-white rounded-lg shadow">
+        <h2 className="text-xl font-semibold mb-4">Instructions</h2>
+        <ol className="list-decimal list-inside space-y-2">
+          <li>Click <b>Connect</b> to establish a WebSocket connection</li>
+          <li>Choose your <b>Role</b> (teacher or student) and <b>Language</b></li>
+          <li>For testing with multiple users, open a second browser window at /fixedtest</li>
+          <li>Connect as a <b>teacher</b> in one window and a <b>student</b> in the other</li>
+          <li>Send messages from the teacher window and see translations in the student window</li>
+        </ol>
       </div>
     </div>
   );
-}
+};
+
+export default FixedTestPage;
