@@ -448,12 +448,14 @@ export class WebSocketClient {
       // This ensures compatibility with both message handlers on the server
       
       // First send 'webSpeechTranscription' to store the text for audio processing
-      console.log('WebSocketClient: Sending webSpeechTranscription...');
+      console.log('WebSocketClient: Sending webSpeechTranscription with text:', text.substring(0, 30) + (text.length > 30 ? '...' : ''));
       this.send({
         type: 'webSpeechTranscription',
-        text: text,
-        timestamp: Date.now(),
-        language: this.languageCode
+        payload: {
+          text: text,
+          timestamp: Date.now(),
+          languageCode: this.languageCode
+        }
       });
       
       // Then send 'transcription' for immediate display

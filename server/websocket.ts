@@ -272,8 +272,16 @@ export class TranslationWebSocketServer {
           break;
         }
         
-        if (!payload.text || typeof payload.text !== 'string') {
-          console.warn('Received webSpeechTranscription with invalid text:', payload.text);
+        // CRITICAL FIX: Support both old and new message formats
+        // Try to get text from payload.text (old format) or payload.payload.text (new format)
+        const speechText = (payload.text && typeof payload.text === 'string') 
+          ? payload.text
+          : (payload.payload && payload.payload.text && typeof payload.payload.text === 'string')
+            ? payload.payload.text
+            : null;
+            
+        if (!speechText) {
+          console.warn('⚠️ Received webSpeechTranscription with invalid text structure:', JSON.stringify(payload).substring(0, 100));
           break;
         }
         
@@ -282,14 +290,14 @@ export class TranslationWebSocketServer {
         console.log(`✅ RECEIVED WEB SPEECH API TRANSCRIPTION FROM CLIENT`);
         console.log(`👤 Connection Role: ${connection.role}`);
         console.log(`🔑 Connection Session ID: ${connection.sessionId}`);
-        console.log(`🗣️ Text: "${payload.text.substring(0, 100)}${payload.text.length > 100 ? '...' : ''}"`);
+        console.log(`🗣️ Text: "${speechText.substring(0, 100)}${speechText.length > 100 ? '...' : ''}"`);
         console.log(`🌐 Language: ${connection.languageCode}`);
         console.log('======================================================');
         
         // Store the latest Web Speech API transcription for fallback use
         const webSpeechSessionKey = `${connection.role}_${connection.sessionId}`;
         this.latestWebSpeechTranscriptions.set(webSpeechSessionKey, {
-          text: payload.text,
+          text: speechText,
           timestamp: Date.now(),
           sourceLang: connection.languageCode
         });
@@ -315,14 +323,22 @@ export class TranslationWebSocketServer {
           break;
         }
         
-        if (!payload.text || typeof payload.text !== 'string') {
-          console.warn('Received transcription message with invalid text:', payload.text);
+        // CRITICAL FIX: Support both old and new message formats
+        // Try to get text from payload.text (old format) or payload.payload.text (new format)
+        const transcriptText = (payload.text && typeof payload.text === 'string') 
+          ? payload.text
+          : (payload.payload && payload.payload.text && typeof payload.payload.text === 'string')
+            ? payload.payload.text
+            : null;
+            
+        if (!transcriptText) {
+          console.warn('⚠️ Received transcription with invalid text structure:', JSON.stringify(payload).substring(0, 100));
           break;
         }
         
         // =========== DEBUG BREAKPOINT START ===========
         console.log(`\n========== SPEECH RECOGNITION DEBUG BREAKPOINT ==========`);
-        console.log(`🎙️ USER SPEECH DETECTED: "${payload.text}"`);
+        console.log(`🎙️ USER SPEECH DETECTED: "${transcriptText}"`);
         console.log(`🎙️ LANGUAGE: ${connection.languageCode}`);
         console.log(`🎙️ ROLE: ${connection.role}`);
         console.log(`🎙️ SESSION: ${connection.sessionId}`);
@@ -334,7 +350,7 @@ export class TranslationWebSocketServer {
         // Store the latest Web Speech API transcription for fallback use
         const sessionKey = `${connection.role}_${connection.sessionId}`;
         this.latestWebSpeechTranscriptions.set(sessionKey, {
-          text: payload.text,
+          text: transcriptText,
           timestamp: Date.now(),
           sourceLang: connection.languageCode
         });
