@@ -21,6 +21,43 @@ export interface TranscriptionResult {
 }
 
 /**
+ * Configuration options for transcription services
+ */
+export interface TranscriptionOptions {
+  /** Language code for recognition (e.g., 'en-US', 'es-ES') */
+  language?: string;
+  
+  /** Whether to continuously recognize or stop after a pause */
+  continuous?: boolean;
+  
+  /** Whether to return interim results as they're processed */
+  interimResults?: boolean;
+  
+  /** Maximum number of alternative interpretations to return */
+  maxAlternatives?: number;
+  
+  /** User role for the session (for context) */
+  role?: string;
+}
+
+/**
+ * Event listeners for transcription services
+ */
+export interface TranscriptionListeners {
+  /** Called when transcription begins */
+  onTranscriptionStart?: () => void;
+  
+  /** Called when transcription ends */
+  onTranscriptionEnd?: () => void;
+  
+  /** Called when a transcription result is received */
+  onTranscriptionResult?: (result: TranscriptionResult) => void;
+  
+  /** Called when an error occurs during transcription */
+  onTranscriptionError?: (error: Error) => void;
+}
+
+/**
  * Abstract interface for any transcription service implementation
  * This provides a common API for different transcription services (Web Speech API, OpenAI, etc.)
  */
