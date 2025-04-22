@@ -31,10 +31,16 @@ export class WebSocketServer {
   private sessionCounter: number = 0;
   
   constructor(server: Server) {
-    // Initialize WebSocket server
+    // Initialize WebSocket server with CORS settings
     this.wss = new WSServer({ 
       server,
-      path: '/ws'
+      path: '/ws',
+      // Add explicit CORS handling for WebSocket (following the Single Responsibility Principle)
+      verifyClient: (info, callback) => {
+        // Allow all origins for WebSocket connections
+        console.log('WebSocket connection verification, headers:', JSON.stringify(info.req.headers, null, 2));
+        callback(true); // Always accept the connection
+      }
     });
     
     // Initialize translation service

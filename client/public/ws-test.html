@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #status { font-weight: bold; margin: 10px 0; }
+    #messages { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: auto; }
+    .message { margin-bottom: 5px; }
+    .sent { color: blue; }
+    .received { color: green; }
+    .error { color: red; }
+    button { margin: 5px; padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Connection Test</h1>
+  <div id="status">Disconnected</div>
+  
+  <div>
+    <button id="connect">Connect</button>
+    <button id="disconnect">Disconnect</button>
+  </div>
+  
+  <h2>Send Message</h2>
+  <div>
+    <label for="messageType">Message Type:</label>
+    <select id="messageType">
+      <option value="ping">Ping</option>
+      <option value="register">Register</option>
+    </select>
+  </div>
+  
+  <div id="registerFields" style="display: none; margin-top: 10px;">
+    <label for="role">Role:</label>
+    <select id="role">
+      <option value="teacher">Teacher</option>
+      <option value="student">Student</option>
+    </select>
+    
+    <label for="language">Language:</label>
+    <select id="language">
+      <option value="en-US">English (US)</option>
+      <option value="es-ES">Spanish (Spain)</option>
+      <option value="fr-FR">French (France)</option>
+      <option value="de-DE">German (Germany)</option>
+    </select>
+  </div>
+  
+  <div style="margin-top: 10px;">
+    <button id="send">Send Message</button>
+  </div>
+  
+  <h2>Messages</h2>
+  <div id="messages"></div>
+  
+  <script>
+    // DOM Elements
+    const statusElement = document.getElementById('status');
+    const messagesElement = document.getElementById('messages');
+    const connectButton = document.getElementById('connect');
+    const disconnectButton = document.getElementById('disconnect');
+    const sendButton = document.getElementById('send');
+    const messageTypeSelect = document.getElementById('messageType');
+    const registerFields = document.getElementById('registerFields');
+    const roleSelect = document.getElementById('role');
+    const languageSelect = document.getElementById('language');
+    
+    // WebSocket connection
+    let socket = null;
+    
+    // Show message type fields based on selection
+    messageTypeSelect.addEventListener('change', function() {
+      if (this.value === 'register') {
+        registerFields.style.display = 'block';
+      } else {
+        registerFields.style.display = 'none';
+      }
+    });
+    
+    // Connect button click handler
+    connectButton.addEventListener('click', function() {
+      if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+        addMessage('Connection already established or in progress', 'error');
+        return;
+      }
+      
+      try {
+        // Create WebSocket connection
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        const url = `${protocol}//${host}/ws`;
+        
+        // Log detailed connection information
+        console.log('WebSocket connection attempt details:', {
+          protocol: protocol,
+          host: host,
+          fullUrl: url,
+          locationHref: window.location.href,
+          locationOrigin: window.location.origin
+        });
+        
+        addMessage(`Connecting to ${url}...`, 'sent');
+        
+        socket = new WebSocket(url);
+        
+        // Connection opened
+        socket.addEventListener('open', function(event) {
+          statusElement.textContent = 'Connected';
+          statusElement.style.color = 'green';
+          addMessage('Connection established', 'received');
+        });
+        
+        // Listen for messages
+        socket.addEventListener('message', function(event) {
+          try {
+            const data = JSON.parse(event.data);
+            addMessage('Received: ' + JSON.stringify(data, null, 2), 'received');
+          } catch (e) {
+            addMessage('Received invalid JSON: ' + event.data, 'error');
+          }
+        });
+        
+        // Connection closed
+        socket.addEventListener('close', function(event) {
+          statusElement.textContent = 'Disconnected';
+          statusElement.style.color = 'black';
+          addMessage(`Connection closed. Code: ${event.code}, Reason: ${event.reason || 'None'}`, 'error');
+        });
+        
+        // Connection error
+        socket.addEventListener('error', function(event) {
+          statusElement.textContent = 'Error';
+          statusElement.style.color = 'red';
+          addMessage('Connection error', 'error');
+          console.error('WebSocket error:', event);
+        });
+      } catch (error) {
+        addMessage('Failed to create WebSocket connection: ' + error.message, 'error');
+      }
+    });
+    
+    // Disconnect button click handler
+    disconnectButton.addEventListener('click', function() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        addMessage('No active connection to disconnect', 'error');
+        return;
+      }
+      
+      try {
+        socket.close(1000, 'User disconnected');
+        addMessage('Disconnected by user', 'sent');
+      } catch (error) {
+        addMessage('Failed to disconnect: ' + error.message, 'error');
+      }
+    });
+    
+    // Send button click handler
+    sendButton.addEventListener('click', function() {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        addMessage('Cannot send message: Not connected', 'error');
+        return;
+      }
+      
+      try {
+        let message = {};
+        
+        switch (messageTypeSelect.value) {
+          case 'ping':
+            message = {
+              type: 'ping',
+              timestamp: Date.now()
+            };
+            break;
+            
+          case 'register':
+            message = {
+              type: 'register',
+              role: roleSelect.value,
+              languageCode: languageSelect.value
+            };
+            break;
+        }
+        
+        socket.send(JSON.stringify(message));
+        addMessage('Sent: ' + JSON.stringify(message, null, 2), 'sent');
+      } catch (error) {
+        addMessage('Failed to send message: ' + error.message, 'error');
+      }
+    });
+    
+    // Helper to add message to the messages div
+    function addMessage(text, type) {
+      const messageElement = document.createElement('div');
+      messageElement.classList.add('message', type);
+      messageElement.textContent = text;
+      messagesElement.appendChild(messageElement);
+      messagesElement.scrollTop = messagesElement.scrollHeight;
+    }
+  </script>
+</body>
+</html>

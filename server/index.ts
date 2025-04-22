@@ -9,6 +9,29 @@ import { WebSocketServer } from './services/WebSocketServer';
 import { setupVite } from './vite';
 import { apiRoutes } from './routes';
 
+// SOLID: Single Responsibility - CORS middleware has one job
+const configureCorsMiddleware = (app: express.Express): void => {
+  app.use((req, res, next) => {
+    // Allow requests from any origin
+    res.header('Access-Control-Allow-Origin', '*');
+    // Allow these HTTP methods
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    // Allow these headers
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    // Allow credentials
+    res.header('Access-Control-Allow-Credentials', 'true');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+    } else {
+      next();
+    }
+  });
+  
+  console.log('CORS middleware configured successfully');
+};
+
 async function startServer() {
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
@@ -23,6 +46,9 @@ async function startServer() {
   
   // Create Express app
   const app = express();
+  
+  // Apply CORS middleware (Open/Closed Principle - extending functionality without modifying existing code)
+  configureCorsMiddleware(app);
   
   // Parse JSON in request body
   app.use(express.json());
