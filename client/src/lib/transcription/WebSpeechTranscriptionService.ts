@@ -82,7 +82,9 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
    * Check if Web Speech API is supported in this browser
    */
   public isSupported(): boolean {
-    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const supported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    console.log('[WebSpeechTranscriptionService] SpeechRecognition API supported:', supported);
+    return supported;
   }
   
   /**
@@ -109,68 +111,190 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
    * Set up event handlers for the SpeechRecognition instance
    */
   private setupEventHandlers(): void {
-    if (!this.recognition) return;
+    if (!this.recognition) {
+      console.error('[WebSpeechTranscriptionService] Cannot setup event handlers: recognition instance is null');
+      return;
+    }
     
     this.recognition.onstart = () => {
+      console.log('[WebSpeechTranscriptionService] Recognition started');
       this.state = 'recording';
       this.emit('start');
     };
     
     this.recognition.onend = () => {
+      console.log('[WebSpeechTranscriptionService] Recognition ended');
       if (this.state === 'recording') {
         this.state = 'inactive';
       }
       this.emit('stop');
-    };
-    
-    this.recognition.onresult = (event) => {
-      const result = this.processRecognitionResult(event);
-      if (result) {
-        this.emit('result', result);
-        
-        if (result.isFinal) {
-          this.emit('finalResult', result);
+      
+      // Auto restart if it ended unexpectedly while we still think we're recording
+      if (this.state === 'recording') {
+        console.log('[WebSpeechTranscriptionService] Recognition ended unexpectedly, restarting...');
+        try {
+          this.recognition!.start();
+        } catch (error) {
+          console.error('[WebSpeechTranscriptionService] Failed to restart recognition:', error);
         }
       }
     };
     
+    this.recognition.onresult = (event) => {
+      console.log('[WebSpeechTranscriptionService] Recognition result received', event);
+      const result = this.processRecognitionResult(event);
+      if (result) {
+        console.log('[WebSpeechTranscriptionService] Processed result:', result);
+        this.emit('result', result);
+        
+        if (result.isFinal) {
+          console.log('[WebSpeechTranscriptionService] Final result:', result.text);
+          this.emit('finalResult', result);
+        }
+      } else {
+        console.warn('[WebSpeechTranscriptionService] Could not process recognition result');
+      }
+    };
+    
     this.recognition.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      this.state = 'error';
+      console.error('[WebSpeechTranscriptionService] Recognition error:', event.error);
+      
+      // Don't set state to error for 'no-speech' error as it's common and not critical
+      if (event.error !== 'no-speech') {
+        this.state = 'error';
+      }
+      
+      // If we get 'aborted' error but we think we're still recording, restart
+      if (event.error === 'aborted' && this.state === 'recording') {
+        console.log('[WebSpeechTranscriptionService] Recognition was aborted, attempting to restart...');
+        try {
+          this.recognition!.start();
+        } catch (restartError) {
+          console.error('[WebSpeechTranscriptionService] Failed to restart after abort:', restartError);
+        }
+      }
+      
       this.emit('error', new Error(event.error));
     };
     
-    this.recognition.onspeechstart = () => this.emit('speechStart');
-    this.recognition.onspeechend = () => this.emit('speechEnd');
-    this.recognition.onaudiostart = () => this.emit('audioStart');
-    this.recognition.onaudioend = () => this.emit('audioEnd');
-    this.recognition.onnomatch = () => this.emit('noMatch');
-    this.recognition.onsoundstart = () => this.emit('soundStart');
-    this.recognition.onsoundend = () => this.emit('soundEnd');
+    this.recognition.onspeechstart = () => {
+      console.log('[WebSpeechTranscriptionService] Speech started');
+      this.emit('speechStart');
+    };
+    
+    this.recognition.onspeechend = () => {
+      console.log('[WebSpeechTranscriptionService] Speech ended');
+      this.emit('speechEnd');
+    };
+    
+    this.recognition.onaudiostart = () => {
+      console.log('[WebSpeechTranscriptionService] Audio capture started');
+      this.emit('audioStart');
+    };
+    
+    this.recognition.onaudioend = () => {
+      console.log('[WebSpeechTranscriptionService] Audio capture ended');
+      this.emit('audioEnd');
+    };
+    
+    this.recognition.onnomatch = () => {
+      console.log('[WebSpeechTranscriptionService] No match found');
+      this.emit('noMatch');
+    };
+    
+    this.recognition.onsoundstart = () => {
+      console.log('[WebSpeechTranscriptionService] Sound detected');
+      this.emit('soundStart');
+    };
+    
+    this.recognition.onsoundend = () => {
+      console.log('[WebSpeechTranscriptionService] Sound ended');
+      this.emit('soundEnd');
+    };
   }
   
   /**
    * Process the raw recognition result into our standardized format
    */
   private processRecognitionResult(event: SpeechRecognitionEvent): TranscriptionResult | null {
-    if (event.results.length === 0 || event.resultIndex >= event.results.length) {
+    try {
+      console.log('[WebSpeechTranscriptionService] Processing recognition result', {
+        resultsLength: event.results.length,
+        resultIndex: event.resultIndex
+      });
+      
+      // First check if we have results at all
+      if (event.results.length === 0) {
+        console.warn('[WebSpeechTranscriptionService] No results in event');
+        return null;
+      }
+      
+      // Chrome and Firefox handle results differently
+      // Chrome has a resultIndex property that points to the current result
+      // Firefox sometimes doesn't have this, so we need to handle both cases
+      let transcript = '';
+      let isFinal = false;
+      let confidence = 0;
+      
+      if (event.resultIndex !== undefined && event.resultIndex < event.results.length) {
+        // Chrome-style: Use the result at resultIndex
+        const result = event.results[event.resultIndex];
+        if (result.length > 0) {
+          transcript = result[0].transcript.trim();
+          isFinal = result.isFinal === true;
+          confidence = result[0].confidence || 0;
+        }
+      } else {
+        // Firefox-style or fallback: Concatenate all final results
+        // And use the last non-final one (if any)
+        let finalText = '';
+        let interimText = '';
+        
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.length > 0) {
+            if (result.isFinal) {
+              finalText += result[0].transcript + ' ';
+            } else {
+              // Only keep the latest interim result
+              interimText = result[0].transcript;
+            }
+          }
+        }
+        
+        // Use the combined final text, or the latest interim if no final
+        transcript = finalText.trim();
+        if (transcript) {
+          isFinal = true;
+          confidence = 0.9; // Arbitrary high confidence for final text
+        } else {
+          transcript = interimText.trim();
+          isFinal = false;
+          confidence = 0.5; // Arbitrary medium confidence for interim text
+        }
+      }
+      
+      if (!transcript) {
+        console.warn('[WebSpeechTranscriptionService] No transcript extracted from results');
+        return null;
+      }
+      
+      console.log('[WebSpeechTranscriptionService] Extracted transcript:', {
+        text: transcript,
+        isFinal,
+        confidence
+      });
+      
+      return {
+        text: transcript,
+        isFinal,
+        language: this.language,
+        confidence
+      };
+    } catch (error) {
+      console.error('[WebSpeechTranscriptionService] Error processing recognition result:', error);
       return null;
     }
-    
-    const result = event.results[event.resultIndex];
-    if (result.length === 0) {
-      return null;
-    }
-    
-    const text = result[0].transcript.trim();
-    const isFinal = result.isFinal === true;
-    
-    return {
-      text,
-      isFinal,
-      language: this.language,
-      confidence: result[0].confidence || 0
-    };
   }
   
   /**
@@ -178,26 +302,46 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
    */
   public async start(): Promise<boolean> {
     if (this.state === 'recording') {
-      // Already recording
+      console.log('[WebSpeechTranscriptionService] Already recording, no need to start');
       return true;
     }
     
     if (!this.isSupported()) {
       this.state = 'error';
-      this.emit('error', new Error('SpeechRecognition is not supported'));
+      const errorMsg = 'SpeechRecognition is not supported in this browser';
+      console.error(`[WebSpeechTranscriptionService] ${errorMsg}`);
+      this.emit('error', new Error(errorMsg));
       return false;
     }
     
     if (!this.recognition) {
+      console.log('[WebSpeechTranscriptionService] Creating new recognition instance');
       this.initializeRecognition();
     }
     
     try {
+      // Request microphone permission first
+      console.log('[WebSpeechTranscriptionService] Requesting microphone permission...');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stop the stream right away, we just needed to prompt for permission
+        stream.getTracks().forEach(track => track.stop());
+        console.log('[WebSpeechTranscriptionService] Microphone permission granted');
+      } catch (permissionError) {
+        console.error('[WebSpeechTranscriptionService] Microphone permission denied:', permissionError);
+        this.emit('error', new Error('Microphone permission denied. Please allow microphone access.'));
+        this.state = 'error';
+        return false;
+      }
+      
+      // Now start speech recognition
+      console.log('[WebSpeechTranscriptionService] Starting speech recognition...');
       this.state = 'recording';
       this.recognition!.start();
+      console.log('[WebSpeechTranscriptionService] Speech recognition started successfully');
       return true;
     } catch (error) {
-      console.error('Failed to start speech recognition:', error);
+      console.error('[WebSpeechTranscriptionService] Failed to start speech recognition:', error);
       this.state = 'error';
       this.emit('error', error instanceof Error ? error : new Error(String(error)));
       return false;
