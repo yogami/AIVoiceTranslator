@@ -17,85 +17,33 @@ const TEST_TIMEOUT = 30000; // 30 seconds
 const TEST_TEXT = 'This is a test message for Benedictaitor';
 
 /**
- * Helper to create a WebDriver instance or a mock driver in environments 
- * where Selenium cannot run (like Replit)
+ * Helper to create a properly configured WebDriver instance for Replit
  */
 async function createDriver() {
-  // In CI/headless environments, use a mocked driver
-  if (process.env.CI || process.env.USE_MOCK_DRIVER || process.env.REPLIT) {
-    console.log('Using mock WebDriver instead of real Selenium');
-    return createMockDriver();
-  }
-  
   try {
+    // Configure Chrome options for headless operation in Replit
     const options = new chrome.Options();
     options.addArguments(
-      '--headless',
-      '--no-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--window-size=1280,1024'
+      '--headless=new',  // Use the newer headless mode
+      '--no-sandbox',    // Required in container environments like Replit
+      '--disable-dev-shm-usage', // Overcome limited /dev/shm in Replit
+      '--disable-gpu',   // Disable GPU acceleration in headless mode
+      '--window-size=1280,1024', // Set reasonable window size
+      '--disable-extensions',    // Disable extensions for stability
+      '--disable-infobars',      // Hide info bars
+      '--ignore-certificate-errors' // Ignore cert errors for testing
     );
+    
+    console.log('Creating real Selenium WebDriver for Chrome with headless configuration');
     
     return new Builder()
       .forBrowser('chrome')
       .setChromeOptions(options)
       .build();
   } catch (error) {
-    console.warn('Failed to create real WebDriver, falling back to mock:', error.message);
-    return createMockDriver();
+    console.error('Failed to create WebDriver:', error);
+    throw error; // Rethrow to fail the test properly rather than silently proceeding
   }
-}
-
-/**
- * Create a mock WebDriver for environments where Selenium cannot run
- */
-function createMockDriver() {
-  // Mock the basic WebDriver interface
-  return {
-    get: async (url) => {
-      console.log(`[MockDriver] Navigating to ${url}`);
-      return Promise.resolve();
-    },
-    wait: async (condition, timeout) => {
-      console.log(`[MockDriver] Waiting for condition (${timeout}ms)`);
-      return Promise.resolve();
-    },
-    findElement: async (by) => {
-      console.log(`[MockDriver] Finding element: ${by.toString()}`);
-      return {
-        click: async () => console.log('[MockElement] Clicked'),
-        getAttribute: async (attr) => attr === 'disabled' ? null : 'mock-value',
-        sendKeys: async (text) => console.log(`[MockElement] Sending keys: ${text}`)
-      };
-    },
-    findElements: async (by) => {
-      console.log(`[MockDriver] Finding elements: ${by.toString()}`);
-      return [{
-        getText: async () => 'Mock text',
-        getAttribute: async () => 'mock-attribute'
-      }];
-    },
-    executeScript: async (script) => {
-      console.log(`[MockDriver] Executing script`);
-      return Promise.resolve();
-    },
-    sleep: async (ms) => {
-      console.log(`[MockDriver] Sleeping for ${ms}ms`);
-      return new Promise(resolve => setTimeout(resolve, 10));
-    },
-    takeScreenshot: async () => {
-      console.log('[MockDriver] Taking screenshot');
-      return 'mockScreenshotBase64Data';
-    },
-    quit: async () => {
-      console.log('[MockDriver] Quitting');
-      return Promise.resolve();
-    },
-    getTitle: async () => {
-      return 'Benedictaitor - Mock Title';
-    }
-  };
 }
 
 /**
@@ -119,17 +67,11 @@ async function takeScreenshot(driver, name) {
  * Helper to check if element exists
  */
 async function elementExists(driver, selector, timeout = 5000) {
-  // For mock driver, always return true
-  if (driver.getTitle && typeof driver.getTitle === 'function' && 
-      driver.getTitle.toString().includes('Mock')) {
-    console.log(`[MockDriver] Checking if element exists: ${selector} (always true for mock)`);
-    return true;
-  }
-  
   try {
     await driver.wait(until.elementLocated(By.css(selector)), timeout);
     return true;
   } catch (error) {
+    console.warn(`Element not found: ${selector}`);
     return false;
   }
 }
@@ -231,21 +173,19 @@ async function testLanguageSelection() {
     const spanishOption = await driver.findElement(By.css('option[value="es-ES"]'));
     await spanishOption.click();
     
+    // Wait briefly for selection to take effect
+    await driver.sleep(500);
+    
     // Check if the selected value is Spanish
     const selectedValue = await languageSelector.getAttribute('value');
-    
-    // For mock driver, assume success
-    const isMockDriver = driver.getTitle && typeof driver.getTitle === 'function' && 
-                         driver.getTitle.toString().includes('Mock');
-    const success = isMockDriver ? true : selectedValue === 'es-ES';
+    const success = selectedValue === 'es-ES';
     
     await takeScreenshot(driver, 'language-selection');
     
     return {
       success,
       details: {
-        selectedLanguage: selectedValue,
-        isMockDriver
+        selectedLanguage: selectedValue
       }
     };
   } catch (error) {
@@ -297,17 +237,12 @@ async function testRecordingButtons() {
     
     await takeScreenshot(driver, 'recording-buttons');
     
-    // For mock driver, always return success
-    const isMockDriver = driver.getTitle && typeof driver.getTitle === 'function' && 
-                         driver.getTitle.toString().includes('Mock');
-    
     return {
-      success: isMockDriver ? true : (initialStopDisabled && stopEnabledAfterStart && stopDisabledAfterStop),
+      success: initialStopDisabled && stopEnabledAfterStart && stopDisabledAfterStop,
       details: {
         initialStopDisabled: Boolean(initialStopDisabled),
         stopEnabledAfterStart,
-        stopDisabledAfterStop: Boolean(stopDisabledAfterStop),
-        isMockDriver
+        stopDisabledAfterStop: Boolean(stopDisabledAfterStop)
       }
     };
   } catch (error) {
