@@ -1,7 +1,11 @@
 /**
  * Simplified WebSocketClient tests that avoid timeouts
  */
-import { WebSocketClient } from '../../../client/src/lib/websocket';
+import { 
+  WebSocketClient, 
+  WebSocketService, 
+  WebSocketFactory 
+} from '../../../client/src/lib/websocket';
 
 // Mock WebSocket
 class MockWebSocket {
@@ -38,32 +42,38 @@ Object.defineProperty(window, 'location', {
   writable: true
 });
 
+// Create a mock WebSocketFactory for testing
+class TestWebSocketFactory implements WebSocketFactory {
+  capturedUrl: string = '';
+  
+  createWebSocket(url: string): WebSocket {
+    this.capturedUrl = url;
+    return new MockWebSocket(url);
+  }
+}
+
 describe('WebSocketClient Basic Tests', () => {
   beforeEach(() => {
-    WebSocketClient.resetInstance();
+    // Reset the WebSocketService before each test
+    WebSocketService.resetClient();
   });
   
-  test('creates a singleton instance', () => {
-    const instance1 = WebSocketClient.getInstance();
-    const instance2 = WebSocketClient.getInstance();
+  test('WebSocketService creates a shared client instance', () => {
+    const instance1 = WebSocketService.createClient();
+    const instance2 = WebSocketService.createClient();
     expect(instance1).toBe(instance2);
   });
   
   test('builds the correct WebSocket URL', () => {
-    // Mock WebSocket constructor to capture URL
-    let capturedUrl = '';
-    (global as any).WebSocket = jest.fn((url: string) => {
-      capturedUrl = url;
-      return {
-        readyState: WebSocket.OPEN,
-        close: jest.fn()
-      };
-    });
+    // Create a factory that can capture the URL
+    const factory = new TestWebSocketFactory();
     
-    const wsClient = WebSocketClient.getInstance();
+    // Create client with our test factory 
+    const wsClient = new WebSocketClient(factory);
     wsClient.connect();
     
-    expect(capturedUrl).toBe('ws://localhost:5000/ws');
+    // Verify URL was correctly formed
+    expect(factory.capturedUrl).toBe('ws://localhost:5000/ws');
     
     // Test HTTPS -> WSS
     Object.defineProperty(window, 'location', {
@@ -71,10 +81,20 @@ describe('WebSocketClient Basic Tests', () => {
       writable: true
     });
     
-    WebSocketClient.resetInstance();
-    const secureClient = WebSocketClient.getInstance();
+    // Create a new factory and client for the HTTPS test
+    const secureFactory = new TestWebSocketFactory();
+    const secureClient = new WebSocketClient(secureFactory);
     secureClient.connect();
     
-    expect(capturedUrl).toBe('wss://example.com/ws');
+    // Verify secure URL was correctly formed
+    expect(secureFactory.capturedUrl).toBe('wss://example.com/ws');
+  });
+  
+  test('custom path is included in WebSocket URL', () => {
+    const factory = new TestWebSocketFactory();
+    const customPathClient = new WebSocketClient(factory, '/custom-ws-path');
+    customPathClient.connect();
+    
+    expect(factory.capturedUrl).toBe('ws://localhost:5000/custom-ws-path');
   });
 });
