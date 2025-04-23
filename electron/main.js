@@ -1,256 +1,247 @@
+// Main Electron file for Benedictaitor Test Runner
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
-const selenium = require('selenium-standalone');
+const { spawn, exec } = require('child_process');
+const os = require('os');
 
-// Keep a global reference of the window object to prevent it from being garbage collected
+// Main window reference
 let mainWindow;
 
-// Status of Selenium installation
-let seleniumInstalled = false;
-let seleniumServer = null;
+// Keep track of any child processes
+let testProcesses = [];
 
-// Create the browser window
+// Initialize app when Electron is ready
+app.whenReady().then(() => {
+  createWindow();
+  
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
+
+// Create the main application window
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
+    width: 1200,
+    height: 800,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
       preload: path.join(__dirname, 'preload.js')
     },
-    icon: path.join(__dirname, 'assets', 'icon.png')
+    icon: path.join(__dirname, 'assets/icon.png')
   });
-
-  // Load the index.html file
+  
+  // Load the main HTML file
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
-
+  
   // Open DevTools in development mode
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
-
+  // mainWindow.webContents.openDevTools();
+  
+  // Handle window close
   mainWindow.on('closed', () => {
     mainWindow = null;
-    
-    // Make sure to stop Selenium server when app closes
-    if (seleniumServer) {
-      seleniumServer.kill();
-      seleniumServer = null;
-    }
+    // Terminate all child processes
+    testProcesses.forEach(process => {
+      try {
+        process.kill();
+      } catch (e) {
+        console.error('Error killing process:', e);
+      }
+    });
   });
 }
-
-// Initialize app when Electron is ready
-app.on('ready', createWindow);
 
 // Quit when all windows are closed (except on macOS)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
-  
-  // Make sure to stop Selenium server
-  if (seleniumServer) {
-    seleniumServer.kill();
-    seleniumServer = null;
-  }
 });
 
-app.on('activate', () => {
-  if (mainWindow === null) {
-    createWindow();
-  }
+// Handle IPC messages from renderer process
+ipcMain.on('run-test', (event, testName) => {
+  runTest(testName, event);
 });
 
-// Install Selenium when requested
-ipcMain.handle('install-selenium', async () => {
-  try {
-    mainWindow.webContents.send('log', 'Installing Selenium and WebDrivers...');
-    
-    await new Promise((resolve, reject) => {
-      selenium.install({
-        logger: (message) => {
-          mainWindow.webContents.send('log', message);
-        }
-      }, (err) => {
-        if (err) {
-          mainWindow.webContents.send('log', `Selenium installation error: ${err.message}`);
-          reject(err);
-        } else {
-          mainWindow.webContents.send('log', 'Selenium and WebDrivers installed successfully');
-          seleniumInstalled = true;
-          resolve();
-        }
-      });
-    });
-    
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+ipcMain.on('run-all-tests', (event) => {
+  runAllTests(event);
 });
 
-// Start Selenium server
-ipcMain.handle('start-selenium', async () => {
-  try {
-    if (!seleniumInstalled) {
-      return { success: false, error: 'Selenium not installed yet' };
-    }
-    
-    mainWindow.webContents.send('log', 'Starting Selenium server...');
-    
-    // Start the Selenium server
-    await new Promise((resolve, reject) => {
-      selenium.start((err, child) => {
-        if (err) {
-          mainWindow.webContents.send('log', `Failed to start Selenium: ${err.message}`);
-          reject(err);
-        } else {
-          seleniumServer = child;
-          mainWindow.webContents.send('log', 'Selenium server started');
-          
-          // Log Selenium output
-          child.stdout.on('data', (data) => {
-            mainWindow.webContents.send('log', `Selenium: ${data}`);
-          });
-          
-          child.stderr.on('data', (data) => {
-            mainWindow.webContents.send('log', `Selenium error: ${data}`);
-          });
-          
-          resolve();
-        }
-      });
-    });
-    
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+ipcMain.on('save-results', (event, results) => {
+  saveResults(results, event);
 });
 
 // Run a specific test
-ipcMain.handle('run-test', async (event, testName) => {
-  try {
-    mainWindow.webContents.send('log', `Running test: ${testName}`);
-    
-    const testProcess = spawn('node', [path.join(__dirname, 'tests', `${testName}.js`)], {
-      env: { ...process.env, ELECTRON_RUN: '1' }
+function runTest(testName, event) {
+  const testFile = path.join(__dirname, 'tests', `${testName}.js`);
+  
+  if (!fs.existsSync(testFile)) {
+    event.reply('test-output', {
+      type: 'error',
+      message: `Test file not found: ${testFile}`
     });
-    
-    let output = '';
-    
-    testProcess.stdout.on('data', (data) => {
-      const text = data.toString();
-      output += text;
-      mainWindow.webContents.send('log', text);
-    });
-    
-    testProcess.stderr.on('data', (data) => {
-      const text = data.toString();
-      output += text;
-      mainWindow.webContents.send('log', `Error: ${text}`);
-    });
-    
-    return new Promise((resolve) => {
-      testProcess.on('close', (code) => {
-        const result = {
-          success: code === 0,
-          output,
-          code
-        };
-        mainWindow.webContents.send('test-finished', result);
-        resolve(result);
-      });
-    });
-  } catch (error) {
-    return { success: false, error: error.message };
+    return;
   }
-});
+  
+  event.reply('test-output', {
+    type: 'info',
+    message: `Running test: ${testName}...`
+  });
+  
+  const testProcess = spawn('node', [testFile], {
+    shell: true
+  });
+  
+  testProcesses.push(testProcess);
+  
+  testProcess.stdout.on('data', (data) => {
+    event.reply('test-output', {
+      type: 'stdout',
+      message: data.toString()
+    });
+  });
+  
+  testProcess.stderr.on('data', (data) => {
+    event.reply('test-output', {
+      type: 'stderr',
+      message: data.toString()
+    });
+  });
+  
+  testProcess.on('close', (code) => {
+    const status = code === 0 ? 'success' : 'error';
+    event.reply('test-output', {
+      type: status,
+      message: `Test finished with exit code: ${code}`
+    });
+    
+    const index = testProcesses.indexOf(testProcess);
+    if (index > -1) {
+      testProcesses.splice(index, 1);
+    }
+  });
+}
 
 // Run all tests
-ipcMain.handle('run-all-tests', async () => {
-  try {
-    mainWindow.webContents.send('log', 'Running all tests...');
+function runAllTests(event) {
+  const testDir = path.join(__dirname, 'tests');
+  fs.readdir(testDir, (err, files) => {
+    if (err) {
+      event.reply('test-output', {
+        type: 'error',
+        message: `Error reading test directory: ${err.message}`
+      });
+      return;
+    }
     
-    const testDirectory = path.join(__dirname, 'tests');
-    const testFiles = fs.readdirSync(testDirectory)
-      .filter(file => file.endsWith('.js'))
-      .map(file => file.replace('.js', ''));
+    const testFiles = files.filter(file => file.endsWith('.js'));
     
-    const results = [];
+    if (testFiles.length === 0) {
+      event.reply('test-output', {
+        type: 'warning',
+        message: 'No test files found'
+      });
+      return;
+    }
     
-    for (const testName of testFiles) {
-      mainWindow.webContents.send('log', `Running test: ${testName}`);
+    event.reply('test-output', {
+      type: 'info',
+      message: `Found ${testFiles.length} test files. Running all tests...`
+    });
+    
+    let completed = 0;
+    
+    testFiles.forEach(file => {
+      const testName = file.replace('.js', '');
+      const testFile = path.join(testDir, file);
       
-      const testProcess = spawn('node', [path.join(testDirectory, `${testName}.js`)], {
-        env: { ...process.env, ELECTRON_RUN: '1' }
+      event.reply('test-output', {
+        type: 'info',
+        message: `Running test (${completed + 1}/${testFiles.length}): ${testName}...`
       });
       
-      let output = '';
+      const testProcess = spawn('node', [testFile], {
+        shell: true
+      });
+      
+      testProcesses.push(testProcess);
       
       testProcess.stdout.on('data', (data) => {
-        const text = data.toString();
-        output += text;
-        mainWindow.webContents.send('log', text);
-      });
-      
-      testProcess.stderr.on('data', (data) => {
-        const text = data.toString();
-        output += text;
-        mainWindow.webContents.send('log', `Error: ${text}`);
-      });
-      
-      const result = await new Promise((resolve) => {
-        testProcess.on('close', (code) => {
-          resolve({
-            name: testName,
-            success: code === 0,
-            output,
-            code
-          });
+        event.reply('test-output', {
+          type: 'stdout',
+          test: testName,
+          message: data.toString()
         });
       });
       
-      results.push(result);
-      mainWindow.webContents.send('test-result', result);
-    }
-    
-    mainWindow.webContents.send('all-tests-finished', {
-      success: results.every(r => r.success),
-      results
+      testProcess.stderr.on('data', (data) => {
+        event.reply('test-output', {
+          type: 'stderr',
+          test: testName,
+          message: data.toString()
+        });
+      });
+      
+      testProcess.on('close', (code) => {
+        completed++;
+        const status = code === 0 ? 'success' : 'error';
+        
+        event.reply('test-output', {
+          type: status,
+          test: testName,
+          message: `Test "${testName}" finished with exit code: ${code}`
+        });
+        
+        if (completed === testFiles.length) {
+          event.reply('test-output', {
+            type: 'info',
+            message: `All tests completed (${testFiles.length}/${testFiles.length}).`
+          });
+        }
+        
+        const index = testProcesses.indexOf(testProcess);
+        if (index > -1) {
+          testProcesses.splice(index, 1);
+        }
+      });
     });
-    
-    return {
-      success: results.every(r => r.success),
-      results
-    };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  });
+}
 
-// Save test results to a file
-ipcMain.handle('save-results', async (event, results) => {
-  try {
-    const { filePath } = await dialog.showSaveDialog({
-      title: 'Save Test Results',
-      defaultPath: path.join(app.getPath('documents'), 'benedictaitor-test-results.json'),
-      filters: [
-        { name: 'JSON', extensions: ['json'] }
-      ]
-    });
-    
-    if (filePath) {
-      fs.writeFileSync(filePath, JSON.stringify(results, null, 2));
-      return { success: true, filePath };
-    } else {
-      return { success: false, error: 'No file selected' };
+// Save test results to file
+function saveResults(results, event) {
+  const options = {
+    title: 'Save Test Results',
+    defaultPath: path.join(os.homedir(), 'Desktop', 'benedictaitor-test-results.json'),
+    filters: [
+      { name: 'JSON Files', extensions: ['json'] }
+    ]
+  };
+  
+  dialog.showSaveDialog(mainWindow, options).then(result => {
+    if (!result.canceled && result.filePath) {
+      fs.writeFile(result.filePath, JSON.stringify(results, null, 2), (err) => {
+        if (err) {
+          event.reply('save-results-response', {
+            success: false,
+            message: `Error saving results: ${err.message}`
+          });
+        } else {
+          event.reply('save-results-response', {
+            success: true,
+            message: `Results saved to ${result.filePath}`
+          });
+        }
+      });
     }
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-});
+  }).catch(err => {
+    event.reply('save-results-response', {
+      success: false,
+      message: `Error showing save dialog: ${err.message}`
+    });
+  });
+}

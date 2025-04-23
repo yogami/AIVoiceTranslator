@@ -1,8 +1,7 @@
-// Preload script for Electron
-// This script runs before the renderer process is loaded
-// and has access to both Node.js and browser APIs
+// Preload script for Benedictaitor Test Runner
+// This script will be loaded before the renderer process
 
 window.addEventListener('DOMContentLoaded', () => {
-  // Inform the user that the app is loaded and ready
-  console.log('Benedictaitor Test Runner is now loaded');
+  // You can add initialization code that needs to run before the main renderer script
+  console.log('Preload script executed');
 });

@@ -6,654 +6,615 @@
   <title>Benedictaitor Test Runner</title>
   <style>
     :root {
-      --primary: #4f46e5;
-      --primary-hover: #4338ca;
-      --primary-light: #eef2ff;
-      --primary-dark: #3730a3;
-      --secondary: #172554;
-      --success: #22c55e;
-      --danger: #ef4444;
-      --warning: #f59e0b;
-      --gray-100: #f3f4f6;
-      --gray-200: #e5e7eb;
-      --gray-300: #d1d5db;
-      --gray-400: #9ca3af;
-      --gray-600: #4b5563;
-      --gray-700: #374151;
-      --gray-800: #1f2937;
-      --gray-900: #111827;
-    }
-    
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+      --primary: #3C8DBC;
+      --success: #34A853;
+      --error: #EA4335;
+      --warning: #FBBC05;
+      --info: #4285F4;
     }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--gray-100);
-      color: var(--gray-800);
-      line-height: 1.6;
-      font-size: 16px;
-      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f8f9fa;
+      color: #333;
       height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    
-    h1 {
-      font-size: 24px;
-      color: var(--secondary);
-      margin-bottom: 10px;
-    }
-    
-    .subtitle {
-      font-size: 16px;
-      color: var(--gray-600);
+      overflow: hidden;
     }
     
     .container {
       display: flex;
-      flex-direction: row;
-      height: calc(100vh - 100px);
-      gap: 20px;
-    }
-    
-    .sidebar {
-      width: 300px;
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      flex-direction: column;
+      height: 100vh;
+      max-width: 1200px;
+      margin: 0 auto;
       padding: 20px;
-      display: flex;
-      flex-direction: column;
+      box-sizing: border-box;
     }
     
-    .main-content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-    
-    .card {
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      padding: 20px;
-    }
-    
-    .logs {
-      flex: 1;
-      background-color: var(--gray-800);
-      color: white;
-      border-radius: 8px;
-      padding: 15px;
-      font-family: 'Courier New', monospace;
-      font-size: 14px;
-      overflow-y: auto;
-    }
-    
-    .log-entry {
-      margin-bottom: 4px;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-    
-    .results {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    
-    .test-result {
-      border-bottom: 1px solid var(--gray-200);
-      padding-bottom: 10px;
-      margin-bottom: 10px;
-    }
-    
-    .test-result:last-child {
-      border-bottom: none;
-      margin-bottom: 0;
-      padding-bottom: 0;
-    }
-    
-    .test-result-header {
+    header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 5px;
-      font-weight: bold;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e0e0e0;
     }
     
-    .result-success {
-      color: var(--success);
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      color: var(--primary);
     }
     
-    .result-failure {
-      color: var(--danger);
-    }
-    
-    .button {
-      background-color: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 10px 15px;
+    .version {
       font-size: 14px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 500;
+      color: #666;
     }
     
-    .button:hover {
-      background-color: var(--primary-hover);
-    }
-    
-    .button:disabled {
-      background-color: var(--gray-400);
-      cursor: not-allowed;
-    }
-    
-    .button-secondary {
-      background-color: var(--gray-200);
-      color: var(--gray-800);
-    }
-    
-    .button-secondary:hover {
-      background-color: var(--gray-300);
-    }
-    
-    .button-danger {
-      background-color: var(--danger);
-    }
-    
-    .button-danger:hover {
-      background-color: #dc2626;
-    }
-    
-    .button-success {
-      background-color: var(--success);
-    }
-    
-    .button-success:hover {
-      background-color: #16a34a;
-    }
-    
-    .button-group {
+    .main-content {
       display: flex;
-      gap: 10px;
-      margin-top: 15px;
+      flex: 1;
+      gap: 20px;
+      overflow: hidden;
+    }
+    
+    .sidebar {
+      width: 250px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      padding: 15px;
+      overflow-y: auto;
+    }
+    
+    .sidebar h2 {
+      font-size: 18px;
+      margin-top: 0;
+      color: #333;
     }
     
     .test-list {
       list-style: none;
-      margin-top: 15px;
-      flex: 1;
-      overflow-y: auto;
+      padding: 0;
+      margin: 0;
     }
     
     .test-item {
-      padding: 8px 10px;
+      padding: 10px;
       border-radius: 4px;
+      margin-bottom: 8px;
       cursor: pointer;
-      margin-bottom: 5px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      transition: background-color 0.2s;
+      border-left: 3px solid transparent;
     }
     
     .test-item:hover {
-      background-color: var(--gray-100);
+      background-color: #f5f5f5;
+      border-left-color: var(--primary);
     }
     
-    .test-item.selected {
-      background-color: var(--primary-light);
-      color: var(--primary-dark);
-      font-weight: 500;
+    .test-item.active {
+      background-color: #e0f0ff;
+      border-left-color: var(--primary);
+    }
+    
+    .action-buttons {
+      margin-top: 20px;
+    }
+    
+    button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.2s;
+      margin-bottom: 10px;
+      width: 100%;
+      text-align: center;
+    }
+    
+    button:hover {
+      background-color: #3079a9;
+    }
+    
+    button.secondary {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+    
+    button.secondary:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .output-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+    
+    .output-header {
+      padding: 15px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .output-title {
+      font-size: 18px;
+      margin: 0;
+    }
+    
+    .output-content {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .output-line {
+      margin: 0;
+      padding: 2px 0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .info {
+      color: #4285F4;
+    }
+    
+    .error {
+      color: #EA4335;
+    }
+    
+    .warning {
+      color: #FBBC05;
+    }
+    
+    .success {
+      color: #34A853;
+    }
+    
+    .status-bar {
+      padding: 10px 15px;
+      background-color: #f8f9fa;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
     }
     
     .status-indicator {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background-color: var(--gray-300);
+      display: flex;
+      align-items: center;
     }
     
-    .status-success {
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    
+    .status-dot.idle {
+      background-color: #90A4AE;
+    }
+    
+    .status-dot.running {
+      background-color: var(--info);
+      animation: pulse 1.5s infinite;
+    }
+    
+    .status-dot.success {
       background-color: var(--success);
     }
     
-    .status-failure {
-      background-color: var(--danger);
-    }
-    
-    .status-running {
-      background-color: var(--warning);
-      animation: pulse 1.5s infinite;
+    .status-dot.error {
+      background-color: var(--error);
     }
     
     @keyframes pulse {
       0% {
-        opacity: 0.6;
-      }
-      50% {
         opacity: 1;
       }
+      50% {
+        opacity: 0.5;
+      }
       100% {
-        opacity: 0.6;
+        opacity: 1;
       }
     }
     
-    .summary {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 15px;
-      padding-top: 15px;
-      border-top: 1px solid var(--gray-200);
+    .test-summary {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    
+    .summary-title {
+      font-weight: bold;
+      margin-bottom: 10px;
     }
     
     .summary-item {
-      text-align: center;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
     }
     
-    .summary-number {
-      font-size: 24px;
-      font-weight: bold;
-    }
-    
-    .summary-label {
-      font-size: 14px;
-      color: var(--gray-600);
-    }
-    
-    .section-title {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 15px;
-      color: var(--gray-700);
-    }
-    
-    .progress-section {
-      margin-top: 15px;
-    }
-    
-    .section-info {
-      font-size: 14px;
-      color: var(--gray-600);
-      margin-bottom: 10px;
-      display: block;
-    }
-    
-    .loading {
-      display: inline-block;
-      position: relative;
-      width: 16px;
-      height: 16px;
-      margin-right: 8px;
-    }
-    
-    .loading:after {
-      content: " ";
-      display: block;
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      border: 2px solid #fff;
-      border-color: #fff transparent #fff transparent;
-      animation: loading 1.2s linear infinite;
-    }
-    
-    @keyframes loading {
-      0% {
-        transform: rotate(0deg);
+    @media (max-width: 768px) {
+      .main-content {
+        flex-direction: column;
       }
-      100% {
-        transform: rotate(360deg);
+      
+      .sidebar {
+        width: 100%;
+        margin-bottom: 20px;
       }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Benedictaitor Test Runner</h1>
-    <p class="subtitle">Run and manage Selenium tests for the Benedictaitor application</p>
-  </header>
-  
   <div class="container">
-    <div class="sidebar">
-      <div class="section-title">Available Tests</div>
-      <ul id="test-list" class="test-list">
-        <!-- Test items will be populated here -->
-      </ul>
-      
-      <div class="button-group">
-        <button id="run-selected" class="button">Run Selected</button>
-        <button id="run-all" class="button button-secondary">Run All</button>
-      </div>
-      
-      <div class="progress-section">
-        <div class="section-title">Test Status</div>
-        <div class="summary">
-          <div class="summary-item">
-            <div id="passed-count" class="summary-number result-success">0</div>
-            <div class="summary-label">Passed</div>
-          </div>
-          <div class="summary-item">
-            <div id="failed-count" class="summary-number result-failure">0</div>
-            <div class="summary-label">Failed</div>
-          </div>
-          <div class="summary-item">
-            <div id="total-count" class="summary-number">0</div>
-            <div class="summary-label">Total</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <header>
+      <h1>Benedictaitor Test Runner</h1>
+      <span class="version">v1.0.0</span>
+    </header>
     
     <div class="main-content">
-      <div class="card">
-        <div class="section-title">Selenium Setup</div>
-        <p class="section-info">Before running tests, install Selenium WebDriver and start the Selenium server.</p>
-        <div class="button-group">
-          <button id="install-selenium" class="button">1. Install Selenium</button>
-          <button id="start-selenium" class="button" disabled>2. Start Selenium Server</button>
-          <button id="save-results" class="button button-secondary" disabled>Save Results</button>
+      <div class="sidebar">
+        <h2>Available Tests</h2>
+        <ul class="test-list" id="testList">
+          <!-- Test items will be populated here -->
+        </ul>
+        
+        <div class="action-buttons">
+          <button id="runAllTests">Run All Tests</button>
+          <button id="runSelectedTest" class="secondary" disabled>Run Selected Test</button>
+          <button id="saveResults" class="secondary" disabled>Save Results</button>
+        </div>
+        
+        <div class="test-summary" id="testSummary" style="display: none;">
+          <div class="summary-title">Test Summary</div>
+          <div class="summary-item">
+            <span>Total:</span>
+            <span id="totalTests">0</span>
+          </div>
+          <div class="summary-item">
+            <span>Passed:</span>
+            <span id="passedTests">0</span>
+          </div>
+          <div class="summary-item">
+            <span>Failed:</span>
+            <span id="failedTests">0</span>
+          </div>
+          <div class="summary-item">
+            <span>Duration:</span>
+            <span id="testDuration">0s</span>
+          </div>
         </div>
       </div>
       
-      <div class="card logs" id="logs">
-        <!-- Log entries will be added here -->
-        <div class="log-entry">Benedictaitor Test Runner initialized...</div>
+      <div class="output-panel">
+        <div class="output-header">
+          <h2 class="output-title">Test Output</h2>
+          <button id="clearOutput" class="secondary" style="width: auto; margin: 0;">Clear</button>
+        </div>
+        <div class="output-content" id="outputContent">
+          <p class="output-line info">Benedictaitor Test Runner initialized.</p>
+          <p class="output-line info">Select a test from the sidebar or click "Run All Tests" to begin.</p>
+        </div>
+        <div class="status-bar">
+          <div class="status-indicator">
+            <div class="status-dot idle" id="statusDot"></div>
+            <span id="statusText">Ready</span>
+          </div>
+          <div id="elapsedTime">00:00:00</div>
+        </div>
       </div>
     </div>
   </div>
   
   <script>
-    // Require electron modules
+    // Import required Electron modules
     const { ipcRenderer } = require('electron');
+    const fs = require('fs');
+    const path = require('path');
     
     // DOM elements
-    const testList = document.getElementById('test-list');
-    const logsContainer = document.getElementById('logs');
-    const installButton = document.getElementById('install-selenium');
-    const startButton = document.getElementById('start-selenium');
-    const runSelectedButton = document.getElementById('run-selected');
-    const runAllButton = document.getElementById('run-all');
-    const saveResultsButton = document.getElementById('save-results');
-    const passedCount = document.getElementById('passed-count');
-    const failedCount = document.getElementById('failed-count');
-    const totalCount = document.getElementById('total-count');
+    const testListElement = document.getElementById('testList');
+    const outputContentElement = document.getElementById('outputContent');
+    const runAllTestsButton = document.getElementById('runAllTests');
+    const runSelectedTestButton = document.getElementById('runSelectedTest');
+    const saveResultsButton = document.getElementById('saveResults');
+    const clearOutputButton = document.getElementById('clearOutput');
+    const statusDotElement = document.getElementById('statusDot');
+    const statusTextElement = document.getElementById('statusText');
+    const elapsedTimeElement = document.getElementById('elapsedTime');
+    const testSummaryElement = document.getElementById('testSummary');
+    const totalTestsElement = document.getElementById('totalTests');
+    const passedTestsElement = document.getElementById('passedTests');
+    const failedTestsElement = document.getElementById('failedTests');
+    const testDurationElement = document.getElementById('testDuration');
     
-    // Test data
-    let tests = [
-      { id: 'websocket-tests', name: 'WebSocket Communication Tests', status: 'none' },
-      { id: 'e2e-selenium-test', name: 'End-to-End Selenium Tests', status: 'none' },
-      { id: 'speech-test', name: 'Speech Recognition Tests', status: 'none' },
-      { id: 'audio-utils-tests', name: 'Audio Utilities Tests', status: 'none' },
-      { id: 'ui-components-test', name: 'UI Components Tests', status: 'none' }
-    ];
-    
+    // State variables
     let selectedTest = null;
     let testResults = [];
-    let seleniumInstalled = false;
-    let seleniumRunning = false;
+    let startTime = null;
+    let timerInterval = null;
+    let testSummary = {
+      total: 0,
+      passed: 0,
+      failed: 0,
+      duration: 0
+    };
     
-    // Initialize UI
-    function initializeUI() {
-      renderTestList();
-      updateCounts();
+    // Initialize the app
+    function init() {
+      loadTestList();
+      setupEventListeners();
+      ipcRenderer.on('test-output', handleTestOutput);
+      ipcRenderer.on('save-results-response', handleSaveResultsResponse);
     }
     
-    // Add a log entry
-    function addLog(message) {
-      const logEntry = document.createElement('div');
-      logEntry.className = 'log-entry';
-      logEntry.textContent = message;
-      logsContainer.appendChild(logEntry);
-      logsContainer.scrollTop = logsContainer.scrollHeight;
-    }
-    
-    // Render the test list
-    function renderTestList() {
-      testList.innerHTML = '';
+    // Load available tests from the tests directory
+    function loadTestList() {
+      const testsDir = path.join(__dirname, 'tests');
       
-      tests.forEach(test => {
-        const li = document.createElement('li');
-        li.className = `test-item ${selectedTest === test.id ? 'selected' : ''}`;
-        li.dataset.id = test.id;
+      try {
+        if (!fs.existsSync(testsDir)) {
+          fs.mkdirSync(testsDir, { recursive: true });
+        }
         
-        const indicator = document.createElement('span');
-        indicator.className = `status-indicator ${getStatusClass(test.status)}`;
+        // List of predefined test types if no actual files exist
+        const defaultTests = [
+          'websocket-tests',
+          'selenium-test',
+          'speech-test',
+          'audio-utils-tests'
+        ];
         
-        const name = document.createElement('span');
-        name.textContent = test.name;
+        let files = [];
+        try {
+          files = fs.readdirSync(testsDir);
+        } catch (err) {
+          console.error('Error reading tests directory:', err);
+          // Use default tests if directory can't be read
+          files = defaultTests.map(test => `${test}.js`);
+        }
         
-        li.appendChild(indicator);
-        li.appendChild(name);
+        const testFiles = files.filter(file => file.endsWith('.js'));
         
-        li.addEventListener('click', () => {
-          selectTest(test.id);
+        if (testFiles.length === 0) {
+          // If no test files found, use default tests
+          defaultTests.forEach(test => {
+            const listItem = createTestListItem(test, `${test}.js`);
+            testListElement.appendChild(listItem);
+          });
+        } else {
+          testFiles.forEach(file => {
+            const testName = file.replace('.js', '');
+            const listItem = createTestListItem(testName, file);
+            testListElement.appendChild(listItem);
+          });
+        }
+        
+        updateTestSummary();
+      } catch (err) {
+        console.error('Error loading test list:', err);
+        addOutputLine(`Error loading test list: ${err.message}`, 'error');
+      }
+    }
+    
+    // Create a list item for a test
+    function createTestListItem(testName, fileName) {
+      const listItem = document.createElement('li');
+      listItem.className = 'test-item';
+      listItem.textContent = formatTestName(testName);
+      listItem.dataset.test = testName;
+      listItem.dataset.file = fileName;
+      
+      listItem.addEventListener('click', () => {
+        // Remove active class from all test items
+        document.querySelectorAll('.test-item').forEach(item => {
+          item.classList.remove('active');
         });
         
-        testList.appendChild(li);
+        // Add active class to clicked item
+        listItem.classList.add('active');
+        
+        // Set selected test
+        selectedTest = {
+          name: testName,
+          file: fileName
+        };
+        
+        // Enable run selected test button
+        runSelectedTestButton.disabled = false;
+      });
+      
+      return listItem;
+    }
+    
+    // Format test name for display
+    function formatTestName(name) {
+      return name
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+    
+    // Set up event listeners
+    function setupEventListeners() {
+      runAllTestsButton.addEventListener('click', () => {
+        resetStatus();
+        startTimer();
+        setStatus('running', 'Running all tests...');
+        saveResultsButton.disabled = true;
+        
+        ipcRenderer.send('run-all-tests');
+      });
+      
+      runSelectedTestButton.addEventListener('click', () => {
+        if (selectedTest) {
+          resetStatus();
+          startTimer();
+          setStatus('running', `Running test: ${formatTestName(selectedTest.name)}`);
+          saveResultsButton.disabled = true;
+          
+          ipcRenderer.send('run-test', selectedTest.name);
+        }
+      });
+      
+      saveResultsButton.addEventListener('click', () => {
+        ipcRenderer.send('save-results', testResults);
+      });
+      
+      clearOutputButton.addEventListener('click', () => {
+        outputContentElement.innerHTML = '';
+        addOutputLine('Output cleared.', 'info');
       });
     }
     
-    // Select a test
-    function selectTest(id) {
-      selectedTest = id;
-      renderTestList();
-    }
-    
-    // Get status class
-    function getStatusClass(status) {
-      switch (status) {
-        case 'success': return 'status-success';
-        case 'failure': return 'status-failure';
-        case 'running': return 'status-running';
-        default: return '';
-      }
-    }
-    
-    // Update counts
-    function updateCounts() {
-      const passed = tests.filter(t => t.status === 'success').length;
-      const failed = tests.filter(t => t.status === 'failure').length;
-      const total = tests.length;
+    // Handle test output from main process
+    function handleTestOutput(event, data) {
+      addOutputLine(data.message, data.type);
       
-      passedCount.textContent = passed;
-      failedCount.textContent = failed;
-      totalCount.textContent = total;
-    }
-    
-    // Update test status
-    function updateTestStatus(id, status) {
-      const test = tests.find(t => t.id === id);
-      if (test) {
-        test.status = status;
-        renderTestList();
-        updateCounts();
-      }
-    }
-    
-    // Install Selenium WebDriver
-    async function installSelenium() {
-      installButton.disabled = true;
-      installButton.innerHTML = '<span class="loading"></span>Installing...';
-      
-      try {
-        const result = await ipcRenderer.invoke('install-selenium');
-        
-        if (result.success) {
-          addLog('Selenium and WebDrivers installed successfully');
-          seleniumInstalled = true;
-          startButton.disabled = false;
-          installButton.textContent = 'Installed ✓';
-        } else {
-          addLog(`Installation failed: ${result.error}`);
-          installButton.disabled = false;
-          installButton.textContent = 'Retry Installation';
-        }
-      } catch (error) {
-        addLog(`Installation error: ${error.message}`);
-        installButton.disabled = false;
-        installButton.textContent = 'Retry Installation';
-      }
-    }
-    
-    // Start Selenium server
-    async function startSelenium() {
-      startButton.disabled = true;
-      startButton.innerHTML = '<span class="loading"></span>Starting...';
-      
-      try {
-        const result = await ipcRenderer.invoke('start-selenium');
-        
-        if (result.success) {
-          addLog('Selenium server started successfully');
-          seleniumRunning = true;
-          startButton.textContent = 'Running ✓';
-          runSelectedButton.disabled = false;
-          runAllButton.disabled = false;
-        } else {
-          addLog(`Failed to start Selenium: ${result.error}`);
-          startButton.disabled = false;
-          startButton.textContent = 'Start Selenium Server';
-        }
-      } catch (error) {
-        addLog(`Server start error: ${error.message}`);
-        startButton.disabled = false;
-        startButton.textContent = 'Start Selenium Server';
-      }
-    }
-    
-    // Run selected test
-    async function runSelectedTest() {
-      if (!selectedTest) {
-        addLog('Please select a test to run');
-        return;
-      }
-      
-      if (!seleniumRunning) {
-        addLog('Please start the Selenium server first');
-        return;
-      }
-      
-      runSelectedButton.disabled = true;
-      runAllButton.disabled = true;
-      updateTestStatus(selectedTest, 'running');
-      
-      try {
-        addLog(`Running test: ${selectedTest}`);
-        const result = await ipcRenderer.invoke('run-test', selectedTest);
-        
-        testResults.push({
-          id: selectedTest,
-          name: tests.find(t => t.id === selectedTest).name,
-          success: result.success,
-          output: result.output
-        });
-        
-        updateTestStatus(selectedTest, result.success ? 'success' : 'failure');
-        addLog(`Test ${selectedTest} ${result.success ? 'passed' : 'failed'}`);
-        
-        saveResultsButton.disabled = false;
-      } catch (error) {
-        updateTestStatus(selectedTest, 'failure');
-        addLog(`Test error: ${error.message}`);
-      }
-      
-      runSelectedButton.disabled = false;
-      runAllButton.disabled = false;
-    }
-    
-    // Run all tests
-    async function runAllTests() {
-      if (!seleniumRunning) {
-        addLog('Please start the Selenium server first');
-        return;
-      }
-      
-      runSelectedButton.disabled = true;
-      runAllButton.disabled = true;
-      
-      tests.forEach(test => {
-        updateTestStatus(test.id, 'none');
-      });
-      
-      testResults = [];
-      
-      try {
-        addLog('Running all tests...');
-        const result = await ipcRenderer.invoke('run-all-tests');
-        
-        addLog(`All tests completed: ${result.success ? 'PASSED' : 'FAILED'}`);
-        saveResultsButton.disabled = false;
-      } catch (error) {
-        addLog(`Error running tests: ${error.message}`);
-      }
-      
-      runSelectedButton.disabled = false;
-      runAllButton.disabled = false;
-    }
-    
-    // Save test results
-    async function saveResults() {
-      if (testResults.length === 0) {
-        addLog('No test results to save');
-        return;
-      }
-      
-      try {
-        const result = await ipcRenderer.invoke('save-results', testResults);
-        
-        if (result.success) {
-          addLog(`Results saved to: ${result.filePath}`);
-        } else {
-          addLog(`Failed to save results: ${result.error}`);
-        }
-      } catch (error) {
-        addLog(`Error saving results: ${error.message}`);
-      }
-    }
-    
-    // Event listeners
-    installButton.addEventListener('click', installSelenium);
-    startButton.addEventListener('click', startSelenium);
-    runSelectedButton.addEventListener('click', runSelectedTest);
-    runAllButton.addEventListener('click', runAllTests);
-    saveResultsButton.addEventListener('click', saveResults);
-    
-    // Register IPC listeners
-    ipcRenderer.on('log', (event, message) => {
-      addLog(message);
-    });
-    
-    ipcRenderer.on('test-result', (event, result) => {
-      const testId = result.name;
-      updateTestStatus(testId, result.success ? 'success' : 'failure');
       testResults.push({
-        id: testId,
-        name: tests.find(t => t.id === testId)?.name || testId,
-        success: result.success,
-        output: result.output
+        timestamp: new Date().toISOString(),
+        type: data.type,
+        test: data.test || 'general',
+        message: data.message
       });
-    });
+      
+      if (data.type === 'success' || data.type === 'error') {
+        if (data.message.includes('finished with exit code')) {
+          const isSuccess = data.type === 'success';
+          updateTestSummary(isSuccess);
+          
+          if (data.message.includes('All tests completed')) {
+            stopTimer();
+            setStatus(isSuccess ? 'success' : 'error', isSuccess ? 'All tests completed successfully' : 'Tests completed with errors');
+            saveResultsButton.disabled = false;
+          }
+        }
+      }
+    }
     
-    // Initialize
-    initializeUI();
-    addLog('Welcome to Benedictaitor Test Runner!');
-    addLog('Please install Selenium to begin.');
+    // Handle save results response
+    function handleSaveResultsResponse(event, response) {
+      if (response.success) {
+        addOutputLine(response.message, 'success');
+      } else {
+        addOutputLine(response.message, 'error');
+      }
+    }
+    
+    // Add a line to the output panel
+    function addOutputLine(message, type = 'info') {
+      const line = document.createElement('p');
+      line.className = `output-line ${type}`;
+      line.textContent = message;
+      
+      outputContentElement.appendChild(line);
+      outputContentElement.scrollTop = outputContentElement.scrollHeight;
+    }
+    
+    // Set the status indicator
+    function setStatus(state, text) {
+      statusDotElement.className = `status-dot ${state}`;
+      statusTextElement.textContent = text;
+    }
+    
+    // Reset the status and results
+    function resetStatus() {
+      testResults = [];
+      stopTimer();
+      testSummary = {
+        total: 0,
+        passed: 0,
+        failed: 0,
+        duration: 0
+      };
+    }
+    
+    // Start the timer
+    function startTimer() {
+      startTime = new Date();
+      
+      if (timerInterval) {
+        clearInterval(timerInterval);
+      }
+      
+      timerInterval = setInterval(() => {
+        const elapsed = new Date() - startTime;
+        elapsedTimeElement.textContent = formatElapsedTime(elapsed);
+      }, 1000);
+    }
+    
+    // Stop the timer
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      
+      if (startTime) {
+        const elapsed = new Date() - startTime;
+        testSummary.duration = elapsed;
+        elapsedTimeElement.textContent = formatElapsedTime(elapsed);
+        testDurationElement.textContent = formatElapsedTime(elapsed);
+      }
+    }
+    
+    // Format elapsed time
+    function formatElapsedTime(elapsed) {
+      const seconds = Math.floor((elapsed / 1000) % 60);
+      const minutes = Math.floor((elapsed / (1000 * 60)) % 60);
+      const hours = Math.floor(elapsed / (1000 * 60 * 60));
+      
+      return [
+        hours.toString().padStart(2, '0'),
+        minutes.toString().padStart(2, '0'),
+        seconds.toString().padStart(2, '0')
+      ].join(':');
+    }
+    
+    // Update test summary
+    function updateTestSummary(isSuccess = null) {
+      if (isSuccess !== null) {
+        testSummary.total++;
+        
+        if (isSuccess) {
+          testSummary.passed++;
+        } else {
+          testSummary.failed++;
+        }
+      }
+      
+      totalTestsElement.textContent = testSummary.total;
+      passedTestsElement.textContent = testSummary.passed;
+      failedTestsElement.textContent = testSummary.failed;
+      
+      testSummaryElement.style.display = 'block';
+    }
+    
+    // Initialize the app
+    init();
   </script>
 </body>
 </html>
