@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
@@ -217,6 +217,18 @@ export const TeacherInterface: React.FC = () => {
       }
     }
   );
+  
+  // Function to simulate speech for testing when real speech recognition doesn't work
+  const simulateSpeech = useCallback((text: string) => {
+    // Update the displayed speech locally
+    setDisplayedSpeech(text);
+    
+    // Also send to the WebSocket server to broadcast to students
+    if (wsClient) {
+      console.log('Sending simulated transcription to server:', text);
+      wsClient.sendTranscription(text);
+    }
+  }, []);
   
   // Keep local state of current speech for direct rendering
   const [displayedSpeech, setDisplayedSpeech] = useState<string | JSX.Element>('');
@@ -587,6 +599,8 @@ export const TeacherInterface: React.FC = () => {
                   <div className="p-3 bg-white border rounded-md min-h-[60px] shadow-sm">
                     {displayedSpeech ? (
                       <div className="text-md">{displayedSpeech}</div>
+                    ) : translation.currentSpeech ? (
+                      <div className="text-md">{translation.currentSpeech}</div>
                     ) : (
                       <div className="text-gray-400 italic">
                         {isRecording ? "Speak now..." : "No speech detected yet"}
@@ -605,6 +619,8 @@ export const TeacherInterface: React.FC = () => {
                     <div><strong>translation.currentSpeech:</strong> {translation.currentSpeech || '(empty)'}</div>
                     <div><strong>WebSocket Status:</strong> {translation.status}</div>
                     <div><strong>Translation Count:</strong> {translation.metrics.translationsCount}</div>
+                    <div><strong>WebSocket Role:</strong> {wsClient.currentRole || 'None'}</div>
+                    <div><strong>WebSocket Role Locked:</strong> {wsClient.isRoleLocked ? 'Yes' : 'No'}</div>
                     
                     {/* Transcription Service Status */}
                     <div className="mt-2 pt-2 border-t border-yellow-200">
@@ -619,12 +635,69 @@ export const TeacherInterface: React.FC = () => {
                       )}
                     </div>
                     
-                    <button 
-                      onClick={() => setDisplayedSpeech('This is a test speech to verify the UI updates correctly.')}
-                      className="mt-2 px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-yellow-800"
-                    >
-                      Test Display Update
-                    </button>
+                    {/* Actions for testing */}
+                    <div className="mt-2 pt-2 border-t border-yellow-200 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <button 
+                          onClick={() => setDisplayedSpeech('This is a test speech to verify the UI updates correctly.')}
+                          className="px-2 py-1 bg-yellow-200 hover:bg-yellow-300 rounded text-yellow-800"
+                        >
+                          Test UI Update
+                        </button>
+                        <button 
+                          onClick={() => wsClient.setRoleAndLock('teacher')}
+                          className="px-2 py-1 bg-green-200 hover:bg-green-300 rounded text-green-800"
+                        >
+                          Force Teacher Role
+                        </button>
+                        <button 
+                          onClick={() => transcriptionSvc.start()}
+                          className="px-2 py-1 bg-blue-200 hover:bg-blue-300 rounded text-blue-800"
+                        >
+                          Start Transcription
+                        </button>
+                        <button 
+                          onClick={() => transcriptionSvc.stop()}
+                          className="px-2 py-1 bg-red-200 hover:bg-red-300 rounded text-red-800"
+                        >
+                          Stop Transcription
+                        </button>
+                      </div>
+                      
+                      {/* Manual text input for testing */}
+                      <div className="pt-2 border-t border-yellow-200">
+                        <div className="text-xs font-medium mb-1">Test speech input:</div>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            id="test-speech-input"
+                            placeholder="Type test text here..."
+                            className="flex-1 px-2 py-1 text-xs border rounded text-gray-800"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                const input = document.getElementById('test-speech-input') as HTMLInputElement;
+                                if (input.value) {
+                                  simulateSpeech(input.value);
+                                  input.value = '';
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              const input = document.getElementById('test-speech-input') as HTMLInputElement;
+                              if (input.value) {
+                                simulateSpeech(input.value);
+                                input.value = '';
+                              }
+                            }}
+                            className="px-2 py-1 bg-primary text-white rounded text-xs"
+                          >
+                            Send
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </details>
               </div>
