@@ -15,7 +15,7 @@ TMP_DIR="./tmp"
 mkdir -p "$TMP_DIR"
 
 # Function to download Electron
-function download_electron() {
+download_electron() {
   # Choose the right download based on architecture
   if [[ "$(uname -m)" == "arm64" ]]; then
     # M1/M2 Mac
@@ -348,13 +348,13 @@ Select a test to run from the sidebar.</div>
   });
 }
 EOL
+fi
 
-  # Create HTML file too
-  if [[ ! -f "index.html" ]]; then
-    echo "Creating HTML template..."
-    touch index.html
-  fi
-}
+# Create HTML file too
+if [[ ! -f "index.html" ]]; then
+  echo "Creating HTML template..."
+  touch index.html
+fi
 
 # Launch the app
 echo "🚀 Launching Benedictaitor Test Runner..."
