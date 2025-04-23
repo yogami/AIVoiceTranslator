@@ -8,28 +8,38 @@ I've prepared a Mac-specific .app file that you can run with a simple double-cli
 
 1. **Download the project files** - Download the `MacTestRunner.zip` file (this is the file you need)
 2. **Extract the zip file** to anywhere on your Mac
-3. **Run the Mac app builder script** by opening Terminal and running one of:
+3. **Choose one of these options** to run the app (from easiest to most flexible):
 
    ```
-   # If you already have Node.js installed:
+   # OPTION 1: SIMPLEST - NO INSTALLATION REQUIRED
+   # This downloads Electron directly and runs the app immediately
    cd path/to/extracted/folder
-   ./run-mac-tests.sh
+   ./run-simple-mac-app.sh
    ```
    
    OR
    
    ```
-   # If you don't have Node.js or Homebrew installed:
+   # OPTION 2: If you don't have Node.js or Homebrew installed
+   # but want a permanent Mac app:
    cd path/to/extracted/folder
-   ./run-without-node.sh   # Use this script to avoid the Node installation step
+   ./run-without-node.sh
+   ```
+   
+   OR
+   
+   ```
+   # OPTION 3: If you already have Node.js installed:
+   cd path/to/extracted/folder
+   ./run-mac-tests.sh
    ```
    
 4. The script will:
    - Download/install any required dependencies
-   - Build the Mac app automatically
-   - Launch the app when it's ready
+   - Launch the app automatically 
+   - (Options 2 & 3 will also build a permanent Mac app)
 
-The app will open automatically when built. No need to manually navigate to find it!
+I recommend using Option 1 (run-simple-mac-app.sh) for the fastest and most reliable experience!
 
 ## Using the Test Runner
 
