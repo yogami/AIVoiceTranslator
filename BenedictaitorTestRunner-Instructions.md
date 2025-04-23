@@ -8,23 +8,24 @@ I've prepared a Mac-specific .app file that you can run with a simple double-cli
 
 1. **Download the project files** - Download the `MacTestRunner.zip` file (this is the file you need)
 2. **Extract the zip file** to anywhere on your Mac
-3. **Run the test runner** with ZERO dependencies:
+3. **Run the test runner** with ABSOLUTE ZERO dependencies:
 
    ```
    # ABSOLUTE ZERO DEPENDENCIES TEST RUNNER
-   # NO installations required at all!
+   # NO installations or tools required AT ALL!
    cd path/to/extracted/folder
-   chmod +x ./no-dependency-script.sh
-   ./no-dependency-script.sh
+   chmod +x ./mac-test-app.sh
+   ./mac-test-app.sh
    ```
    
 4. The script will:
-   - Provide interactive simulations of all the test scenarios
+   - Create and open a standalone HTML test app in your browser
+   - Provide interactive simulations of all test scenarios
    - Display results in a beautiful, user-friendly interface
    - Save test results for your review
-   - Work without ANY external dependencies!
+   - Work without ANY dependencies whatsoever!
 
-This script leverages only Python (which comes pre-installed on every Mac) to create a simple web interface, so you can visualize and interact with the test results. No Node.js, no npm, no installations of any kind!
+This new approach doesn't even require Python! It creates a standalone HTML file that opens directly in your browser - absolutely no web server, no Python, no Node.js, no installations of any kind! Just run the script and it works instantly.
 
 ## Using the Test Runner
 

@@ -1,25 +1,14 @@
 #!/bin/bash
-# Absolute minimum script - NO dependencies whatsoever (not even Node.js)
+# Absolute minimum test script for Mac - No Python or any dependency needed
 
 echo "======================================="
 echo "  Benedictaitor Test Simulator        "
 echo "======================================="
-echo "   (Zero-dependency version)           "
+echo "   (ULTRA Zero-dependency version)     "
 echo ""
 
 # Make sure we're in the right directory
 cd "$(dirname "$0")"
-
-# Function to check if Python is installed
-check_python() {
-  if command -v python3 >/dev/null 2>&1; then
-    return 0
-  elif command -v python >/dev/null 2>&1; then
-    return 0
-  else
-    return 1
-  fi
-}
 
 # Function to display the server test interface
 run_interactive_test() {
@@ -65,18 +54,13 @@ EOF
   read
 }
 
-# Function to run a simple visual tester with Python
-run_visual_tester() {
-  if check_python; then
-    # Determine which Python command to use
-    if command -v python3 >/dev/null 2>&1; then
-      PY_CMD="python3"
-    else
-      PY_CMD="python"
-    fi
-    
-    # Create a simple HTML file
-    cat > benedictaitor_tester.html << 'EOF'
+# Function to create an HTML file that can be opened directly
+create_html_test_app() {
+  # Create the directory if it doesn't exist
+  mkdir -p test_app
+  
+  # Create a standalone HTML file
+  cat > test_app/benedictaitor_tester.html << 'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -268,67 +252,35 @@ Select a test to run from the buttons above.</div>
 </body>
 </html>
 EOF
-    
-    # Try to find an available port starting from 8000
-    PORT=8000
-    MAX_PORT=8020
-    while [ $PORT -le $MAX_PORT ]; do
-      # Check if port is in use
-      if command -v nc >/dev/null 2>&1; then
-        nc -z localhost $PORT >/dev/null 2>&1
-        if [ $? -ne 0 ]; then
-          break
-        fi
-      elif command -v lsof >/dev/null 2>&1; then
-        lsof -i:$PORT >/dev/null 2>&1
-        if [ $? -ne 0 ]; then
-          break
-        fi
-      else
-        # If we can't check, just try a port
-        break
-      fi
-      PORT=$((PORT+1))
-    done
-    
-    # Start a simple HTTP server
-    echo "Starting interactive visual test runner..."
-    echo "Open your browser and go to: http://localhost:$PORT/benedictaitor_tester.html"
-    echo ""
-    echo "Press Ctrl+C to stop the server when you're done testing"
-    
-    # Determine the correct module for the Python version
-    if [ "$PY_CMD" = "python3" ]; then
-      # Python 3 uses http.server module
-      $PY_CMD -m http.server $PORT
-    else
-      # Check Python version
-      PY_VERSION=$($PY_CMD --version 2>&1)
-      if [[ $PY_VERSION == *"Python 3"* ]]; then
-        # It's Python 3 even though the command is just 'python'
-        $PY_CMD -m http.server $PORT
-      else
-        # Must be Python 2
-        $PY_CMD -m SimpleHTTPServer $PORT
-      fi
-    fi
+  
+  echo "Created standalone HTML test app at: test_app/benedictaitor_tester.html"
+  echo "You can open this file directly in your browser with NO server needed!"
+  echo ""
+  
+  # Try to open the file automatically
+  if command -v open >/dev/null 2>&1; then
+    echo "Opening HTML test app automatically..."
+    open test_app/benedictaitor_tester.html
   else
-    echo "Python is not installed. Cannot start visual tester."
-    return 1
+    echo "Please open the following file in your browser:"
+    echo "$(pwd)/test_app/benedictaitor_tester.html"
   fi
+  echo ""
+  echo "Press Enter when you're done testing..."
+  read
 }
 
 # Main menu
 clear
 echo "==================================================="
-echo "  BENEDICTAITOR TEST RUNNER (ABSOLUTELY NO DEPS)   "
+echo "  BENEDICTAITOR TEST RUNNER (ABSOLUTE ZERO DEPS)   "
 echo "==================================================="
 echo ""
-echo "This test runner requires ZERO dependencies - no Node.js,"
-echo "no npm, no installations of any kind!"
+echo "This test runner requires NO DEPENDENCIES WHATSOEVER"
+echo "No Python, No Node.js, No web server - NOTHING!"
 echo ""
 echo "Choose a testing method:"
-echo "1. Run interactive visual tests (uses built-in Python)"
+echo "1. Run standalone HTML test app (opens in browser)"
 echo "2. Run simple connection test simulation"
 echo "3. Show test descriptions"
 echo "4. Exit"
@@ -338,7 +290,7 @@ read option
 
 case $option in
   1)
-    run_visual_tester
+    create_html_test_app
     ;;
   2)
     run_interactive_test
