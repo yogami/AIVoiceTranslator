@@ -4,20 +4,21 @@
 
 I've prepared a Mac-specific .app file that you can run with a simple double-click - no Node.js required! Due to Replit's environment limitations, I can't complete the build process here, but I've included the complete files and a simple script to build it on your Mac.
 
-## Building the Mac App (One-Time Setup)
+## Running the App (Super Simple Version)
 
-1. **Download the project files** - Download the `BenedictaitorTestRunner.zip` file
+1. **Download the project files** - Download the `MacTestRunner.zip` file (this is the file you need)
 2. **Extract the zip file** to anywhere on your Mac
-3. **Navigate to the electron directory** in Terminal:
+3. **Run the Mac app builder script** by opening Terminal and running:
    ```
-   cd path/to/extracted/electron
+   cd path/to/extracted/folder
+   ./run-mac-tests.sh
    ```
-4. **Run the Mac app builder script**:
-   ```
-   ./build-mac-app.sh
-   ```
-5. This will create a standalone Mac app file:
-   - `dist/BenedictaitorTestRunner-darwin-x64/BenedictaitorTestRunner.app`
+4. The script will:
+   - Install any required dependencies (if needed)
+   - Build the Mac app automatically
+   - Launch the app when it's ready
+
+The app will open automatically when built. No need to manually navigate to find it!
 
 ## Using the Test Runner
 
