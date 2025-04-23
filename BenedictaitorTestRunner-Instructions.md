@@ -8,13 +8,24 @@ I've prepared a Mac-specific .app file that you can run with a simple double-cli
 
 1. **Download the project files** - Download the `MacTestRunner.zip` file (this is the file you need)
 2. **Extract the zip file** to anywhere on your Mac
-3. **Run the Mac app builder script** by opening Terminal and running:
+3. **Run the Mac app builder script** by opening Terminal and running one of:
+
    ```
+   # If you already have Node.js installed:
    cd path/to/extracted/folder
    ./run-mac-tests.sh
    ```
+   
+   OR
+   
+   ```
+   # If you don't have Node.js or Homebrew installed:
+   cd path/to/extracted/folder
+   ./run-without-node.sh   # Use this script to avoid the Node installation step
+   ```
+   
 4. The script will:
-   - Install any required dependencies (if needed)
+   - Download/install any required dependencies
    - Build the Mac app automatically
    - Launch the app when it's ready
 
