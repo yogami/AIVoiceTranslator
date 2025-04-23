@@ -1,0 +1,13 @@
+{
+  "tests_run": 0,
+  "failures": 0,
+  "errors": 1,
+  "skipped": 0,
+  "success": false,
+  "test_details": {
+    "BenedictaitorUITests)": {
+      "status": "ERROR",
+      "message": "Traceback (most recent call last):\n  File \"/home/runner/workspace/selenium_ui_tests.py\", line 49, in setUpClass\n    cls.driver = webdriver.Chrome(\n                 ^^^^^^^^^^^^^^^^^\n  File \"/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/selenium/webdriver/chrome/webdriver.py\", line 45, in __init__\n    super().__init__(\n  File \"/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/selenium/webdriver/chromium/webdriver.py\", line 55, in __init__\n    self.service.start()\n  File \"/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/selenium/webdriver/common/service.py\", line 113, in start\n    self.assert_process_still_running()\n  File \"/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/selenium/webdriver/common/service.py\", line 126, in assert_process_still_running\n    raise WebDriverException(f\"Service {self._path} unexpectedly exited. Status code was: {return_code}\")\nselenium.common.exceptions.WebDriverException: Message: Service /home/runner/.wdm/drivers/chromedriver/linux64/114.0.5735.90/chromedriver unexpectedly exited. Status code was: 127\n\n"
+    }
+  }
+}
