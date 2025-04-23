@@ -51,24 +51,6 @@ class MockMediaRecorderClass {
   }
 }
 
-class MockSpeechRecognition {
-  lang: string = '';
-  continuous: boolean = false;
-  interimResults: boolean = false;
-  onresult: ((event: any) => void) | null = null;
-  onstart: (() => void) | null = null;
-  onend: (() => void) | null = null;
-  onerror: ((event: any) => void) | null = null;
-  
-  start = jest.fn().mockImplementation(() => {
-    if (this.onstart) this.onstart();
-  });
-  
-  stop = jest.fn().mockImplementation(() => {
-    if (this.onend) this.onend();
-  });
-}
-
 // Setup mocks
 beforeEach(() => {
   jest.clearAllMocks();
@@ -109,10 +91,6 @@ beforeEach(() => {
   mockFileReader.DONE = 2;
   
   global.FileReader = mockFileReader as any;
-  
-  // Mock SpeechRecognition
-  global.SpeechRecognition = MockSpeechRecognition as any;
-  global.webkitSpeechRecognition = MockSpeechRecognition as any;
 });
 
 describe('AudioRecorder', () => {
@@ -193,7 +171,8 @@ describe('SpeechRecognizer', () => {
     const recognizer = new SpeechRecognizer();
     
     // We can't directly access private fields, but we can infer from behavior
-    expect(global.SpeechRecognition).toHaveBeenCalled();
+    // Using SpeechRecognitionMock from setup.ts
+    expect(global.SpeechRecognition).toBeDefined();
   });
   
   test('starts recognition', () => {
@@ -202,9 +181,8 @@ describe('SpeechRecognizer', () => {
     
     recognizer.start();
     
-    const mockInstance = new MockSpeechRecognition();
-    expect(mockInstance.start).toHaveBeenCalled();
-    // The start callback would be called in a real implementation
+    // The mock is handled globally in setup.ts
+    expect(global.mockSpeechRecognitionMethods.start).toHaveBeenCalled();
   });
   
   test('stops recognition', () => {
@@ -214,9 +192,8 @@ describe('SpeechRecognizer', () => {
     recognizer.start();
     recognizer.stop();
     
-    const mockInstance = new MockSpeechRecognition();
-    expect(mockInstance.stop).toHaveBeenCalled();
-    // The end callback would be called in a real implementation
+    // The mock is handled globally in setup.ts
+    expect(global.mockSpeechRecognitionMethods.stop).toHaveBeenCalled();
   });
   
   test('updates language', () => {

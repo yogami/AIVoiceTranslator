@@ -22,6 +22,153 @@ export interface SpeechRecognitionOptions {
   onError?: (error: Error) => void;
 }
 
+// Advanced Audio Capture class for integration with hooks
+export class AudioCapture {
+  private recorder: AudioRecorder | null = null;
+  private audioDevices: MediaDeviceInfo[] = [];
+  private active: boolean = false;
+  private options: {
+    chunkDuration: number;
+    onDataAvailable?: (blob: string) => void;
+    onStart?: () => void;
+    onStop?: () => void;
+    onError?: (error: Error) => void;
+  };
+
+  constructor(options: {
+    chunkDuration?: number;
+    onDataAvailable?: (blob: string) => void;
+    onStart?: () => void;
+    onStop?: () => void;
+    onError?: (error: Error) => void;
+  } = {}) {
+    this.options = {
+      chunkDuration: options.chunkDuration || 3000,
+      onDataAvailable: options.onDataAvailable,
+      onStart: options.onStart,
+      onStop: options.onStop,
+      onError: options.onError
+    };
+  }
+
+  /**
+   * Get available audio input devices
+   */
+  async getAudioDevices(): Promise<MediaDeviceInfo[]> {
+    try {
+      // Request permission to access media devices
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Get list of audio input devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      this.audioDevices = devices.filter(device => device.kind === 'audioinput');
+      
+      return this.audioDevices;
+    } catch (error) {
+      console.error('Error getting audio devices:', error);
+      
+      if (this.options.onError) {
+        this.options.onError(error instanceof Error ? error : new Error(String(error)));
+      }
+      
+      return [];
+    }
+  }
+
+  /**
+   * Start audio recording
+   */
+  async start(deviceId?: string): Promise<boolean> {
+    try {
+      if (this.active) {
+        console.warn('Audio capture already active');
+        return true;
+      }
+      
+      // Create recorder with appropriate options
+      this.recorder = new AudioRecorder({
+        onStart: () => {
+          this.active = true;
+          if (this.options.onStart) {
+            this.options.onStart();
+          }
+        },
+        onStop: (blob) => {
+          this.active = false;
+          if (this.options.onStop) {
+            this.options.onStop();
+          }
+        },
+        onDataAvailable: async (blob) => {
+          if (this.options.onDataAvailable) {
+            const base64 = await AudioRecorder.blobToBase64(blob);
+            this.options.onDataAvailable(base64);
+          }
+        },
+        onError: (error) => {
+          if (this.options.onError) {
+            this.options.onError(error);
+          }
+        },
+        timeSlice: this.options.chunkDuration
+      });
+      
+      // Start the recorder
+      await this.recorder.start();
+      
+      return true;
+    } catch (error) {
+      console.error('Error starting audio capture:', error);
+      
+      if (this.options.onError) {
+        this.options.onError(error instanceof Error ? error : new Error(String(error)));
+      }
+      
+      return false;
+    }
+  }
+
+  /**
+   * Stop audio recording
+   */
+  stop(): boolean {
+    try {
+      if (!this.active || !this.recorder) {
+        console.warn('Audio capture not active');
+        return false;
+      }
+      
+      this.recorder.stop();
+      this.active = false;
+      
+      return true;
+    } catch (error) {
+      console.error('Error stopping audio capture:', error);
+      
+      if (this.options.onError) {
+        this.options.onError(error instanceof Error ? error : new Error(String(error)));
+      }
+      
+      return false;
+    }
+  }
+
+  /**
+   * Check if audio recording is active
+   */
+  isActive(): boolean {
+    return this.active;
+  }
+
+  /**
+   * Get base64 data from blob
+   * Static utility method
+   */
+  static async blobToBase64(blob: Blob): Promise<string> {
+    return AudioRecorder.blobToBase64(blob);
+  }
+}
+
 // Audio Recording API
 export class AudioRecorder {
   private mediaRecorder: MediaRecorder | null = null;

@@ -1,6 +1,7 @@
 /**
  * Jest setup file
  */
+import '@testing-library/jest-dom';
 
 // Mock browser APIs if needed for Node environment
 if (typeof window === 'undefined') {
@@ -8,33 +9,64 @@ if (typeof window === 'undefined') {
 }
 
 // Mock the SpeechRecognition API
-if (!global.SpeechRecognition) {
-  global.SpeechRecognition = jest.fn().mockImplementation(() => {
-    return {
-      start: jest.fn(),
-      stop: jest.fn(),
-      abort: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn()
-    };
-  }) as any;
+const mockStart = jest.fn();
+const mockStop = jest.fn();
+const mockAbort = jest.fn();
+const mockAddEventListener = jest.fn();
+const mockRemoveEventListener = jest.fn();
+
+class MockSpeechRecognition {
+  start = mockStart;
+  stop = mockStop;
+  abort = mockAbort;
+  addEventListener = mockAddEventListener;
+  removeEventListener = mockRemoveEventListener;
+  continuous = false;
+  lang = '';
+  interimResults = false;
+  maxAlternatives = 1;
 }
 
-if (!global.webkitSpeechRecognition) {
-  global.webkitSpeechRecognition = global.SpeechRecognition;
+// Create proper jest mocks
+const SpeechRecognitionMock = jest.fn().mockImplementation(() => {
+  return new MockSpeechRecognition();
+});
+
+global.SpeechRecognition = SpeechRecognitionMock;
+global.webkitSpeechRecognition = SpeechRecognitionMock;
+
+// Make mock methods accessible in tests
+global.mockSpeechRecognitionMethods = {
+  start: mockStart,
+  stop: mockStop,
+  abort: mockAbort,
+  addEventListener: mockAddEventListener,
+  removeEventListener: mockRemoveEventListener
+};
+
+// Mock WebSocket
+class MockWebSocket {
+  constructor(public url: string) {}
+  send = jest.fn();
+  close = jest.fn();
+  addEventListener = jest.fn();
+  removeEventListener = jest.fn();
+  readyState = 1; // WebSocket.OPEN
+  onopen: (() => void) | null = null;
+  onmessage: ((event: any) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: ((error: any) => void) | null = null;
 }
 
-// Mock WebSocket if needed
-if (!global.WebSocket) {
-  global.WebSocket = jest.fn().mockImplementation(() => {
-    return {
-      send: jest.fn(),
-      close: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn()
-    };
-  }) as any;
-}
+const WebSocketMock = jest.fn().mockImplementation((url: string) => {
+  return new MockWebSocket(url);
+});
+
+global.WebSocket = WebSocketMock;
+global.mockWebSocketMethods = {
+  constructor: WebSocketMock,
+  instance: new MockWebSocket('ws://test')
+};
 
 // Setup process.env for tests
 process.env.OPENAI_API_KEY = 'test-api-key';

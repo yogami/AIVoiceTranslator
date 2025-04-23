@@ -340,3 +340,22 @@ class WebSocketClient {
 
 // Export the singleton instance
 export const webSocketClient = WebSocketClient.getInstance();
+// For backwards compatibility with imports using { wsClient }
+export const wsClient = webSocketClient;
+
+// For backwards compatibility with imports using { WebSocketClient }
+export { WebSocketClient };
+
+// Define the TranslationPayload type for exports
+export interface TranslationPayload {
+  type: string;
+  text?: string;
+  translatedText?: string;
+  originalLanguage?: string;
+  translatedLanguage?: string;
+  audio?: string;
+  timestamp?: string | number;
+  latency?: number;
+  isFinal?: boolean;
+  [key: string]: any;
+}
