@@ -1,6 +1,6 @@
 /**
  * WebSocketClient for Benedictaitor
- * Singleton implementation for shared WebSocket connection
+ * Implementation with proper dependency injection
  */
 
 export type UserRole = 'teacher' | 'student';
@@ -22,8 +22,38 @@ export interface WebSocketMessage {
 export type WebSocketEventType = 'open' | 'close' | 'error' | 'message' | 'status' | 'translation';
 export type WebSocketEventListener = (data?: any) => void;
 
-class WebSocketClient {
-  private static instance: WebSocketClient | null = null;
+// WebSocket Factory Interface for dependency injection
+export interface WebSocketFactory {
+  createWebSocket(url: string): WebSocket;
+}
+
+// Default WebSocket Factory implementation
+class DefaultWebSocketFactory implements WebSocketFactory {
+  createWebSocket(url: string): WebSocket {
+    return new WebSocket(url);
+  }
+}
+
+// WebSocket Client Interface
+export interface IWebSocketClient {
+  connect(): Promise<void>;
+  disconnect(): void;
+  register(role: UserRole, languageCode: string): void;
+  setRoleAndLock(role: UserRole): void;
+  sendTranscription(text: string): boolean;
+  addEventListener(type: WebSocketEventType, callback: WebSocketEventListener): void;
+  removeEventListener(type: WebSocketEventType, callback: WebSocketEventListener): void;
+  getStatus(): ConnectionStatus;
+  getSessionId(): string | null;
+  getRole(): UserRole | null;
+  getLanguageCode(): string;
+  getSocket(): WebSocket | null;
+  readonly isRoleLocked: boolean;
+  readonly currentRole: UserRole | null;
+}
+
+// Concrete WebSocketClient implementation
+export class WebSocketClient implements IWebSocketClient {
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private role: UserRole | null = null;
@@ -34,22 +64,14 @@ class WebSocketClient {
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
-  private roleLocked: boolean = false; // Add role locking feature
-
-  private constructor() {
-    // Private constructor for singleton
-  }
-
-  /**
-   * Get singleton instance
-   */
-  public static getInstance(): WebSocketClient {
-    if (!WebSocketClient.instance) {
-      WebSocketClient.instance = new WebSocketClient();
-    }
-    return WebSocketClient.instance;
-  }
-
+  private roleLocked: boolean = false;
+  
+  // Inject dependencies through constructor
+  constructor(
+    private webSocketFactory: WebSocketFactory = new DefaultWebSocketFactory(),
+    private wsPath: string = '/ws'
+  ) {}
+  
   /**
    * Connect to WebSocket server
    */
@@ -67,10 +89,11 @@ class WebSocketClient {
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/ws`;
+        const wsUrl = `${protocol}//${host}${this.wsPath}`;
         
         console.log(`[WebSocketClient] Connecting to ${wsUrl}`);
-        this.ws = new WebSocket(wsUrl);
+        // Use factory to create WebSocket - allows for easier mocking during tests
+        this.ws = this.webSocketFactory.createWebSocket(wsUrl);
 
         // Connection opened
         this.ws.onopen = () => {
@@ -388,25 +411,39 @@ class WebSocketClient {
   public get currentRole(): UserRole | null {
     return this.role;
   }
+}
 
-  /**
-   * Reset the singleton instance (for testing purposes)
-   */
-  public static resetInstance(): void {
-    if (WebSocketClient.instance) {
-      WebSocketClient.instance.disconnect();
-      WebSocketClient.instance = null;
+// WebSocket service factory for improved testability and dependency injection
+export class WebSocketService {
+  private static instance: WebSocketClient | null = null;
+  
+  // Factory method to create a new WebSocketClient (or reuse the existing one)
+  public static createClient(
+    webSocketFactory?: WebSocketFactory,
+    wsPath?: string
+  ): WebSocketClient {
+    if (!WebSocketService.instance) {
+      WebSocketService.instance = new WebSocketClient(
+        webSocketFactory || new DefaultWebSocketFactory(),
+        wsPath || '/ws'
+      );
+    }
+    return WebSocketService.instance;
+  }
+  
+  // Reset the instance (for testing purposes)
+  public static resetClient(): void {
+    if (WebSocketService.instance) {
+      WebSocketService.instance.disconnect();
+      WebSocketService.instance = null;
     }
   }
 }
 
-// Export the singleton instance
-export const webSocketClient = WebSocketClient.getInstance();
+// Create and export a default client for backwards compatibility
+export const webSocketClient = WebSocketService.createClient();
 // For backwards compatibility with imports using { wsClient }
 export const wsClient = webSocketClient;
-
-// For backwards compatibility with imports using { WebSocketClient }
-export { WebSocketClient };
 
 // Define the TranslationPayload type for exports
 export interface TranslationPayload {

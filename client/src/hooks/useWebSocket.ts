@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { webSocketClient, WebSocketMessage, UserRole, ConnectionStatus, WebSocketEventType } from '../lib/websocket';
+import { 
+  WebSocketMessage, 
+  UserRole, 
+  ConnectionStatus, 
+  WebSocketEventType, 
+  IWebSocketClient,
+  WebSocketService 
+} from '../lib/websocket';
 
 /**
  * Hook options for useWebSocket
@@ -8,91 +15,98 @@ interface UseWebSocketOptions {
   autoConnect?: boolean;
   initialRole?: UserRole;
   initialLanguage?: string;
+  client?: IWebSocketClient; // Allow dependency injection of client
 }
 
 /**
- * Hook for using WebSocket connection
+ * Custom React Hook for WebSocket connectivity
+ * 
+ * This hook implements the React-side of dependency injection by
+ * accepting an optional WebSocket client instance. If not provided,
+ * it will use the default client from WebSocketService.
  */
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
     autoConnect = false,
     initialRole = 'teacher',
-    initialLanguage = 'en-US'
+    initialLanguage = 'en-US',
+    client = WebSocketService.createClient() // Default client from service
   } = options;
 
-  const [status, setStatus] = useState<ConnectionStatus>(webSocketClient.getStatus());
-  const [sessionId, setSessionId] = useState<string | null>(webSocketClient.getSessionId());
-  const [role, setRole] = useState<UserRole | null>(webSocketClient.getRole() || initialRole);
-  const [languageCode, setLanguageCode] = useState<string>(webSocketClient.getLanguageCode() || initialLanguage);
+  // Get initial state from provided or default client
+  const [status, setStatus] = useState<ConnectionStatus>(client.getStatus());
+  const [sessionId, setSessionId] = useState<string | null>(client.getSessionId());
+  const [role, setRole] = useState<UserRole | null>(client.getRole() || initialRole);
+  const [languageCode, setLanguageCode] = useState<string>(client.getLanguageCode() || initialLanguage);
   const [latestTranslation, setLatestTranslation] = useState<WebSocketMessage | null>(null);
 
   // Connect to WebSocket
   const connect = useCallback(async () => {
     try {
-      await webSocketClient.connect();
+      await client.connect();
       // Register role and language after connection
-      if (webSocketClient.getStatus() === 'connected') {
-        webSocketClient.register(role as UserRole, languageCode);
+      if (client.getStatus() === 'connected') {
+        client.register(role as UserRole, languageCode);
       }
       return true;
     } catch (error) {
-      console.error('Failed to connect:', error);
+      console.error('[useWebSocket] Failed to connect:', error);
       return false;
     }
-  }, [role, languageCode]);
+  }, [client, role, languageCode]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
-    webSocketClient.disconnect();
-  }, []);
+    client.disconnect();
+  }, [client]);
 
   // Update role
   const updateRole = useCallback((newRole: UserRole) => {
     setRole(newRole);
     if (status === 'connected') {
-      webSocketClient.register(newRole, languageCode);
+      client.register(newRole, languageCode);
     }
-  }, [status, languageCode]);
+  }, [client, status, languageCode]);
 
   // Update language
   const updateLanguage = useCallback((newLanguageCode: string) => {
     setLanguageCode(newLanguageCode);
     if (status === 'connected' && role) {
-      webSocketClient.register(role, newLanguageCode);
+      client.register(role, newLanguageCode);
     }
-  }, [status, role]);
+  }, [client, status, role]);
 
   // Register role and language
   const register = useCallback((newRole: UserRole, newLanguageCode: string) => {
     setRole(newRole);
     setLanguageCode(newLanguageCode);
     if (status === 'connected') {
-      webSocketClient.register(newRole, newLanguageCode);
+      client.register(newRole, newLanguageCode);
     }
-  }, [status]);
+  }, [client, status]);
 
   // Send transcription
   const sendTranscription = useCallback((text: string) => {
-    if (webSocketClient.getStatus() !== 'connected') {
+    if (client.getStatus() !== 'connected') {
       console.warn('[useWebSocket] Cannot send transcription - not connected');
       return false;
     }
-    // The client function now returns a boolean indicating success
-    return webSocketClient.sendTranscription(text);
-  }, []);
+    // The client function returns a boolean indicating success
+    return client.sendTranscription(text);
+  }, [client]);
 
   // Add event listener
   const addEventListener = useCallback((type: WebSocketEventType, callback: (data?: any) => void) => {
-    webSocketClient.addEventListener(type, callback);
+    client.addEventListener(type, callback);
     return () => {
-      webSocketClient.removeEventListener(type, callback);
+      client.removeEventListener(type, callback);
     };
-  }, []);
+  }, [client]);
 
-  // Remove event listener (added for compatibility with TestPage)
+  // Remove event listener
   const removeEventListener = useCallback((type: WebSocketEventType, callback: (data?: any) => void) => {
-    webSocketClient.removeEventListener(type, callback);
-  }, []);
+    client.removeEventListener(type, callback);
+  }, [client]);
 
   // Setup event listeners
   useEffect(() => {
@@ -114,9 +128,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     };
 
     // Add event listeners
-    webSocketClient.addEventListener('status', handleStatusChange);
-    webSocketClient.addEventListener('message', handleMessage);
-    webSocketClient.addEventListener('translation', handleTranslation);
+    client.addEventListener('status', handleStatusChange);
+    client.addEventListener('message', handleMessage);
+    client.addEventListener('translation', handleTranslation);
 
     // Auto-connect if option is enabled
     if (autoConnect) {
@@ -125,11 +139,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     // Remove event listeners on cleanup
     return () => {
-      webSocketClient.removeEventListener('status', handleStatusChange);
-      webSocketClient.removeEventListener('message', handleMessage);
-      webSocketClient.removeEventListener('translation', handleTranslation);
+      client.removeEventListener('status', handleStatusChange);
+      client.removeEventListener('message', handleMessage);
+      client.removeEventListener('translation', handleTranslation);
     };
-  }, [autoConnect, connect]);
+  }, [autoConnect, connect, client]);
 
   return {
     status,

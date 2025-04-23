@@ -5,18 +5,21 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Textarea } from '../components/ui/textarea';
-import { webSocketClient } from '../lib/websocket';
+import { WebSocketService, IWebSocketClient } from '../lib/websocket';
+
+// Create a client instance to use throughout this page
+const wsClient = WebSocketService.createClient();
 
 // Make the websocket client globally available
 declare global {
   interface Window {
-    wsClient: typeof webSocketClient;
+    wsClient: IWebSocketClient;
   }
 }
 
-// Attach websocket client to window for direct access
+// Attach websocket client to window for direct access (for debugging)
 if (typeof window !== 'undefined') {
-  window.wsClient = webSocketClient;
+  window.wsClient = wsClient;
 }
 
 /**
@@ -30,7 +33,7 @@ if (typeof window !== 'undefined') {
  * - Session information display
  */
 export default function TestPage() {
-  // Use the WebSocket hook
+  // Use the WebSocket hook with our client instance for proper DI
   const {
     status,
     sessionId,
@@ -46,7 +49,8 @@ export default function TestPage() {
   } = useWebSocket({
     autoConnect: false,
     initialRole: 'teacher',
-    initialLanguage: 'en-US'
+    initialLanguage: 'en-US',
+    client: wsClient  // Pass our client instance for dependency injection
   });
   
   // State for log messages
