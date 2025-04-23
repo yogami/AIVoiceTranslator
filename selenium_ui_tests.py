@@ -18,7 +18,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 # Test configuration
-APP_URL = "http://localhost:5000"
+APP_URL = "https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev"
 TEACHER_URL = f"{APP_URL}/teacher"
 STUDENT_URL = f"{APP_URL}/student"
 TEST_TIMEOUT = 30  # seconds
@@ -46,14 +46,15 @@ class BenedictaitorUITests(unittest.TestCase):
         chrome_options.add_argument("--ignore-certificate-errors")
         
         print("Setting up ChromeDriver...")
-        # Try to use the system ChromeDriver that was installed via Nix
+        # Use the Node.js ChromeDriver that was installed via npm
         try:
+            chrome_driver_path = "/home/runner/workspace/node_modules/.bin/chromedriver"
             cls.driver = webdriver.Chrome(
-                service=Service("/nix/store/z4py8dp1l62k2wm0qb49hl23l399wbz2-chromedriver-114.0.5735.90/bin/chromedriver"),
+                service=Service(chrome_driver_path),
                 options=chrome_options
             )
         except Exception as e:
-            print(f"Error using system ChromeDriver: {e}")
+            print(f"Error using Node.js ChromeDriver: {e}")
             print("Falling back to webdriver_manager...")
             try:
                 cls.driver = webdriver.Chrome(
