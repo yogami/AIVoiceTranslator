@@ -5,6 +5,19 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Textarea } from '../components/ui/textarea';
+import { webSocketClient } from '../lib/websocket';
+
+// Make the websocket client globally available
+declare global {
+  interface Window {
+    wsClient: typeof webSocketClient;
+  }
+}
+
+// Attach websocket client to window for direct access
+if (typeof window !== 'undefined') {
+  window.wsClient = webSocketClient;
+}
 
 /**
  * Test Page for WebSocket Functionality
@@ -58,11 +71,19 @@ export default function TestPage() {
   // Send test message
   const sendTestMessage = () => {
     if (transcriptionText.trim()) {
-      const success = sendTranscription(transcriptionText);
-      if (success) {
-        addLog('sent', `Sent transcription: "${transcriptionText}"`);
-      } else {
-        addLog('error', 'Failed to send transcription - connection may be closed');
+      try {
+        // Direct access to make sure the message is sent
+        if (window.wsClient) {
+          window.wsClient.sendTranscription(transcriptionText);
+          addLog('sent', `Sent transcription via direct access: "${transcriptionText}"`);
+        } else {
+          // Fallback to hook method
+          sendTranscription(transcriptionText);
+          addLog('sent', `Sent transcription via hook: "${transcriptionText}"`);
+        }
+      } catch (error) {
+        addLog('error', `Failed to send transcription: ${error}`);
+        console.error('Error sending transcription:', error);
       }
     } else {
       addLog('warning', 'Cannot send empty transcription');

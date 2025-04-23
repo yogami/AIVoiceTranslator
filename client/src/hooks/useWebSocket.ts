@@ -74,10 +74,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   // Send transcription
   const sendTranscription = useCallback((text: string) => {
     if (webSocketClient.getStatus() !== 'connected') {
+      console.warn('[useWebSocket] Cannot send transcription - not connected');
       return false;
     }
-    webSocketClient.sendTranscription(text);
-    return true;
+    // The client function now returns a boolean indicating success
+    return webSocketClient.sendTranscription(text);
   }, []);
 
   // Add event listener

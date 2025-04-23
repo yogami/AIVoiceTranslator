@@ -212,24 +212,32 @@ class WebSocketClient {
 
   /**
    * Send transcription message
+   * @returns boolean indicating success
    */
-  public sendTranscription(text: string): void {
+  public sendTranscription(text: string): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn('[WebSocketClient] Cannot send transcription - not connected');
-      return;
+      return false;
     }
 
     if (this.role !== 'teacher') {
       console.warn('[WebSocketClient] Only teachers can send transcriptions');
-      return;
+      return false;
     }
 
-    const message: WebSocketMessage = {
-      type: 'transcription',
-      text
-    };
+    try {
+      const message: WebSocketMessage = {
+        type: 'transcription',
+        text
+      };
 
-    this.send(message);
+      console.log(`[WebSocketClient] Sending transcription: "${text}"`);
+      this.send(message);
+      return true;
+    } catch (error) {
+      console.error('[WebSocketClient] Error sending transcription:', error);
+      return false;
+    }
   }
 
   /**
