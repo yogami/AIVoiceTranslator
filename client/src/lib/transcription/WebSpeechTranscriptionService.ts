@@ -124,16 +124,27 @@ export class WebSpeechTranscriptionService implements TranscriptionService {
     
     this.recognition.onend = () => {
       console.log('[WebSpeechTranscriptionService] Recognition ended');
-      if (this.state === 'recording') {
+      
+      // Store current state before changing it
+      const wasRecording = this.state === 'recording';
+      
+      if (wasRecording) {
         this.state = 'inactive';
       }
       this.emit('stop');
       
-      // Auto restart if it ended unexpectedly while we still think we're recording
-      if (this.state === 'recording') {
-        console.log('[WebSpeechTranscriptionService] Recognition ended unexpectedly, restarting...');
+      // Check if we should auto-restart the recognition (based on previous state)
+      if (wasRecording) {
+        console.log('[WebSpeechTranscriptionService] Recognition ended while still active, restarting...');
         try {
-          this.recognition!.start();
+          setTimeout(() => {
+            // Use setTimeout to give the browser a moment to release resources
+            if (this.recognition) {
+              this.state = 'recording'; // Set state back to recording before starting
+              this.recognition.start();
+              console.log('[WebSpeechTranscriptionService] Successfully restarted recognition');
+            }
+          }, 500);
         } catch (error) {
           console.error('[WebSpeechTranscriptionService] Failed to restart recognition:', error);
         }

@@ -61,6 +61,9 @@ export const TeacherInterface: React.FC = () => {
     forceTeacherRole: true
   });
   
+  // Added state for error notification
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
   // Initialize transcription service
   const transcriptionSvc = useTranscriptionService(
     'web_speech',
@@ -71,13 +74,37 @@ export const TeacherInterface: React.FC = () => {
       role: 'teacher',
     },
     {
+      onTranscriptionStart: () => {
+        console.log('Speech recognition started!');
+        setErrorMessage(null); // Clear any previous error
+      },
+      onTranscriptionEnd: () => {
+        console.log('Speech recognition ended!');
+      },
       onTranscriptionResult: (result) => {
+        console.log('Speech recognition result:', result);
+        setErrorMessage(null); // Clear any previous error
         if (result.text.trim().length > 0) {
           setDisplayedSpeech(result.text);
           
           if (result.isFinal && wsClient) {
+            console.log('Sending final transcription to server:', result.text);
             wsClient.sendTranscription(result.text);
           }
+        }
+      },
+      onTranscriptionError: (error) => {
+        console.error('Speech recognition error:', error);
+        if (error.message.includes('not-allowed')) {
+          setErrorMessage('Microphone access denied. Please allow microphone access in your browser settings and reload the page.');
+        } else if (error.message.includes('no-speech')) {
+          setErrorMessage('No speech detected. Please try speaking louder or check your microphone.');
+        } else if (error.message.includes('network')) {
+          setErrorMessage('Network error. Please check your internet connection.');
+        } else if (error.message.includes('not supported')) {
+          setErrorMessage('Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+        } else {
+          setErrorMessage(`Speech recognition error: ${error.message}. Please try again.`);
         }
       }
     }
@@ -184,6 +211,24 @@ export const TeacherInterface: React.FC = () => {
                     </div>
                   )}
                 </div>
+                
+                {/* Error notification */}
+                {errorMessage && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      <div>
+                        <div className="font-semibold mb-1">Speech Recognition Error</div>
+                        <div className="text-sm">{errorMessage}</div>
+                        <div className="mt-2 text-xs">
+                          <strong>Tip:</strong> Use the Direct Text Input below as a fallback.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Current Speech Display */}
                 <div className="mt-4">
