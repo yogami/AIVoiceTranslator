@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Speech Recognition Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .status {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .status.active {
+            color: green;
+        }
+        .status.inactive {
+            color: #666;
+        }
+        .transcript {
+            min-height: 100px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        .final {
+            color: black;
+        }
+        .interim {
+            color: gray;
+            font-style: italic;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        button.stop {
+            background-color: #f44336;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ffcdd2;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .direct-input {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f5e9;
+            border-radius: 8px;
+            border: 1px solid #c8e6c9;
+        }
+        .direct-input input {
+            width: calc(100% - 110px);
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #send-text {
+            background-color: #2196F3;
+        }
+        .debug {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+        .language-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .language-btn {
+            padding: 5px 10px;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .language-btn:hover {
+            background-color: #e0e0e0;
+        }
+        .mic-icon {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+            margin-right: 5px;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .warning {
+            background-color: #fff8e1;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ffe082;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple Speech Recognition Test</h1>
+    
+    <div class="warning">
+        <strong>Browser Support:</strong> Speech Recognition works best in Chrome and Edge. Firefox and Safari might have limited support.
+    </div>
+
+    <div class="container">
+        <div class="card">
+            <h2>Speech Recognition</h2>
+            <div id="status" class="status inactive">Status: Not Recording</div>
+            <div id="error-container"></div>
+            <h3>Current Speech:</h3>
+            <div id="transcript" class="transcript">
+                <span class="final" id="final-transcript"></span>
+                <span class="interim" id="interim-transcript"></span>
+            </div>
+            
+            <div class="controls">
+                <button id="start-btn">Start Recording</button>
+                <button id="stop-btn" class="stop" disabled>Stop Recording</button>
+                <button id="clear-btn">Clear Transcript</button>
+                <select id="language-select">
+                    <option value="en-US">English (US)</option>
+                    <option value="en-GB">English (UK)</option>
+                    <option value="es-ES">Spanish</option>
+                    <option value="fr-FR">French</option>
+                    <option value="de-DE">German</option>
+                    <option value="zh-CN">Chinese</option>
+                    <option value="ja-JP">Japanese</option>
+                    <option value="ko-KR">Korean</option>
+                    <option value="ru-RU">Russian</option>
+                    <option value="it-IT">Italian</option>
+                </select>
+            </div>
+            
+            <div class="language-list">
+                <div class="language-btn" data-lang="en-US">English (US)</div>
+                <div class="language-btn" data-lang="en-GB">English (UK)</div>
+                <div class="language-btn" data-lang="es-ES">Spanish</div>
+                <div class="language-btn" data-lang="fr-FR">French</div>
+                <div class="language-btn" data-lang="de-DE">German</div>
+            </div>
+            
+            <div class="direct-input">
+                <h3>Direct Text Input:</h3>
+                <p>Use this to bypass speech recognition:</p>
+                <input type="text" id="direct-input" placeholder="Type and press Enter or click Send">
+                <button id="send-text">Send Text</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>WebSocket Connection</h2>
+            <div id="ws-status">Not connected</div>
+            <div id="session-id">Session ID: None</div>
+            <div class="controls">
+                <button id="connect-btn">Connect</button>
+                <button id="disconnect-btn" disabled>Disconnect</button>
+            </div>
+            <div id="messages"></div>
+        </div>
+    </div>
+    
+    <div class="debug">
+        <h3>Debug Information:</h3>
+        <div id="debug-log"></div>
+    </div>
+    
+    <script>
+        // Debug logging
+        function log(message) {
+            const debugLog = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            debugLog.innerHTML += `<div>${timestamp}: ${message}</div>`;
+            console.log(message);
+        }
+        
+        // Speech Recognition setup
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = '<div class="error">Speech Recognition is not supported in this browser. Please try Chrome or Edge.</div>';
+            document.getElementById('start-btn').disabled = true;
+        }
+        
+        let recognition;
+        let finalTranscript = '';
+        let isRecording = false;
+        
+        function initRecognition() {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+            recognition.lang = document.getElementById('language-select').value;
+            
+            recognition.onstart = function() {
+                log('Speech recognition started');
+                isRecording = true;
+                updateStatus(true);
+            };
+            
+            recognition.onend = function() {
+                log('Speech recognition ended');
+                
+                // If we didn't explicitly stop, try to restart
+                if (isRecording) {
+                    log('Restarting recognition...');
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (e) {
+                            log('Error restarting recognition: ' + e.message);
+                            isRecording = false;
+                            updateStatus(false);
+                        }
+                    }, 500);
+                } else {
+                    updateStatus(false);
+                }
+            };
+            
+            recognition.onresult = function(event) {
+                log('Got speech recognition result');
+                
+                // Create interim transcript
+                let interimTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                        
+                        // Send to WebSocket if connected
+                        if (isConnected) {
+                            sendTranscription(event.results[i][0].transcript);
+                        }
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                
+                // Update display
+                document.getElementById('final-transcript').innerText = finalTranscript;
+                document.getElementById('interim-transcript').innerText = interimTranscript;
+            };
+            
+            recognition.onerror = function(event) {
+                const errorContainer = document.getElementById('error-container');
+                log('Speech recognition error: ' + event.error);
+                
+                let errorMessage = '';
+                
+                switch(event.error) {
+                    case 'no-speech':
+                        errorMessage = 'No speech was detected. Try speaking louder or checking your microphone.';
+                        break;
+                    case 'aborted':
+                        errorMessage = 'Speech recognition was aborted.';
+                        break;
+                    case 'audio-capture':
+                        errorMessage = 'No microphone was found or microphone is not working.';
+                        break;
+                    case 'network':
+                        errorMessage = 'Network error occurred during speech recognition.';
+                        break;
+                    case 'not-allowed':
+                        errorMessage = 'Microphone permission was denied. Please allow microphone access in your browser settings.';
+                        break;
+                    case 'service-not-allowed':
+                        errorMessage = 'Speech recognition service is not allowed. Try on a different device or browser.';
+                        break;
+                    default:
+                        errorMessage = `Error during speech recognition: ${event.error}`;
+                }
+                
+                errorContainer.innerHTML = `<div class="error">${errorMessage}</div>`;
+                
+                // Do not stop on no-speech errors
+                if (event.error !== 'no-speech') {
+                    isRecording = false;
+                    updateStatus(false);
+                }
+            };
+        }
+        
+        function updateStatus(recording) {
+            const statusElement = document.getElementById('status');
+            const startButton = document.getElementById('start-btn');
+            const stopButton = document.getElementById('stop-btn');
+            
+            if (recording) {
+                statusElement.className = 'status active';
+                statusElement.innerHTML = '<span class="mic-icon"></span> Status: Recording...';
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } else {
+                statusElement.className = 'status inactive';
+                statusElement.innerText = 'Status: Not Recording';
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        }
+        
+        function startRecording() {
+            // Clear any previous errors
+            document.getElementById('error-container').innerHTML = '';
+            
+            // Initialize a new recognition instance
+            initRecognition();
+            
+            try {
+                log('Starting recognition...');
+                recognition.start();
+                isRecording = true;
+            } catch (e) {
+                log('Error starting recognition: ' + e.message);
+                document.getElementById('error-container').innerHTML = `<div class="error">Failed to start speech recognition: ${e.message}</div>`;
+            }
+        }
+        
+        function stopRecording() {
+            if (recognition) {
+                isRecording = false;
+                recognition.stop();
+                log('Stopped recognition');
+            }
+        }
+        
+        // WebSocket setup
+        let socket;
+        let isConnected = false;
+        let sessionId = null;
+        const webSocketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const webSocketUrl = `${webSocketProtocol}//${window.location.host}/ws`;
+        
+        function connectWebSocket() {
+            try {
+                socket = new WebSocket(webSocketUrl);
+                
+                socket.onopen = function() {
+                    log('WebSocket connection established');
+                    isConnected = true;
+                    updateSocketUI(true);
+                    
+                    // Register as teacher with selected language
+                    const language = document.getElementById('language-select').value;
+                    registerRole('teacher', language);
+                };
+                
+                socket.onclose = function() {
+                    log('WebSocket connection closed');
+                    isConnected = false;
+                    updateSocketUI(false);
+                };
+                
+                socket.onerror = function(error) {
+                    log('WebSocket error: ' + JSON.stringify(error));
+                    isConnected = false;
+                    updateSocketUI(false);
+                };
+                
+                socket.onmessage = function(event) {
+                    const message = JSON.parse(event.data);
+                    log('Received message: ' + JSON.stringify(message));
+                    
+                    if (message.type === 'connection' && message.sessionId) {
+                        sessionId = message.sessionId;
+                        document.getElementById('session-id').innerText = `Session ID: ${sessionId}`;
+                    }
+                    
+                    // Add message to messages list
+                    const messagesDiv = document.getElementById('messages');
+                    const messageElement = document.createElement('div');
+                    messageElement.innerText = `${message.type}: ${JSON.stringify(message)}`;
+                    messagesDiv.prepend(messageElement);
+                    
+                    // Limit number of displayed messages
+                    if (messagesDiv.children.length > 10) {
+                        messagesDiv.removeChild(messagesDiv.lastChild);
+                    }
+                };
+            } catch (e) {
+                log('Error creating WebSocket: ' + e.message);
+            }
+        }
+        
+        function updateSocketUI(connected) {
+            const connectBtn = document.getElementById('connect-btn');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+            const statusDiv = document.getElementById('ws-status');
+            
+            if (connected) {
+                statusDiv.innerText = 'Connected';
+                statusDiv.style.color = 'green';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            } else {
+                statusDiv.innerText = 'Disconnected';
+                statusDiv.style.color = 'red';
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                document.getElementById('session-id').innerText = 'Session ID: None';
+            }
+        }
+        
+        function disconnectWebSocket() {
+            if (socket) {
+                socket.close();
+            }
+        }
+        
+        function registerRole(role, languageCode) {
+            if (!isConnected) {
+                log('Cannot register role, not connected');
+                return;
+            }
+            
+            const message = {
+                type: 'register',
+                role: role,
+                languageCode: languageCode
+            };
+            
+            socket.send(JSON.stringify(message));
+            log(`Registered as ${role} with language ${languageCode}`);
+        }
+        
+        function sendTranscription(text) {
+            if (!isConnected) {
+                log('Cannot send transcription, not connected');
+                return;
+            }
+            
+            const message = {
+                type: 'transcription',
+                text: text
+            };
+            
+            socket.send(JSON.stringify(message));
+            log(`Sent transcription: "${text}"`);
+        }
+        
+        // UI Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Speech buttons
+            document.getElementById('start-btn').addEventListener('click', startRecording);
+            document.getElementById('stop-btn').addEventListener('click', stopRecording);
+            document.getElementById('clear-btn').addEventListener('click', function() {
+                finalTranscript = '';
+                document.getElementById('final-transcript').innerText = '';
+                document.getElementById('interim-transcript').innerText = '';
+                log('Cleared transcript');
+            });
+            
+            // Language select
+            document.getElementById('language-select').addEventListener('change', function() {
+                const language = this.value;
+                log(`Changed language to ${language}`);
+                
+                if (isRecording) {
+                    stopRecording();
+                    setTimeout(startRecording, 300);
+                }
+                
+                if (isConnected) {
+                    registerRole('teacher', language);
+                }
+            });
+            
+            // Quick language buttons
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const language = this.getAttribute('data-lang');
+                    document.getElementById('language-select').value = language;
+                    
+                    // Trigger change event
+                    const event = new Event('change');
+                    document.getElementById('language-select').dispatchEvent(event);
+                });
+            });
+            
+            // WebSocket buttons
+            document.getElementById('connect-btn').addEventListener('click', connectWebSocket);
+            document.getElementById('disconnect-btn').addEventListener('click', disconnectWebSocket);
+            
+            // Direct text input
+            const directInput = document.getElementById('direct-input');
+            
+            directInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && this.value.trim()) {
+                    sendDirectText(this.value);
+                    this.value = '';
+                }
+            });
+            
+            document.getElementById('send-text').addEventListener('click', function() {
+                const input = document.getElementById('direct-input');
+                if (input.value.trim()) {
+                    sendDirectText(input.value);
+                    input.value = '';
+                }
+            });
+            
+            function sendDirectText(text) {
+                // Display the text in the transcript
+                finalTranscript += text + ' ';
+                document.getElementById('final-transcript').innerText = finalTranscript;
+                
+                // Send to WebSocket if connected
+                if (isConnected) {
+                    sendTranscription(text);
+                } else {
+                    log('Cannot send direct text, WebSocket not connected');
+                }
+            }
+            
+            // Connect WebSocket automatically
+            connectWebSocket();
+        });
+    </script>
+</body>
+</html>
