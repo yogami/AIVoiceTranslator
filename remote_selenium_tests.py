@@ -24,16 +24,15 @@ TEST_TIMEOUT = 30  # seconds
 SCREENSHOTS_DIR = "screenshots"
 
 # Remote Selenium Grid URL
-# Using Browserstack as it's a reliable service available to Replit
-# Note: In a production environment, you would use your own credentials
-# These are public demo credentials for testing purposes only
+# You can deploy your own Selenium Grid on any of these free services:
+# 1. Railway (https://railway.app) - Free tier available
+# 2. Fly.io (https://fly.io) - Free tier for small apps
+# 3. Hetzner Cloud (https://www.hetzner.com/cloud) - Low-cost VPS from €4.15/month
+# 4. Oracle Cloud Free Tier (https://www.oracle.com/cloud/free/) - Always free tier available
 
-# Since we can't use a free public Selenium Grid from Replit due to network restrictions,
-# we'll need to use a cloud-based service that has more reliable access.
-# For this example, I'm using BrowserStack's demo account which has limited usage.
-BROWSERSTACK_USERNAME = "demo_username"
-BROWSERSTACK_ACCESS_KEY = "demo_access_key"
-SELENIUM_GRID_URL = f"https://{BROWSERSTACK_USERNAME}:{BROWSERSTACK_ACCESS_KEY}@hub-cloud.browserstack.com/wd/hub"
+# Example configuration for a self-hosted Selenium Grid
+# Replace with your actual deployed Selenium Grid URL
+SELENIUM_GRID_URL = os.environ.get("SELENIUM_GRID_URL", "http://your-selenium-grid-host:4444/wd/hub")
 
 class BenedictaitorRemoteTests(unittest.TestCase):
     """UI Tests for Benedictaitor application using a remote Selenium Grid."""
@@ -45,22 +44,22 @@ class BenedictaitorRemoteTests(unittest.TestCase):
         if not os.path.exists(SCREENSHOTS_DIR):
             os.makedirs(SCREENSHOTS_DIR)
             
-        # Set up capabilities for BrowserStack
+        # Set up Chrome options for Selenium Grid
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_argument("--headless=new")  # Use the newer headless mode
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1280,1024")
+        
+        # Standard capabilities for Selenium Grid 4
         capabilities = {
-            'browserName': 'Chrome',
-            'browserVersion': 'latest',
-            'os': 'Windows',
-            'osVersion': '10',
-            'resolution': '1280x1024',
-            'projectName': 'Benedictaitor',
-            'sessionName': 'UI Tests',
-            'local': 'false',
-            'networkLogs': 'true',
-            'consoleLogs': 'info'
+            "browserName": "chrome",
+            "platformName": "linux"
         }
         
         # Connect to the remote Selenium Grid
-        print(f"Connecting to BrowserStack at {SELENIUM_GRID_URL}")
+        print(f"Connecting to Selenium Grid at {SELENIUM_GRID_URL}")
         try:
             cls.driver = webdriver.Remote(
                 command_executor=SELENIUM_GRID_URL,
