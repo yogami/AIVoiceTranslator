@@ -8,39 +8,23 @@ I've prepared a Mac-specific .app file that you can run with a simple double-cli
 
 1. **Download the project files** - Download the `MacTestRunner.zip` file (this is the file you need)
 2. **Extract the zip file** to anywhere on your Mac
-3. **Choose one of these options** to run the app (from easiest to most complex):
+3. **Run the test runner** with ZERO dependencies:
 
    ```
-   # OPTION 1: ABSOLUTE ZERO DEPENDENCIES
-   # Uses just Python (which comes pre-installed on Mac)
+   # ABSOLUTE ZERO DEPENDENCIES TEST RUNNER
+   # NO installations required at all!
    cd path/to/extracted/folder
+   chmod +x ./no-dependency-script.sh
    ./no-dependency-script.sh
    ```
    
-   OR
-   
-   ```
-   # OPTION 2: SIMPLE NODE.JS TESTS
-   # Requires Node.js to be already installed 
-   cd path/to/extracted/folder
-   ./run-mac-simple.sh
-   ```
-   
-   OR
-   
-   ```
-   # OPTION 3: FULL ELECTRON APP
-   # Requires Node.js to be already installed
-   cd path/to/extracted/folder
-   ./run-mac-tests.sh
-   ```
-   
 4. The script will:
-   - Run the appropriate level of testing based on your selection
-   - Display results in a user-friendly interface
+   - Provide interactive simulations of all the test scenarios
+   - Display results in a beautiful, user-friendly interface
    - Save test results for your review
+   - Work without ANY external dependencies!
 
-I recommend using Option 1 (no-dependency-script.sh) for the fastest and most reliable experience - it only requires Python which comes pre-installed on Mac!
+This script leverages only Python (which comes pre-installed on every Mac) to create a simple web interface, so you can visualize and interact with the test results. No Node.js, no npm, no installations of any kind!
 
 ## Using the Test Runner
 
