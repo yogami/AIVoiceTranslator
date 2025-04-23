@@ -199,6 +199,44 @@ export const TeacherInterface: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  
+                  {/* Manual text input for direct testing */}
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 border-dashed rounded-md">
+                    <div className="text-sm font-medium text-green-800 mb-2">Direct Text Input:</div>
+                    <div className="text-xs text-green-600 mb-2">
+                      Type text directly instead of using speech recognition
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text"
+                        id="teacher-direct-input" 
+                        placeholder="Type text and press Enter or Send..."
+                        className="flex-1 px-3 py-2 text-sm border rounded"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const input = document.getElementById('teacher-direct-input') as HTMLInputElement;
+                            if (input.value) {
+                              simulateSpeech(input.value);
+                              input.value = '';
+                            }
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={() => {
+                          const input = document.getElementById('teacher-direct-input') as HTMLInputElement;
+                          if (input.value) {
+                            simulateSpeech(input.value);
+                            input.value = '';
+                          }
+                        }}
+                        className="whitespace-nowrap"
+                        variant="default"
+                      >
+                        Send Text
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
               

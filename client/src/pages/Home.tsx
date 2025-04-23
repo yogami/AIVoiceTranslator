@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { wsClient } from '@/lib/websocket';
 import { Info, ExternalLink, Headphones, Mic, QrCode, HelpCircle } from 'lucide-react';
 
 export const Home: React.FC = () => {
@@ -50,24 +51,55 @@ export const Home: React.FC = () => {
         <div className="mb-6 p-4 border rounded-md bg-gray-50">
           <h3 className="text-sm font-semibold mb-2 text-gray-500">Developer Testing Tools</h3>
           <div className="flex flex-wrap gap-2">
-            <Link href="/simplespeech">
-              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">Simple Speech Test (New!)</Button>
+            <Link href="/">
+              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">Home</Button>
             </Link>
-            <Link href="/speechtest">
-              <Button variant="outline" size="sm">Speech Test</Button>
+            <Link href="/teacher">
+              <Button variant="outline" size="sm">Teacher Interface</Button>
+            </Link>
+            <Link href="/student">
+              <Button variant="outline" size="sm">Student Interface</Button>
             </Link>
             <Link href="/test">
               <Button variant="outline" size="sm">WebSocket Test</Button>
             </Link>
-            <Link href="/simple-test.html">
-              <Button variant="outline" size="sm">Simple Teacher Test</Button>
-            </Link>
-            <Link href="/simple-test-student.html">
-              <Button variant="outline" size="sm">Simple Student Test</Button>
-            </Link>
-            <Link href="/websocket-diagnostics.html">
-              <Button variant="outline" size="sm">WebSocket Diagnostics</Button>
-            </Link>
+          </div>
+          
+          {/* Manual text input for testing (direct method) */}
+          <div className="mt-4 p-4 border border-dashed border-green-500 bg-green-50 rounded-md">
+            <h3 className="text-sm font-semibold mb-2 text-green-700">Direct Text Input Test</h3>
+            <p className="text-xs text-green-600 mb-3">Use this to test the translation flow without relying on speech recognition</p>
+            <div className="flex gap-2">
+              <input 
+                type="text" 
+                id="direct-test-input"
+                placeholder="Type any text here and press Enter or Send..."
+                className="flex-1 px-2 py-1 text-sm border rounded"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const input = document.getElementById('direct-test-input') as HTMLInputElement;
+                    if (input.value && wsClient) {
+                      wsClient.sendTranscription(input.value);
+                      alert(`Sent text to server: ${input.value}`);
+                      input.value = '';
+                    }
+                  }
+                }}
+              />
+              <Button
+                onClick={() => {
+                  const input = document.getElementById('direct-test-input') as HTMLInputElement;
+                  if (input.value && wsClient) {
+                    wsClient.sendTranscription(input.value);
+                    alert(`Sent text to server: ${input.value}`);
+                    input.value = '';
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Send Text
+              </Button>
+            </div>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row gap-6 mb-6">
