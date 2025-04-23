@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Benedictaitor Test Runner</title>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-light: #eef2ff;
+      --primary-dark: #3730a3;
+      --secondary: #172554;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--gray-100);
+      color: var(--gray-800);
+      line-height: 1.6;
+      font-size: 16px;
+      padding: 20px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    h1 {
+      font-size: 24px;
+      color: var(--secondary);
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      font-size: 16px;
+      color: var(--gray-600);
+    }
+    
+    .container {
+      display: flex;
+      flex-direction: row;
+      height: calc(100vh - 100px);
+      gap: 20px;
+    }
+    
+    .sidebar {
+      width: 300px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+    }
+    
+    .logs {
+      flex: 1;
+      background-color: var(--gray-800);
+      color: white;
+      border-radius: 8px;
+      padding: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      overflow-y: auto;
+    }
+    
+    .log-entry {
+      margin-bottom: 4px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    .results {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .test-result {
+      border-bottom: 1px solid var(--gray-200);
+      padding-bottom: 10px;
+      margin-bottom: 10px;
+    }
+    
+    .test-result:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    
+    .test-result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    
+    .result-success {
+      color: var(--success);
+    }
+    
+    .result-failure {
+      color: var(--danger);
+    }
+    
+    .button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 15px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+    }
+    
+    .button:hover {
+      background-color: var(--primary-hover);
+    }
+    
+    .button:disabled {
+      background-color: var(--gray-400);
+      cursor: not-allowed;
+    }
+    
+    .button-secondary {
+      background-color: var(--gray-200);
+      color: var(--gray-800);
+    }
+    
+    .button-secondary:hover {
+      background-color: var(--gray-300);
+    }
+    
+    .button-danger {
+      background-color: var(--danger);
+    }
+    
+    .button-danger:hover {
+      background-color: #dc2626;
+    }
+    
+    .button-success {
+      background-color: var(--success);
+    }
+    
+    .button-success:hover {
+      background-color: #16a34a;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    .test-list {
+      list-style: none;
+      margin-top: 15px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    
+    .test-item {
+      padding: 8px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .test-item:hover {
+      background-color: var(--gray-100);
+    }
+    
+    .test-item.selected {
+      background-color: var(--primary-light);
+      color: var(--primary-dark);
+      font-weight: 500;
+    }
+    
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--gray-300);
+    }
+    
+    .status-success {
+      background-color: var(--success);
+    }
+    
+    .status-failure {
+      background-color: var(--danger);
+    }
+    
+    .status-running {
+      background-color: var(--warning);
+      animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+      0% {
+        opacity: 0.6;
+      }
+      50% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0.6;
+      }
+    }
+    
+    .summary {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid var(--gray-200);
+    }
+    
+    .summary-item {
+      text-align: center;
+    }
+    
+    .summary-number {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    
+    .summary-label {
+      font-size: 14px;
+      color: var(--gray-600);
+    }
+    
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+      color: var(--gray-700);
+    }
+    
+    .progress-section {
+      margin-top: 15px;
+    }
+    
+    .section-info {
+      font-size: 14px;
+      color: var(--gray-600);
+      margin-bottom: 10px;
+      display: block;
+    }
+    
+    .loading {
+      display: inline-block;
+      position: relative;
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+    }
+    
+    .loading:after {
+      content: " ";
+      display: block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      border-color: #fff transparent #fff transparent;
+      animation: loading 1.2s linear infinite;
+    }
+    
+    @keyframes loading {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Benedictaitor Test Runner</h1>
+    <p class="subtitle">Run and manage Selenium tests for the Benedictaitor application</p>
+  </header>
+  
+  <div class="container">
+    <div class="sidebar">
+      <div class="section-title">Available Tests</div>
+      <ul id="test-list" class="test-list">
+        <!-- Test items will be populated here -->
+      </ul>
+      
+      <div class="button-group">
+        <button id="run-selected" class="button">Run Selected</button>
+        <button id="run-all" class="button button-secondary">Run All</button>
+      </div>
+      
+      <div class="progress-section">
+        <div class="section-title">Test Status</div>
+        <div class="summary">
+          <div class="summary-item">
+            <div id="passed-count" class="summary-number result-success">0</div>
+            <div class="summary-label">Passed</div>
+          </div>
+          <div class="summary-item">
+            <div id="failed-count" class="summary-number result-failure">0</div>
+            <div class="summary-label">Failed</div>
+          </div>
+          <div class="summary-item">
+            <div id="total-count" class="summary-number">0</div>
+            <div class="summary-label">Total</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="main-content">
+      <div class="card">
+        <div class="section-title">Selenium Setup</div>
+        <p class="section-info">Before running tests, install Selenium WebDriver and start the Selenium server.</p>
+        <div class="button-group">
+          <button id="install-selenium" class="button">1. Install Selenium</button>
+          <button id="start-selenium" class="button" disabled>2. Start Selenium Server</button>
+          <button id="save-results" class="button button-secondary" disabled>Save Results</button>
+        </div>
+      </div>
+      
+      <div class="card logs" id="logs">
+        <!-- Log entries will be added here -->
+        <div class="log-entry">Benedictaitor Test Runner initialized...</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // Require electron modules
+    const { ipcRenderer } = require('electron');
+    
+    // DOM elements
+    const testList = document.getElementById('test-list');
+    const logsContainer = document.getElementById('logs');
+    const installButton = document.getElementById('install-selenium');
+    const startButton = document.getElementById('start-selenium');
+    const runSelectedButton = document.getElementById('run-selected');
+    const runAllButton = document.getElementById('run-all');
+    const saveResultsButton = document.getElementById('save-results');
+    const passedCount = document.getElementById('passed-count');
+    const failedCount = document.getElementById('failed-count');
+    const totalCount = document.getElementById('total-count');
+    
+    // Test data
+    let tests = [
+      { id: 'websocket-tests', name: 'WebSocket Communication Tests', status: 'none' },
+      { id: 'e2e-selenium-test', name: 'End-to-End Selenium Tests', status: 'none' },
+      { id: 'speech-test', name: 'Speech Recognition Tests', status: 'none' },
+      { id: 'audio-utils-tests', name: 'Audio Utilities Tests', status: 'none' },
+      { id: 'ui-components-test', name: 'UI Components Tests', status: 'none' }
+    ];
+    
+    let selectedTest = null;
+    let testResults = [];
+    let seleniumInstalled = false;
+    let seleniumRunning = false;
+    
+    // Initialize UI
+    function initializeUI() {
+      renderTestList();
+      updateCounts();
+    }
+    
+    // Add a log entry
+    function addLog(message) {
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry';
+      logEntry.textContent = message;
+      logsContainer.appendChild(logEntry);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+    
+    // Render the test list
+    function renderTestList() {
+      testList.innerHTML = '';
+      
+      tests.forEach(test => {
+        const li = document.createElement('li');
+        li.className = `test-item ${selectedTest === test.id ? 'selected' : ''}`;
+        li.dataset.id = test.id;
+        
+        const indicator = document.createElement('span');
+        indicator.className = `status-indicator ${getStatusClass(test.status)}`;
+        
+        const name = document.createElement('span');
+        name.textContent = test.name;
+        
+        li.appendChild(indicator);
+        li.appendChild(name);
+        
+        li.addEventListener('click', () => {
+          selectTest(test.id);
+        });
+        
+        testList.appendChild(li);
+      });
+    }
+    
+    // Select a test
+    function selectTest(id) {
+      selectedTest = id;
+      renderTestList();
+    }
+    
+    // Get status class
+    function getStatusClass(status) {
+      switch (status) {
+        case 'success': return 'status-success';
+        case 'failure': return 'status-failure';
+        case 'running': return 'status-running';
+        default: return '';
+      }
+    }
+    
+    // Update counts
+    function updateCounts() {
+      const passed = tests.filter(t => t.status === 'success').length;
+      const failed = tests.filter(t => t.status === 'failure').length;
+      const total = tests.length;
+      
+      passedCount.textContent = passed;
+      failedCount.textContent = failed;
+      totalCount.textContent = total;
+    }
+    
+    // Update test status
+    function updateTestStatus(id, status) {
+      const test = tests.find(t => t.id === id);
+      if (test) {
+        test.status = status;
+        renderTestList();
+        updateCounts();
+      }
+    }
+    
+    // Install Selenium WebDriver
+    async function installSelenium() {
+      installButton.disabled = true;
+      installButton.innerHTML = '<span class="loading"></span>Installing...';
+      
+      try {
+        const result = await ipcRenderer.invoke('install-selenium');
+        
+        if (result.success) {
+          addLog('Selenium and WebDrivers installed successfully');
+          seleniumInstalled = true;
+          startButton.disabled = false;
+          installButton.textContent = 'Installed ✓';
+        } else {
+          addLog(`Installation failed: ${result.error}`);
+          installButton.disabled = false;
+          installButton.textContent = 'Retry Installation';
+        }
+      } catch (error) {
+        addLog(`Installation error: ${error.message}`);
+        installButton.disabled = false;
+        installButton.textContent = 'Retry Installation';
+      }
+    }
+    
+    // Start Selenium server
+    async function startSelenium() {
+      startButton.disabled = true;
+      startButton.innerHTML = '<span class="loading"></span>Starting...';
+      
+      try {
+        const result = await ipcRenderer.invoke('start-selenium');
+        
+        if (result.success) {
+          addLog('Selenium server started successfully');
+          seleniumRunning = true;
+          startButton.textContent = 'Running ✓';
+          runSelectedButton.disabled = false;
+          runAllButton.disabled = false;
+        } else {
+          addLog(`Failed to start Selenium: ${result.error}`);
+          startButton.disabled = false;
+          startButton.textContent = 'Start Selenium Server';
+        }
+      } catch (error) {
+        addLog(`Server start error: ${error.message}`);
+        startButton.disabled = false;
+        startButton.textContent = 'Start Selenium Server';
+      }
+    }
+    
+    // Run selected test
+    async function runSelectedTest() {
+      if (!selectedTest) {
+        addLog('Please select a test to run');
+        return;
+      }
+      
+      if (!seleniumRunning) {
+        addLog('Please start the Selenium server first');
+        return;
+      }
+      
+      runSelectedButton.disabled = true;
+      runAllButton.disabled = true;
+      updateTestStatus(selectedTest, 'running');
+      
+      try {
+        addLog(`Running test: ${selectedTest}`);
+        const result = await ipcRenderer.invoke('run-test', selectedTest);
+        
+        testResults.push({
+          id: selectedTest,
+          name: tests.find(t => t.id === selectedTest).name,
+          success: result.success,
+          output: result.output
+        });
+        
+        updateTestStatus(selectedTest, result.success ? 'success' : 'failure');
+        addLog(`Test ${selectedTest} ${result.success ? 'passed' : 'failed'}`);
+        
+        saveResultsButton.disabled = false;
+      } catch (error) {
+        updateTestStatus(selectedTest, 'failure');
+        addLog(`Test error: ${error.message}`);
+      }
+      
+      runSelectedButton.disabled = false;
+      runAllButton.disabled = false;
+    }
+    
+    // Run all tests
+    async function runAllTests() {
+      if (!seleniumRunning) {
+        addLog('Please start the Selenium server first');
+        return;
+      }
+      
+      runSelectedButton.disabled = true;
+      runAllButton.disabled = true;
+      
+      tests.forEach(test => {
+        updateTestStatus(test.id, 'none');
+      });
+      
+      testResults = [];
+      
+      try {
+        addLog('Running all tests...');
+        const result = await ipcRenderer.invoke('run-all-tests');
+        
+        addLog(`All tests completed: ${result.success ? 'PASSED' : 'FAILED'}`);
+        saveResultsButton.disabled = false;
+      } catch (error) {
+        addLog(`Error running tests: ${error.message}`);
+      }
+      
+      runSelectedButton.disabled = false;
+      runAllButton.disabled = false;
+    }
+    
+    // Save test results
+    async function saveResults() {
+      if (testResults.length === 0) {
+        addLog('No test results to save');
+        return;
+      }
+      
+      try {
+        const result = await ipcRenderer.invoke('save-results', testResults);
+        
+        if (result.success) {
+          addLog(`Results saved to: ${result.filePath}`);
+        } else {
+          addLog(`Failed to save results: ${result.error}`);
+        }
+      } catch (error) {
+        addLog(`Error saving results: ${error.message}`);
+      }
+    }
+    
+    // Event listeners
+    installButton.addEventListener('click', installSelenium);
+    startButton.addEventListener('click', startSelenium);
+    runSelectedButton.addEventListener('click', runSelectedTest);
+    runAllButton.addEventListener('click', runAllTests);
+    saveResultsButton.addEventListener('click', saveResults);
+    
+    // Register IPC listeners
+    ipcRenderer.on('log', (event, message) => {
+      addLog(message);
+    });
+    
+    ipcRenderer.on('test-result', (event, result) => {
+      const testId = result.name;
+      updateTestStatus(testId, result.success ? 'success' : 'failure');
+      testResults.push({
+        id: testId,
+        name: tests.find(t => t.id === testId)?.name || testId,
+        success: result.success,
+        output: result.output
+      });
+    });
+    
+    // Initialize
+    initializeUI();
+    addLog('Welcome to Benedictaitor Test Runner!');
+    addLog('Please install Selenium to begin.');
+  </script>
+</body>
+</html>
