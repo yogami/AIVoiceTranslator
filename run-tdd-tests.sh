@@ -5,19 +5,12 @@
 echo "Running Benedictaitor TDD Test Suite"
 echo "==================================="
 
-# Unit Tests
-echo "\n🧪 Running Unit Tests"
-echo "-------------------"
-npx jest __tests__/unit/* --verbose
-
-# Integration Tests
-echo "\n🔄 Running Integration Tests"
-echo "-------------------------"
-npx jest __tests__/integration/* --verbose
-
-# End-to-End Tests
-echo "\n🌐 Running End-to-End Tests"
-echo "-------------------------"
-npx jest __tests__/e2e/* --verbose
+# Run all tests with coverage report
+npx jest --coverage
 
 echo "\n✅ All tests completed"
+
+# Generate and display detailed coverage summary
+echo "\n📊 Code Coverage Summary"
+echo "----------------------"
+node generate-coverage-summary.js || echo "Failed to generate coverage summary"

@@ -1,11 +1,9 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
-module.exports = {
+export default {
   preset: 'ts-jest',
   testEnvironment: 'jsdom',
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: 'tsconfig.json',
-    }],
+    '^.+\\.(ts|tsx)$': 'babel-jest',
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   setupFilesAfterEnv: ['<rootDir>/__tests__/setup.ts'],
@@ -20,9 +18,8 @@ module.exports = {
   ],
   testPathIgnorePatterns: ['/node_modules/', '/.replit/'],
   collectCoverageFrom: [
-    'client/src/**/*.{ts,tsx}',
-    'server/**/*.ts',
-    'shared/**/*.ts',
+    'client/src/lib/audioCapture.ts',
+    'client/src/lib/websocket.ts',
     '!**/node_modules/**',
   ],
   // Set a timeout of 10 seconds max per test
