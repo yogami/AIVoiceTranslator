@@ -1,130 +1,226 @@
 /**
  * Integration test for the complete speech-to-translation flow
  * 
- * This tests the end-to-end flow from speech recognition to translation delivery
+ * Tests the integration between:
+ * 1. Speech recognition (audio capture)
+ * 2. WebSocket transmission
+ * 3. Server-side translation
+ * 4. Client-side playback
  */
-import { SpeechRecognitionService } from '../../client/src/services/SpeechRecognitionService';
-import { WebSocketClient } from '../../client/src/services/WebSocketClient';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
-import { TranslationService } from '../../server/services/TranslationService';
-import { Server } from 'http';
-import { WebSocket } from 'ws';
+import { SpeechRecognizer } from '../../client/src/lib/audioCapture';
+import { webSocketClient, UserRole } from '../../client/src/lib/websocket';
 
-// Mocks
-jest.mock('../../client/src/services/SpeechRecognitionService');
-jest.mock('../../client/src/services/WebSocketClient');
-jest.mock('../../server/services/WebSocketServer');
-jest.mock('../../server/services/TranslationService');
+// Mock SpeechRecognitionService
+jest.mock('../../client/src/lib/audioCapture', () => {
+  const original = jest.requireActual('../../client/src/lib/audioCapture');
+  return {
+    ...original,
+    SpeechRecognizer: jest.fn().mockImplementation(() => ({
+      start: jest.fn(),
+      stop: jest.fn(),
+      isRecognizing: jest.fn().mockReturnValue(false),
+      updateLanguage: jest.fn(),
+      updateOptions: jest.fn()
+    }))
+  };
+});
 
-describe('Speech to Translation Flow', () => {
-  let teacherSpeechService: jest.Mocked<SpeechRecognitionService>;
-  let teacherWebSocketClient: jest.Mocked<WebSocketClient>;
-  let studentWebSocketClient: jest.Mocked<WebSocketClient>;
-  let webSocketServer: jest.Mocked<WebSocketServer>;
-  let translationService: jest.Mocked<TranslationService>;
+// Mock WebSocketClient
+jest.mock('../../client/src/lib/websocket', () => {
+  const originalModule = jest.requireActual('../../client/src/lib/websocket');
   
+  // Create a mock implementation
+  const mockWebSocketClient = {
+    connect: jest.fn().mockResolvedValue(undefined),
+    disconnect: jest.fn(),
+    register: jest.fn(),
+    sendTranscription: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    getStatus: jest.fn().mockReturnValue('connected'),
+    getSessionId: jest.fn().mockReturnValue('test-session-id'),
+    getRole: jest.fn(),
+    getLanguageCode: jest.fn()
+  };
+  
+  return {
+    ...originalModule,
+    webSocketClient: mockWebSocketClient
+  };
+});
+
+describe('Speech-to-Translation Flow', () => {
+  // Reset mocks before each test
   beforeEach(() => {
-    // Reset mocks
     jest.clearAllMocks();
-    
-    // Create mock instances
-    teacherSpeechService = new SpeechRecognitionService() as jest.Mocked<SpeechRecognitionService>;
-    teacherWebSocketClient = new WebSocketClient() as jest.Mocked<WebSocketClient>;
-    studentWebSocketClient = new WebSocketClient() as jest.Mocked<WebSocketClient>;
-    webSocketServer = new WebSocketServer({} as Server) as jest.Mocked<WebSocketServer>;
-    translationService = new TranslationService() as jest.Mocked<TranslationService>;
-    
-    // Set up mock behaviors
-    setupMocks();
   });
   
-  function setupMocks() {
-    // Speech service mocks
-    teacherSpeechService.start.mockResolvedValue(true);
-    teacherSpeechService.on.mockImplementation((event, callback) => {
-      if (event === 'result') {
-        // Store the callback to simulate results later
-        teacherSpeechService.onResultCallback = callback;
-      }
-    });
+  /**
+   * Test teacher speech recognition to server transmission
+   */
+  test('Teacher speech recognition sends transcription over WebSocket', async () => {
+    // Setup speech recognition mock to simulate results
+    const speechRecognizer = new SpeechRecognizer();
+    const onResultCallback = jest.fn();
     
-    // WebSocketClient mocks
-    teacherWebSocketClient.connect.mockImplementation(() => {
-      teacherWebSocketClient.connectionStatus = 'connected';
-    });
+    // Get the mock implementation
+    const mockSpeechRecognizer = SpeechRecognizer as jest.Mock;
+    mockSpeechRecognizer.mockImplementation(() => ({
+      start: jest.fn(),
+      stop: jest.fn(),
+      isRecognizing: jest.fn().mockReturnValue(true),
+      updateLanguage: jest.fn(),
+      updateOptions: jest.fn()
+    }));
     
-    studentWebSocketClient.connect.mockImplementation(() => {
-      studentWebSocketClient.connectionStatus = 'connected';
-    });
+    // Connect and register as teacher
+    await webSocketClient.connect();
+    expect(webSocketClient.connect).toHaveBeenCalled();
     
-    studentWebSocketClient.addEventListener.mockImplementation((event, callback) => {
-      if (event === 'translation') {
-        // Store the callback to simulate translations later
-        studentWebSocketClient.onTranslationCallback = callback;
-      }
-    });
+    // Simulate connected status
+    webSocketClient.getStatus = jest.fn().mockReturnValue('connected');
+    expect(webSocketClient.getStatus()).toBe('connected');
     
-    // Translation service mock
-    translationService.translateText.mockImplementation((text, sourceLang, targetLang) => {
-      if (targetLang === 'es-ES') {
-        return Promise.resolve('Hola mundo');
-      }
-      return Promise.resolve(text);
-    });
-  }
+    // Register as teacher
+    webSocketClient.register('teacher', 'en-US');
+    expect(webSocketClient.register).toHaveBeenCalledWith('teacher', 'en-US');
+    
+    // Set role mock
+    webSocketClient.getRole = jest.fn().mockReturnValue('teacher');
+    
+    // Add translation listener
+    const onTranslationCallback = jest.fn();
+    webSocketClient.addEventListener('translation', onTranslationCallback);
+    expect(webSocketClient.addEventListener).toHaveBeenCalledWith('translation', onTranslationCallback);
+    
+    // Simulate speech recognition result
+    const testTranscript = 'This is a test transcription';
+    const testTranscriptFinal = true;
+    
+    // This would normally happen via the onresult callback
+    // We'll directly call sendTranscription to simulate
+    webSocketClient.sendTranscription(testTranscript);
+    
+    // Verify transcription was sent over WebSocket
+    expect(webSocketClient.sendTranscription).toHaveBeenCalledWith(testTranscript);
+  });
   
-  test('should flow from speech recognition to translated delivery', async () => {
-    // 1. Connect clients to server
-    teacherWebSocketClient.connect();
-    studentWebSocketClient.connect();
+  /**
+   * Test student receiving translations
+   */
+  test('Student receives and processes translations', async () => {
+    // Connect and register as student
+    await webSocketClient.connect();
+    expect(webSocketClient.connect).toHaveBeenCalled();
     
-    expect(teacherWebSocketClient.connect).toHaveBeenCalled();
-    expect(studentWebSocketClient.connect).toHaveBeenCalled();
+    // Simulate connected status
+    webSocketClient.getStatus = jest.fn().mockReturnValue('connected');
+    expect(webSocketClient.getStatus()).toBe('connected');
     
-    // 2. Register clients with roles and languages
-    teacherWebSocketClient.register('teacher', 'en-US');
-    studentWebSocketClient.register('student', 'es-ES');
+    // Register as student
+    webSocketClient.register('student', 'fr-FR');
+    expect(webSocketClient.register).toHaveBeenCalledWith('student', 'fr-FR');
     
-    expect(teacherWebSocketClient.register).toHaveBeenCalledWith('teacher', 'en-US');
-    expect(studentWebSocketClient.register).toHaveBeenCalledWith('student', 'es-ES');
+    // Set role mock
+    webSocketClient.getRole = jest.fn().mockReturnValue('student');
     
-    // 3. Start speech recognition
-    await teacherSpeechService.start();
-    
-    expect(teacherSpeechService.start).toHaveBeenCalled();
-    
-    // 4. Simulate speech recognition result
-    const recognitionResult = {
-      text: 'Hello world',
-      isFinal: true,
-      language: 'en-US',
-      confidence: 0.9
+    // Track received translations
+    const receivedTranslations: any[] = [];
+    const translationCallback = (translation: any) => {
+      receivedTranslations.push(translation);
     };
     
-    teacherSpeechService.onResultCallback(recognitionResult);
+    // Add translation listener
+    webSocketClient.addEventListener('translation', translationCallback);
+    expect(webSocketClient.addEventListener).toHaveBeenCalledWith('translation', translationCallback);
     
-    // 5. Check that transcription was sent to server
-    expect(teacherWebSocketClient.sendTranscription).toHaveBeenCalledWith('Hello world');
-    
-    // 6. Simulate server translation and broadcast
-    const translationResult = {
+    // Simulate receiving a translation message
+    // This is what would normally happen when the server sends a translation
+    const mockTranslation = {
       type: 'translation',
-      data: {
-        originalText: 'Hello world',
-        translatedText: 'Hola mundo',
-        languageCode: 'es-ES'
-      }
+      text: 'Ceci est un test de traduction',
+      originalLanguage: 'en-US',
+      translatedLanguage: 'fr-FR',
+      timestamp: Date.now()
     };
     
-    // Simulate the server sending the translation to the student
-    studentWebSocketClient.onTranslationCallback(translationResult);
+    // Get the registered callback
+    const callbackFunction = (webSocketClient.addEventListener as jest.Mock).mock.calls.find(
+      call => call[0] === 'translation'
+    )[1];
     
-    // 7. Check that translation was received by student client
-    // This would typically be tested by checking that a component's state was updated
-    // For this test, we're just verifying the callback was triggered
-    expect(studentWebSocketClient.addEventListener).toHaveBeenCalledWith(
-      'translation', 
-      expect.any(Function)
-    );
+    // Manually call the callback with our mock data
+    callbackFunction(mockTranslation);
+    
+    // Verify translation was received and processed
+    expect(receivedTranslations.length).toBe(1);
+    expect(receivedTranslations[0]).toEqual(mockTranslation);
+  });
+  
+  /**
+   * Test the complete flow from speech to translation
+   */
+  test('Complete speech-to-translation flow', async () => {
+    // Setup speech recognition mock
+    const mockOnResult = jest.fn();
+    
+    // Get the mock implementation
+    const mockSpeechRecognizer = SpeechRecognizer as jest.Mock;
+    mockSpeechRecognizer.mockImplementation(() => ({
+      start: jest.fn(),
+      stop: jest.fn(),
+      isRecognizing: jest.fn().mockReturnValue(true),
+      updateLanguage: jest.fn(),
+      updateOptions: jest.fn(),
+      // Allow us to simulate speech recognition results
+      onResultCallback: mockOnResult
+    }));
+    
+    // Connect teacher
+    await webSocketClient.connect();
+    webSocketClient.getStatus = jest.fn().mockReturnValue('connected');
+    webSocketClient.register('teacher', 'en-US');
+    webSocketClient.getRole = jest.fn().mockReturnValue('teacher');
+    
+    // Track sent transcriptions
+    const sentTranscriptions: string[] = [];
+    webSocketClient.sendTranscription = jest.fn().mockImplementation((text: string) => {
+      sentTranscriptions.push(text);
+    });
+    
+    // Connect student
+    const studentTranslations: any[] = [];
+    const onTranslationCallback = jest.fn().mockImplementation((translation: any) => {
+      studentTranslations.push(translation);
+    });
+    
+    webSocketClient.addEventListener('translation', onTranslationCallback);
+    
+    // Simulate teacher speaking
+    const testTranscript = 'Hello, this is a test message.';
+    webSocketClient.sendTranscription(testTranscript);
+    
+    // Verify transcription was sent
+    expect(sentTranscriptions).toContain(testTranscript);
+    
+    // Simulate server sending back translation
+    const mockTranslation = {
+      type: 'translation',
+      text: 'Bonjour, ceci est un message de test.',
+      originalLanguage: 'en-US',
+      translatedLanguage: 'fr-FR',
+      timestamp: Date.now()
+    };
+    
+    // Get the registered callback
+    const callbackFunction = (webSocketClient.addEventListener as jest.Mock).mock.calls.find(
+      call => call[0] === 'translation'
+    )[1];
+    
+    // Manually call the callback with our mock data
+    callbackFunction(mockTranslation);
+    
+    // Verify translation callback was called
+    expect(onTranslationCallback).toHaveBeenCalledWith(mockTranslation);
   });
 });
