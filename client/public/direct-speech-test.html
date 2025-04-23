@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direct Speech Recognition Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .status {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 10px;
+    }
+    
+    .status-indicator.active {
+      background-color: #4caf50;
+      animation: pulse 2s infinite;
+    }
+    
+    .status-indicator.inactive {
+      background-color: #f44336;
+    }
+    
+    .transcript-box {
+      background-color: #f9f9f9;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 15px;
+      min-height: 100px;
+      margin-bottom: 15px;
+    }
+    
+    .interim {
+      color: #666;
+      font-style: italic;
+    }
+    
+    .final {
+      font-weight: 500;
+    }
+    
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    button.primary {
+      background-color: #4361ee;
+      color: white;
+    }
+    
+    button.primary:hover {
+      background-color: #3a56d4;
+    }
+    
+    button.secondary {
+      background-color: #e9ecef;
+      color: #212529;
+    }
+    
+    button.secondary:hover {
+      background-color: #dde2e6;
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    #error-box {
+      color: #f44336;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: #ffebee;
+      margin-bottom: 15px;
+      display: none;
+    }
+    
+    .support-status {
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    
+    .support-status.supported {
+      color: #4caf50;
+    }
+    
+    .support-status.not-supported {
+      color: #f44336;
+    }
+    
+    .log {
+      font-family: monospace;
+      font-size: 12px;
+      color: #555;
+      margin-top: 5px;
+    }
+    
+    @keyframes pulse {
+      0% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.4;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Direct Speech Recognition Test</h1>
+  
+  <div class="card">
+    <h2>Speech Recognition Status</h2>
+    <div id="support-status"></div>
+    
+    <div class="status">
+      <div id="status-indicator" class="status-indicator inactive"></div>
+      <div id="status-text">Not listening</div>
+    </div>
+    
+    <div id="error-box"></div>
+    
+    <div class="buttons">
+      <button id="start-button" class="primary">Start Listening</button>
+      <button id="stop-button" class="secondary" disabled>Stop Listening</button>
+    </div>
+  </div>
+  
+  <div class="card">
+    <h2>Transcript</h2>
+    <div id="transcript" class="transcript-box">
+      <p class="placeholder">Your speech will appear here when you start listening...</p>
+    </div>
+    
+    <button id="clear-button" class="secondary">Clear Transcript</button>
+  </div>
+  
+  <div class="card">
+    <h2>Debug Information</h2>
+    <pre id="logs"></pre>
+  </div>
+  
+  <script>
+    // DOM elements
+    const startButton = document.getElementById('start-button');
+    const stopButton = document.getElementById('stop-button');
+    const clearButton = document.getElementById('clear-button');
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+    const transcript = document.getElementById('transcript');
+    const supportStatus = document.getElementById('support-status');
+    const errorBox = document.getElementById('error-box');
+    const logs = document.getElementById('logs');
+    
+    // Speech recognition variables
+    let recognition = null;
+    let isListening = false;
+    let finalTranscript = '';
+    let interimTranscript = '';
+    
+    // Check if speech recognition is supported
+    function checkSpeechSupport() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        supportStatus.className = 'support-status not-supported';
+        supportStatus.textContent = '❌ Speech Recognition is NOT supported in this browser';
+        startButton.disabled = true;
+        addLog('ERROR', 'SpeechRecognition not supported in this browser');
+        return false;
+      }
+      
+      supportStatus.className = 'support-status supported';
+      supportStatus.textContent = '✅ Speech Recognition is supported in this browser';
+      addLog('INFO', 'SpeechRecognition is supported');
+      return true;
+    }
+    
+    // Initialize speech recognition
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        return false;
+      }
+      
+      recognition = new SpeechRecognition();
+      
+      // Configure recognition
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      // Set up event handlers
+      recognition.onstart = function() {
+        isListening = true;
+        updateStatus(true);
+        addLog('INFO', 'Recognition started');
+      };
+      
+      recognition.onend = function() {
+        isListening = false;
+        updateStatus(false);
+        addLog('INFO', 'Recognition ended');
+      };
+      
+      recognition.onresult = function(event) {
+        interimTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' ';
+            addLog('RESULT', `Final: "${transcript}"`);
+          } else {
+            interimTranscript += transcript;
+            addLog('RESULT', `Interim: "${transcript}"`);
+          }
+        }
+        
+        updateTranscript();
+      };
+      
+      recognition.onerror = function(event) {
+        showError(`Speech recognition error: ${event.error}`);
+        addLog('ERROR', `Recognition error: ${event.error}`);
+      };
+      
+      return true;
+    }
+    
+    // Start speech recognition
+    function startListening() {
+      if (!recognition) {
+        if (!initSpeechRecognition()) {
+          showError('Failed to initialize speech recognition');
+          return;
+        }
+      }
+      
+      try {
+        recognition.start();
+        startButton.disabled = true;
+        stopButton.disabled = false;
+        hideError();
+        addLog('ACTION', 'Start listening requested');
+      } catch (error) {
+        showError(`Failed to start recognition: ${error.message}`);
+        addLog('ERROR', `Start recognition failed: ${error.message}`);
+      }
+    }
+    
+    // Stop speech recognition
+    function stopListening() {
+      if (recognition) {
+        try {
+          recognition.stop();
+          startButton.disabled = false;
+          stopButton.disabled = true;
+          addLog('ACTION', 'Stop listening requested');
+        } catch (error) {
+          showError(`Failed to stop recognition: ${error.message}`);
+          addLog('ERROR', `Stop recognition failed: ${error.message}`);
+        }
+      }
+    }
+    
+    // Update status indicator
+    function updateStatus(active) {
+      if (active) {
+        statusIndicator.className = 'status-indicator active';
+        statusText.textContent = 'Listening...';
+        startButton.disabled = true;
+        stopButton.disabled = false;
+      } else {
+        statusIndicator.className = 'status-indicator inactive';
+        statusText.textContent = 'Not listening';
+        startButton.disabled = false;
+        stopButton.disabled = true;
+      }
+    }
+    
+    // Update transcript display
+    function updateTranscript() {
+      let html = '';
+      
+      if (finalTranscript) {
+        html += `<div class="final">${finalTranscript}</div>`;
+      }
+      
+      if (interimTranscript) {
+        html += `<div class="interim">${interimTranscript}</div>`;
+      }
+      
+      if (!finalTranscript && !interimTranscript) {
+        html = '<p class="placeholder">Your speech will appear here when you start listening...</p>';
+      }
+      
+      transcript.innerHTML = html;
+    }
+    
+    // Clear transcript
+    function clearTranscript() {
+      finalTranscript = '';
+      interimTranscript = '';
+      updateTranscript();
+      addLog('ACTION', 'Transcript cleared');
+    }
+    
+    // Show error message
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.style.display = 'block';
+    }
+    
+    // Hide error message
+    function hideError() {
+      errorBox.style.display = 'none';
+    }
+    
+    // Add log entry
+    function addLog(type, message) {
+      const timestamp = new Date().toLocaleTimeString();
+      const log = `[${timestamp}] [${type}] ${message}`;
+      logs.textContent = log + '\n' + logs.textContent;
+    }
+    
+    // Set up event listeners
+    startButton.addEventListener('click', startListening);
+    stopButton.addEventListener('click', stopListening);
+    clearButton.addEventListener('click', clearTranscript);
+    
+    // Initialize
+    checkSpeechSupport();
+    
+    addLog('INFO', 'Page loaded');
+  </script>
+</body>
+</html>

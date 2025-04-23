@@ -11,6 +11,7 @@ import UsageGuidePage from "./pages/UsageGuidePage";
 import TestPage from "./pages/TestPage";
 import FixedTestPage from "./pages/FixedTestPage";
 import SpeechTestPage from "./pages/SpeechTestPage";
+import SimpleSpeechTest from "./pages/SimpleSpeechTest";
 
 function Router() {
   return (
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/test" component={TestPage} />
       <Route path="/fixedtest" component={FixedTestPage} />
       <Route path="/speechtest" component={SpeechTestPage} />
+      <Route path="/simplespeech" component={SimpleSpeechTest} />
       <Route component={NotFound} />
     </Switch>
   );

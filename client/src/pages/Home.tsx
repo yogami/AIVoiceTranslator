@@ -50,6 +50,9 @@ export const Home: React.FC = () => {
         <div className="mb-6 p-4 border rounded-md bg-gray-50">
           <h3 className="text-sm font-semibold mb-2 text-gray-500">Developer Testing Tools</h3>
           <div className="flex flex-wrap gap-2">
+            <Link href="/simplespeech">
+              <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">Simple Speech Test (New!)</Button>
+            </Link>
             <Link href="/speechtest">
               <Button variant="outline" size="sm">Speech Test</Button>
             </Link>
