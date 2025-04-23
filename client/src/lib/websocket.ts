@@ -34,6 +34,7 @@ class WebSocketClient {
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
+  private roleLocked: boolean = false; // Add role locking feature
 
   private constructor() {
     // Private constructor for singleton
@@ -164,17 +165,49 @@ class WebSocketClient {
       return;
     }
 
+    // If role is locked, don't change it, but update language code
+    if (this.roleLocked && this.role) {
+      console.log(`[WebSocketClient] Role is locked as ${this.role}, not changing to ${role}`);
+      // Only update language
+      this.languageCode = languageCode;
+      
+      // Send register message with current locked role but new language
+      const message: WebSocketMessage = {
+        type: 'register',
+        role: this.role,
+        languageCode
+      };
+      
+      this.send(message);
+      console.log(`[WebSocketClient] Updated language to ${languageCode} (role remains ${this.role})`);
+    } else {
+      // Normal flow - update both role and language
+      this.role = role;
+      this.languageCode = languageCode;
+
+      const message: WebSocketMessage = {
+        type: 'register',
+        role,
+        languageCode
+      };
+
+      this.send(message);
+      console.log(`[WebSocketClient] Registered as ${role} with language ${languageCode}`);
+    }
+  }
+  
+  /**
+   * Set role and lock it to prevent changes
+   */
+  public setRoleAndLock(role: UserRole): void {
+    console.log(`[WebSocketClient] Setting role to ${role} and locking it`);
     this.role = role;
-    this.languageCode = languageCode;
-
-    const message: WebSocketMessage = {
-      type: 'register',
-      role,
-      languageCode
-    };
-
-    this.send(message);
-    console.log(`[WebSocketClient] Registered as ${role} with language ${languageCode}`);
+    this.roleLocked = true;
+    
+    // If connected, also register with the server
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.register(role, this.languageCode);
+    }
   }
 
   /**
@@ -325,6 +358,27 @@ class WebSocketClient {
    */
   public getLanguageCode(): string {
     return this.languageCode;
+  }
+  
+  /**
+   * Get the WebSocket instance
+   */
+  public getSocket(): WebSocket | null {
+    return this.ws;
+  }
+  
+  /**
+   * Get whether the role is locked
+   */
+  public get isRoleLocked(): boolean {
+    return this.roleLocked;
+  }
+  
+  /**
+   * Get the current role
+   */
+  public get currentRole(): UserRole | null {
+    return this.role;
   }
 
   /**

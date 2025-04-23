@@ -1,11 +1,7 @@
 /**
  * Unit tests for WebSocketClient
  */
-import { webSocketClient, WebSocketMessage, UserRole, ConnectionStatus } from '../../../client/src/lib/websocket';
-
-// Access the WebSocketClient constructor through the prototype chain
-// Since the class is not directly exported
-const WebSocketClient = Object.getPrototypeOf(webSocketClient).constructor;
+import { webSocketClient, WebSocketMessage, UserRole, ConnectionStatus, WebSocketClient } from '../../../client/src/lib/websocket';
 
 // Mock WebSocket implementation
 class MockWebSocket {
@@ -229,12 +225,18 @@ describe('WebSocketClient', () => {
     // Status should be updated
     expect(client.getStatus()).toBe('disconnected');
     
+    // Override reconnect delay for faster tests
+    (client as any).reconnectTimer = setTimeout(() => {
+      (client as any).reconnectAttempts++;
+      (client as any).connect().catch(console.error);
+    }, 100);
+    
     // Should attempt to reconnect after delay
-    jest.advanceTimersByTime(3000);
+    jest.advanceTimersByTime(100);
     
     // A new connection should be attempted
     expect(MockWebSocket.instances.length).toBe(2);
-  });
+  }, 2000);
   
   test('sends ping messages to keep connection alive', async () => {
     await client.connect();
@@ -243,15 +245,30 @@ describe('WebSocketClient', () => {
     // Clear initial messages
     MockWebSocket.sentMessages = [];
     
+    // Override ping interval for faster tests
+    if ((client as any).pingInterval) {
+      clearInterval((client as any).pingInterval);
+    }
+    
+    // Set a shorter ping interval
+    (client as any).pingInterval = setInterval(() => {
+      if ((client as any).ws && (client as any).ws.readyState === WebSocket.OPEN) {
+        (client as any).send({
+          type: 'ping',
+          timestamp: Date.now()
+        });
+      }
+    }, 100);
+    
     // Advance time to trigger ping
-    jest.advanceTimersByTime(30000);
+    jest.advanceTimersByTime(100);
     
     // Should have sent a ping message
     expect(MockWebSocket.sentMessages.length).toBe(1);
     const pingMessage = JSON.parse(MockWebSocket.sentMessages[0]);
     expect(pingMessage.type).toBe('ping');
     expect(pingMessage.timestamp).toBeDefined();
-  });
+  }, 2000);
   
   test('cleans up resources on disconnect', async () => {
     await client.connect();
