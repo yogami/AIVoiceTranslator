@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "package": "electron-builder"
+    "package": "electron-packager . --overwrite --asar --out=dist"
   },
   "author": "Benedictaitor Team",
   "license": "MIT",
@@ -45,8 +45,13 @@
       {
         "from": "tests",
         "to": "tests",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ]
+  },
+  "devDependencies": {
+    "electron-packager": "^17.1.2"
   }
 }
