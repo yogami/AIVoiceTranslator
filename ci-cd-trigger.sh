@@ -18,9 +18,8 @@ if [ -z "$GITHUB_TOKEN" ]; then
 fi
 
 # GitHub repository information
-# Replace these with your actual GitHub username and repository name
-GITHUB_USERNAME="your-username"
-REPO_NAME="benedictaitor"
+GITHUB_USERNAME="yogami"
+REPO_NAME="AIVoiceTranslator"
 
 # Callback URL (for future use with webhook responses)
 CALLBACK_URL="https://example.com/webhook"
