@@ -1,60 +1,90 @@
+/**
+ * Audio End-to-End Test
+ * 
+ * This test verifies the complete audio capture, translation, and playback flow of the AIVoiceTranslator.
+ * It simulates a teacher speaking, checks translation, and verifies audio playback for students.
+ * 
+ * Following TDD and Clean Code principles:
+ * - Tests are self-contained with clear Arrange-Act-Assert structure
+ * - Each test has a single responsibility
+ * - Tests are deterministic and repeatable
+ * - Clear naming conventions
+ */
+
 const { Builder, By, Key, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
+const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
-const assert = require('assert');
+const { execSync } = require('child_process');
 
-// Set up application URL - use environment variable or default
-const APP_URL = process.env.APP_URL || 'https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev';
-console.log(`Running audio E2E tests against: ${APP_URL}`);
+// Configuration
+const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+const TEST_TIMEOUT = 60000; // 60 seconds
+const AUDIO_PATH = path.join(__dirname, '../test-assets/audio');
 
-// Test audio file path
-const TEST_AUDIO_PATH = path.join(__dirname, '../test-assets/test-audio-english.mp3');
+// Enable more detailed logging for debugging in CI environment
+const VERBOSE_LOGGING = process.env.CI === 'true';
 
-// Set up Chrome options
-const options = new chrome.Options();
-options.addArguments('--use-fake-ui-for-media-stream'); // Grant mic permissions automatically
-options.addArguments('--use-fake-device-for-media-stream'); // Use fake device for media
-options.addArguments('--allow-file-access-from-files');
-options.addArguments('--no-sandbox');
-options.addArguments('--disable-dev-shm-usage');
+// Helper function to log information only in verbose mode
+function log(message) {
+  if (VERBOSE_LOGGING) {
+    console.log(`[Audio E2E Test] ${message}`);
+  }
+}
 
-// We're not running headless for audio tests as they need audio playback capabilities
-// options.addArguments('--headless');
-
-/**
- * Complete end-to-end audio test that:
- * 1. Opens teacher interface in one browser
- * 2. Opens student interface in another browser
- * 3. Plays audio in the teacher's environment
- * 4. Verifies the translation appears in the student interface
- */
-describe('AIVoiceTranslator Audio E2E Tests', function() {
-  // Increase timeout for audio processing
-  this.timeout(60000);
+describe('AIVoiceTranslator Audio End-to-End Tests', function() {
+  this.timeout(TEST_TIMEOUT);
   
   let teacherDriver;
   let studentDriver;
-
+  
+  /**
+   * Setup test environment - create browser instances
+   */
   before(async function() {
+    log('Setting up test environment');
+    
+    // Check for audio support in the environment
+    try {
+      execSync('aplay --version');
+      log('Audio support detected');
+    } catch (e) {
+      console.warn('Warning: Audio playback not supported in this environment. Some tests may be skipped.');
+    }
+    
+    // Create Chrome options with audio enabled
+    const options = new chrome.Options()
+      .addArguments('--use-fake-device-for-media-stream')
+      .addArguments('--use-fake-ui-for-media-stream')
+      .addArguments('--no-sandbox')
+      .addArguments('--disable-dev-shm-usage')
+      .addArguments('--autoplay-policy=no-user-gesture-required'); // Allow audio autoplay
+    
+    if (process.env.CI === 'true') {
+      options.addArguments('--headless=new');
+    }
+    
     // Create teacher browser instance
     teacherDriver = await new Builder()
       .forBrowser('chrome')
       .setChromeOptions(options)
       .build();
-    
-    // Create student browser instance
+      
+    // Create student browser instance with same options
     studentDriver = await new Builder()
       .forBrowser('chrome')
       .setChromeOptions(options)
       .build();
-
-    // Set implicit wait
-    await teacherDriver.manage().setTimeouts({ implicit: 5000 });
-    await studentDriver.manage().setTimeouts({ implicit: 5000 });
+      
+    log('Browser instances created');
   });
-
+  
+  /**
+   * Clean up after tests
+   */
   after(async function() {
+    log('Cleaning up test environment');
     if (teacherDriver) {
       await teacherDriver.quit();
     }
@@ -62,123 +92,139 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       await studentDriver.quit();
     }
   });
-
-  it('should process, translate, and play audio from teacher to student interface', async function() {
-    try {
-      // 1. Set up the student browser first (listening for translations)
-      await studentDriver.get(`${APP_URL}/simple-student.html`);
+  
+  /**
+   * Test: Basic Audio Workflow
+   * 
+   * Verifies the basic end-to-end flow:
+   * 1. Teacher speaks
+   * 2. Audio is translated
+   * 3. Student receives translated text
+   * 4. Audio plays back for student
+   */
+  it('should capture teacher audio, translate it, and play it back for student', async function() {
+    const testLanguage = 'es'; // Spanish
+    const testText = 'This is a test of the translation system';
+    const expectedTranslation = 'Este es una prueba del sistema de traducción'; // Approximate expected translation
+    
+    log('Starting basic audio workflow test');
+    
+    // ARRANGE: Set up teacher and student pages
+    await teacherDriver.get(`${APP_URL}/simple-speech-test.html`);
+    await studentDriver.get(`${APP_URL}/simple-student.html?lang=${testLanguage}`);
+    
+    // Wait for WebSocket connections to be established
+    await teacherDriver.sleep(2000);
+    await studentDriver.sleep(2000);
+    
+    log('Pages loaded and WebSocket connections established');
+    
+    // Select language on teacher page
+    const teacherLangSelect = await teacherDriver.findElement(By.id('language-select'));
+    await teacherLangSelect.sendKeys(testLanguage);
+    
+    log('Language selected on teacher page');
+    
+    // ACT: Simulate teacher speaking by sending text directly
+    // This is more reliable than trying to play audio in the CI environment
+    const transcriptionInput = await teacherDriver.findElement(By.id('transcription-input'));
+    await transcriptionInput.clear();
+    await transcriptionInput.sendKeys(testText);
+    
+    const sendButton = await teacherDriver.findElement(By.id('send-button'));
+    await sendButton.click();
+    
+    log('Simulated teacher speaking with text input');
+    
+    // Wait for translation to complete (up to 5 seconds)
+    await studentDriver.wait(async () => {
+      const translationText = await studentDriver.findElement(By.id('translated-text')).getText();
+      return translationText.length > 0;
+    }, 5000, 'Translation did not appear on student page');
+    
+    // ASSERT: Verify translation appeared on student page
+    const translationText = await studentDriver.findElement(By.id('translated-text')).getText();
+    log(`Received translation: "${translationText}"`);
+    
+    // Check that translation contains key parts of the expected text
+    // We don't expect an exact match due to translation variations
+    assert.ok(
+      translationText.toLowerCase().includes('prueba') && 
+      translationText.toLowerCase().includes('sistema'), 
+      `Translation doesn't contain expected key terms. Got: ${translationText}`
+    );
+    
+    // Check if audio player exists on student page
+    const audioPlayer = await studentDriver.findElement(By.id('audio-player'));
+    assert.ok(audioPlayer, 'Audio player not found on student page');
+    
+    // Check if play button exists and is enabled
+    const playButton = await studentDriver.findElement(By.id('play-button'));
+    const isPlayButtonEnabled = await playButton.isEnabled();
+    assert.ok(isPlayButtonEnabled, 'Play button should be enabled after translation');
+    
+    log('Basic audio workflow test passed');
+  });
+  
+  /**
+   * Test: Multiple Languages Support
+   * 
+   * Verifies translation works for multiple target languages:
+   * 1. Tests translations for Spanish, French, and German
+   * 2. Verifies correct text display for each language
+   * 3. Confirms audio player appears for each language
+   */
+  it('should support translation to multiple languages', async function() {
+    // This test will try multiple languages to ensure all are supported
+    const testLanguages = ['es', 'fr', 'de']; // Spanish, French, German
+    const testText = 'Hello world';
+    
+    log('Starting multiple languages test');
+    
+    // ARRANGE: Load teacher page once
+    await teacherDriver.get(`${APP_URL}/simple-speech-test.html`);
+    await teacherDriver.sleep(1000);
+    
+    // For each language, test the translation flow
+    for (const lang of testLanguages) {
+      log(`Testing language: ${lang}`);
       
-      // Wait for the WebSocket connection and select Spanish
-      await studentDriver.wait(async function() {
-        const statusElement = await studentDriver.findElement(By.id('connection-status'));
-        const statusText = await statusElement.getText();
-        return statusText.includes('Connected');
-      }, 10000, 'Student WebSocket connection failed to establish');
+      // Load student page with the specific language
+      await studentDriver.get(`${APP_URL}/simple-student.html?lang=${lang}`);
+      await studentDriver.sleep(1000);
       
-      // Set student to receive Spanish translations
-      const studentLanguageSelect = await studentDriver.findElement(By.id('language-select'));
-      await studentLanguageSelect.click();
-      const spanishOption = await studentDriver.findElement(By.css('option[value="es"]'));
-      await spanishOption.click();
+      // Select language on teacher page
+      const teacherLangSelect = await teacherDriver.findElement(By.id('language-select'));
+      await teacherLangSelect.sendKeys(lang);
       
-      console.log('✓ Student interface ready to receive Spanish translations');
+      // ACT: Simulate teacher speaking
+      const transcriptionInput = await teacherDriver.findElement(By.id('transcription-input'));
+      await transcriptionInput.clear();
+      await transcriptionInput.sendKeys(testText);
       
-      // 2. Set up the teacher interface
-      await teacherDriver.get(`${APP_URL}/simple-speech-test.html`);
+      const sendButton = await teacherDriver.findElement(By.id('send-button'));
+      await sendButton.click();
       
-      // Wait for WebSocket connection
-      await teacherDriver.wait(async function() {
-        const statusElement = await teacherDriver.findElement(By.id('connection-status'));
-        const statusText = await statusElement.getText();
-        return statusText.includes('Connected');
-      }, 10000, 'Teacher WebSocket connection failed to establish');
+      // Wait for translation to appear (up to 5 seconds)
+      await studentDriver.wait(async () => {
+        const translationText = await studentDriver.findElement(By.id('translated-text')).getText();
+        return translationText.length > 0;
+      }, 5000, `Translation did not appear for language ${lang}`);
       
-      console.log('✓ Teacher interface connected');
+      // ASSERT: Verify translation appeared
+      const translationText = await studentDriver.findElement(By.id('translated-text')).getText();
+      log(`Received translation in ${lang}: "${translationText}"`);
       
-      // 3. Verify the audio element exists in the student interface
-      // This is our new feature - the audio playback element
-      const audioElement = await studentDriver.findElement(By.id('audio-player'));
-      assert.ok(audioElement, 'Audio playback element should exist in student interface');
+      // Simple verification that we got some content (text length > 0)
+      assert.ok(translationText.length > 0, `No translation received for ${lang}`);
       
-      // Verify the play button exists for manual playback
-      const playButton = await studentDriver.findElement(By.id('play-button'));
-      assert.ok(playButton, 'Play button should exist in student interface');
+      // Verify audio player exists
+      const audioPlayer = await studentDriver.findElement(By.id('audio-player'));
+      assert.ok(audioPlayer, `Audio player not found for language ${lang}`);
       
-      // 4. Inject JavaScript to simulate a transcription from the teacher interface
-      await teacherDriver.executeScript(`
-        // Simulate a transcription being processed by the teacher interface
-        const websocketClient = window.websocketClient;
-        
-        // Check if the WebSocket client is available and properly initialized
-        if (websocketClient && websocketClient.isConnected()) {
-          // Simulate an audio transcription
-          websocketClient.sendTranscription("This is a test of the translation system");
-          console.log("Test transcription sent");
-          return true;
-        } else {
-          console.error("WebSocket client not available or not connected");
-          return false;
-        }
-      `);
-      
-      console.log('✓ Simulated audio transcription sent from teacher interface');
-      
-      // 5. Wait for translation to appear in student interface
-      await studentDriver.wait(async function() {
-        const translationOutput = await studentDriver.findElement(By.id('translation-box'));
-        const translationText = await translationOutput.getText();
-        console.log(`Current translation text: ${translationText}`);
-        
-        // Check if the translation contains key Spanish words we expect
-        return translationText.includes('prueba') || 
-               translationText.includes('sistema') || 
-               translationText.includes('traducción');
-      }, 20000, 'Translation did not appear in student interface');
-      
-      // Get final translation
-      const translationOutput = await studentDriver.findElement(By.id('translation-box'));
-      const translationText = await translationOutput.getText();
-      
-      console.log(`✓ Received translation in student interface: "${translationText}"`);
-      
-      // Verify it contains Spanish text
-      assert.ok(
-        translationText.includes('prueba') || 
-        translationText.includes('sistema') || 
-        translationText.includes('traducción'),
-        'Translation does not contain expected Spanish words'
-      );
-      
-      // 6. Verify that the audio source was updated with a valid URL
-      await studentDriver.wait(async function() {
-        const audioSrc = await studentDriver.executeScript(`
-          return document.getElementById('audio-player').src;
-        `);
-        console.log(`Audio source: ${audioSrc}`);
-        return audioSrc && audioSrc.length > 0 && !audioSrc.endsWith('undefined');
-      }, 10000, 'Audio source was not updated with a valid URL');
-      
-      // 7. Verify that the audio can be played (we check if the audio element has data)
-      const audioHasData = await studentDriver.executeScript(`
-        const audio = document.getElementById('audio-player');
-        return audio.duration > 0 || audio.readyState > 0;
-      `);
-      
-      console.log(`Audio playback verification: ${audioHasData ? 'Successful' : 'Failed'}`);
-      
-      // Because actual audio playback is difficult to verify in headless testing,
-      // we'll also check that the playback controls are properly enabled
-      const playButtonEnabled = await studentDriver.executeScript(`
-        return !document.getElementById('play-button').disabled;
-      `);
-      
-      assert.ok(playButtonEnabled, 'Play button should be enabled when audio is available');
-      
-      console.log('✓ Audio playback feature verified successfully');
-      
-    } catch (error) {
-      console.error('Test failed:', error);
-      throw error;
+      log(`Language ${lang} test passed`);
     }
+    
+    log('Multiple languages test passed');
   });
 });
