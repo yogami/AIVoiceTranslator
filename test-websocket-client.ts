@@ -15,6 +15,15 @@
 // Import WebSocketClient and related types
 import { WebSocketClient, WebSocketState } from './client/src/lib/websocket';
 
+// Mock window object for Node.js environment
+// Must be done before creating any WebSocketClient instances
+(global as any).window = {
+  location: {
+    protocol: 'http:',
+    host: 'localhost:5000'
+  }
+};
+
 // Use any type to avoid strict type checking issues in mock implementation
 class MockWebSocket {
   // Track socket state and messages
@@ -45,7 +54,15 @@ class MockWebSocket {
   close(): void {
     this.closed = true;
     this.readyState = WebSocketState.CLOSED;
-    if (this.onclose) this.onclose();
+    // Create a close event mock to prevent errors
+    if (this.onclose) {
+      const closeEvent = {
+        code: 1000,
+        reason: 'Normal closure',
+        wasClean: true
+      };
+      this.onclose(closeEvent);
+    }
     console.log('WebSocket closed');
   }
   
@@ -278,69 +295,143 @@ async function runTests() {
   
   // Test 3: Sending Transcription
   runner.test('should send transcription when registered as teacher', () => {
-    const client = new WebSocketClient(factory, '/ws');
-    
-    // Connect and register
-    client.connect();
-    
-    setTimeout(() => {
-      client.register('teacher', 'en-US');
-      
-      // Send transcription
-      const result = client.sendTranscription('Hello world');
-      
-      runner.expect(result).toBeTruthy();
-      
-      // Check message was sent
-      const socket = client.getSocket();
-      runner.expect(socket).toBeTruthy();
-      
-      if (socket) {
-        // Cast to any to access our mock properties
-        const mockedSocket = socket as any;
+    const transcriptionPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const client = new WebSocketClient(factory, '/ws');
+        let connected = false;
         
-        if (mockedSocket.sent) {
-          const sentMessages = mockedSocket.sent.map((m: string) => JSON.parse(m));
-          const transcriptionMessage = sentMessages.find((m: any) => m.type === 'transcription');
-          runner.expect(transcriptionMessage).toBeTruthy();
-          runner.expect(transcriptionMessage.text).toBe('Hello world');
-        }
+        // Listen for connection status change
+        const onStatusChange = (status: string) => {
+          if (status === 'connected') {
+            connected = true;
+            
+            // Connection established, now register
+            client.register('teacher', 'en-US');
+            
+            // Send transcription
+            const result = client.sendTranscription('Hello world');
+            
+            runner.expect(result).toBeTruthy();
+            
+            // Check message was sent
+            const socket = client.getSocket();
+            runner.expect(socket).toBeTruthy();
+            
+            if (socket) {
+              // Cast to any to access our mock properties
+              const mockedSocket = socket as any;
+              
+              if (mockedSocket.sent) {
+                const sentMessages = mockedSocket.sent.map((m: string) => JSON.parse(m));
+                const transcriptionMessage = sentMessages.find((m: any) => m.type === 'transcription');
+                runner.expect(transcriptionMessage).toBeTruthy();
+                runner.expect(transcriptionMessage.text).toBe('Hello world');
+              }
+            }
+            
+            // Clean up and resolve
+            client.removeEventListener('status', onStatusChange);
+            resolve();
+          }
+        };
+        
+        client.addEventListener('status', onStatusChange);
+        
+        // Connect
+        client.connect().catch(reject);
+        
+        // Timeout if connection doesn't happen
+        setTimeout(() => {
+          if (!connected) {
+            reject(new Error('Connection timed out'));
+          }
+        }, 500);
+      } catch (error) {
+        reject(error);
       }
-    }, 150);
+    });
+    
+    testPromises.push(transcriptionPromise);
   });
   
   // Test 4: Disconnect
   runner.test('should disconnect and clean up resources', () => {
-    const client = new WebSocketClient(factory, '/ws');
-    
-    // Connect first
-    client.connect();
-    
-    setTimeout(() => {
-      // Get the socket before disconnecting
-      const socket = client.getSocket();
-      runner.expect(socket).toBeTruthy();
-      
-      // Store reference to check closed state after disconnect
-      const mockedSocket = socket as any;
-      
-      // Disconnect
-      client.disconnect();
-      
-      // Verify socket was closed if we have the mock socket available
-      if (mockedSocket && mockedSocket.closed !== undefined) {
-        runner.expect(mockedSocket.closed).toBeTruthy();
+    const disconnectPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const client = new WebSocketClient(factory, '/ws');
+        let connected = false;
+        
+        // Listen for connection status change
+        const onStatusChange = (status: string) => {
+          if (status === 'connected') {
+            connected = true;
+            
+            // Get the socket before disconnecting
+            const socket = client.getSocket();
+            runner.expect(socket).toBeTruthy();
+            
+            // Store reference to check closed state after disconnect
+            const mockedSocket = socket as any;
+            
+            // Disconnect
+            client.disconnect();
+            
+            // Verify socket was closed if we have the mock socket available
+            if (mockedSocket && mockedSocket.closed !== undefined) {
+              runner.expect(mockedSocket.closed).toBeTruthy();
+            }
+            
+            // Always verify the client status changed
+            runner.expect(client.getStatus()).not.toBe('connected');
+            
+            // Clean up and resolve
+            client.removeEventListener('status', onStatusChange);
+            resolve();
+          }
+        };
+        
+        client.addEventListener('status', onStatusChange);
+        
+        // Connect
+        client.connect().catch(reject);
+        
+        // Timeout if connection doesn't happen
+        setTimeout(() => {
+          if (!connected) {
+            reject(new Error('Connection timed out'));
+          }
+        }, 500);
+      } catch (error) {
+        reject(error);
       }
-      
-      // Always verify the client status changed
-      runner.expect(client.getStatus()).not.toBe('connected');
-    }, 100);
+    });
+    
+    testPromises.push(disconnectPromise);
   });
   
-  // Output test summary
-  const success = runner.summary();
+  // Create a timeout promise to prevent tests from hanging
+  const timeoutPromise = new Promise<void>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('Test suite timed out after 5 seconds'));
+    }, 5000);
+  });
   
-  process.exit(success ? 0 : 1);
+  // Wait for all tests to complete before exiting, with timeout
+  Promise.race([
+    Promise.all(testPromises),
+    timeoutPromise
+  ])
+    .then(() => {
+      // All tests completed successfully
+      const success = runner.summary();
+      process.exit(success ? 0 : 1);
+    })
+    .catch((error) => {
+      // At least one test failed or timeout occurred
+      console.error(`\n${RED}ERROR: ${error.message}${RESET}`);
+      runner.summary();
+      process.exit(1);
+    });
 }
 
 runTests();
