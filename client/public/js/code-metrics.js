@@ -1,7 +1,7 @@
 /**
  * Code Metrics Collector
  * 
- * This utility collects and calculates various code quality metrics for the Benedictaitor project.
+ * This utility collects and calculates various code quality metrics for the AIVoiceTranslator project.
  * It follows the metrics outlined in the code quality cheatsheet and provides real-time updates.
  */
 

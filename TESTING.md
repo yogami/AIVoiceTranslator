@@ -1,6 +1,6 @@
-# Benedictaitor Testing Strategy
+# AIVoiceTranslator Testing Strategy
 
-This document outlines the testing strategy for the Benedictaitor project, following clean code principles and the testing pyramid approach.
+This document outlines the testing strategy for the AIVoiceTranslator project, following clean code principles and the testing pyramid approach.
 
 ## Testing Pyramid
 

@@ -1,7 +1,7 @@
 /**
  * Code Metrics Service
  * 
- * This module provides code quality metrics for the Benedictaitor project.
+ * This module provides code quality metrics for the AIVoiceTranslator project.
  * It calculates metrics based on the code quality cheatsheet including:
  * - Test coverage metrics (line, branch, function coverage)
  * - Complexity metrics (cyclomatic complexity, nesting depth, function length)
