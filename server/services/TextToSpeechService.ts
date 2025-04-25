@@ -514,8 +514,13 @@ export const ttsFactory = TextToSpeechFactory.getInstance();
 export const textToSpeechService = {
   synthesizeSpeech: async (options: TextToSpeechOptions, serviceTypeOverride?: string): Promise<Buffer> => {
     // Use the explicitly provided service type if available, otherwise use environment variable or fall back to OpenAI
-    // Browser autoplay restrictions make Web Speech API unreliable for automatic playback
-    const serviceType = serviceTypeOverride || process.env.TTS_SERVICE_TYPE || 'openai';
+    // Always honor the service type override if provided
+    let serviceType = serviceTypeOverride || process.env.TTS_SERVICE_TYPE || 'openai';
+    
+    // Explicitly log the choice to help with debugging
+    if (serviceTypeOverride) {
+      console.log(`TTS Service selection: Explicitly using '${serviceTypeOverride}' (overridden from outside)`);
+    }
     
     // Simple log for diagnostic purposes - not visible to end users
     if (process.env.NODE_ENV === 'development') {
