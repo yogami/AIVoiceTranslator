@@ -607,6 +607,53 @@ class CodeMetricsCollector {
         this.updateBarColor(audioPassBar, rate, 80, 60);
       }
     }
+    
+    // Update audio tests table
+    const audioTestsTable = document.getElementById('audio-tests-table');
+    if (audioTestsTable && audioTestsTable.tBodies[0] && this.metrics.testResults.audio.tests) {
+      const tbody = audioTestsTable.tBodies[0];
+      // Clear the table first
+      tbody.innerHTML = '';
+      
+      // Add test rows
+      this.metrics.testResults.audio.tests.forEach(test => {
+        const row = document.createElement('tr');
+        
+        // Test name cell
+        const nameCell = document.createElement('td');
+        nameCell.textContent = test.name;
+        row.appendChild(nameCell);
+        
+        // Status cell
+        const statusCell = document.createElement('td');
+        const statusIndicator = document.createElement('span');
+        
+        let statusClass = 'good';
+        let statusText = 'Passing';
+        
+        if (test.status === 'failed') {
+          statusClass = 'poor';
+          statusText = 'Failed';
+        }
+        
+        statusIndicator.className = `status-indicator ${statusClass}`;
+        statusCell.appendChild(statusIndicator);
+        statusCell.appendChild(document.createTextNode(` ${statusText}`));
+        row.appendChild(statusCell);
+        
+        // Duration cell
+        const durationCell = document.createElement('td');
+        durationCell.textContent = test.duration;
+        row.appendChild(durationCell);
+        
+        // Details cell
+        const detailsCell = document.createElement('td');
+        detailsCell.textContent = test.description;
+        row.appendChild(detailsCell);
+        
+        tbody.appendChild(row);
+      });
+    }
   }
 
   /**

@@ -740,6 +740,48 @@
             </div>
             
             <div class="card">
+                <h3>Unit Tests</h3>
+                <div class="metric-summary">
+                    <span id="unit-status-indicator" class="status-indicator good"></span>
+                    <span id="unit-status-text" style="color: var(--success);">40/42 Tests Passing</span>
+                </div>
+                <table id="unit-tests-table">
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- This will be populated dynamically from JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>Integration Tests</h3>
+                <div class="metric-summary">
+                    <span id="integration-status-indicator" class="status-indicator good"></span>
+                    <span id="integration-status-text" style="color: var(--success);">17/18 Tests Passing</span>
+                </div>
+                <table id="integration-tests-table">
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- This will be populated dynamically from JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
                 <h3>GitHub Actions Configuration</h3>
                 <div class="metric-details">
                     <p>The CI/CD pipeline is implemented using GitHub Actions with the following workflows:</p>
