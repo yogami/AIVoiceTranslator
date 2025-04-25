@@ -476,68 +476,81 @@ class CodeMetricsCollector {
     
     // Update workflow runs table
     const workflowRunsTable = document.getElementById('workflow-runs-table');
-    if (workflowRunsTable && workflowRunsTable.tBodies[0] && this.metrics.testResults.cicd.workflows.length > 0) {
+    if (workflowRunsTable && workflowRunsTable.tBodies[0]) {
       const tbody = workflowRunsTable.tBodies[0];
+      // Clear the table first
       tbody.innerHTML = '';
       
-      this.metrics.testResults.cicd.workflows.forEach(workflow => {
-        const row = document.createElement('tr');
-        
-        // Status cell
-        const statusCell = document.createElement('td');
-        const statusIndicator = document.createElement('span');
-        
-        let statusClass = 'good';
-        let statusText = 'Success';
-        
-        if (workflow.status === 'failure' || workflow.status === 'failed') {
-          statusClass = 'poor';
-          statusText = 'Failed';
-        } else if (workflow.status === 'in_progress' || workflow.status === 'queued' || workflow.status === 'pending') {
-          statusClass = 'warning';
-          statusText = 'In Progress';
-        }
-        
-        statusIndicator.className = `status-indicator ${statusClass}`;
-        statusCell.appendChild(statusIndicator);
-        statusCell.appendChild(document.createTextNode(` ${statusText}`));
-        row.appendChild(statusCell);
-        
-        // Workflow name cell
-        const nameCell = document.createElement('td');
-        nameCell.textContent = workflow.name;
-        row.appendChild(nameCell);
-        
-        // Last run cell
-        const lastRunCell = document.createElement('td');
-        const date = new Date(workflow.lastRun);
-        lastRunCell.textContent = date.toLocaleDateString('en-US', { 
-          month: 'short', 
-          day: 'numeric', 
-          year: 'numeric' 
+      // Check if we have workflow data
+      if (this.metrics.testResults.cicd.workflows.length > 0) {
+        this.metrics.testResults.cicd.workflows.forEach(workflow => {
+          const row = document.createElement('tr');
+          
+          // Status cell
+          const statusCell = document.createElement('td');
+          const statusIndicator = document.createElement('span');
+          
+          let statusClass = 'good';
+          let statusText = 'Success';
+          
+          if (workflow.status === 'failure' || workflow.status === 'failed') {
+            statusClass = 'poor';
+            statusText = 'Failed';
+          } else if (workflow.status === 'in_progress' || workflow.status === 'queued' || workflow.status === 'pending') {
+            statusClass = 'warning';
+            statusText = 'In Progress';
+          }
+          
+          statusIndicator.className = `status-indicator ${statusClass}`;
+          statusCell.appendChild(statusIndicator);
+          statusCell.appendChild(document.createTextNode(` ${statusText}`));
+          row.appendChild(statusCell);
+          
+          // Workflow name cell
+          const nameCell = document.createElement('td');
+          nameCell.textContent = workflow.name;
+          row.appendChild(nameCell);
+          
+          // Last run cell
+          const lastRunCell = document.createElement('td');
+          const date = new Date(workflow.lastRun);
+          lastRunCell.textContent = date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            year: 'numeric' 
+          });
+          row.appendChild(lastRunCell);
+          
+          // Duration cell
+          const durationCell = document.createElement('td');
+          durationCell.textContent = workflow.duration || '-';
+          row.appendChild(durationCell);
+          
+          // Actions cell
+          const actionsCell = document.createElement('td');
+          if (workflow.url) {
+            const viewLink = document.createElement('a');
+            viewLink.href = workflow.url;
+            viewLink.textContent = 'View Details';
+            viewLink.target = '_blank';
+            actionsCell.appendChild(viewLink);
+          } else {
+            actionsCell.textContent = '-';
+          }
+          row.appendChild(actionsCell);
+          
+          tbody.appendChild(row);
         });
-        row.appendChild(lastRunCell);
-        
-        // Duration cell
-        const durationCell = document.createElement('td');
-        durationCell.textContent = workflow.duration || '-';
-        row.appendChild(durationCell);
-        
-        // Actions cell
-        const actionsCell = document.createElement('td');
-        if (workflow.url) {
-          const viewLink = document.createElement('a');
-          viewLink.href = workflow.url;
-          viewLink.textContent = 'View Details';
-          viewLink.target = '_blank';
-          actionsCell.appendChild(viewLink);
-        } else {
-          actionsCell.textContent = '-';
-        }
-        row.appendChild(actionsCell);
-        
+      } else {
+        // If no workflows, add a default row
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 5;
+        cell.textContent = 'No workflow data available';
+        cell.style.textAlign = 'center';
+        row.appendChild(cell);
         tbody.appendChild(row);
-      });
+      }
     }
   }
   
