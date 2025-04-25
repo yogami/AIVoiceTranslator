@@ -8,8 +8,8 @@ import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 
-// Language Support manager to be implemented as a hook
-import { useLanguageSupport } from '@/hooks/use-language-support';
+// Language Support directly imported - hook is now inline
+import { useLanguageSupport } from '../hooks/use-language-support';
 
 interface TranslationData {
   text: string;
@@ -421,7 +421,7 @@ const StudentPage: React.FC = () => {
               onChange={handleLanguageChange}
               className="w-full p-3 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
             >
-              {languageOptions.map(option => (
+              {languageOptions.map((option: {value: string, label: string}) => (
                 <option 
                   key={option.value} 
                   value={option.value}
