@@ -17,7 +17,7 @@ import path from 'path';
 import { promisify } from 'util';
 import OpenAI from 'openai';
 import { storage } from '../storage';
-import { textToSpeechService } from './TextToSpeechService';
+import { textToSpeechService, ttsFactory } from './TextToSpeechService';
 
 // Promisify file system operations
 const writeFile = promisify(fs.writeFile);
@@ -600,14 +600,20 @@ export class SpeechTranslationService {
     let translatedAudioBuffer = audioBuffer; // Default to original audio
     
     try {
-      // Use our TextToSpeechService to generate audio with emotion preservation
-      translatedAudioBuffer = await textToSpeechService.synthesizeSpeech({
+      // Get TTS service type from environment or default to 'browser'
+      const ttsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+      
+      // Get the appropriate TTS service from the factory
+      const ttsService = ttsFactory.getService(ttsServiceType);
+      
+      // Use the selected TTS service to generate audio with emotion preservation
+      translatedAudioBuffer = await ttsService.synthesizeSpeech({
         text: translatedText || originalText,
         languageCode: targetLanguage,
         preserveEmotions: true // Enable emotional tone preservation
       });
       
-      console.log(`Generated translated audio: ${translatedAudioBuffer.length} bytes`);
+      console.log(`Generated translated audio using ${ttsServiceType} service: ${translatedAudioBuffer.length} bytes`);
     } catch (error) {
       console.error('Error generating audio for translation:', error);
       // On error, keep the original audio buffer

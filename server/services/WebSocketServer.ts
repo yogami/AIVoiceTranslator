@@ -26,6 +26,7 @@ export class WebSocketServer {
   private roles: Map<WebSocketClient, string> = new Map();
   private languages: Map<WebSocketClient, string> = new Map();
   private sessionIds: Map<WebSocketClient, string> = new Map();
+  private clientSettings: Map<WebSocketClient, any> = new Map();
   
   // Stats
   private sessionCounter: number = 0;
@@ -215,8 +216,20 @@ export class WebSocketServer {
       this.languages.set(ws, message.languageCode);
     }
     
+    // Store client settings
+    const settings: any = this.clientSettings.get(ws) || {};
+    
+    // Update text-to-speech service type if provided
+    if (message.settings?.ttsServiceType) {
+      settings.ttsServiceType = message.settings.ttsServiceType;
+      console.log(`Client requested TTS service type: ${settings.ttsServiceType}`);
+    }
+    
+    // Store updated settings
+    this.clientSettings.set(ws, settings);
+    
     console.log('Updated connection:', 
-      `role=${this.roles.get(ws)}, languageCode=${this.languages.get(ws)}`);
+      `role=${this.roles.get(ws)}, languageCode=${this.languages.get(ws)}, ttsService=${settings.ttsServiceType || 'default'}`);
     
     // Send confirmation
     const response = {
@@ -224,7 +237,8 @@ export class WebSocketServer {
       status: 'success',
       data: {
         role: this.roles.get(ws),
-        languageCode: this.languages.get(ws)
+        languageCode: this.languages.get(ws),
+        settings: settings
       }
     };
     
@@ -277,18 +291,48 @@ export class WebSocketServer {
     const translations: Record<string, string> = {};
     
     // Translate for each language
+    const translationResults: Record<string, any> = {};
+    
     for (const targetLanguage of studentLanguages) {
       try {
+        // Get the client's preferred TTS service type
+        let clientTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+        
+        // Look for any students who speak this language and get their settings
+        this.connections.forEach(client => {
+          if (this.languages.get(client) === targetLanguage && 
+              this.roles.get(client) === 'student' &&
+              this.clientSettings.get(client)?.ttsServiceType) {
+            // Use the first student's preference for this language
+            clientTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+          }
+        });
+        
+        // Set the TTS service type in the environment for this translation
+        process.env.TTS_SERVICE_TYPE = clientTtsServiceType;
+        console.log(`Using TTS service '${clientTtsServiceType}' for language '${targetLanguage}'`);
+        
+        // Perform the translation with the selected TTS service
         const result = await speechTranslationService.translateSpeech(
           Buffer.from(''), // Empty buffer as we already have the text
           teacherLanguage,
           targetLanguage,
           message.text // Use the pre-transcribed text
         );
+        
+        // Store the full result object for this language
+        translationResults[targetLanguage] = result;
+        
+        // Also store just the text for backward compatibility
         translations[targetLanguage] = result.translatedText;
       } catch (error) {
         console.error(`Error translating to ${targetLanguage}:`, error);
         translations[targetLanguage] = message.text; // Fallback to original text
+        translationResults[targetLanguage] = {
+          originalText: message.text,
+          translatedText: message.text,
+          audioBuffer: Buffer.from('') // Empty buffer for fallback
+        };
       }
     }
     
@@ -312,18 +356,30 @@ export class WebSocketServer {
         ttsServiceType: ttsServiceType // Include the service type for client reference
       };
       
-      // If using server-generated audio, include the audio data
-      if (translations[studentLanguage] && translations[studentLanguage].audioBuffer) {
+      // If we have a translation result with audio buffer, include it
+      if (translationResults[studentLanguage] && translationResults[studentLanguage].audioBuffer) {
         try {
+          const audioBuffer = translationResults[studentLanguage].audioBuffer;
+          
           // Check if this is a special marker for browser speech synthesis
-          const bufferStart = translations[studentLanguage].audioBuffer.toString('utf8', 0, 100);
+          const bufferStart = audioBuffer.toString('utf8', 0, Math.min(100, audioBuffer.length));
+          
           if (bufferStart.startsWith('{"type":"browser-speech"')) {
             // This is a marker for browser-based speech synthesis
             translationMessage.useClientSpeech = true;
-            translationMessage.speechParams = JSON.parse(bufferStart);
-          } else if (translations[studentLanguage].audioBuffer.length > 0) {
+            try {
+              translationMessage.speechParams = JSON.parse(bufferStart);
+            } catch (jsonError) {
+              console.error('Error parsing speech params:', jsonError);
+              translationMessage.speechParams = {
+                type: 'browser-speech',
+                text: translatedText,
+                languageCode: studentLanguage
+              };
+            }
+          } else if (audioBuffer.length > 0) {
             // This is actual audio data - encode as base64
-            translationMessage.audioData = translations[studentLanguage].audioBuffer.toString('base64');
+            translationMessage.audioData = audioBuffer.toString('base64');
           }
         } catch (error) {
           console.error('Error processing audio data for translation:', error);

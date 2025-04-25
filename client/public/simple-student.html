@@ -248,6 +248,16 @@
             <div class="language-btn" data-lang="zh">Chinese</div>
         </div>
         
+        <div class="controls" style="margin-top: 15px;">
+            <label for="tts-service" style="font-weight: bold; margin-right: 10px;">TTS Service:</label>
+            <select id="tts-service">
+                <option value="browser">Browser Speech Synthesis (Default)</option>
+                <option value="openai">OpenAI TTS (Emotional)</option>
+                <option value="silent">Silent (No Audio)</option>
+            </select>
+            <button id="apply-tts-btn" style="min-width: 100px;">Apply</button>
+        </div>
+        
         <h2>Translated Speech:</h2>
         <div id="translation-box" class="translation-box">
             <p>Connect and select a language to receive translated speech from the teacher.</p>

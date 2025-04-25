@@ -89,7 +89,7 @@ interface DetectedEmotion {
 /**
  * Options for text-to-speech synthesis
  */
-interface TextToSpeechOptions {
+export interface TextToSpeechOptions {
   text: string;
   languageCode: string;
   voice?: string;
@@ -104,51 +104,45 @@ export interface ITextToSpeechService {
   synthesizeSpeech(options: TextToSpeechOptions): Promise<Buffer>;
 }
 
-// These will be defined below
+/**
+ * Browser Speech Synthesis Service
+ * This service doesn't actually generate audio data on the server.
+ * It returns an empty buffer and signals the client to use browser's SpeechSynthesis API.
+ */
+export class BrowserSpeechSynthesisService implements ITextToSpeechService {
+  /**
+   * Instead of generating audio on the server, returns a special marker buffer
+   * The client will recognize this marker and use the browser's SpeechSynthesis API
+   */
+  public async synthesizeSpeech(options: TextToSpeechOptions): Promise<Buffer> {
+    console.log(`Using browser speech synthesis for text (${options.text.length} chars) in ${options.languageCode}`);
+    
+    // Create a special marker buffer that the client will recognize
+    // We're using a text encoding with a specific header to signal browser speech synthesis
+    const markerText = JSON.stringify({
+      type: 'browser-speech',
+      text: options.text,
+      languageCode: options.languageCode,
+      preserveEmotions: options.preserveEmotions,
+      speed: options.speed || 1.0
+    });
+    
+    // Return the marker as a buffer
+    return Buffer.from(markerText);
+  }
+}
 
 /**
- * Text to Speech Factory class
- * Creates and provides different text-to-speech service implementations
+ * Silent Text to Speech Service
+ * This is a fallback service that just returns an empty audio buffer
+ * Useful for debugging or when no audio output is desired
  */
-export class TextToSpeechFactory {
-  private static instance: TextToSpeechFactory;
-  private openai: OpenAI;
-  private services: Map<string, ITextToSpeechService> = new Map();
-  
-  private constructor() {
-    // Initialize OpenAI client with API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || '';
+export class SilentTextToSpeechService implements ITextToSpeechService {
+  public async synthesizeSpeech(_options: TextToSpeechOptions): Promise<Buffer> {
+    console.log('Using silent (no audio) TTS service');
     
-    try {
-      this.openai = new OpenAI({ 
-        apiKey: apiKey || 'sk-placeholder-for-initialization-only' 
-      });
-      console.log('OpenAI client initialized for TTS service');
-    } catch (error) {
-      console.error('Error initializing OpenAI client for TTS:', error);
-      this.openai = new OpenAI({ apiKey: 'sk-placeholder-for-initialization-only' });
-    }
-    
-    // Register services
-    this.services.set('openai', new OpenAITextToSpeechService(this.openai));
-    this.services.set('browser', new BrowserSpeechSynthesisService());
-    this.services.set('silent', new SilentTextToSpeechService());
-  }
-  
-  public static getInstance(): TextToSpeechFactory {
-    if (!TextToSpeechFactory.instance) {
-      TextToSpeechFactory.instance = new TextToSpeechFactory();
-    }
-    return TextToSpeechFactory.instance;
-  }
-  
-  public getService(serviceType: string = 'openai'): ITextToSpeechService {
-    const service = this.services.get(serviceType.toLowerCase());
-    if (!service) {
-      console.warn(`TTS service '${serviceType}' not found, falling back to openai`);
-      return this.services.get('openai')!;
-    }
-    return service;
+    // Return an empty buffer - no audio will be played
+    return Buffer.from([]);
   }
 }
 
@@ -467,44 +461,48 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
 }
 
 /**
- * Browser Speech Synthesis Service
- * This service doesn't actually generate audio data on the server.
- * It returns an empty buffer and signals the client to use browser's SpeechSynthesis API.
+ * Text to Speech Factory class
+ * Creates and provides different text-to-speech service implementations
  */
-export class BrowserSpeechSynthesisService implements ITextToSpeechService {
-  /**
-   * Instead of generating audio on the server, returns a special marker buffer
-   * The client will recognize this marker and use the browser's SpeechSynthesis API
-   */
-  public async synthesizeSpeech(options: TextToSpeechOptions): Promise<Buffer> {
-    console.log(`Using browser speech synthesis for text (${options.text.length} chars) in ${options.languageCode}`);
+export class TextToSpeechFactory {
+  private static instance: TextToSpeechFactory;
+  private openai: OpenAI;
+  private services: Map<string, ITextToSpeechService> = new Map();
+  
+  private constructor() {
+    // Initialize OpenAI client with API key from environment
+    const apiKey = process.env.OPENAI_API_KEY || '';
     
-    // Create a special marker buffer that the client will recognize
-    // We're using a text encoding with a specific header to signal browser speech synthesis
-    const markerText = JSON.stringify({
-      type: 'browser-speech',
-      text: options.text,
-      languageCode: options.languageCode,
-      preserveEmotions: options.preserveEmotions,
-      speed: options.speed || 1.0
-    });
+    try {
+      this.openai = new OpenAI({ 
+        apiKey: apiKey || 'sk-placeholder-for-initialization-only' 
+      });
+      console.log('OpenAI client initialized for TTS service');
+    } catch (error) {
+      console.error('Error initializing OpenAI client for TTS:', error);
+      this.openai = new OpenAI({ apiKey: 'sk-placeholder-for-initialization-only' });
+    }
     
-    // Return the marker as a buffer
-    return Buffer.from(markerText);
+    // Register services
+    this.services.set('openai', new OpenAITextToSpeechService(this.openai));
+    this.services.set('browser', new BrowserSpeechSynthesisService());
+    this.services.set('silent', new SilentTextToSpeechService());
   }
-}
-
-/**
- * Silent Text to Speech Service
- * This is a fallback service that just returns an empty audio buffer
- * Useful for debugging or when no audio output is desired
- */
-export class SilentTextToSpeechService implements ITextToSpeechService {
-  public async synthesizeSpeech(_options: TextToSpeechOptions): Promise<Buffer> {
-    console.log('Using silent (no audio) TTS service');
-    
-    // Return an empty buffer - no audio will be played
-    return Buffer.from([]);
+  
+  public static getInstance(): TextToSpeechFactory {
+    if (!TextToSpeechFactory.instance) {
+      TextToSpeechFactory.instance = new TextToSpeechFactory();
+    }
+    return TextToSpeechFactory.instance;
+  }
+  
+  public getService(serviceType: string = 'openai'): ITextToSpeechService {
+    const service = this.services.get(serviceType.toLowerCase());
+    if (!service) {
+      console.warn(`TTS service '${serviceType}' not found, falling back to openai`);
+      return this.services.get('openai')!;
+    }
+    return service;
   }
 }
 
