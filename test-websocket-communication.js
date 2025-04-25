@@ -8,18 +8,18 @@ let studentWs;
 teacherWs.on('open', function open() {
   console.log('TEACHER: Connected to WebSocket server');
   
-  // Register as teacher with explicit browser TTS preference
+  // Register as teacher with explicit OpenAI TTS preference
   const registerMessage = {
     type: 'register',
     role: 'teacher',
     languageCode: 'en-US',
     settings: {
-      ttsServiceType: 'browser' // Explicitly request browser TTS
+      ttsServiceType: 'openai' // Explicitly request OpenAI TTS
     }
   };
   
   teacherWs.send(JSON.stringify(registerMessage));
-  console.log('TEACHER: Sent register message with browser TTS preference');
+  console.log('TEACHER: Sent register message with OpenAI TTS preference');
   
   // Now connect a student in a different language
   console.log('Creating student connection...');
@@ -49,7 +49,7 @@ teacherWs.on('open', function open() {
       };
       
       teacherWs.send(JSON.stringify(transcriptionMessage));
-      console.log('TEACHER: Sent test transcription that should use browser TTS');
+      console.log('TEACHER: Sent test transcription that should use OpenAI TTS');
       
       // Allow more time for the server to process before closing
       setTimeout(() => {

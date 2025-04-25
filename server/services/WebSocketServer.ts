@@ -316,26 +316,19 @@ export class WebSocketServer {
         let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'openai';
         
         // Look for the teacher's TTS service preference
-        console.log(`\n***** WEBSOCKET SERVER TTS PREFERENCE DEBUG *****`);
-        console.log(`Initial TTS service type: ${teacherTtsServiceType}`);
-        console.log(`Looking for teacher preferences...`);
-        
         this.connections.forEach(client => {
           if (this.roles.get(client) === 'teacher') {
-            console.log(`Found teacher client, settings:`, this.clientSettings.get(client));
             if (this.clientSettings.get(client)?.ttsServiceType) {
               // Use the teacher's preference for all student translations
               teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
-              console.log(`Using teacher's TTS preference: ${teacherTtsServiceType}`);
-            } else {
-              console.log(`Teacher has no TTS preference set`);
             }
           }
         });
         
-        console.log(`Final selected TTS service: ${teacherTtsServiceType}`);
-        console.log(`Target language: ${targetLanguage}`);
-        console.log(`*********************************************\n`);
+        // Only log in development mode to avoid cluttering the logs
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`WebSocket: Using TTS service '${teacherTtsServiceType}' for language '${targetLanguage}'`);
+        }
         
         // Perform the translation with the selected TTS service
         const result = await speechTranslationService.translateSpeech(
@@ -402,20 +395,22 @@ export class WebSocketServer {
           // First try with a simple string check
           if (bufferString.includes('"type":"browser-speech"') || bufferString.includes("'type':'browser-speech'")) {
             // This is a marker for browser-based speech synthesis
-            console.log(`Using client browser speech synthesis for ${studentLanguage}`);
+            // Use browser speech synthesis client-side
             translationMessage.useClientSpeech = true;
             
             try {
               // Try to parse the JSON - this should now work with the format from TextToSpeechService
               translationMessage.speechParams = JSON.parse(bufferString);
-              console.log(`Successfully parsed speech params for ${studentLanguage}`);
               
               // Ensure autoPlay is set to true in the speech params
               if (translationMessage.speechParams.autoPlay === undefined) {
                 translationMessage.speechParams.autoPlay = true;
               }
               
-              console.log(`Speech params: autoPlay=${translationMessage.speechParams.autoPlay}`);
+              // Only log in development mode
+              if (process.env.NODE_ENV === 'development') {
+                console.log(`Using browser speech synthesis for ${studentLanguage}`);
+              }
             } catch (jsonError) {
               console.error('Error parsing speech params:', jsonError);
               // Fallback to default speech params
@@ -431,16 +426,17 @@ export class WebSocketServer {
             translationMessage.audioData = audioBuffer.toString('base64');
             translationMessage.useClientSpeech = false; // Explicitly set to false
             
-            // Log audio data details for debugging
-            console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
-            console.log(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
-            console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+            // Minimal logging for development mode only
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
+            }
           }
         } catch (error) {
           console.error('Error processing audio data for translation:', error);
         }
-      } else {
-        console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
+      } else if (process.env.NODE_ENV === 'development') {
+        // Only log in development mode
+        console.log(`No audio buffer available for language ${studentLanguage}`);
       }
       
       client.send(JSON.stringify(translationMessage));

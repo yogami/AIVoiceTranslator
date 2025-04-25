@@ -604,14 +604,10 @@ export class SpeechTranslationService {
       // Use TTS service type from options if provided, or fall back to environment or default 'openai'
       const ttsServiceType = (options && options.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'openai';
       
-      // Enhanced logging for TTS service debugging
-      console.log(`\n===== TRANSLATION SERVICE TTS SELECTION =====`);
-      console.log(`Options object:`, JSON.stringify(options || {}));
-      console.log(`Options TTS service type: ${options?.ttsServiceType || 'not specified'}`);
-      console.log(`Environment TTS_SERVICE_TYPE: ${process.env.TTS_SERVICE_TYPE || 'not set'}`);
-      console.log(`Selected TTS service type: ${ttsServiceType}`);
-      console.log(`For language: ${targetLanguage}`);
-      console.log(`===========================================\n`);
+      // Minimal logging in development mode only
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Translation service: Selected TTS type ${ttsServiceType} for language ${targetLanguage}`);
+      }
       
       // Instead of getting the service directly, use textToSpeechService with explicit override
       // This ensures the service type is respected throughout the entire flow
@@ -621,7 +617,10 @@ export class SpeechTranslationService {
         preserveEmotions: true // Enable emotional tone preservation
       }, ttsServiceType); // Pass service type explicitly
       
-      console.log(`Generated translated audio using ${ttsServiceType} service: ${translatedAudioBuffer.length} bytes`);
+      // Only log in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Generated audio (${translatedAudioBuffer.length} bytes) using ${ttsServiceType} service`);
+      }
     } catch (error) {
       console.error('Error generating audio for translation:', error);
       // On error, keep the original audio buffer
@@ -679,10 +678,13 @@ export async function translateSpeech(
   
   if (typeof ttsServiceType === 'string') {
     ttsServiceOptions = { ttsServiceType };
-    console.log(`Using TTS service '${ttsServiceType}' (string format)`);
   } else {
     ttsServiceOptions = ttsServiceType || {};
-    console.log(`Using TTS service options:`, ttsServiceOptions);
+  }
+  
+  // Only log in development mode
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`Using TTS service: ${ttsServiceOptions.ttsServiceType || 'default'}`);
   }
   
   return speechTranslationService.translateSpeech(

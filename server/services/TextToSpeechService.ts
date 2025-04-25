@@ -517,14 +517,10 @@ export const textToSpeechService = {
     // Browser autoplay restrictions make Web Speech API unreliable for automatic playback
     const serviceType = serviceTypeOverride || process.env.TTS_SERVICE_TYPE || 'openai';
     
-    // Add detailed debugging to help track down TTS service selection issues
-    console.log(`---------- TTS SERVICE SELECTION DEBUG ----------`);
-    console.log(`Requested TTS service: ${serviceTypeOverride || 'none (using fallback)'}`);
-    console.log(`Environment TTS_SERVICE_TYPE: ${process.env.TTS_SERVICE_TYPE || 'not set'}`);
-    console.log(`Final selected service: ${serviceType}`);
-    console.log(`Text to synthesize: "${options.text.substring(0, 50)}${options.text.length > 50 ? '...' : ''}"`);
-    console.log(`Language: ${options.languageCode}`);
-    console.log(`-------------------------------------------------`);
+    // Simple log for diagnostic purposes - not visible to end users
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`TTS service: Using ${serviceType} service for ${options.languageCode}`);
+    }
     
     return ttsFactory.getService(serviceType).synthesizeSpeech(options);
   }
