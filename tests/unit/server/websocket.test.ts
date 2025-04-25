@@ -77,6 +77,9 @@ describe('WebSocketService', () => {
   let mockServer: MockServer;
   let wsService: WebSocketService;
   
+  // Extend the test timeout to account for slow WebSocket operations in Replit
+  jest.setTimeout(30000); // 30 seconds timeout instead of default 5 seconds
+  
   beforeEach(() => {
     jest.clearAllMocks();
     mockServer = new MockServer();

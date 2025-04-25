@@ -21,6 +21,13 @@ run_unit_tests() {
   npx jest tests/unit
 }
 
+# Function to run only non-websocket tests (for Replit environment)
+run_safe_tests() {
+  echo -e "\n${YELLOW}Running Safe Tests (excluding WebSocket tests)...${NC}"
+  # The --testPathIgnorePatterns flag excludes WebSocket test files
+  npx jest --testPathIgnorePatterns="websocket"
+}
+
 # Function to run integration tests
 run_integration_tests() {
   echo -e "\n${YELLOW}Running Integration Tests...${NC}"
@@ -62,6 +69,9 @@ case "$1" in
   "coverage")
     run_coverage
     ;;
+  "safe")
+    run_safe_tests
+    ;;
   *)
     echo -e "${YELLOW}Usage:${NC}"
     echo -e "  $0 unit        - Run unit tests"
@@ -69,6 +79,7 @@ case "$1" in
     echo -e "  $0 e2e         - Run end-to-end tests"
     echo -e "  $0 all         - Run all tests"
     echo -e "  $0 coverage    - Run tests with coverage report"
+    echo -e "  $0 safe        - Run only non-WebSocket tests (for Replit)"
     ;;
 esac
 
