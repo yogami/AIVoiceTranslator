@@ -1,0 +1,59 @@
+name: TTS Service Selection Tests
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'server/services/**'
+      - 'client/public/**'
+      - 'tests/selenium/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'server/services/**'
+      - 'client/public/**'
+      - 'tests/selenium/**'
+  workflow_dispatch:
+    # Allow manual triggering
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Chrome and ChromeDriver
+        run: |
+          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          npm install --no-save chromedriver@$(google-chrome --version | awk '{ print $3 }' | cut -d. -f1)
+      
+      - name: Run TTS service selection tests
+        run: |
+          ./run-tts-service-selection-tests.sh
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CI: true
+      
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            test-results/
+            test-results/screenshots/
+          retention-days: 7
