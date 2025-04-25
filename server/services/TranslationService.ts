@@ -668,15 +668,24 @@ export async function translateSpeech(
   sourceLanguage: string, 
   targetLanguage: string,
   preTranscribedText?: string,
-  ttsServiceType?: string
+  ttsServiceType?: string | { ttsServiceType?: string }
 ): Promise<TranslationResult> {
+  // Handle both string and object format
+  let ttsServiceOptions: { ttsServiceType?: string };
+  
+  if (typeof ttsServiceType === 'string') {
+    ttsServiceOptions = { ttsServiceType };
+    console.log(`Using TTS service '${ttsServiceType}' (string format)`);
+  } else {
+    ttsServiceOptions = ttsServiceType || {};
+    console.log(`Using TTS service options:`, ttsServiceOptions);
+  }
+  
   return speechTranslationService.translateSpeech(
     audioBuffer,
     sourceLanguage,
     targetLanguage,
     preTranscribedText,
-    {
-      ttsServiceType: ttsServiceType // Pass through the TTS service type
-    }
+    ttsServiceOptions
   );
 }

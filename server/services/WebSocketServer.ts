@@ -329,7 +329,7 @@ export class WebSocketServer {
           teacherLanguage,
           targetLanguage,
           message.text, // Use the pre-transcribed text
-          { ttsServiceType: teacherTtsServiceType } // Pass TTS service type directly
+          { ttsServiceType: teacherTtsServiceType } // Pass TTS service type as object
         );
         
         // Store the full result object for this language
