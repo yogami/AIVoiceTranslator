@@ -604,8 +604,14 @@ export class SpeechTranslationService {
       // Use TTS service type from options if provided, or fall back to environment or default 'openai'
       const ttsServiceType = (options && options.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'openai';
       
-      // Log the TTS service being used
-      console.log(`Using TTS service '${ttsServiceType}' for language '${targetLanguage}'`);
+      // Enhanced logging for TTS service debugging
+      console.log(`\n===== TRANSLATION SERVICE TTS SELECTION =====`);
+      console.log(`Options object:`, JSON.stringify(options || {}));
+      console.log(`Options TTS service type: ${options?.ttsServiceType || 'not specified'}`);
+      console.log(`Environment TTS_SERVICE_TYPE: ${process.env.TTS_SERVICE_TYPE || 'not set'}`);
+      console.log(`Selected TTS service type: ${ttsServiceType}`);
+      console.log(`For language: ${targetLanguage}`);
+      console.log(`===========================================\n`);
       
       // Instead of getting the service directly, use textToSpeechService with explicit override
       // This ensures the service type is respected throughout the entire flow

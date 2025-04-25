@@ -1,10 +1,12 @@
 import WebSocket from 'ws';
 
+// This test creates both a teacher and student connection to test the complete flow
 const wsUrl = 'ws://localhost:5000/ws';
-const ws = new WebSocket(wsUrl);
+const teacherWs = new WebSocket(wsUrl);
+let studentWs;
 
-ws.on('open', function open() {
-  console.log('Connected to WebSocket server');
+teacherWs.on('open', function open() {
+  console.log('TEACHER: Connected to WebSocket server');
   
   // Register as teacher with explicit browser TTS preference
   const registerMessage = {
@@ -16,44 +18,83 @@ ws.on('open', function open() {
     }
   };
   
-  ws.send(JSON.stringify(registerMessage));
-  console.log('Sent register message with browser TTS preference');
+  teacherWs.send(JSON.stringify(registerMessage));
+  console.log('TEACHER: Sent register message with browser TTS preference');
   
-  // Wait a bit before sending a transcription with the browser TTS setting
-  setTimeout(() => {
-    // Force log to check what TTS service is set in the server
-    const debugMessage = {
-      type: 'ping',
-      message: 'Checking current TTS service type before transcription'
+  // Now connect a student in a different language
+  console.log('Creating student connection...');
+  studentWs = new WebSocket(wsUrl);
+  
+  studentWs.on('open', function() {
+    console.log('STUDENT: Connected to WebSocket server');
+    
+    // Register as student with Spanish language
+    const studentRegister = {
+      type: 'register',
+      role: 'student',
+      languageCode: 'es' // Spanish
     };
-    ws.send(JSON.stringify(debugMessage));
     
-    // Now send a transcription
-    const transcriptionMessage = {
-      type: 'transcription',
-      text: 'This is a test transcription that should use browser TTS',
-    };
+    studentWs.send(JSON.stringify(studentRegister));
+    console.log('STUDENT: Sent register message for Spanish language');
     
-    ws.send(JSON.stringify(transcriptionMessage));
-    console.log('Sent test transcription that should use browser TTS');
-    
-    // Allow more time for the server to process before closing
+    // After student is connected, teacher sends a transcription
     setTimeout(() => {
-      ws.close();
-      console.log('Test completed');
-    }, 3000);
-  }, 1000);
+      console.log('TEACHER: Sending transcription message...');
+      
+      // Now send a transcription
+      const transcriptionMessage = {
+        type: 'transcription',
+        text: 'This is a test transcription that should use browser TTS service',
+      };
+      
+      teacherWs.send(JSON.stringify(transcriptionMessage));
+      console.log('TEACHER: Sent test transcription that should use browser TTS');
+      
+      // Allow more time for the server to process before closing
+      setTimeout(() => {
+        teacherWs.close();
+        console.log('TEACHER: Connection closed');
+        
+        // Give a bit more time for the student to receive translation
+        setTimeout(() => {
+          if (studentWs) {
+            studentWs.close();
+            console.log('STUDENT: Connection closed');
+          }
+          console.log('Test completed');
+        }, 1000);
+      }, 3000);
+    }, 1000);
+  });
+  
+  studentWs.on('message', function incoming(data) {
+    const message = JSON.parse(data);
+    console.log('STUDENT RECEIVED:', message);
+    
+    // Check if we received a translation with the correct TTS service type
+    if (message.type === 'translation') {
+      console.log('🔍 CHECKING TRANSLATION:');
+      console.log(`- TTS Service Type: ${message.ttsServiceType}`);
+      console.log(`- useClientSpeech: ${message.useClientSpeech}`);
+      console.log(`- Has speechParams: ${message.speechParams ? 'YES' : 'NO'}`);
+      if (message.speechParams) {
+        console.log(`- speechParams: ${JSON.stringify(message.speechParams)}`);
+      }
+      console.log(`- Has audioData: ${message.audioData ? 'YES' : 'NO'}`);
+    }
+  });
+  
+  studentWs.on('error', function(err) {
+    console.error('STUDENT WebSocket error:', err);
+  });
 });
 
-ws.on('message', function incoming(data) {
+teacherWs.on('message', function incoming(data) {
   const message = JSON.parse(data);
-  console.log('Received:', message);
+  console.log('TEACHER RECEIVED:', message);
 });
 
-ws.on('error', function error(err) {
-  console.error('WebSocket error:', err);
-});
-
-ws.on('close', function close() {
-  console.log('WebSocket connection closed');
+teacherWs.on('error', function error(err) {
+  console.error('TEACHER WebSocket error:', err);
 });

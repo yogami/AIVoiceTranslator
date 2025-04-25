@@ -316,16 +316,26 @@ export class WebSocketServer {
         let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'openai';
         
         // Look for the teacher's TTS service preference
+        console.log(`\n***** WEBSOCKET SERVER TTS PREFERENCE DEBUG *****`);
+        console.log(`Initial TTS service type: ${teacherTtsServiceType}`);
+        console.log(`Looking for teacher preferences...`);
+        
         this.connections.forEach(client => {
-          if (this.roles.get(client) === 'teacher' &&
-              this.clientSettings.get(client)?.ttsServiceType) {
-            // Use the teacher's preference for all student translations
-            teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+          if (this.roles.get(client) === 'teacher') {
+            console.log(`Found teacher client, settings:`, this.clientSettings.get(client));
+            if (this.clientSettings.get(client)?.ttsServiceType) {
+              // Use the teacher's preference for all student translations
+              teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+              console.log(`Using teacher's TTS preference: ${teacherTtsServiceType}`);
+            } else {
+              console.log(`Teacher has no TTS preference set`);
+            }
           }
         });
         
-        // No need to set environment variable anymore - we'll pass it directly
-        console.log(`Using teacher's TTS service '${teacherTtsServiceType}' for language '${targetLanguage}'`);
+        console.log(`Final selected TTS service: ${teacherTtsServiceType}`);
+        console.log(`Target language: ${targetLanguage}`);
+        console.log(`*********************************************\n`);
         
         // Perform the translation with the selected TTS service
         const result = await speechTranslationService.translateSpeech(
