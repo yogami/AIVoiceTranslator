@@ -19,7 +19,7 @@ run_test() {
   local test_name=$2
   
   echo -e "${BLUE}Running ${test_name} tests...${NC}"
-  npm test -- --testPathPattern=tests/${test_pattern}
+  npx jest --testPathPattern=tests/${test_pattern}
   
   if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ ${test_name} tests passed${NC}"
