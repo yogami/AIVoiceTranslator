@@ -241,11 +241,24 @@ export class OpenAITranscriptionService implements ITranscriptionService {
 }
 
 /**
+ * Error response interface for standardized error handling
+ */
+interface TranslationErrorResponse {
+  error: string;
+  originalText: string;
+  retryCount: number;
+  statusCode?: number;
+  shouldRetry: boolean;
+}
+
+/**
  * OpenAI Translation Service
  * Handles text translation using OpenAI's GPT API
+ * Implements proper error handling with retry logic
  */
 export class OpenAITranslationService implements ITranslationService {
   private readonly openai: OpenAI;
+  private readonly maxRetries: number = 3;
   
   constructor(openai: OpenAI) {
     this.openai = openai;
@@ -259,7 +272,91 @@ export class OpenAITranslationService implements ITranslationService {
   }
   
   /**
+   * Handle translation errors in a standardized way
+   * Extracts useful information from various error types
+   */
+  private handleTranslationError(error: unknown, originalText: string, retryCount: number): TranslationErrorResponse {
+    let errorMessage = 'Unknown error occurred';
+    let statusCode: number | undefined = undefined;
+    let shouldRetry = retryCount < this.maxRetries;
+    
+    // Process different types of errors
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Check for specific OpenAI API error patterns
+      if ('status' in error && typeof (error as any).status === 'number') {
+        statusCode = (error as any).status;
+        
+        // Only retry on specific error codes (429 rate limit, 500 server error, etc.)
+        const code = statusCode || 0; // Use 0 if undefined
+        shouldRetry = retryCount < this.maxRetries && 
+          (code === 429 || code >= 500 || code === 0);
+      }
+    }
+    
+    console.error(`Translation error [attempt ${retryCount + 1}/${this.maxRetries + 1}]:`, errorMessage);
+    
+    return {
+      error: errorMessage,
+      originalText,
+      retryCount,
+      statusCode,
+      shouldRetry
+    };
+  }
+  
+  /**
+   * Create translation request with exponential backoff retry
+   */
+  private async executeWithRetry(
+    text: string,
+    sourceLangName: string,
+    targetLangName: string,
+    retryCount: number = 0
+  ): Promise<string> {
+    try {
+      const prompt = `
+        Translate this text from ${sourceLangName} to ${targetLangName}. 
+        Maintain the same tone and style. Return only the translation without explanations or notes.
+        
+        Original text: "${text}"
+        
+        Translation:
+      `;
+      
+      const translation = await this.openai.chat.completions.create({
+        model: DEFAULT_CHAT_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a professional translator with expertise in multiple languages.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
+      });
+      
+      const translatedText = translation.choices[0].message.content?.trim() || text;
+      return translatedText;
+    } catch (error) {
+      const errorResponse = this.handleTranslationError(error, text, retryCount);
+      
+      // Implement exponential backoff retry
+      if (errorResponse.shouldRetry) {
+        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+        console.log(`Retrying translation in ${delay}ms...`);
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.executeWithRetry(text, sourceLangName, targetLangName, retryCount + 1);
+      }
+      
+      // If we've exhausted retries or shouldn't retry, throw a standardized error
+      throw new Error(`Translation failed after ${retryCount + 1} attempts: ${errorResponse.error}`);
+    }
+  }
+  
+  /**
    * Translate text from one language to another
+   * Implementation now has reduced complexity by separating concerns
    */
   async translate(
     text: string, 
@@ -281,26 +378,7 @@ export class OpenAITranslationService implements ITranslationService {
       const sourceLangName = this.getLanguageName(sourceLanguage);
       const targetLangName = this.getLanguageName(targetLanguage);
       
-      const prompt = `
-        Translate this text from ${sourceLangName} to ${targetLangName}. 
-        Maintain the same tone and style. Return only the translation without explanations or notes.
-        
-        Original text: "${text}"
-        
-        Translation:
-      `;
-      
-      const translation = await this.openai.chat.completions.create({
-        model: DEFAULT_CHAT_MODEL,
-        messages: [
-          { role: 'system', content: 'You are a professional translator with expertise in multiple languages.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 500
-      });
-      
-      const translatedText = translation.choices[0].message.content?.trim() || text;
+      const translatedText = await this.executeWithRetry(text, sourceLangName, targetLangName);
       
       console.log(`Successfully processed translation to ${targetLanguage}`);
       console.log(`Translation complete: "${text}" -> "${translatedText}"`);
@@ -308,61 +386,29 @@ export class OpenAITranslationService implements ITranslationService {
       return translatedText;
     } catch (error: unknown) {
       console.error(`Error translating to ${targetLanguage}:`, error);
-      // Return original text as fallback if translation fails
-      return text;
+      
+      // For production, we'd log this error to a monitoring system
+      if (error instanceof Error) {
+        console.error(`Translation error details: ${error.message}`);
+      }
+      
+      // Return empty string to indicate failure, better than returning misleading text
+      return '';
     }
   }
 }
 
 /**
- * Composite Speech Translation Service
- * Orchestrates the entire translation workflow
- * Following the Facade pattern to simplify the API
+ * Helper for creating development mode audio buffers
+ * Extracted to reduce complexity in main service class
  */
-export class SpeechTranslationService {
-  private readonly transcriptionService: ITranscriptionService;
-  private readonly translationService: ITranslationService;
-  private readonly apiKeyAvailable: boolean;
-  
-  constructor(
-    transcriptionService: ITranscriptionService,
-    translationService: ITranslationService,
-    apiKeyAvailable: boolean
-  ) {
-    this.transcriptionService = transcriptionService;
-    this.translationService = translationService;
-    this.apiKeyAvailable = apiKeyAvailable;
-  }
-  
+class DevelopmentModeHelper {
   /**
-   * Create development mode synthetic translation for testing without API key
+   * Create a simple WAV buffer with silence
+   * Used for development mode when no real audio processing is available
    */
-  private createDevelopmentModeTranslation(
-    sourceLanguage: string,
-    targetLanguage: string,
-    preTranscribedText?: string
-  ): TranslationResult {
-    console.log('DEV MODE: Using synthetic translation data due to missing API key');
-    
-    // Get the transcription from WebSpeech API if available
-    const transcribedText = preTranscribedText || 'This is a development mode transcription.';
-    
-    // Generate synthetic translation based on the target language
-    let translatedText = transcribedText;
-    if (targetLanguage.startsWith('es')) {
-      // Spanish
-      translatedText = 'Esto es una traducción en modo de desarrollo.';
-    } else if (targetLanguage.startsWith('fr')) {
-      // French
-      translatedText = 'Ceci est une traduction en mode développement.';
-    } else if (targetLanguage.startsWith('de')) {
-      // German
-      translatedText = 'Dies ist eine Übersetzung im Entwicklungsmodus.';
-    }
-    
-    // Create a fake audio buffer
-    // In a real application, this would be the audio from text-to-speech
-    // For development, we're using a minimal PCM WAV header + some silence
+  static createSilentAudioBuffer(): Buffer {
+    // Create a minimal PCM WAV header
     const wavHeader = Buffer.from([
       0x52, 0x49, 0x46, 0x46, // "RIFF"
       0x24, 0x00, 0x00, 0x00, // ChunkSize (36 bytes + data size)
@@ -390,20 +436,128 @@ export class SpeechTranslationService {
     wavHeader.writeUInt32LE(36 + dataSize, 4);
     
     // Combine header and data
-    const audioBuffer = Buffer.concat([wavHeader, silenceData]);
+    return Buffer.concat([wavHeader, silenceData]);
+  }
+  
+  /**
+   * Get a synthetic translation based on target language
+   */
+  static getLanguageSpecificTranslation(text: string, targetLanguage: string): string {
+    // Simple mapping for common languages in development mode
+    const devTranslations: Record<string, string> = {
+      es: 'Esto es una traducción en modo de desarrollo.',
+      fr: 'Ceci est une traduction en mode développement.',
+      de: 'Dies ist eine Übersetzung im Entwicklungsmodus.',
+    };
+    
+    // Extract language code without region (e.g., 'es' from 'es-ES')
+    const langPrefix = targetLanguage.split('-')[0].toLowerCase();
+    
+    // Return mapped translation or original text if no mapping exists
+    return devTranslations[langPrefix] || text;
+  }
+}
+
+/**
+ * Composite Speech Translation Service
+ * Orchestrates the entire translation workflow
+ * Following the Facade pattern and Strategy pattern to simplify the API
+ */
+export class SpeechTranslationService {
+  private readonly transcriptionService: ITranscriptionService;
+  private readonly translationService: ITranslationService;
+  private readonly apiKeyAvailable: boolean;
+  
+  constructor(
+    transcriptionService: ITranscriptionService,
+    translationService: ITranslationService,
+    apiKeyAvailable: boolean
+  ) {
+    this.transcriptionService = transcriptionService;
+    this.translationService = translationService;
+    this.apiKeyAvailable = apiKeyAvailable;
+  }
+  
+  /**
+   * Create development mode synthetic translation for testing without API key
+   */
+  private createDevelopmentModeTranslation(
+    sourceLanguage: string,
+    targetLanguage: string,
+    preTranscribedText?: string
+  ): TranslationResult {
+    console.log('DEV MODE: Using synthetic translation data due to missing API key');
+    
+    // Get the transcription from WebSpeech API if available
+    const originalText = preTranscribedText || 'This is a development mode transcription.';
+    
+    // Get language-specific translation
+    const translatedText = DevelopmentModeHelper.getLanguageSpecificTranslation(
+      originalText, 
+      targetLanguage
+    );
+    
+    // Create a simple audio buffer with silence
+    const audioBuffer = DevelopmentModeHelper.createSilentAudioBuffer();
     
     console.log(`DEV MODE: Returning synthetic translation: "${translatedText}"`);
     
     return {
-      originalText: transcribedText,
-      translatedText: translatedText,
-      audioBuffer: audioBuffer
+      originalText,
+      translatedText,
+      audioBuffer
     };
+  }
+  
+  /**
+   * Get text either from pre-transcribed input or by transcribing audio
+   * Extracted to reduce complexity
+   */
+  private async getOriginalText(
+    audioBuffer: Buffer,
+    sourceLanguage: string,
+    preTranscribedText?: string
+  ): Promise<string> {
+    // If text is already provided, skip transcription step
+    if (preTranscribedText) {
+      console.log(`Using pre-transcribed text instead of audio: "${preTranscribedText}"`);
+      return preTranscribedText;
+    }
+    
+    // Transcribe the audio
+    try {
+      return await this.transcriptionService.transcribe(audioBuffer, sourceLanguage);
+    } catch (error: unknown) {
+      console.error('Transcription service failed:', error);
+      return '';
+    }
+  }
+  
+  /**
+   * Translate text to target language
+   * Extracted to reduce complexity
+   */
+  private async translateText(
+    text: string,
+    sourceLanguage: string,
+    targetLanguage: string
+  ): Promise<string> {
+    try {
+      return await this.translationService.translate(
+        text,
+        sourceLanguage,
+        targetLanguage
+      );
+    } catch (error) {
+      console.error('Translation service failed:', error);
+      return '';
+    }
   }
   
   /**
    * Transcribe and translate speech
    * Main public method that orchestrates the workflow
+   * Complexity reduced by extracting methods
    */
   async translateSpeech(
     audioBuffer: Buffer,
@@ -418,25 +572,12 @@ export class SpeechTranslationService {
       return this.createDevelopmentModeTranslation(sourceLanguage, targetLanguage, preTranscribedText);
     }
     
-    let originalText: string;
-    
-    // If text is already provided, skip transcription step
-    if (preTranscribedText) {
-      console.log(`Using pre-transcribed text instead of audio: "${preTranscribedText}"`);
-      originalText = preTranscribedText;
-    } else {
-      // Transcribe the audio
-      try {
-        originalText = await this.transcriptionService.transcribe(audioBuffer, sourceLanguage);
-      } catch (error: unknown) {
-        console.error('Transcription service failed:', error);
-        return { 
-          originalText: '', 
-          translatedText: '', 
-          audioBuffer 
-        };
-      }
-    }
+    // Get original text (either from transcription or pre-provided)
+    const originalText = await this.getOriginalText(
+      audioBuffer,
+      sourceLanguage,
+      preTranscribedText
+    );
     
     // Skip empty transcriptions
     if (!originalText) {
@@ -448,27 +589,17 @@ export class SpeechTranslationService {
     }
     
     // Translate the text
-    try {
-      const translatedText = await this.translationService.translate(
-        originalText,
-        sourceLanguage,
-        targetLanguage
-      );
-      
-      return { 
-        originalText, 
-        translatedText, 
-        audioBuffer 
-      };
-    } catch (error) {
-      console.error('Translation service failed:', error);
-      // Return original text as fallback if translation fails
-      return { 
-        originalText, 
-        translatedText: originalText, 
-        audioBuffer 
-      };
-    }
+    const translatedText = await this.translateText(
+      originalText,
+      sourceLanguage,
+      targetLanguage
+    );
+    
+    return { 
+      originalText, 
+      translatedText: translatedText || originalText, // Fallback to original text if translation failed
+      audioBuffer 
+    };
   }
 }
 
