@@ -1,5 +1,5 @@
 /**
- * Benedictaitor Server
+ * AIVoiceTranslator Server
  * 
  * Main server entry point with Express and WebSocket setup
  */

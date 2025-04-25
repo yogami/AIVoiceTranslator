@@ -5,7 +5,7 @@ const Home: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
       <div className="max-w-4xl w-full bg-white rounded-lg shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-center mb-8">Benedictaitor - Speech Translation System</h1>
+        <h1 className="text-3xl font-bold text-center mb-8">AIVoiceTranslator - Speech Translation System</h1>
         
         <div className="text-center mb-8">
           <p className="mb-4">
@@ -40,7 +40,7 @@ const Home: React.FC = () => {
         </div>
         
         <div className="mt-8 text-center text-gray-600">
-          <p>Benedictaitor - Built for simplified classroom translation</p>
+          <p>AIVoiceTranslator - Built for simplified classroom translation</p>
         </div>
       </div>
     </div>

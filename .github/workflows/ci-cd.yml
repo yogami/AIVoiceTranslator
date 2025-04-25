@@ -1,4 +1,4 @@
-name: Benedictaitor CI/CD Pipeline
+name: AIVoiceTranslator CI/CD Pipeline
 
 on:
   # Allows this workflow to be triggered via the GitHub API

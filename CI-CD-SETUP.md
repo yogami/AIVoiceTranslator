@@ -61,7 +61,7 @@ Edit the `ci-cd-trigger.sh` file to include your GitHub username and repository 
 ```bash
 # Find these lines in ci-cd-trigger.sh
 GITHUB_USERNAME="your-username"
-REPO_NAME="benedictaitor"
+REPO_NAME="AIVoiceTranslator"
 
 # Replace with your actual GitHub username and repository name
 GITHUB_USERNAME="actual-username"
