@@ -23,8 +23,8 @@ const execAsync = promisify(exec);
 
 // GitHub API configuration
 const GITHUB_API_URL = 'https://api.github.com';
-const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || 'your-github-username';
-const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'AIVoiceTranslator';
+const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || '';
+const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || '';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 // Define metrics types
@@ -448,6 +448,11 @@ async function fetchGitHubActionsWorkflows(): Promise<GitHubWorkflowRunsResponse
   try {
     if (!GITHUB_TOKEN) {
       console.warn('GitHub token not available. Using sample data for CI/CD metrics.');
+      return null;
+    }
+    
+    if (!GITHUB_REPO_OWNER || !GITHUB_REPO_NAME) {
+      console.warn('GitHub repository information not available. Using sample data for CI/CD metrics.');
       return null;
     }
 
