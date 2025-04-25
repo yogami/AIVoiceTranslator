@@ -351,8 +351,16 @@ export class WebSocketServer {
       
       const translatedText = translations[studentLanguage] || message.text;
       
-      // Get the TTS service type from the client's settings (if provided)
-      const ttsServiceType = this.clientSettings.get(client)?.ttsServiceType || process.env.TTS_SERVICE_TYPE || 'browser';
+      // Get the teacher's preferred TTS service type (same as used for generation)
+      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+      this.connections.forEach(teacherClient => {
+        if (this.roles.get(teacherClient) === 'teacher' &&
+            this.clientSettings.get(teacherClient)?.ttsServiceType) {
+          teacherTtsServiceType = this.clientSettings.get(teacherClient)?.ttsServiceType;
+        }
+      });
+      // Use teacher's preference instead of individual student settings
+      const ttsServiceType = teacherTtsServiceType;
       
       // Create translation message with audio data support
       const translationMessage: any = {
@@ -393,7 +401,7 @@ export class WebSocketServer {
             
             // Log audio data details for debugging
             console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
-            console.log(`Using OpenAI TTS service for ${studentLanguage} (client preference: ${ttsServiceType})`);
+            console.log(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
             console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
           }
         } catch (error) {
