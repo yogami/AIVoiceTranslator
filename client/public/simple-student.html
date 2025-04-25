@@ -319,45 +319,11 @@
                 <!-- This will be populated dynamically -->
             </div>
             
-            <!-- TTS Metrics Section -->
-            <div id="tts-metrics" style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 15px;">
-                <h4>TTS Service Metrics</h4>
-                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-                    <thead>
-                        <tr>
-                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Metric</th>
-                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">Browser Speech</th>
-                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">OpenAI TTS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="padding: 8px; border-bottom: 1px solid #eee;">Latency (ms)</td>
-                            <td id="browser-latency" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
-                            <td id="openai-latency" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; border-bottom: 1px solid #eee;">Audio Quality</td>
-                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">Medium</td>
-                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">High</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; border-bottom: 1px solid #eee;">File Size (KB)</td>
-                            <td id="browser-size" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
-                            <td id="openai-size" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px; border-bottom: 1px solid #eee;">Emotion Preservation</td>
-                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">Low</td>
-                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">High</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 8px;">Cost</td>
-                            <td style="text-align: center; padding: 8px;">Free</td>
-                            <td style="text-align: center; padding: 8px;">$0.015/1K chars</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <!-- Metrics moved to code-metrics.html dashboard -->
+            <div style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px; font-size: 0.9em; color: #666; text-align: center;">
+                <a href="/code-metrics.html#audio-tests" style="color: #3498db; text-decoration: none;">
+                    View detailed TTS service metrics in the Code Quality Dashboard
+                </a>
             </div>
             
             <button id="refresh-comparison" style="margin-top: 15px;">

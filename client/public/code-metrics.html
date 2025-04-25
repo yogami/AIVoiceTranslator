@@ -858,6 +858,63 @@
             </div>
             
             <div class="card">
+                <h3>TTS Service Comparison Metrics</h3>
+                <div class="metric-details">
+                    <p>Comparison of different Text-to-Speech services used in the application:</p>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding: 10px; border-bottom: 2px solid #ddd;">Metric</th>
+                                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #ddd;">Browser Speech</th>
+                                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #ddd;">OpenAI TTS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Average Latency</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">~100ms</span></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="warning-text">~800ms</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Audio Quality</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="warning-text">Medium</span></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">High</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">File Size</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">~2KB</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">~70KB</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Language Support</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="warning-text">Medium</span><br><small>Varies by browser</small></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">High</span><br><small>100+ languages</small></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Emotion Preservation</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="poor-text">Low</span></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">High</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px;">Cost</td>
+                                <td style="text-align: center; padding: 10px;"><span class="good-text">Free</span></td>
+                                <td style="text-align: center; padding: 10px;"><span class="warning-text">$0.015/1K chars</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="metric-details" style="margin-top: 15px;">
+                    <p><strong>Developer Notes:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>OpenAI TTS offers significantly better quality and emotion preservation, but with higher latency</li>
+                        <li>For real-time classroom use, latency is a critical factor</li>
+                        <li>API costs scale with text length and should be monitored for production usage</li>
+                        <li>Browser TTS is recommended for development and testing</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
                 <h3>Audio Test Environment</h3>
                 <div class="metric-details">
                     <p>Testing is performed in a GitHub Actions workflow with the following configuration:</p>
@@ -877,5 +934,39 @@
     </div>
     
     <script src="js/code-metrics.js"></script>
+    <script>
+        // Handle hash links for direct navigation to specific sections
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if there's a hash in the URL
+            if (window.location.hash) {
+                const hash = window.location.hash.substring(1);
+                
+                // Find the tab content related to the hash
+                const tabContent = document.getElementById(hash);
+                if (tabContent) {
+                    // Hide all tab content
+                    const allTabContent = document.querySelectorAll('.tab-content');
+                    allTabContent.forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    
+                    // Show the selected tab content
+                    tabContent.style.display = 'block';
+                    
+                    // Update the active class on tab buttons
+                    const allTabButtons = document.querySelectorAll('.tab-button');
+                    allTabButtons.forEach(button => {
+                        button.classList.remove('active');
+                        if (button.getAttribute('data-tab') === hash) {
+                            button.classList.add('active');
+                        }
+                    });
+                    
+                    // Scroll to the tab content
+                    tabContent.scrollIntoView();
+                }
+            }
+        });
+    </script>
 </body>
 </html>
