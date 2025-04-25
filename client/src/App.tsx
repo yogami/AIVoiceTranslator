@@ -6,6 +6,7 @@ import NotFound from "./pages/not-found";
 import Home from "./pages/Home";
 import UsageGuidePage from "./pages/UsageGuidePage";
 import StudentPage from "./pages/StudentPage";
+import TeacherPage from "./pages/TeacherPage";
 
 // Import toast functionality
 import { ToastProps, setToastHandler } from "./hooks/use-toast";
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/guide" component={UsageGuidePage} />
       <Route path="/student" component={StudentPage} />
+      <Route path="/teacher" component={TeacherPage} />
       <Route component={NotFound} />
     </Switch>
   );
