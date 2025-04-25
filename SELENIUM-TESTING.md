@@ -1,24 +1,34 @@
-# Continuous Testing with Selenium for AIVoiceTranslator
+# Comprehensive Automated Testing for AIVoiceTranslator
 
-This document explains the continuous testing setup for AIVoiceTranslator using Selenium WebDriver.
+This document explains the advanced testing infrastructure for AIVoiceTranslator using Selenium WebDriver, with a focus on audio testing capabilities.
 
 ## Overview
 
-We've set up a CI/CD pipeline that automatically runs Selenium tests against the deployed application whenever changes are pushed to the repository. This ensures that the application's UI and functionality continue to work as expected.
+We've set up a sophisticated CI/CD pipeline that automatically runs multiple test suites against the application whenever changes are pushed to the repository. This comprehensive testing approach ensures that all aspects of the application work as expected, including advanced audio processing features.
+
+## Testing Philosophy
+
+Following the London School of Test-Driven Development (TDD), our testing approach:
+1. Prioritizes automation over manual testing
+2. Follows a clear Arrange-Act-Assert pattern
+3. Tests both individual components and full end-to-end flows
+4. Ensures deterministic, repeatable results
+5. Maintains a complete testing pyramid (unit, integration, end-to-end)
 
 ## How It Works
 
 1. When you push changes to the repository (or trigger the CI/CD pipeline manually), the system:
-   - Runs unit and API tests
-   - Deploys the application to Replit
-   - Runs Selenium UI tests against the deployed application
+   - Runs unit and integration tests for core functionality
+   - Deploys the application to the target environment
+   - Runs basic Selenium UI tests to verify interface functionality
+   - Executes specialized audio end-to-end tests in a properly configured environment
 
-2. The Selenium tests verify:
-   - Teacher interface loads correctly
-   - Student interface loads correctly 
-   - Metrics dashboard displays properly
-   - WebSocket connections work as expected
-   - End-to-end audio processing and translation (through special audio E2E tests)
+2. The testing infrastructure verifies:
+   - Teacher interface loads correctly and captures speech
+   - Student interface loads correctly and plays translated audio
+   - Audio translation pipeline functions properly
+   - WebSocket connections handle real-time communication
+   - End-to-end audio processing and translation completes successfully
 
 ## Triggering Tests
 
@@ -120,13 +130,32 @@ it('should have a working feature X', async function() {
 - The application URL defaults to https://AIVoiceTranslator.replit.app but can be configured.
 - Basic tests will time out after 30 seconds; audio tests after 60 seconds.
 
-## Creating Test Audio Files
+## Audio Testing Infrastructure
 
-For audio E2E tests, you need test audio files in the `tests/test-assets/` directory:
+### Environment Setup
 
-1. Create an MP3 file with clear spoken English
-2. Name it `test-audio-english.mp3`
-3. See `tests/test-assets/README.md` for detailed instructions
+The audio testing environment in GitHub Actions includes specialized configuration:
+
+1. **Virtual Display Server**: Using Xvfb to enable browser GUI operations in the headless CI environment
+2. **Audio Device Support**: Virtual audio devices configured through ALSA
+3. **Browser Configuration**: Chrome with media stream flags for audio testing
+4. **Audio Asset Management**: Test audio files stored in version control
+
+### Audio Testing Approaches
+
+We support multiple approaches to test the audio capabilities:
+
+1. **Full Browser Audio Testing**: Using two browser instances (teacher and student) to test the complete flow
+2. **WebSocket Audio Testing**: Direct testing of the WebSocket API with simulated audio data
+3. **Manual Audio Testing**: A script that connects to the WebSocket API and retrieves audio for manual verification
+
+### Creating Test Audio Files
+
+For audio E2E tests, you need test audio files in the `tests/test-assets/audio/` directory:
+
+1. Create MP3 files with clear spoken English at 16kHz sampling rate
+2. Name them according to language and purpose: `test-audio-english.mp3`, etc.
+3. See `tests/test-assets/README.md` for detailed instructions and examples
 
 ## Troubleshooting
 

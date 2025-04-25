@@ -1,177 +1,247 @@
 /**
- * Manual Audio Playback Test Script
+ * Manual Audio Test Script
  * 
- * This script provides a way to manually test the audio playback functionality
- * without requiring a full browser environment.
+ * This script provides a simple way to test the audio translation functionality
+ * without requiring a browser. It connects to the WebSocket server, simulates
+ * teacher speech, and logs the responses.
  * 
- * Usage: node tests/manual-audio-test.js
+ * Usage: 
+ *   node tests/manual-audio-test.cjs [language] [text]
+ *   Example: node tests/manual-audio-test.cjs es "Hello world"
  */
 
 const WebSocket = require('ws');
-const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
 
-// Create readline interface for console interaction
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+// Configuration
+const SERVER_URL = process.env.SERVER_URL || 'ws://localhost:5000/ws';
+const TARGET_LANGUAGE = process.argv[2] || 'es'; // Default to Spanish if not provided
+const TEST_TEXT = process.argv[3] || 'This is a test of the translation system';
 
-// Set up application URL - use environment variable or default
-const APP_URL = process.env.APP_URL || 'https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev';
-const WS_URL = APP_URL.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws';
+// Create unique session IDs
+const TEACHER_SESSION_ID = `teacher_${Date.now()}`;
+const STUDENT_SESSION_ID = `student_${Date.now()}`;
 
-console.log(`Connecting to WebSocket at: ${WS_URL}`);
+// Colors for console output
+const colors = {
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m'
+};
 
-let teacherWs = null;
-let studentWs = null;
-let teacherSessionId = null;
-let studentSessionId = null;
+// ===== Helper Functions =====
 
-// Connect teacher WebSocket
-function connectTeacher() {
-  return new Promise((resolve, reject) => {
-    console.log('\nConnecting teacher WebSocket...');
-    teacherWs = new WebSocket(WS_URL);
-    
-    teacherWs.on('open', () => {
-      console.log('✓ Teacher WebSocket connected');
-      
-      // Register as teacher
-      const registerMessage = {
-        type: 'register',
-        role: 'teacher',
-        languageCode: 'en-US'
-      };
-      
-      teacherWs.send(JSON.stringify(registerMessage));
-      console.log('✓ Teacher registration message sent');
-    });
-    
-    teacherWs.on('message', (data) => {
-      const message = JSON.parse(data.toString());
-      console.log(`Teacher received: ${JSON.stringify(message)}`);
-      
-      if (message.type === 'connection' && message.sessionId) {
-        teacherSessionId = message.sessionId;
-        console.log(`✓ Teacher session established: ${teacherSessionId}`);
-        resolve(teacherWs);
-      }
-    });
-    
-    teacherWs.on('error', (error) => {
-      console.error('Teacher WebSocket error:', error);
-      reject(error);
-    });
-    
-    teacherWs.on('close', () => {
-      console.log('Teacher WebSocket closed');
-    });
-  });
+/**
+ * Log a message with color
+ */
+function log(message, color = colors.reset) {
+  console.log(`${color}${message}${colors.reset}`);
 }
 
-// Connect student WebSocket
-function connectStudent() {
-  return new Promise((resolve, reject) => {
-    console.log('\nConnecting student WebSocket...');
-    studentWs = new WebSocket(WS_URL);
-    
-    studentWs.on('open', () => {
-      console.log('✓ Student WebSocket connected');
-      
-      // Register as student
-      const registerMessage = {
-        type: 'register',
-        role: 'student',
-        languageCode: 'es' // Spanish
-      };
-      
-      studentWs.send(JSON.stringify(registerMessage));
-      console.log('✓ Student registration message sent (Spanish language)');
-    });
-    
-    studentWs.on('message', (data) => {
-      const message = JSON.parse(data.toString());
-      console.log(`Student received: ${JSON.stringify(message)}`);
-      
-      if (message.type === 'connection' && message.sessionId) {
-        studentSessionId = message.sessionId;
-        console.log(`✓ Student session established: ${studentSessionId}`);
-        resolve(studentWs);
-      }
-      
-      if (message.type === 'translation') {
-        console.log('\n✓ TRANSLATION RECEIVED!');
-        console.log(`Original: "${message.originalText}"`);
-        console.log(`Translated (${message.targetLanguage}): "${message.text}"`);
-        
-        // This is where we'd examine the data to verify audio functionality
-        console.log(`Audio data included in message: ${message.audioUrl ? 'YES' : 'NO'}`);
-        
-        if (message.audioUrl) {
-          console.log(`Audio URL: ${message.audioUrl}`);
-        }
-      }
-    });
-    
-    studentWs.on('error', (error) => {
-      console.error('Student WebSocket error:', error);
-      reject(error);
-    });
-    
-    studentWs.on('close', () => {
-      console.log('Student WebSocket closed');
-    });
-  });
-}
-
-// Send a test transcription from the teacher
-function sendTestTranscription() {
-  if (!teacherWs || teacherWs.readyState !== WebSocket.OPEN) {
-    console.error('Teacher WebSocket not connected');
-    return;
-  }
+/**
+ * Create a WebSocket connection with event handlers
+ */
+function createWebSocketConnection(sessionId, role, languageCode, messageHandler) {
+  log(`Creating WebSocket connection: ${sessionId} (${role}, ${languageCode})`, colors.cyan);
   
-  const transcriptionMessage = {
+  const ws = new WebSocket(SERVER_URL);
+  
+  // Event: Connection Open
+  ws.on('open', () => {
+    log(`WebSocket connection established for ${sessionId}`, colors.green);
+    
+    // Register the connection with server
+    ws.send(JSON.stringify({
+      type: 'register',
+      sessionId,
+      role,
+      languageCode
+    }));
+    
+    log(`Registered as ${role} with language ${languageCode}`, colors.green);
+  });
+  
+  // Event: Message Received
+  ws.on('message', (data) => {
+    try {
+      const message = JSON.parse(data);
+      messageHandler(message);
+    } catch (error) {
+      log(`Error parsing message: ${error.message}`, colors.red);
+    }
+  });
+  
+  // Event: Error
+  ws.on('error', (error) => {
+    log(`WebSocket error for ${sessionId}: ${error.message}`, colors.red);
+  });
+  
+  // Event: Connection Closed
+  ws.on('close', (code, reason) => {
+    log(`WebSocket connection closed for ${sessionId}: ${code} ${reason}`, colors.yellow);
+  });
+  
+  return ws;
+}
+
+/**
+ * Send a speech transcription from the teacher
+ */
+function sendTeacherSpeech(ws, text) {
+  log(`Teacher says: "${text}"`, colors.cyan);
+  
+  ws.send(JSON.stringify({
     type: 'transcription',
-    text: 'This is a test of the translation system',
-    languageCode: 'en-US'
-  };
-  
-  teacherWs.send(JSON.stringify(transcriptionMessage));
-  console.log('\n✓ Test transcription sent: "This is a test of the translation system"');
+    text,
+    final: true
+  }));
 }
 
-// Main test function
-async function runTest() {
+/**
+ * Save audio to file
+ */
+function saveAudioToFile(audioBase64, filename) {
   try {
-    // Connect both WebSocket clients
-    await connectTeacher();
-    await connectStudent();
+    const audioDir = path.join(__dirname, 'test-assets/audio');
     
-    console.log('\nBoth connections established. Ready for testing.');
+    // Ensure directory exists
+    if (!fs.existsSync(audioDir)) {
+      fs.mkdirSync(audioDir, { recursive: true });
+    }
     
-    // Wait a moment for connections to stabilize
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const filePath = path.join(audioDir, filename);
+    const audioBuffer = Buffer.from(audioBase64, 'base64');
     
-    // Send test transcription
-    sendTestTranscription();
-    
-    // Keep the script running for a while to see results
-    console.log('\nWaiting for translation (press Ctrl+C to exit)...');
-    
-    // Wait for user input to exit
-    rl.question('\nPress Enter to close connections and exit...', () => {
-      if (teacherWs) teacherWs.close();
-      if (studentWs) studentWs.close();
-      rl.close();
-      process.exit(0);
-    });
-    
+    fs.writeFileSync(filePath, audioBuffer);
+    log(`Audio saved to ${filePath}`, colors.green);
+    return filePath;
   } catch (error) {
-    console.error('Test failed:', error);
-    process.exit(1);
+    log(`Error saving audio: ${error.message}`, colors.red);
+    return null;
   }
+}
+
+// ===== Test Implementation =====
+
+/**
+ * Run the manual audio test
+ */
+async function runTest() {
+  log('===== Manual Audio Test =====', colors.magenta);
+  log(`Server URL: ${SERVER_URL}`, colors.yellow);
+  log(`Target Language: ${TARGET_LANGUAGE}`, colors.yellow);
+  log(`Test Text: "${TEST_TEXT}"`, colors.yellow);
+  log('============================', colors.magenta);
+  
+  // Setup promise to track test completion
+  let testCompleted = false;
+  const testCompletionPromise = new Promise((resolve) => {
+    // Auto-timeout after 30 seconds
+    setTimeout(() => {
+      if (!testCompleted) {
+        log('Test timed out after 30 seconds', colors.red);
+        resolve(false);
+      }
+    }, 30000);
+  });
+  
+  // Create student WebSocket connection
+  const studentWs = createWebSocketConnection(
+    STUDENT_SESSION_ID,
+    'student',
+    TARGET_LANGUAGE,
+    (message) => {
+      switch (message.type) {
+        case 'confirmation':
+          log('Student connection confirmed by server', colors.green);
+          break;
+          
+        case 'translation':
+          log(`Received translation: "${message.translatedText}"`, colors.green);
+          log(`Original text: "${message.originalText}"`, colors.green);
+          
+          if (message.audioUrl) {
+            log('Received audio URL (browser playback)', colors.green);
+          }
+          
+          if (message.audioBase64) {
+            log('Received audio data (Base64)', colors.green);
+            // Save the audio to a file
+            const filename = `${TARGET_LANGUAGE}_translation_${Date.now()}.mp3`;
+            const filePath = saveAudioToFile(message.audioBase64, filename);
+            
+            if (filePath) {
+              log(`✅ TEST PASSED: Full translation cycle completed`, colors.green);
+              testCompleted = true;
+              
+              // Allow time to save file before exiting
+              setTimeout(() => {
+                process.exit(0);
+              }, 1000);
+            }
+          }
+          break;
+          
+        case 'error':
+          log(`Error from server: ${message.error}`, colors.red);
+          break;
+          
+        default:
+          log(`Unhandled message type for student: ${message.type}`, colors.yellow);
+      }
+    }
+  );
+  
+  // Create teacher WebSocket connection
+  const teacherWs = createWebSocketConnection(
+    TEACHER_SESSION_ID,
+    'teacher',
+    'en-US',
+    (message) => {
+      switch (message.type) {
+        case 'confirmation':
+          log('Teacher connection confirmed by server', colors.green);
+          
+          // Send test speech after short delay to ensure student is connected
+          setTimeout(() => {
+            sendTeacherSpeech(teacherWs, TEST_TEXT);
+          }, 2000);
+          break;
+          
+        case 'error':
+          log(`Error from server: ${message.error}`, colors.red);
+          break;
+          
+        default:
+          log(`Unhandled message type for teacher: ${message.type}`, colors.yellow);
+      }
+    }
+  );
+  
+  // Wait for test completion or timeout
+  const result = await testCompletionPromise;
+  
+  // Clean up connections
+  teacherWs.close();
+  studentWs.close();
+  
+  return result;
 }
 
 // Run the test
-runTest();
+runTest()
+  .then((success) => {
+    if (!success) {
+      log('❌ TEST FAILED: Did not complete full translation cycle', colors.red);
+      process.exit(1);
+    }
+  })
+  .catch((error) => {
+    log(`❌ TEST ERROR: ${error.message}`, colors.red);
+    process.exit(1);
+  });

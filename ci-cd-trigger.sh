@@ -1,79 +1,64 @@
 #!/bin/bash
+# CI/CD Trigger Script for AIVoiceTranslator
+# This script triggers the GitHub Actions workflow from Replit
 
-# Colors for better output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Requires GITHUB_TOKEN environment variable to be set
 
-echo -e "${YELLOW}AIVoiceTranslator CI/CD Pipeline${NC}"
-echo -e "${YELLOW}=============================${NC}"
-
-# Check if GitHub token is set
 if [ -z "$GITHUB_TOKEN" ]; then
-  echo -e "${RED}Error: GITHUB_TOKEN is not set.${NC}"
-  echo -e "Please set the GITHUB_TOKEN secret in Replit."
-  echo -e "See the README.md for instructions."
+  echo "Error: GITHUB_TOKEN environment variable is not set."
+  echo "Please set it to a valid GitHub token with the 'repo' scope."
   exit 1
-fi
-
-# Check if OpenAI API key is set
-if [ -z "$OPENAI_API_KEY" ]; then
-  echo -e "${YELLOW}Warning: OPENAI_API_KEY is not set.${NC}"
-  echo -e "Selenium tests will run without OpenAI features."
 fi
 
 # GitHub repository information
-GITHUB_USERNAME="yogami"
+REPO_OWNER="your-github-username"
 REPO_NAME="AIVoiceTranslator"
+EVENT_TYPE="run-tests"
 
-# Replit app URL for Selenium tests
-APP_URL="https://AIVoiceTranslator.replit.app"
+# Current git commit SHA for reference
+COMMIT_SHA=$(git rev-parse HEAD)
+COMMIT_MESSAGE=$(git log -1 --pretty=format:"%s")
 
-# Callback URL for webhook responses
-CALLBACK_URL="https://example.com/webhook"
+# API endpoint for repository dispatch
+API_URL="https://api.github.com/repos/$REPO_OWNER/$REPO_NAME/dispatches"
 
-# First, commit and push changes to GitHub
-echo -e "\n${YELLOW}Pushing code changes to GitHub...${NC}"
+# Callback URL for receiving test results (optional - could be a webhook endpoint)
+CALLBACK_URL="https://your-callback-url.example.com/webhook"
 
-# Configure git if not already done
-if ! git config --get user.email > /dev/null; then
-  git config --global user.email "ci-bot@example.com"
-  git config --global user.name "CI Bot"
-fi
+echo "===== CI/CD Pipeline Trigger ====="
+echo "Repository: $REPO_OWNER/$REPO_NAME"
+echo "Event Type: $EVENT_TYPE"
+echo "Commit: $COMMIT_SHA"
+echo "Commit Message: $COMMIT_MESSAGE"
+echo "=================================="
 
-# Add all files, commit, and push
-git add .
-git commit -m "Automated push from Replit [$(date)]"
-git push origin main
+# Create JSON payload
+PAYLOAD=$(cat << EOF
+{
+  "event_type": "$EVENT_TYPE",
+  "client_payload": {
+    "commit_sha": "$COMMIT_SHA",
+    "commit_message": "$COMMIT_MESSAGE",
+    "callback_url": "$CALLBACK_URL",
+    "triggered_from": "replit",
+    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  }
+}
+EOF
+)
 
-if [ $? -ne 0 ]; then
-  echo -e "${RED}Failed to push to GitHub.${NC}"
-  echo -e "Please check your repository settings and try again."
-  exit 1
-fi
-
-echo -e "${GREEN}Successfully pushed to GitHub!${NC}"
-
-# Trigger GitHub Actions workflow
-echo -e "\n${YELLOW}Triggering CI/CD pipeline...${NC}"
-
-# Construct API request to trigger the workflow
-curl -X POST "https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/dispatches" \
-  -H "Accept: application/vnd.github.v3+json" \
+# Trigger the repository dispatch event
+echo "Triggering GitHub Actions workflow..."
+RESPONSE=$(curl -s -X POST $API_URL \
   -H "Authorization: token $GITHUB_TOKEN" \
-  -d "{\"event_type\": \"run-tests\", \"client_payload\": {\"callback_url\": \"$CALLBACK_URL\", \"app_url\": \"$APP_URL\"}}"
+  -H "Accept: application/vnd.github.v3+json" \
+  -d "$PAYLOAD")
 
-if [ $? -ne 0 ]; then
-  echo -e "${RED}Failed to trigger GitHub Actions workflow.${NC}"
-  echo -e "Please check your GitHub token and repository settings."
+# Check for errors
+if [[ $RESPONSE == *"message"* ]]; then
+  echo "Error: $RESPONSE"
   exit 1
+else
+  echo "✅ GitHub Actions workflow triggered successfully!"
+  echo "Check your GitHub repository for the workflow run status."
 fi
-
-echo -e "${GREEN}Successfully triggered CI/CD pipeline!${NC}"
-echo -e "\n${YELLOW}Pipeline Process:${NC}"
-echo -e "1. Run unit and API tests"
-echo -e "2. Deploy to $APP_URL"
-echo -e "3. Run Selenium UI tests against deployed app"
-echo -e "\n${YELLOW}View results at:${NC} https://github.com/$GITHUB_USERNAME/$REPO_NAME/actions"
-echo -e "Tests are now running on GitHub. Check the link above for results."
