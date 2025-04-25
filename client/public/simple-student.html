@@ -313,7 +313,7 @@
                     
                     // Handle translation message
                     if (message.type === 'translation') {
-                        displayTranslation(message.text, message.sourceLanguage, message.targetLanguage);
+                        displayTranslation(message.text, message.sourceLanguage, message.targetLanguage, message.originalText);
                     }
                     
                     // Add message to UI
@@ -372,9 +372,17 @@
             }
         }
         
-        function displayTranslation(text, sourceLanguage, targetLanguage) {
+        function displayTranslation(text, sourceLanguage, targetLanguage, originalText) {
             const translationBox = document.getElementById('translation-box');
-            translationBox.innerHTML = `<p>${text}</p>`;
+            
+            // Create HTML with both original and translated text
+            let html = '';
+            if (originalText) {
+                html += `<p style="color: #777; font-size: 0.9em; margin-bottom: 5px;">Original: "${originalText}"</p>`;
+            }
+            html += `<p style="font-size: 1.2em; font-weight: bold;">${text}</p>`;
+            
+            translationBox.innerHTML = html;
             
             // Highlight the translation
             translationBox.style.animation = 'none';
@@ -402,7 +410,13 @@
             messageElement.className = 'message';
             
             if (message.type === 'translation') {
-                messageElement.textContent = `Translation: "${message.text}"`;
+                const sourceLanguageName = getLanguageName(message.sourceLanguage?.split('-')[0] || 'en');
+                const targetLanguageName = getLanguageName(message.targetLanguage?.split('-')[0] || selectedLanguage);
+                messageElement.innerHTML = `<div>${sourceLanguageName} → ${targetLanguageName}: "${message.text}"</div>`;
+                
+                if (message.originalText && message.originalText !== message.text) {
+                    messageElement.innerHTML += `<div style="font-size:0.8em; color:#777;">Original: "${message.originalText}"</div>`;
+                }
             } else {
                 messageElement.textContent = `${message.type}: ${JSON.stringify(message)}`;
             }
