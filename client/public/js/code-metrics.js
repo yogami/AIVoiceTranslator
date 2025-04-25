@@ -804,6 +804,10 @@ class CodeMetricsCollector {
       this.updateDependenciesMetrics(metrics.dependencies);
       this.updateTestResultsMetrics(metrics.testResults);
       
+      // Load additional detailed metrics for CI/CD and audio tests
+      await this.loadCICDMetrics();
+      await this.loadAudioTestMetrics();
+      
       console.log('Metrics loaded successfully');
     } catch (error) {
       console.error('Error loading metrics:', error);
@@ -821,6 +825,56 @@ class CodeMetricsCollector {
     }
   }
   
+  /**
+   * Load CI/CD workflow metrics from the API
+   * @returns {Promise<void>}
+   */
+  async loadCICDMetrics() {
+    try {
+      const response = await fetch('/api/metrics/ci-cd');
+      
+      if (!response.ok) {
+        console.warn('Failed to fetch CI/CD metrics, using existing data');
+        return;
+      }
+      
+      const cicdMetrics = await response.json();
+      
+      // Update the CI/CD metrics in the main metrics object
+      this.metrics.testResults.cicd = cicdMetrics;
+      
+      // Update the CI/CD tab content
+      this.updateCICDDOM();
+    } catch (error) {
+      console.error('Error loading CI/CD metrics:', error);
+    }
+  }
+  
+  /**
+   * Load audio test metrics from the API
+   * @returns {Promise<void>}
+   */
+  async loadAudioTestMetrics() {
+    try {
+      const response = await fetch('/api/metrics/audio-tests');
+      
+      if (!response.ok) {
+        console.warn('Failed to fetch audio test metrics, using existing data');
+        return;
+      }
+      
+      const audioMetrics = await response.json();
+      
+      // Update the audio test metrics in the main metrics object
+      this.metrics.testResults.audio = audioMetrics;
+      
+      // Update the audio test tab content
+      this.updateAudioTestsDOM();
+    } catch (error) {
+      console.error('Error loading audio test metrics:', error);
+    }
+  }
+
   /**
    * Refresh metrics data from API
    * @returns {Promise<void>}
