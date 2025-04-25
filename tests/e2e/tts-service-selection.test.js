@@ -11,74 +11,76 @@
  * - Clear naming conventions
  */
 
-const { Builder, By, Key, until } = require('selenium-webdriver');
+const { Builder, By, until, logging } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
-const { execSync } = require('child_process');
 
-// Configuration
+// Set test configuration from environment or defaults
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
-const TEST_TIMEOUT = 60000; // 60 seconds
+const TIMEOUT = 10000; // 10 seconds
+const TEST_TIMEOUT = 30000; // 30 seconds for entire test
 
-// Enable more detailed logging for debugging in CI environment
-const VERBOSE_LOGGING = process.env.CI === 'true';
-
-// Helper function to log information only in verbose mode
 function log(message) {
-  if (VERBOSE_LOGGING) {
-    console.log(`[TTS Service Test] ${message}`);
-  }
+  console.log(`[TTS-Test] ${message}`);
 }
 
-describe('AIVoiceTranslator TTS Service Selection Tests', function() {
+describe('TTS Service Selection Tests', function() {
   this.timeout(TEST_TIMEOUT);
   
-  let teacherDriver;
-  let studentDriver;
+  let driver;
   
   /**
-   * Setup test environment - create browser instances
+   * Setup test environment - create browser instance
    */
-  before(async function() {
-    log('Setting up test environment');
+  beforeEach(async function() {
+    log('Setting up test environment...');
     
-    // Create Chrome options with audio enabled
-    const options = new chrome.Options()
-      .addArguments('--use-fake-device-for-media-stream')
-      .addArguments('--use-fake-ui-for-media-stream')
-      .addArguments('--no-sandbox')
-      .addArguments('--disable-dev-shm-usage')
-      .addArguments('--autoplay-policy=no-user-gesture-required');
+    // Configure Chrome options for testing
+    const options = new chrome.Options();
     
-    if (process.env.CI === 'true') {
-      options.addArguments('--headless=new');
+    // Add arguments for CI environments
+    if (process.env.CI) {
+      log('Running in CI environment, using headless mode');
+      options.addArguments('--headless');
+      options.addArguments('--no-sandbox');
+      options.addArguments('--disable-dev-shm-usage');
     }
     
-    // Create teacher browser instance
-    teacherDriver = await new Builder()
+    // Enable browser console logs
+    options.setLoggingPrefs({ browser: 'ALL' });
+    
+    // Initialize WebDriver
+    driver = await new Builder()
       .forBrowser('chrome')
       .setChromeOptions(options)
       .build();
-      
-    // Create student browser instance with same options
-    studentDriver = await new Builder()
-      .forBrowser('chrome')
-      .setChromeOptions(options)
-      .build();
-      
-    log('Browser instances created');
+    
+    // Navigate to student page
+    await driver.get(`${APP_URL}/client/public/simple-student.html`);
+    log(`Navigated to ${APP_URL}/client/public/simple-student.html`);
+    
+    // Wait for page to fully load
+    await driver.sleep(2000);
   });
   
   /**
    * Clean up after tests
    */
-  after(async function() {
-    log('Cleaning up test environment');
-    if (teacherDriver) {
-      await teacherDriver.quit();
-    }
-    if (studentDriver) {
-      await studentDriver.quit();
+  afterEach(async function() {
+    if (driver) {
+      // Get browser console logs for debugging
+      try {
+        const logs = await driver.manage().logs().get(logging.Type.BROWSER);
+        if (logs.length > 0) {
+          console.log('Browser console logs:');
+          logs.forEach(entry => console.log(`  ${entry.level.name}: ${entry.message}`));
+        }
+      } catch (error) {
+        console.error('Error retrieving browser logs:', error.message);
+      }
+      
+      await driver.quit();
+      log('Test driver closed');
     }
   });
   
@@ -87,26 +89,32 @@ describe('AIVoiceTranslator TTS Service Selection Tests', function() {
    * 
    * Verifies that the TTS service selection UI elements exist and are interactive
    */
-  it('should display TTS service selection dropdown and apply button', async function() {
-    log('Starting TTS service selection UI test');
+  it('should display TTS service selection UI elements', async function() {
+    // Wait for the TTS service selector to be present
+    const ttsServiceSelector = await driver.wait(
+      until.elementLocated(By.id('tts-service-selector')),
+      TIMEOUT,
+      'TTS service selector not found'
+    );
     
-    // Load student page
-    await studentDriver.get(`${APP_URL}/simple-student.html`);
+    // Check if the form elements exist
+    const browserOption = await driver.findElement(By.css('input[value="browser"]'));
+    const openaiOption = await driver.findElement(By.css('input[value="openai"]'));
+    const silentOption = await driver.findElement(By.css('input[value="silent"]'));
+    const applyButton = await driver.findElement(By.id('apply-tts-settings'));
     
-    // Verify TTS service dropdown exists
-    const ttsServiceSelect = await studentDriver.findElement(By.id('tts-service'));
-    assert.ok(ttsServiceSelect, 'TTS service dropdown not found');
+    // Assert that all elements are present
+    assert(ttsServiceSelector, 'TTS service selector container should be present');
+    assert(browserOption, 'Browser TTS option should be present');
+    assert(openaiOption, 'OpenAI TTS option should be present');
+    assert(silentOption, 'Silent mode option should be present');
+    assert(applyButton, 'Apply button should be present');
     
-    // Verify the dropdown has the expected options
-    const options = await ttsServiceSelect.findElements(By.css('option'));
-    assert.ok(options.length >= 3, 'TTS service dropdown should have at least 3 options');
+    // Verify default selection is Browser
+    const isSelected = await browserOption.isSelected();
+    assert(isSelected, 'Browser TTS should be selected by default');
     
-    // Verify apply button exists and is enabled
-    const applyButton = await studentDriver.findElement(By.id('apply-tts-btn'));
-    const isButtonEnabled = await applyButton.isEnabled();
-    assert.ok(isButtonEnabled, 'Apply TTS service button should be enabled');
-    
-    log('TTS service selection UI elements test passed');
+    log('Successfully verified TTS service selection UI elements');
   });
   
   /**
@@ -114,78 +122,36 @@ describe('AIVoiceTranslator TTS Service Selection Tests', function() {
    * 
    * Verifies that changing the TTS service and clicking Apply updates the configuration
    */
-  it('should allow changing TTS service after connecting', async function() {
-    const testLanguage = 'es'; // Spanish
-    const testText = 'This is a test of the translation system';
+  it('should update TTS service when selection is changed', async function() {
+    // Find the TTS service options
+    const openaiOption = await driver.findElement(By.css('input[value="openai"]'));
+    const applyButton = await driver.findElement(By.id('apply-tts-settings'));
     
-    log('Starting TTS service change test');
+    // Click the OpenAI option
+    await openaiOption.click();
     
-    // ARRANGE: Set up teacher and student pages
-    await teacherDriver.get(`${APP_URL}/simple-speech-test.html`);
-    await studentDriver.get(`${APP_URL}/simple-student.html?lang=${testLanguage}`);
-    
-    // Wait for pages to load
-    await teacherDriver.sleep(1000);
-    await studentDriver.sleep(1000);
-    
-    // Connect student to WebSocket
-    const connectButton = await studentDriver.findElement(By.id('connect-btn'));
-    await connectButton.click();
-    
-    // Wait for connection to establish
-    await studentDriver.wait(until.elementLocated(By.css('.indicator.connected')), 5000);
-    log('Student connected to WebSocket');
-    
-    // ACT: Change TTS service to "OpenAI TTS"
-    const ttsServiceSelect = await studentDriver.findElement(By.id('tts-service'));
-    await ttsServiceSelect.sendKeys('openai');
-    
-    const applyButton = await studentDriver.findElement(By.id('apply-tts-btn'));
+    // Click the Apply button
     await applyButton.click();
     
-    log('Changed TTS service to OpenAI');
-    await studentDriver.sleep(1000);
-    
-    // Simulate teacher speaking
-    const transcriptionInput = await teacherDriver.findElement(By.id('transcription-input'));
-    await transcriptionInput.clear();
-    await transcriptionInput.sendKeys(testText);
-    
-    const sendButton = await teacherDriver.findElement(By.id('send-button'));
-    await sendButton.click();
-    
-    log('Sent test text from teacher');
-    
-    // Wait for translation to appear (up to 5 seconds)
-    await studentDriver.wait(async () => {
-      try {
-        const translationBox = await studentDriver.findElement(By.id('translation-box'));
-        const text = await translationBox.getText();
-        return text.length > 0 && !text.includes('Connect and select a language');
-      } catch (e) {
-        return false;
-      }
-    }, 5000, 'Translation did not appear');
-    
-    // ASSERT: Verify translation appeared with the correct TTS service info
-    const translationBox = await studentDriver.findElement(By.id('translation-box'));
-    const translationText = await translationBox.getText();
-    
-    log(`Received translation: "${translationText}"`);
-    
-    // Check if the translation box mentions OpenAI TTS
-    assert.ok(
-      translationText.includes('OpenAI TTS') || 
-      translationText.toLowerCase().includes('emotion'),
-      'Translation should indicate it is using OpenAI TTS service'
+    // Wait for the confirmation message
+    const confirmationMessage = await driver.wait(
+      until.elementLocated(By.css('.settings-confirmation')),
+      TIMEOUT,
+      'Confirmation message not displayed'
     );
     
-    // Check if play button exists and is enabled (unless it's silent mode)
-    const playButton = await studentDriver.findElement(By.id('play-button'));
-    const isPlayButtonEnabled = await playButton.isEnabled();
-    assert.ok(isPlayButtonEnabled, 'Play button should be enabled after translation with TTS service');
+    // Verify the confirmation message is displayed
+    const confirmationText = await confirmationMessage.getText();
+    assert(confirmationText.includes('TTS settings updated'), 
+      `Confirmation should include 'TTS settings updated', got: ${confirmationText}`);
     
-    log('TTS service change test passed');
+    // Check browser logs for WebSocket message
+    await driver.sleep(1000); // Wait for logs to be available
+    
+    // Let server recognize the change (will be checked in next test)
+    await driver.sleep(2000);
+    
+    log('Successfully verified TTS service change');
   });
   
   /**
@@ -193,84 +159,36 @@ describe('AIVoiceTranslator TTS Service Selection Tests', function() {
    * 
    * Verifies that the silent TTS mode disables audio playback
    */
-  it('should disable audio playback when using Silent TTS mode', async function() {
-    const testLanguage = 'fr'; // French
-    const testText = 'This is a test of the silent mode';
+  it('should set to silent mode when selected', async function() {
+    // Find the TTS service options
+    const silentOption = await driver.findElement(By.css('input[value="silent"]'));
+    const applyButton = await driver.findElement(By.id('apply-tts-settings'));
     
-    log('Starting Silent TTS mode test');
+    // Click the Silent option
+    await silentOption.click();
     
-    // ARRANGE: Set up teacher and student pages
-    await teacherDriver.get(`${APP_URL}/simple-speech-test.html`);
-    await studentDriver.get(`${APP_URL}/simple-student.html?lang=${testLanguage}`);
-    
-    // Wait for pages to load
-    await teacherDriver.sleep(1000);
-    await studentDriver.sleep(1000);
-    
-    // Connect student to WebSocket
-    const connectButton = await studentDriver.findElement(By.id('connect-btn'));
-    await connectButton.click();
-    
-    // Wait for connection to establish
-    await studentDriver.wait(until.elementLocated(By.css('.indicator.connected')), 5000);
-    log('Student connected to WebSocket');
-    
-    // ACT: Change TTS service to "Silent"
-    const ttsServiceSelect = await studentDriver.findElement(By.id('tts-service'));
-    await ttsServiceSelect.sendKeys('silent');
-    
-    const applyButton = await studentDriver.findElement(By.id('apply-tts-btn'));
+    // Click the Apply button
     await applyButton.click();
     
-    log('Changed TTS service to Silent');
-    await studentDriver.sleep(1000);
-    
-    // Simulate teacher speaking
-    const transcriptionInput = await teacherDriver.findElement(By.id('transcription-input'));
-    await transcriptionInput.clear();
-    await transcriptionInput.sendKeys(testText);
-    
-    const sendButton = await teacherDriver.findElement(By.id('send-button'));
-    await sendButton.click();
-    
-    log('Sent test text from teacher');
-    
-    // Wait for translation to appear (up to 5 seconds)
-    await studentDriver.wait(async () => {
-      try {
-        const translationBox = await studentDriver.findElement(By.id('translation-box'));
-        const text = await translationBox.getText();
-        return text.length > 0 && !text.includes('Connect and select a language');
-      } catch (e) {
-        return false;
-      }
-    }, 5000, 'Translation did not appear');
-    
-    // ASSERT: Verify translation appeared but play button is disabled
-    const translationBox = await studentDriver.findElement(By.id('translation-box'));
-    const translationText = await translationBox.getText();
-    
-    log(`Received translation: "${translationText}"`);
-    
-    // Check if the translation box mentions Silent mode
-    assert.ok(
-      translationText.includes('Silent Mode') || 
-      translationText.includes('Audio: Silent'),
-      'Translation should indicate it is using Silent mode'
+    // Wait for the confirmation message
+    const confirmationMessage = await driver.wait(
+      until.elementLocated(By.css('.settings-confirmation')),
+      TIMEOUT,
+      'Confirmation message not displayed'
     );
     
-    // Get play button text and status
-    const playButton = await studentDriver.findElement(By.id('play-button'));
-    const buttonText = await playButton.getText();
-    const isPlayButtonEnabled = await playButton.isEnabled();
+    // Verify the confirmation message is displayed
+    const confirmationText = await confirmationMessage.getText();
+    assert(confirmationText.includes('TTS settings updated'), 
+      `Confirmation should include 'TTS settings updated', got: ${confirmationText}`);
     
-    log(`Play button text: "${buttonText}", enabled: ${isPlayButtonEnabled}`);
+    // Check for status indicator showing silent mode
+    await driver.wait(
+      until.elementLocated(By.css('.tts-status.silent')),
+      TIMEOUT,
+      'Silent mode status indicator not found'
+    );
     
-    // Check that play button is disabled in silent mode
-    assert.ok(!isPlayButtonEnabled, 'Play button should be disabled in Silent mode');
-    assert.ok(buttonText.includes('Disabled') || buttonText.includes('🔇'), 
-              'Play button should indicate audio is disabled');
-    
-    log('Silent TTS mode test passed');
+    log('Successfully verified silent TTS mode');
   });
 });

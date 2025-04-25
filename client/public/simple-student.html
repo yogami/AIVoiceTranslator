@@ -248,14 +248,27 @@
             <div class="language-btn" data-lang="zh">Chinese</div>
         </div>
         
-        <div class="controls" style="margin-top: 15px;">
-            <label for="tts-service" style="font-weight: bold; margin-right: 10px;">TTS Service:</label>
-            <select id="tts-service">
-                <option value="browser">Browser Speech Synthesis (Default)</option>
-                <option value="openai">OpenAI TTS (Emotional)</option>
-                <option value="silent">Silent (No Audio)</option>
-            </select>
-            <button id="apply-tts-btn" style="min-width: 100px;">Apply</button>
+        <div id="tts-service-selector" class="controls" style="margin-top: 15px;">
+            <h3>Text-to-Speech Service Selection</h3>
+            <div style="margin: 10px 0;">
+                <label>
+                    <input type="radio" name="tts-service" value="browser" checked> Browser Speech Synthesis (Default)
+                </label>
+            </div>
+            <div style="margin: 10px 0;">
+                <label>
+                    <input type="radio" name="tts-service" value="openai"> OpenAI TTS (Emotional)
+                </label>
+            </div>
+            <div style="margin: 10px 0;">
+                <label>
+                    <input type="radio" name="tts-service" value="silent"> Silent (No Audio)
+                </label>
+            </div>
+            <button id="apply-tts-settings" style="min-width: 120px; margin-top: 10px;">Apply</button>
+            <div class="tts-status" style="margin-top: 10px; font-size: 14px; color: #666;">
+                <span>Current TTS Service: <strong id="current-tts-service">Browser</strong></span>
+            </div>
         </div>
         
         <h2>Translated Speech:</h2>
@@ -715,8 +728,8 @@
             const connectBtn = document.getElementById('connect-btn');
             const disconnectBtn = document.getElementById('disconnect-btn');
             const languageSelect = document.getElementById('language-select');
-            const ttsServiceSelect = document.getElementById('tts-service');
-            const applyTtsBtn = document.getElementById('apply-tts-btn');
+            const applyTtsSettings = document.getElementById('apply-tts-settings');
+            const currentTtsService = document.getElementById('current-tts-service');
             
             connectBtn.addEventListener('click', connectWebSocket);
             disconnectBtn.addEventListener('click', disconnectWebSocket);
@@ -729,8 +742,9 @@
             });
             
             // TTS service selection button
-            applyTtsBtn.addEventListener('click', function() {
-                const ttsService = ttsServiceSelect.value;
+            applyTtsSettings.addEventListener('click', function() {
+                // Get the selected radio button value
+                const selectedTtsService = document.querySelector('input[name="tts-service"]:checked').value;
                 log(`Applying TTS service: ${ttsService}`);
                 
                 if (isConnected) {

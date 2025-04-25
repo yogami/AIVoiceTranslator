@@ -1,20 +1,16 @@
-#!/bin/bash
-# TTS Service Selection Test Runner Script
-# This script sets up and runs the TTS service selection Selenium tests
+#!/usr/bin/env bash
 
-set -e  # Exit on any error
-
-# Colors for better output
-GREEN='\033[0;32m'
+# Color codes for terminal output
 RED='\033[0;31m'
+GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-APP_URL=${APP_URL:-http://localhost:5000}
-TEST_FILE=$(pwd)/tests/e2e/tts-service-selection.test.js
+APP_URL=${APP_URL:-"http://localhost:3000"}
+TEST_FILE="$(dirname "$0")/e2e/tts-service-selection.test.js"
 
-# Print test configuration
+# Banner
 echo -e "${YELLOW}===== TTS Service Selection Test Configuration =====${NC}"
 echo -e "App URL: ${APP_URL}"
 echo -e "Test file: ${TEST_FILE}"
