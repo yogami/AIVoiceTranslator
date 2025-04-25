@@ -345,6 +345,146 @@ class CodeMetricsCollector {
       
       tbody.appendChild(integrationRow);
       
+      // Update unit test status indicator and text
+      const unitStatusIndicator = document.getElementById('unit-status-indicator');
+      const unitStatusText = document.getElementById('unit-status-text');
+      
+      if (unitStatusIndicator && unitStatusText) {
+        const total = this.metrics.testResults.unit.total;
+        const passed = this.metrics.testResults.unit.passed;
+        const failed = this.metrics.testResults.unit.failed;
+        
+        let statusClass = 'good';
+        let statusTextColor = 'var(--success)';
+        let statusTextContent = `${passed}/${total} Tests Passing`;
+        
+        if (failed > 0) {
+          statusClass = failed > total / 4 ? 'poor' : 'warning';
+          statusTextColor = failed > total / 4 ? 'var(--danger)' : 'var(--warning)';
+        }
+        
+        unitStatusIndicator.className = `status-indicator ${statusClass}`;
+        unitStatusText.style.color = statusTextColor;
+        unitStatusText.textContent = statusTextContent;
+      }
+      
+      // Update unit tests table
+      const unitTestsTable = document.getElementById('unit-tests-table');
+      if (unitTestsTable && unitTestsTable.tBodies[0] && this.metrics.testResults.unit.tests) {
+        const tbody = unitTestsTable.tBodies[0];
+        // Clear the table first
+        tbody.innerHTML = '';
+        
+        // Add test rows
+        this.metrics.testResults.unit.tests.forEach(test => {
+          const row = document.createElement('tr');
+          
+          // Test name cell
+          const nameCell = document.createElement('td');
+          nameCell.textContent = test.name;
+          row.appendChild(nameCell);
+          
+          // Status cell
+          const statusCell = document.createElement('td');
+          const statusIndicator = document.createElement('span');
+          
+          let statusClass = 'good';
+          let statusText = 'Passing';
+          
+          if (test.status === 'failed') {
+            statusClass = 'poor';
+            statusText = 'Failed';
+          }
+          
+          statusIndicator.className = `status-indicator ${statusClass}`;
+          statusCell.appendChild(statusIndicator);
+          statusCell.appendChild(document.createTextNode(` ${statusText}`));
+          row.appendChild(statusCell);
+          
+          // Duration cell
+          const durationCell = document.createElement('td');
+          durationCell.textContent = test.duration;
+          row.appendChild(durationCell);
+          
+          // Description cell
+          const descriptionCell = document.createElement('td');
+          descriptionCell.textContent = test.description;
+          row.appendChild(descriptionCell);
+          
+          tbody.appendChild(row);
+        });
+      }
+      
+      // Update integration test status indicator and text
+      const integrationStatusIndicator = document.getElementById('integration-status-indicator');
+      const integrationStatusText = document.getElementById('integration-status-text');
+      
+      if (integrationStatusIndicator && integrationStatusText) {
+        const total = this.metrics.testResults.integration.total;
+        const passed = this.metrics.testResults.integration.passed;
+        const failed = this.metrics.testResults.integration.failed;
+        
+        let statusClass = 'good';
+        let statusTextColor = 'var(--success)';
+        let statusTextContent = `${passed}/${total} Tests Passing`;
+        
+        if (failed > 0) {
+          statusClass = failed > total / 4 ? 'poor' : 'warning';
+          statusTextColor = failed > total / 4 ? 'var(--danger)' : 'var(--warning)';
+        }
+        
+        integrationStatusIndicator.className = `status-indicator ${statusClass}`;
+        integrationStatusText.style.color = statusTextColor;
+        integrationStatusText.textContent = statusTextContent;
+      }
+      
+      // Update integration tests table
+      const integrationTestsTable = document.getElementById('integration-tests-table');
+      if (integrationTestsTable && integrationTestsTable.tBodies[0] && this.metrics.testResults.integration.tests) {
+        const tbody = integrationTestsTable.tBodies[0];
+        // Clear the table first
+        tbody.innerHTML = '';
+        
+        // Add test rows
+        this.metrics.testResults.integration.tests.forEach(test => {
+          const row = document.createElement('tr');
+          
+          // Test name cell
+          const nameCell = document.createElement('td');
+          nameCell.textContent = test.name;
+          row.appendChild(nameCell);
+          
+          // Status cell
+          const statusCell = document.createElement('td');
+          const statusIndicator = document.createElement('span');
+          
+          let statusClass = 'good';
+          let statusText = 'Passing';
+          
+          if (test.status === 'failed') {
+            statusClass = 'poor';
+            statusText = 'Failed';
+          }
+          
+          statusIndicator.className = `status-indicator ${statusClass}`;
+          statusCell.appendChild(statusIndicator);
+          statusCell.appendChild(document.createTextNode(` ${statusText}`));
+          row.appendChild(statusCell);
+          
+          // Duration cell
+          const durationCell = document.createElement('td');
+          durationCell.textContent = test.duration;
+          row.appendChild(durationCell);
+          
+          // Description cell
+          const descriptionCell = document.createElement('td');
+          descriptionCell.textContent = test.description;
+          row.appendChild(descriptionCell);
+          
+          tbody.appendChild(row);
+        });
+      }
+      
       // E2E tests row
       const e2eRow = document.createElement('tr');
       
