@@ -61,6 +61,9 @@ async function startServer() {
   // Create WebSocket server
   const wss = new WebSocketServer(httpServer);
   
+  // API routes must be added before any static file routes
+  // because the wildcard catch-all route would intercept API requests
+
   // Serve static files from client/public directory
   app.use(express.static('client/public'));
   
@@ -91,11 +94,6 @@ async function startServer() {
   
   // Serve index.html for root route
   app.get('/', (req, res) => {
-    res.sendFile('index.html', { root: 'client' });
-  });
-  
-  // Catch-all route for any other routes
-  app.get('*', (req, res) => {
     res.sendFile('index.html', { root: 'client' });
   });
   

@@ -285,6 +285,40 @@ apiRoutes.get('/metrics/audio-tests', async (req: Request, res: Response) => {
 });
 
 /**
+ * Get load test metrics
+ * Returns metrics specifically for classroom load tests
+ */
+apiRoutes.get('/metrics/load-tests', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.testResults.loadTest);
+  } catch (error) {
+    console.error('Error fetching load test metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve load test metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get all test results
+ * Returns all types of test metrics including unit, integration, e2e, and load tests
+ */
+apiRoutes.get('/metrics/tests', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.testResults);
+  } catch (error) {
+    console.error('Error fetching all test metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve all test metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
  * Refresh all metrics
  * Forces a recalculation of all metrics
  */
