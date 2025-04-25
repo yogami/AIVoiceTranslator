@@ -5,11 +5,11 @@
  * to avoid timeouts and other issues in the Replit environment.
  */
 
-const http = require('http');
+import http from 'http';
 
 // Test configuration
 const HOST = 'localhost';
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000; // From logs: serving on port 5000
 const API_BASE = '/api';
 
 /**
@@ -128,7 +128,13 @@ async function runTests() {
     
     console.log('✓ Status code is 200');
     
-    const refreshedMetrics = refreshResponse.data;
+    // The refresh endpoint returns a different structure with { success: true, metrics: {...} }
+    const refreshData = refreshResponse.data;
+    if (!refreshData.success || !refreshData.metrics) {
+      throw new Error('Refresh response is missing success or metrics properties');
+    }
+    
+    const refreshedMetrics = refreshData.metrics;
     if (!refreshedMetrics.coverage || !refreshedMetrics.complexity || !refreshedMetrics.codeSmells) {
       throw new Error('Refreshed metrics are missing expected properties');
     }
