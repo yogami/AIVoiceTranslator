@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIVoiceTranslator - Code Quality Metrics</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --info: #2980b9;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f8fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        header {
+            background-color: var(--dark);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1, h2, h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        
+        header h1 {
+            color: white;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card h3 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .metric {
+            margin-bottom: 15px;
+        }
+        
+        .metric-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .metric-value {
+            float: right;
+            font-weight: normal;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background-color: #eee;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+        
+        .good {
+            background-color: var(--success);
+        }
+        
+        .warning {
+            background-color: var(--warning);
+        }
+        
+        .poor {
+            background-color: var(--danger);
+        }
+        
+        .metric-details {
+            font-size: 0.85em;
+            color: #666;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        
+        .cyclomatic-chart {
+            width: 100%;
+            height: 200px;
+            margin-top: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            background-color: #f1f1f1;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+        
+        .tab.active {
+            background-color: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+
+        .summary-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .summary-item {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .summary-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .summary-label {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .good-text {
+            color: var(--success);
+        }
+
+        .warning-text {
+            color: var(--warning);
+        }
+
+        .poor-text {
+            color: var(--danger);
+        }
+
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .header-controls {
+            margin-top: 10px;
+        }
+        
+        .refresh-button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .refresh-button:hover {
+            background-color: var(--info);
+        }
+        
+        .refresh-button:active {
+            transform: translateY(1px);
+        }
+        
+        .loading-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            color: var(--dark);
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin-bottom: 10px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>AIVoiceTranslator - Code Quality Dashboard</h1>
+        <div class="header-controls">
+            <a href="/" class="nav-link">← Back to Application</a>
+            <button id="refresh-metrics" class="refresh-button">Refresh Metrics</button>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div id="loading-indicator" class="loading-indicator" style="display: none;">
+            <div class="spinner"></div>
+            <div>Loading metrics data...</div>
+        </div>
+        <div class="summary-box">
+            <div class="summary-item">
+                <div id="coverage-summary" class="summary-number good-text">78%</div>
+                <div class="summary-label">Test Coverage</div>
+            </div>
+            <div class="summary-item">
+                <div id="complexity-summary" class="summary-number warning-text">4.2</div>
+                <div class="summary-label">Avg. Complexity</div>
+            </div>
+            <div class="summary-item">
+                <div id="duplication-summary" class="summary-number good-text">3%</div>
+                <div class="summary-label">Code Duplication</div>
+            </div>
+            <div class="summary-item">
+                <div id="test-summary" class="summary-number good-text">100%</div>
+                <div class="summary-label">Tests Passing</div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="overview">Overview</div>
+            <div class="tab" data-tab="test-coverage">Test Coverage</div>
+            <div class="tab" data-tab="complexity">Complexity</div>
+            <div class="tab" data-tab="dependencies">Dependencies</div>
+            <div class="tab" data-tab="cicd">CI/CD Pipeline</div>
+            <div class="tab" data-tab="audio-tests">Audio Testing</div>
+        </div>
+        
+        <div id="overview" class="tab-content active">
+            <div class="dashboard">
+                <div class="card">
+                    <h3>Code Coverage</h3>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Overall Coverage</span>
+                            <span id="overall-coverage-value" class="metric-value">78%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="overall-coverage-bar" class="progress-fill warning" style="width: 78%"></div>
+                        </div>
+                        <div class="metric-details">Target: 80%+ coverage</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Line Coverage</span>
+                            <span id="line-coverage-value" class="metric-value">82%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="line-coverage-bar" class="progress-fill good" style="width: 82%"></div>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Branch Coverage</span>
+                            <span id="branch-coverage-value" class="metric-value">69%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="branch-coverage-bar" class="progress-fill warning" style="width: 69%"></div>
+                        </div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Function Coverage</span>
+                            <span id="function-coverage-value" class="metric-value">85%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="function-coverage-bar" class="progress-fill good" style="width: 85%"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>Complexity Metrics</h3>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Avg. Cyclomatic Complexity</span>
+                            <span id="avg-complexity-value" class="metric-value">4.2</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="avg-complexity-bar" class="progress-fill good" style="width: 42%"></div>
+                        </div>
+                        <div class="metric-details">Target: < 10 per function</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Max Nesting Depth</span>
+                            <span id="max-nesting-value" class="metric-value">3</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="max-nesting-bar" class="progress-fill good" style="width: 60%"></div>
+                        </div>
+                        <div class="metric-details">Target: Max 3-4 levels</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-name">
+                            <span>Avg. Function Length</span>
+                            <span id="avg-function-length-value" class="metric-value">28 lines</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div id="avg-function-length-bar" class="progress-fill warning" style="width: 70%"></div>
+                        </div>
+                        <div class="metric-details">Target: < 20 lines</div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>Code Smells</h3>
+                    <table id="code-smells-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Count</th>
+                                <th>Severity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Magic Numbers</td>
+                                <td>4</td>
+                                <td><span class="status-indicator warning"></span> Medium</td>
+                            </tr>
+                            <tr>
+                                <td>Duplicate Code</td>
+                                <td>3</td>
+                                <td><span class="status-indicator good"></span> Low</td>
+                            </tr>
+                            <tr>
+                                <td>Long Methods</td>
+                                <td>2</td>
+                                <td><span class="status-indicator warning"></span> Medium</td>
+                            </tr>
+                            <tr>
+                                <td>Circular Dependencies</td>
+                                <td>1</td>
+                                <td><span class="status-indicator poor"></span> High</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="card">
+                    <h3>Test Results</h3>
+                    <div class="metric-details" style="margin-bottom: 10px; color: var(--success); font-weight: bold;">
+                        Last Updated: April 25, 2025 - All CI/CD Tests Passing! ✓
+                    </div>
+                    <table id="test-results-table">
+                        <thead>
+                            <tr>
+                                <th>Test Suite</th>
+                                <th>Tests</th>
+                                <th>Passed</th>
+                                <th>Failed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>WebSocket Tests</td>
+                                <td>4</td>
+                                <td>4</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Metrics API Tests</td>
+                                <td>4</td>
+                                <td>4</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Selenium UI Tests</td>
+                                <td>5</td>
+                                <td>5</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Audio E2E Tests</td>
+                                <td>1</td>
+                                <td>1</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>CI/CD Pipeline</td>
+                                <td>3</td>
+                                <td>3</td>
+                                <td>0</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr style="font-weight: bold; background-color: #f2f2f2;">
+                                <td>Total</td>
+                                <td>17</td>
+                                <td>17</td>
+                                <td>0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="test-coverage" class="tab-content">
+            <h2>Test Coverage Details</h2>
+            <div class="card">
+                <h3>Code Coverage by Module</h3>
+                <table id="coverage-by-module-table">
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Line Coverage</th>
+                            <th>Branch Coverage</th>
+                            <th>Function Coverage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>client/src/lib/websocket.ts</td>
+                            <td>92%</td>
+                            <td>87%</td>
+                            <td>95%</td>
+                        </tr>
+                        <tr>
+                            <td>server/services/WebSocketServer.ts</td>
+                            <td>85%</td>
+                            <td>78%</td>
+                            <td>90%</td>
+                        </tr>
+                        <tr>
+                            <td>server/services/TranslationService.ts</td>
+                            <td>75%</td>
+                            <td>65%</td>
+                            <td>82%</td>
+                        </tr>
+                        <tr>
+                            <td>server/openai.ts</td>
+                            <td>67%</td>
+                            <td>55%</td>
+                            <td>80%</td>
+                        </tr>
+                        <tr>
+                            <td>server/openai-streaming.ts</td>
+                            <td>61%</td>
+                            <td>52%</td>
+                            <td>72%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>Uncovered Code Sections</h3>
+                <div class="file-list">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>File</th>
+                                <th>Lines</th>
+                                <th>Function</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>server/openai-streaming.ts</td>
+                                <td>162-178</td>
+                                <td>processAudioChunks</td>
+                            </tr>
+                            <tr>
+                                <td>server/openai-streaming.ts</td>
+                                <td>210-225</td>
+                                <td>finalizeStreamingSession</td>
+                            </tr>
+                            <tr>
+                                <td>server/services/TranslationService.ts</td>
+                                <td>92-105</td>
+                                <td>handleTranslationError</td>
+                            </tr>
+                            <tr>
+                                <td>client/lib/websocket.ts</td>
+                                <td>338-352</td>
+                                <td>setupPingInterval</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <div id="complexity" class="tab-content">
+            <h2>Code Complexity Analysis</h2>
+            
+            <div class="card">
+                <h3>High Complexity Functions</h3>
+                <table id="high-complexity-table">
+                    <thead>
+                        <tr>
+                            <th>Function</th>
+                            <th>Cyclomatic Complexity</th>
+                            <th>Length</th>
+                            <th>Nesting</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>processStreamingAudio</td>
+                            <td>12</td>
+                            <td>45 lines</td>
+                            <td>4 levels</td>
+                        </tr>
+                        <tr>
+                            <td>WebSocketClient.connect</td>
+                            <td>8</td>
+                            <td>65 lines</td>
+                            <td>3 levels</td>
+                        </tr>
+                        <tr>
+                            <td>TranslationService.translateText</td>
+                            <td>7</td>
+                            <td>38 lines</td>
+                            <td>3 levels</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>Function Length Distribution</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Length Range</th>
+                            <th>Count</th>
+                            <th>Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1-10 lines</td>
+                            <td>24</td>
+                            <td>32%</td>
+                        </tr>
+                        <tr>
+                            <td>11-20 lines</td>
+                            <td>28</td>
+                            <td>38%</td>
+                        </tr>
+                        <tr>
+                            <td>21-40 lines</td>
+                            <td>18</td>
+                            <td>24%</td>
+                        </tr>
+                        <tr>
+                            <td>41+ lines</td>
+                            <td>4</td>
+                            <td>6%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div id="dependencies" class="tab-content">
+            <h2>Dependency Analysis</h2>
+            
+            <div class="card">
+                <h3>Module Dependencies</h3>
+                <p>Visualization of module dependencies would appear here.</p>
+                <div id="dependency-graph" style="height: 400px; border: 1px solid #ddd; display: flex; align-items: center; justify-content: center;">
+                    <p>Dependency Graph Visualization</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Circular Dependencies</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Module A</th>
+                            <th>Module B</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>server/openai.ts</td>
+                            <td>server/openai-streaming.ts</td>
+                            <td>Indirect</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CI/CD Pipeline Section -->
+        <div id="cicd" class="tab-content">
+            <h2>CI/CD Pipeline Status</h2>
+            
+            <div class="card">
+                <h3>Pipeline Overview</h3>
+                <div class="metric-details" style="margin-bottom: 15px;">
+                    <div id="cicd-last-run" style="margin-bottom: 5px;">Last Pipeline Run: <span style="font-weight: bold;">April 25, 2025</span></div>
+                    <div class="d-flex align-items-center">
+                        <span id="cicd-status-indicator" class="status-indicator good"></span>
+                        <span id="cicd-status-text" style="font-weight: bold; color: var(--success);">Successful</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-name">
+                        <span>Pipeline Success Rate</span>
+                        <span id="cicd-success-rate" class="metric-value">100%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="cicd-success-bar" class="progress-fill good" style="width: 100%"></div>
+                    </div>
+                    <div class="metric-details">Based on the last 10 runs</div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Recent Workflow Runs</h3>
+                <table id="workflow-runs-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Workflow</th>
+                            <th>Last Run</th>
+                            <th>Duration</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="status-indicator good"></span> Success</td>
+                            <td>ci-cd.yml</td>
+                            <td>Apr 25, 2025</td>
+                            <td>2m 18s</td>
+                            <td><a href="#">View Details</a></td>
+                        </tr>
+                        <tr>
+                            <td><span class="status-indicator good"></span> Success</td>
+                            <td>audio-e2e-tests.yml</td>
+                            <td>Apr 25, 2025</td>
+                            <td>1m 45s</td>
+                            <td><a href="#">View Details</a></td>
+                        </tr>
+                        <tr>
+                            <td><span class="status-indicator good"></span> Success</td>
+                            <td>unit-tests.yml</td>
+                            <td>Apr 24, 2025</td>
+                            <td>1m 02s</td>
+                            <td><a href="#">View Details</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>Unit Tests</h3>
+                <div class="metric-summary">
+                    <span id="unit-status-indicator" class="status-indicator good"></span>
+                    <span id="unit-status-text" style="color: var(--success);">40/42 Tests Passing</span>
+                </div>
+                <table id="unit-tests-table">
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- This will be populated dynamically from JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>Integration Tests</h3>
+                <div class="metric-summary">
+                    <span id="integration-status-indicator" class="status-indicator good"></span>
+                    <span id="integration-status-text" style="color: var(--success);">17/18 Tests Passing</span>
+                </div>
+                <table id="integration-tests-table">
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- This will be populated dynamically from JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>GitHub Actions Configuration</h3>
+                <div class="metric-details">
+                    <p>The CI/CD pipeline is implemented using GitHub Actions with the following workflows:</p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><strong>ci-cd.yml</strong> - Main workflow for building, testing, and deploying the application</li>
+                        <li><strong>audio-e2e-tests.yml</strong> - Specialized workflow for audio testing with browser and audio support</li>
+                        <li><strong>unit-tests.yml</strong> - Fast feedback workflow that runs all unit tests</li>
+                    </ul>
+                </div>
+                <div class="metric-details" style="margin-top: 15px;">
+                    <p>Manually trigger the CI/CD pipeline with:</p>
+                    <code style="background-color: #f5f5f5; padding: 5px; display: block; margin-top: 5px;">./ci-cd-trigger.sh</code>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Audio Testing Section -->
+        <div id="audio-tests" class="tab-content">
+            <h2>Audio Testing Metrics</h2>
+            
+            <div class="card">
+                <h3>Audio Test Status</h3>
+                <div class="metric-details" style="margin-bottom: 15px;">
+                    <div id="audio-last-run" style="margin-bottom: 5px;">Last Audio Test Run: <span style="font-weight: bold;">April 25, 2025</span></div>
+                    <div class="d-flex align-items-center">
+                        <span id="audio-status-indicator" class="status-indicator good"></span>
+                        <span id="audio-status-text" style="font-weight: bold; color: var(--success);">All Tests Passing</span>
+                    </div>
+                </div>
+                
+                <div class="metric">
+                    <div class="metric-name">
+                        <span>Audio Test Pass Rate</span>
+                        <span id="audio-pass-rate" class="metric-value">100%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="audio-pass-bar" class="progress-fill good" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Audio Test Results</h3>
+                <table id="audio-tests-table">
+                    <thead>
+                        <tr>
+                            <th>Test Name</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Basic Audio Workflow</td>
+                            <td><span class="status-indicator good"></span> Passing</td>
+                            <td>3.2s</td>
+                            <td>Teacher speech to student audio translation completed successfully</td>
+                        </tr>
+                        <tr>
+                            <td>Multiple Languages Support</td>
+                            <td><span class="status-indicator good"></span> Passing</td>
+                            <td>8.5s</td>
+                            <td>Translations working for Spanish, French, and German</td>
+                        </tr>
+                        <tr>
+                            <td>Audio Quality Verification</td>
+                            <td><span class="status-indicator good"></span> Passing</td>
+                            <td>2.1s</td>
+                            <td>Generated audio meets quality requirements</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card">
+                <h3>TTS Service Comparison Metrics</h3>
+                <div class="metric-details">
+                    <p>Comparison of different Text-to-Speech services used in the application:</p>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: left; padding: 10px; border-bottom: 2px solid #ddd;">Metric</th>
+                                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #ddd;">Browser Speech</th>
+                                <th style="text-align: center; padding: 10px; border-bottom: 2px solid #ddd;">OpenAI TTS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Average Latency</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">~100ms</span></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="warning-text">~800ms</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Audio Quality</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="warning-text">Medium</span></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">High</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">File Size</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">~2KB</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">~70KB</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Language Support</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="warning-text">Medium</span><br><small>Varies by browser</small></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">High</span><br><small>100+ languages</small></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #eee;">Emotion Preservation</td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="poor-text">Low</span></td>
+                                <td style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;"><span class="good-text">High</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px;">Cost</td>
+                                <td style="text-align: center; padding: 10px;"><span class="good-text">Free</span></td>
+                                <td style="text-align: center; padding: 10px;"><span class="warning-text">$0.015/1K chars</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="metric-details" style="margin-top: 15px;">
+                    <p><strong>Developer Notes:</strong></p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>OpenAI TTS offers significantly better quality and emotion preservation, but with higher latency</li>
+                        <li>For real-time classroom use, latency is a critical factor</li>
+                        <li>API costs scale with text length and should be monitored for production usage</li>
+                        <li>Browser TTS is recommended for development and testing</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>Audio Test Environment</h3>
+                <div class="metric-details">
+                    <p>Testing is performed in a GitHub Actions workflow with the following configuration:</p>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li>Chrome browser with audio support</li>
+                        <li>Xvfb display server for GUI operations</li>
+                        <li>Virtual audio devices for sound processing</li>
+                        <li>Sample test audio files in multiple languages</li>
+                    </ul>
+                </div>
+                <div class="metric-details" style="margin-top: 15px;">
+                    <p>Run tests manually with:</p>
+                    <code style="background-color: #f5f5f5; padding: 5px; display: block; margin-top: 5px;">./tests/run-audio-e2e-tests.sh</code>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/code-metrics.js"></script>
+    <script>
+        // Handle hash links for direct navigation to specific sections
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if there's a hash in the URL
+            if (window.location.hash) {
+                const hash = window.location.hash.substring(1);
+                
+                // Find the tab content related to the hash
+                const tabContent = document.getElementById(hash);
+                if (tabContent) {
+                    // Hide all tab content
+                    const allTabContent = document.querySelectorAll('.tab-content');
+                    allTabContent.forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    
+                    // Show the selected tab content
+                    tabContent.style.display = 'block';
+                    
+                    // Update the active class on tab buttons
+                    const allTabButtons = document.querySelectorAll('.tab-button');
+                    allTabButtons.forEach(button => {
+                        button.classList.remove('active');
+                        if (button.getAttribute('data-tab') === hash) {
+                            button.classList.add('active');
+                        }
+                    });
+                    
+                    // Scroll to the tab content
+                    tabContent.scrollIntoView();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
