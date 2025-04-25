@@ -10,16 +10,20 @@ const Home: React.FC = () => {
         <div className="text-center mb-8">
           <p className="mb-4">
             The React-based implementation of speech recognition has persistent issues across browsers and platforms. 
-            We've created two simple HTML-based implementations that should work more reliably.
+            We've created simple HTML-based implementations that work more reliably with direct WebSocket connections.
+          </p>
+          <p className="mb-4">
+            <strong>For Best Results:</strong> Use the Teacher Interface on your computer and the Student Interface on mobile devices.
           </p>
           <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
-            <Link href="/simplespeech">
-              <a className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition">
-                Simple Speech Test
-              </a>
-            </Link>
-            <a href="/direct-speech-test.html" className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
-              Direct Speech Test
+            <a href="/simple-speech-test.html" className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition">
+              Teacher Interface
+            </a>
+            <a href="/simple-student.html" className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
+              Student Interface
+            </a>
+            <a href="/direct-speech-test.html" className="px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition">
+              Advanced Testing
             </a>
           </div>
         </div>

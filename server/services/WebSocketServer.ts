@@ -287,11 +287,10 @@ export class WebSocketServer {
       
       const translationMessage = {
         type: 'translation',
-        data: {
-          originalText: message.text,
-          translatedText,
-          languageCode: studentLanguage
-        }
+        text: translatedText,
+        originalText: message.text,
+        sourceLanguage: teacherLanguage,
+        targetLanguage: studentLanguage
       };
       
       client.send(JSON.stringify(translationMessage));
