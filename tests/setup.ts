@@ -6,7 +6,7 @@ import '@testing-library/jest-dom';
 process.env.OPENAI_API_KEY = 'mock-openai-api-key';
 
 // Mock WebSocket for node environment
-global.WebSocket = class MockWebSocket {
+class MockWebSocket {
   url: string;
   onopen: (() => void) | null = null;
   onmessage: ((event: any) => void) | null = null;
@@ -14,11 +14,16 @@ global.WebSocket = class MockWebSocket {
   onerror: ((event: any) => void) | null = null;
   readyState: number = 0;
   
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
+  
   constructor(url: string) {
     this.url = url;
     // Simulate connection
     setTimeout(() => {
-      this.readyState = 1; // OPEN
+      this.readyState = MockWebSocket.OPEN;
       if (this.onopen) this.onopen();
     }, 0);
   }
@@ -28,10 +33,13 @@ global.WebSocket = class MockWebSocket {
   }
   
   close(): void {
-    this.readyState = 3; // CLOSED
+    this.readyState = MockWebSocket.CLOSED;
     if (this.onclose) this.onclose();
   }
-};
+}
+
+// Add the WebSocket to the global namespace
+(global as any).WebSocket = MockWebSocket;
 
 // Global test timeout
 jest.setTimeout(30000);
