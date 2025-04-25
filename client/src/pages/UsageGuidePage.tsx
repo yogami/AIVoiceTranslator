@@ -1,23 +1,17 @@
 import React from 'react';
 import { Link } from "wouter";
-import Header from '@/components/Header';
 import UsageGuide from '@/components/UsageGuide';
 import { Button } from '@/components/ui/button';
-import { useWebSocket } from '@/hooks/useWebSocket';
 import { ArrowLeft, BookOpen } from 'lucide-react';
 
 const UsageGuidePage: React.FC = () => {
-  // Initialize WebSocket
-  const { status: connectionStatus } = useWebSocket({
-    autoConnect: true
-  });
-  
   return (
     <div className="bg-gray-100 min-h-screen flex flex-col">
-      <Header 
-        connectionStatus={connectionStatus}
-        onHelpClick={() => {}}
-      />
+      <header className="bg-white shadow-sm p-4">
+        <div className="container mx-auto">
+          <h1 className="text-xl font-bold text-primary">Benedictaitor</h1>
+        </div>
+      </header>
       
       <main className="container mx-auto px-4 py-6 flex-1">
         <div className="mb-4 flex items-center">
@@ -38,7 +32,7 @@ const UsageGuidePage: React.FC = () => {
         <div className="mt-6 flex justify-center">
           <Link href="/">
             <Button size="lg" className="font-medium">
-              Return to Application
+              Return to Home
             </Button>
           </Link>
         </div>

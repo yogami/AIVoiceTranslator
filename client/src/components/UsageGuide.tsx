@@ -9,7 +9,7 @@ const UsageGuide: React.FC = () => {
         <h2 className="text-xl font-bold mb-4">How to Use Benedictaitor</h2>
         
         <div className="mb-6 text-sm text-gray-600">
-          Follow these steps to start using the real-time translation platform:
+          Follow these steps to use our lightweight multilingual classroom translation system:
         </div>
         
         <div className="space-y-6">
@@ -19,10 +19,10 @@ const UsageGuide: React.FC = () => {
               <Mic className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">1. Allow Microphone Access</h3>
+              <h3 className="font-semibold text-gray-900">1. Choose the Right Interface</h3>
               <p className="text-sm text-gray-600 mt-1">
-                When prompted, click "Allow" to grant microphone permissions. 
-                This is necessary for capturing your speech in teacher mode.
+                Use the <strong>Teacher Interface</strong> on your computer to speak and broadcast.
+                Share the <strong>Student Interface</strong> with students to receive translations.
               </p>
             </div>
           </div>
@@ -33,10 +33,10 @@ const UsageGuide: React.FC = () => {
               <Settings className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">2. Select Your Devices</h3>
+              <h3 className="font-semibold text-gray-900">2. Allow Microphone Access</h3>
               <p className="text-sm text-gray-600 mt-1">
-                In Teacher mode, select your preferred microphone from the dropdown.
-                In Student mode, ensure your speakers or headphones are working.
+                When prompted in the Teacher Interface, click "Allow" to grant microphone permissions.
+                This is necessary for capturing your speech.
               </p>
             </div>
           </div>
@@ -47,10 +47,10 @@ const UsageGuide: React.FC = () => {
               <Globe className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">3. Choose Languages</h3>
+              <h3 className="font-semibold text-gray-900">3. Select Languages</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Teachers: Select your input language (e.g., English).
-                Students: Select your preferred language for receiving translations.
+                Teachers: Use English (en-US) as your input language.
+                Students: Select your preferred language for receiving translations (Spanish, German, etc.).
               </p>
             </div>
           </div>
@@ -61,10 +61,10 @@ const UsageGuide: React.FC = () => {
               <Volume2 className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">4. Start Broadcasting (Teacher)</h3>
+              <h3 className="font-semibold text-gray-900">4. Start Speaking (Teacher)</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Toggle the microphone switch to start recording. Speak clearly 
-                and at a moderate pace for best translation results.
+                In the Teacher Interface, click "Start Recording" and speak clearly.
+                Your speech will be automatically transcribed and sent to students.
               </p>
             </div>
           </div>
@@ -77,23 +77,8 @@ const UsageGuide: React.FC = () => {
             <div>
               <h3 className="font-semibold text-gray-900">5. Receive Translations (Student)</h3>
               <p className="text-sm text-gray-600 mt-1">
-                Audio translations will play automatically. Use the playback 
-                controls to adjust volume or pause audio if needed.
-              </p>
-            </div>
-          </div>
-          
-          {/* Step 6 */}
-          <div className="flex gap-4">
-            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <Smartphone className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">6. Multi-Device Testing</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                For testing with multiple devices, use the QR code page to easily
-                open the student interface on your phone while using teacher mode
-                on your computer.
+                Students will see both the original English text and the translated text
+                in their chosen language in real time.
               </p>
             </div>
           </div>
@@ -106,10 +91,11 @@ const UsageGuide: React.FC = () => {
           </h3>
           <ul className="list-disc pl-5 text-sm space-y-1 text-gray-700">
             <li>If the microphone doesn't work, check browser permissions</li>
-            <li>For best results, use Chrome or Firefox</li>
+            <li>For best results, use Chrome on desktop for the Teacher Interface</li>
             <li>Ensure your internet connection is stable</li>
             <li>If translations are delayed, try speaking more slowly</li>
             <li>Make sure your OpenAI API key is correctly configured</li>
+            <li>If connections drop, refresh the page to reconnect automatically</li>
           </ul>
         </div>
       </CardContent>
