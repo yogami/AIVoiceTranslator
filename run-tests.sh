@@ -2,7 +2,7 @@
 
 # Script to run tests for the AIVoiceTranslator project
 # Usage: ./run-tests.sh [test-type]
-# Where test-type can be: unit, integration, e2e, audio, or all (default)
+# Where test-type can be: unit, integration, e2e, audio, tts-autoplay, or all (default)
 
 # Colors for output
 GREEN='\033[0;32m'

@@ -176,11 +176,25 @@ async function runTest() {
     
     // Wait for auto-play log message that should include "Auto-playing browser speech"
     await driver.wait(
-      until.elementLocated(By.xpath("//div[contains(text(), 'Auto-playing browser speech') or contains(text(), 'Generating speech with service type: browser')]")),
+      until.elementLocated(By.xpath("//div[contains(text(), 'Auto-playing browser speech') or contains(text(), 'Auto-playing browser speech synthesis due to autoPlay flag')]")),
       5000,
       'Timed out waiting for Browser TTS auto-play confirmation in logs'
     );
-    console.log('Verified Browser TTS auto-play behavior');
+    
+    // Get the actual log message to verify speech parameters parsing
+    const autoPlayLogElement = await driver.findElement(
+      By.xpath("//div[contains(text(), 'Auto-playing browser speech') or contains(text(), 'Auto-playing browser speech synthesis due to autoPlay flag')]")
+    );
+    const autoPlayLogText = await autoPlayLogElement.getText();
+    console.log('Found auto-play log message:', autoPlayLogText);
+    
+    // Verify the autoPlay flag is explicitly mentioned and is set to true
+    assert.ok(
+      autoPlayLogText.includes('autoPlay flag') || autoPlayLogText.includes('autoPlay = true'),
+      'autoPlay flag was not explicitly mentioned in log message'
+    );
+    
+    console.log('Verified Browser TTS auto-play behavior with autoPlay flag');
     
     // Step 10: Verify TTS service update is reflected in UI
     const finalTtsIndicator = await driver.findElement(By.id('current-tts-service'));
