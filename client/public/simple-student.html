@@ -1391,7 +1391,17 @@
             } else if (useClientSpeech) {
                 // Explicitly instructed to use client speech synthesis
                 log('Server explicitly requested client-side speech synthesis');
-                generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                
+                // Check if we have speech parameters with autoPlay flag
+                if (message && message.speechParams && message.speechParams.autoPlay === true) {
+                    log('Auto-playing browser speech synthesis due to autoPlay flag');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                } else {
+                    // Still configure the play button to use speech synthesis when clicked
+                    log('Browser speech synthesis ready (click play button to hear)');
+                    playButton.disabled = false;
+                    playButton.onclick = () => generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                }
             } else if (ttsServiceType === 'openai' && !audioData) {
                 // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
                 log('OpenAI TTS selected but no audio data received - trying to request it from server');

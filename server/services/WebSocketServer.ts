@@ -382,20 +382,22 @@ export class WebSocketServer {
           const audioBuffer = translationResults[studentLanguage].audioBuffer;
           
           // Check if this is a special marker for browser speech synthesis
-          const bufferStart = audioBuffer.toString('utf8', 0, Math.min(100, audioBuffer.length));
+          const bufferString = audioBuffer.toString('utf8');
           
-          if (bufferStart.startsWith('{"type":"browser-speech"')) {
+          if (bufferString.startsWith('{"type":"browser-speech"')) {
             // This is a marker for browser-based speech synthesis
             console.log(`Using client browser speech synthesis for ${studentLanguage}`);
             translationMessage.useClientSpeech = true;
             try {
-              translationMessage.speechParams = JSON.parse(bufferStart);
+              translationMessage.speechParams = JSON.parse(bufferString);
+              console.log(`Successfully parsed speech params for ${studentLanguage}`);
             } catch (jsonError) {
               console.error('Error parsing speech params:', jsonError);
               translationMessage.speechParams = {
                 type: 'browser-speech',
                 text: translatedText,
-                languageCode: studentLanguage
+                languageCode: studentLanguage,
+                autoPlay: true
               };
             }
           } else if (audioBuffer.length > 0) {
