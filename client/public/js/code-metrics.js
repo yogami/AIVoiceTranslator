@@ -48,7 +48,13 @@ class CodeMetricsCollector {
       testResults: {
         unit: { total: 0, passed: 0, failed: 0 },
         integration: { total: 0, passed: 0, failed: 0 },
-        e2e: { total: 0, passed: 0, failed: 0 }
+        e2e: { total: 0, passed: 0, failed: 0 },
+        audio: { total: 0, passed: 0, failed: 0, lastRun: '' },
+        cicd: {
+          lastRun: '',
+          status: '',
+          workflows: []
+        }
       }
     };
   }
