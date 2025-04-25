@@ -1173,9 +1173,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   const metricsCollector = new CodeMetricsCollector();
   await metricsCollector.loadMetrics();
   
+  // Debug tabs
+  console.log("Available tabs:");
+  document.querySelectorAll('.tab').forEach(tab => {
+    const tabId = tab.getAttribute('data-tab');
+    const contentElement = document.getElementById(tabId);
+    console.log(`Tab: ${tabId}, Content exists: ${contentElement ? 'Yes' : 'No'}`);
+  });
+  
   // Set up the tab functionality
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
+      console.log(`Tab clicked: ${tab.getAttribute('data-tab')}`);
+      
       // Remove active class from all tabs
       document.querySelectorAll('.tab').forEach(t => {
         t.classList.remove('active');
@@ -1191,27 +1201,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       // Show content for active tab
       const tabId = tab.getAttribute('data-tab');
-      document.getElementById(tabId).classList.add('active');
+      const tabContent = document.getElementById(tabId);
+      if (tabContent) {
+        tabContent.classList.add('active');
+        console.log(`Activated tab content: ${tabId}`);
+      } else {
+        console.error(`Tab content not found for tab: ${tabId}`);
+      }
     });
   });
   
-  // Set the default active tab to "testing-pyramid" (Testing Pyramid Overview)
-  const pyramidTab = document.querySelector('.tab[data-tab="testing-pyramid"]');
-  if (pyramidTab) {
-    // Click the pyramid tab to activate it by default
-    pyramidTab.click();
+  // Set a default tab based on what's available
+  const tabsToTry = ['overview', 'testing-pyramid', 'test-coverage'];
+  let defaultTabSet = false;
+  
+  for (const tabId of tabsToTry) {
+    const tab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+    const content = document.getElementById(tabId);
+    
+    if (tab && content) {
+      console.log(`Setting default tab to: ${tabId}`);
+      tab.click();
+      defaultTabSet = true;
+      break;
+    }
   }
   
-  // Make sure our TTS service tests tab works
-  const ttsServiceTab = document.querySelector('.tab[data-tab="tts-service-tests"]');
-  if (ttsServiceTab) {
-    ttsServiceTab.addEventListener('click', () => {
-      // Show TTS Service Testing content
-      document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active');
-      });
-      document.getElementById('tts-service-tests').classList.add('active');
-    });
+  if (!defaultTabSet) {
+    console.log("Falling back to first available tab");
+    const firstTab = document.querySelector('.tab');
+    if (firstTab) {
+      firstTab.click();
+    }
   }
   
   // Set up the refresh button functionality
