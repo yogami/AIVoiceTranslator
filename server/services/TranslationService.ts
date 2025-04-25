@@ -607,15 +607,13 @@ export class SpeechTranslationService {
       // Log the TTS service being used
       console.log(`Using TTS service '${ttsServiceType}' for language '${targetLanguage}'`);
       
-      // Get the appropriate TTS service from the factory
-      const ttsService = ttsFactory.getService(ttsServiceType);
-      
-      // Use the selected TTS service to generate audio with emotion preservation
-      translatedAudioBuffer = await ttsService.synthesizeSpeech({
+      // Instead of getting the service directly, use textToSpeechService with explicit override
+      // This ensures the service type is respected throughout the entire flow
+      translatedAudioBuffer = await textToSpeechService.synthesizeSpeech({
         text: translatedText || originalText,
         languageCode: targetLanguage,
         preserveEmotions: true // Enable emotional tone preservation
-      });
+      }, ttsServiceType); // Pass service type explicitly
       
       console.log(`Generated translated audio using ${ttsServiceType} service: ${translatedAudioBuffer.length} bytes`);
     } catch (error) {

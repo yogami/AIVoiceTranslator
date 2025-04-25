@@ -512,10 +512,11 @@ export const ttsFactory = TextToSpeechFactory.getInstance();
 
 // Export a convenience function to get the default TTS service (backward compatibility)
 export const textToSpeechService = {
-  synthesizeSpeech: async (options: TextToSpeechOptions): Promise<Buffer> => {
-    // Default to OpenAI TTS (more reliable than browser speech synthesis autoplay)
+  synthesizeSpeech: async (options: TextToSpeechOptions, serviceTypeOverride?: string): Promise<Buffer> => {
+    // Use the explicitly provided service type if available, otherwise use environment variable or fall back to OpenAI
     // Browser autoplay restrictions make Web Speech API unreliable for automatic playback
-    const serviceType = process.env.TTS_SERVICE_TYPE || 'openai';
+    const serviceType = serviceTypeOverride || process.env.TTS_SERVICE_TYPE || 'openai';
+    console.log(`TTS Service using: ${serviceType} ${serviceTypeOverride ? '(explicitly specified)' : '(from env/default)'}`);
     return ttsFactory.getService(serviceType).synthesizeSpeech(options);
   }
 };
