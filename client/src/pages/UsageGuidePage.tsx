@@ -9,7 +9,7 @@ const UsageGuidePage: React.FC = () => {
     <div className="bg-gray-100 min-h-screen flex flex-col">
       <header className="bg-white shadow-sm p-4">
         <div className="container mx-auto">
-          <h1 className="text-xl font-bold text-primary">Benedictaitor</h1>
+          <h1 className="text-xl font-bold text-primary">AIVoiceTranslator</h1>
         </div>
       </header>
       

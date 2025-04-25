@@ -18,7 +18,7 @@ if (typeof window !== 'undefined') {
 console.log("WebSocketClient singleton initialized");
 
 // Set page title
-document.title = "Benedictaitor - Real-time Translation Platform";
+document.title = "AIVoiceTranslator - Real-time Translation Platform";
 
 // Add meta viewport tag if not present
 if (!document.querySelector('meta[name="viewport"]')) {

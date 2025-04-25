@@ -51,7 +51,7 @@ def scan_directory_for_pdfs(directory, search_text):
     return results
 
 if __name__ == "__main__":
-    search_text = "Benedictaitor"
+    search_text = "AIVoiceTranslator"
     directory = "."
     
     print(f"Scanning for '{search_text}' in PDF files...")
