@@ -1,0 +1,29 @@
+# AI Workflow Reminder for AIVoiceTranslator Project
+
+## Core Process (TDD)
+1. Write tests first
+2. Implement code to pass tests
+3. Refactor while maintaining test passing
+4. Update testing pyramid & metrics
+5. Update CI/CD configuration
+6. Update documentation
+7. Manual verification
+
+## Quality Standards to Maintain
+- Test Coverage: >90% 
+- Cyclomatic Complexity: ≤3
+- No critical code smells
+- Function Length: <50 lines
+- Nesting Depth: ≤3 levels
+- Code Duplication: <5%
+
+## Scripts to Use
+- Test runners in tests/ directory
+- CI/CD trigger for GitHub Actions
+- Metrics update via test-metrics-api.js
+
+## Dashboard Updates
+- Always update the metrics dashboard after changes
+- Verify dashboard data accurately reflects code state
+
+Refer to DEVELOPMENT_WORKFLOW.md for detailed process

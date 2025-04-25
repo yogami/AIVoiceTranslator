@@ -33,6 +33,17 @@ Create a `.env` file with the following:
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+## Development Workflow
+
+This project follows strict Test-Driven Development (TDD) practices. For all code changes:
+
+1. Write tests first
+2. Implement code to pass tests
+3. Refactor while maintaining passing tests
+4. Update testing infrastructure and metrics
+
+For the complete development process, see [DEVELOPMENT_WORKFLOW.md](DEVELOPMENT_WORKFLOW.md).
+
 ## Testing
 
 AIVoiceTranslator includes a comprehensive suite of tests to ensure reliability:
@@ -69,8 +80,10 @@ For detailed information about the Selenium testing setup, see the [SELENIUM-TES
 Run the local test suite:
 
 ```
-./test-websocket.sh   # Test WebSocket client/server communication
-./test-metrics.sh     # Test metrics API functionality
+./test-websocket.sh             # Test WebSocket client/server communication
+./test-metrics.sh               # Test metrics API functionality
+./tests/run-tts-selection-tests.sh  # Test TTS service selection functionality
+./tests/run-tts-service-suite.sh    # Run all TTS service-related tests
 ```
 
 ### Real Hardware Testing

@@ -1213,7 +1213,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('tts-service-tests').classList.add('active');
     });
   }
-  }
   
   // Set up the refresh button functionality
   const refreshButton = document.getElementById('refresh-metrics');
