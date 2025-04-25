@@ -304,21 +304,20 @@ export class WebSocketServer {
     
     for (const targetLanguage of studentLanguages) {
       try {
-        // Get the client's preferred TTS service type
-        let clientTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+        // Get the teacher's preferred TTS service type
+        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
         
-        // Look for any students who speak this language and get their settings
+        // Look for the teacher's TTS service preference
         this.connections.forEach(client => {
-          if (this.languages.get(client) === targetLanguage && 
-              this.roles.get(client) === 'student' &&
+          if (this.roles.get(client) === 'teacher' &&
               this.clientSettings.get(client)?.ttsServiceType) {
-            // Use the first student's preference for this language
-            clientTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+            // Use the teacher's preference for all student translations
+            teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
           }
         });
         
         // No need to set environment variable anymore - we'll pass it directly
-        console.log(`Using TTS service '${clientTtsServiceType}' for language '${targetLanguage}'`);
+        console.log(`Using teacher's TTS service '${teacherTtsServiceType}' for language '${targetLanguage}'`);
         
         // Perform the translation with the selected TTS service
         const result = await speechTranslationService.translateSpeech(
@@ -326,7 +325,7 @@ export class WebSocketServer {
           teacherLanguage,
           targetLanguage,
           message.text, // Use the pre-transcribed text
-          { ttsServiceType: clientTtsServiceType } // Pass TTS service type directly
+          { ttsServiceType: teacherTtsServiceType } // Pass TTS service type directly
         );
         
         // Store the full result object for this language
