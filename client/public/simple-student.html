@@ -2116,21 +2116,19 @@
                 window.LanguageSupport.updateButtons(defaultTtsService);
             }
             
-            // Setup TTS service play demo buttons
+            // Setup TTS service play demo buttons (for comparison only)
             document.querySelectorAll('.play-demo-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const ttsService = this.getAttribute('data-service');
-                    log(`Play demo button clicked for TTS service: ${ttsService}`);
+                    log(`Play demo button clicked for TTS service: ${ttsService} (for comparison only)`);
                     
-                    // Select the radio button for this service
-                    const radioButton = document.querySelector(`input[name="tts-service"][value="${ttsService}"]`);
-                    radioButton.checked = true;
+                    // Update a hidden setting for comparison purposes only
+                    const hiddenTtsService = ttsService; // This is just for comparison
                     
-                    // Trigger the change event manually to update language support
-                    const changeEvent = new Event('change');
-                    radioButton.dispatchEvent(changeEvent);
+                    // Show a message that this is just for comparison
+                    showSuccess(`Playing comparison with ${getTtsServiceName(ttsService)} (Teacher still controls the active service)`);
                     
-                    // Play the current translation with this TTS service
+                    // Play the current translation with this TTS service for comparison
                     playWithTTSService(ttsService);
                 });
             });
