@@ -331,6 +331,9 @@ export class WebSocketServer {
         }
         
         // Perform the translation with the selected TTS service
+        // Force use of the specified TTS service type (important for browser TTS)
+        console.log(`TTS Service Override: Explicitly using '${teacherTtsServiceType}' for language ${targetLanguage}`);
+        
         const result = await speechTranslationService.translateSpeech(
           Buffer.from(''), // Empty buffer as we already have the text
           teacherLanguage,
@@ -550,6 +553,9 @@ export class WebSocketServer {
   ): Promise<{ success: boolean; audioData?: string; error?: string }> {
     try {
       // Use the translation service to generate speech audio with specific TTS service
+      // Explicitly log the TTS service we're using to help with debugging
+      console.log(`TTS Service Override: Explicitly using '${ttsService}' for TTS request`);
+      
       const result = await speechTranslationService.translateSpeech(
         Buffer.from(''), // Empty buffer since we have the text
         'en-US',        // Source language doesn't matter for TTS
