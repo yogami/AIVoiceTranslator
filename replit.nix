@@ -1,5 +1,6 @@
 {pkgs}: {
   deps = [
+    pkgs.poppler
     pkgs.zip
     pkgs.chromedriver
     pkgs.chromium
