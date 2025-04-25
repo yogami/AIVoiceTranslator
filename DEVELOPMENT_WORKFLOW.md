@@ -63,6 +63,14 @@ This document outlines the standard development workflow that should be followed
 4. Update dashboard metrics
 5. Push to CI/CD pipeline
 
+### For Speech & TTS Changes
+
+1. Write TTS-specific tests (see [TTS_AUTOPLAY_VERIFICATION.md](TTS_AUTOPLAY_VERIFICATION.md))
+2. Update speech handling code
+3. Run TTS autoplay tests using `./run-tts-autoplay-test.sh`
+4. Verify behavior across all TTS services (Browser, OpenAI, Silent)
+5. Push to CI/CD pipeline
+
 ### For Backend/API Changes
 
 1. Write unit and integration tests

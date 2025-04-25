@@ -68,6 +68,13 @@ case $TEST_TYPE in
     exit $?
     ;;
     
+  "tts-autoplay")
+    check_api_key
+    echo -e "${BLUE}Running TTS Autoplay Verification Test...${NC}"
+    ./run-tts-autoplay-test.sh
+    exit $?
+    ;;
+    
   "all")
     echo -e "${BLUE}Running all tests...${NC}"
     
@@ -97,6 +104,12 @@ case $TEST_TYPE in
     AUDIO_RESULT=$?
     [ $AUDIO_RESULT -ne 0 ] && OVERALL_SUCCESS=1
     
+    # Run TTS Autoplay verification test
+    echo -e "${BLUE}Running TTS Autoplay Verification Test...${NC}"
+    ./run-tts-autoplay-test.sh
+    TTS_AUTOPLAY_RESULT=$?
+    [ $TTS_AUTOPLAY_RESULT -ne 0 ] && OVERALL_SUCCESS=1
+    
     # Report overall results
     if [ $OVERALL_SUCCESS -eq 0 ]; then
       echo -e "\n${GREEN}✓ All tests passed successfully${NC}"
@@ -108,6 +121,7 @@ case $TEST_TYPE in
       [ $INTEGRATION_RESULT -ne 0 ] && echo -e "${RED}✗ Integration tests failed${NC}"
       [ $E2E_RESULT -ne 0 ] && echo -e "${RED}✗ End-to-End tests failed${NC}"
       [ $AUDIO_RESULT -ne 0 ] && echo -e "${RED}✗ Audio tests failed${NC}"
+      [ $TTS_AUTOPLAY_RESULT -ne 0 ] && echo -e "${RED}✗ TTS Autoplay verification tests failed${NC}"
     fi
     
     exit $OVERALL_SUCCESS
@@ -116,7 +130,7 @@ case $TEST_TYPE in
   *)
     echo -e "${RED}Error: Invalid test type '${TEST_TYPE}'${NC}"
     echo "Usage: ./run-tests.sh [test-type]"
-    echo "Where test-type can be: unit, integration, e2e, audio, or all (default)"
+    echo "Where test-type can be: unit, integration, e2e, audio, tts-autoplay, or all (default)"
     exit 1
     ;;
 esac

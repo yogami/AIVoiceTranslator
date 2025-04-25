@@ -88,6 +88,22 @@ This will:
 3. Run all tests in a clean environment
 4. Provide a link to view the results
 
+### Available Workflows
+
+AIVoiceTranslator includes several specialized CI/CD workflows:
+
+1. **Main CI/CD Pipeline** - Runs all unit, integration, and end-to-end tests
+2. **TTS Autoplay Verification** - Tests the automatic playback of speech synthesis in both OpenAI and Browser TTS services
+   - Located at `.github/workflows/tts-autoplay-verification.yml`
+   - Triggered when changes are made to TTS or WebSocket services
+   - Can be run manually with:
+     ```bash
+     ./run-tts-autoplay-test.sh
+     ```
+3. **Load Testing** - Simulates classroom usage with multiple concurrent students
+   - Located at `.github/workflows/load-testing.yml`
+   - Configurable for different load scenarios
+
 ## Viewing Test Results
 
 You can view the results of your CI/CD runs by:
