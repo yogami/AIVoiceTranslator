@@ -1,86 +1,122 @@
 #!/bin/bash
 
-# Run tests script for AIVoiceTranslator
-# This script provides a convenient way to run different levels of tests
-# according to the testing pyramid
+# Script to run tests for the AIVoiceTranslator project
+# Usage: ./run-tests.sh [test-type]
+# Where test-type can be: unit, integration, e2e, audio, or all (default)
 
-# Set up colors for output
+# Colors for output
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 RED='\033[0;31m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Print header
-echo -e "${GREEN}=====================================${NC}"
-echo -e "${GREEN}    AIVoiceTranslator Test Runner   ${NC}"
-echo -e "${GREEN}=====================================${NC}"
+TEST_TYPE=${1:-"all"}
 
-# Function to run unit tests
-run_unit_tests() {
-  echo -e "\n${YELLOW}Running Unit Tests...${NC}"
-  npx jest tests/unit
+# Function to run tests and return success/failure
+run_test() {
+  local test_pattern=$1
+  local test_name=$2
+  
+  echo -e "${BLUE}Running ${test_name} tests...${NC}"
+  npm test -- --testPathPattern=tests/${test_pattern}
+  
+  if [ $? -eq 0 ]; then
+    echo -e "${GREEN}✓ ${test_name} tests passed${NC}"
+    return 0
+  else
+    echo -e "${RED}✗ ${test_name} tests failed${NC}"
+    return 1
+  fi
 }
 
-# Function to run only non-websocket tests (for Replit environment)
-run_safe_tests() {
-  echo -e "\n${YELLOW}Running Safe Tests (excluding WebSocket tests)...${NC}"
-  # The --testPathIgnorePatterns flag excludes WebSocket test files
-  npx jest --testPathIgnorePatterns="websocket"
+# Check if OpenAI API key is available for integration and e2e tests
+check_api_key() {
+  if [ -z "$OPENAI_API_KEY" ]; then
+    echo -e "${YELLOW}Warning: OPENAI_API_KEY environment variable is not set.${NC}"
+    echo "Integration and E2E tests may fail without a valid API key."
+    read -p "Do you want to continue anyway? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      exit 1
+    fi
+  fi
 }
 
-# Function to run integration tests
-run_integration_tests() {
-  echo -e "\n${YELLOW}Running Integration Tests...${NC}"
-  npx jest tests/integration
-}
-
-# Function to run e2e tests
-run_e2e_tests() {
-  echo -e "\n${YELLOW}Running End-to-End Tests...${NC}"
-  npx jest tests/e2e
-}
-
-# Function to run all tests
-run_all_tests() {
-  echo -e "\n${YELLOW}Running All Tests...${NC}"
-  npx jest
-}
-
-# Function to run tests with coverage
-run_coverage() {
-  echo -e "\n${YELLOW}Running Tests with Coverage Report...${NC}"
-  npx jest --coverage
-}
-
-# Check command line arguments
-case "$1" in
+# Main execution
+case $TEST_TYPE in
   "unit")
-    run_unit_tests
+    run_test "unit" "Unit"
+    exit $?
     ;;
+    
   "integration")
-    run_integration_tests
+    check_api_key
+    run_test "integration" "Integration"
+    exit $?
     ;;
+    
   "e2e")
-    run_e2e_tests
+    check_api_key
+    run_test "e2e" "End-to-End"
+    exit $?
     ;;
+    
+  "audio")
+    check_api_key
+    run_test "audio" "Audio"
+    exit $?
+    ;;
+    
   "all")
-    run_all_tests
+    echo -e "${BLUE}Running all tests...${NC}"
+    
+    # Keep track of overall success
+    OVERALL_SUCCESS=0
+    
+    # Run unit tests
+    run_test "unit" "Unit"
+    UNIT_RESULT=$?
+    [ $UNIT_RESULT -ne 0 ] && OVERALL_SUCCESS=1
+    
+    # Check API key before running other tests
+    check_api_key
+    
+    # Run integration tests
+    run_test "integration" "Integration" 
+    INTEGRATION_RESULT=$?
+    [ $INTEGRATION_RESULT -ne 0 ] && OVERALL_SUCCESS=1
+    
+    # Run E2E tests
+    run_test "e2e" "End-to-End"
+    E2E_RESULT=$?
+    [ $E2E_RESULT -ne 0 ] && OVERALL_SUCCESS=1
+    
+    # Run audio tests
+    run_test "audio" "Audio"
+    AUDIO_RESULT=$?
+    [ $AUDIO_RESULT -ne 0 ] && OVERALL_SUCCESS=1
+    
+    # Report overall results
+    if [ $OVERALL_SUCCESS -eq 0 ]; then
+      echo -e "\n${GREEN}✓ All tests passed successfully${NC}"
+    else
+      echo -e "\n${RED}✗ Some tests failed${NC}"
+      
+      # Show summary of failures
+      [ $UNIT_RESULT -ne 0 ] && echo -e "${RED}✗ Unit tests failed${NC}"
+      [ $INTEGRATION_RESULT -ne 0 ] && echo -e "${RED}✗ Integration tests failed${NC}"
+      [ $E2E_RESULT -ne 0 ] && echo -e "${RED}✗ End-to-End tests failed${NC}"
+      [ $AUDIO_RESULT -ne 0 ] && echo -e "${RED}✗ Audio tests failed${NC}"
+    fi
+    
+    exit $OVERALL_SUCCESS
     ;;
-  "coverage")
-    run_coverage
-    ;;
-  "safe")
-    run_safe_tests
-    ;;
+    
   *)
-    echo -e "${YELLOW}Usage:${NC}"
-    echo -e "  $0 unit        - Run unit tests"
-    echo -e "  $0 integration - Run integration tests"
-    echo -e "  $0 e2e         - Run end-to-end tests"
-    echo -e "  $0 all         - Run all tests"
-    echo -e "  $0 coverage    - Run tests with coverage report"
-    echo -e "  $0 safe        - Run only non-WebSocket tests (for Replit)"
+    echo -e "${RED}Error: Invalid test type '${TEST_TYPE}'${NC}"
+    echo "Usage: ./run-tests.sh [test-type]"
+    echo "Where test-type can be: unit, integration, e2e, audio, or all (default)"
+    exit 1
     ;;
 esac
-
-echo -e "\n${GREEN}Tests completed!${NC}"
