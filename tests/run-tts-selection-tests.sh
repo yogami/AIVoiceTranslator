@@ -1,42 +1,52 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# TTS Service Selection Tests Runner
+# This script runs the TTS service selection end-to-end tests
 
-# Color codes for terminal output
-RED='\033[0;31m'
+# Terminal colors
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+RED='\033[0;31m'
+YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-# Configuration
-APP_URL=${APP_URL:-"http://localhost:3000"}
-TEST_FILE="$(dirname "$0")/e2e/tts-service-selection.test.js"
+echo -e "${YELLOW}=======================================${NC}"
+echo -e "${YELLOW}  TTS Service Selection Tests Runner  ${NC}"
+echo -e "${YELLOW}=======================================${NC}"
 
-# Banner
-echo -e "${YELLOW}===== TTS Service Selection Test Configuration =====${NC}"
-echo -e "App URL: ${APP_URL}"
-echo -e "Test file: ${TEST_FILE}"
-echo -e "${YELLOW}=================================================${NC}"
-
-# Don't try to install Chrome in Replit environment
-# Check if we have Chrome installed
-if ! command -v google-chrome &> /dev/null; then
-  echo -e "${YELLOW}Chrome not detected. Using headless mode with existing environment.${NC}"
-  export CI=true
-fi
-
-# Install required Node.js dependencies
-echo -e "${YELLOW}Installing test dependencies...${NC}"
-npm install --no-save selenium-webdriver@4.14.0 mocha@10.2.0 chromedriver@115.0.0
-
-# Run the test with Mocha using Node.js ES modules
-echo -e "${YELLOW}Running TTS service selection tests...${NC}"
-NODE_OPTIONS="--experimental-vm-modules" APP_URL=$APP_URL npx mocha $TEST_FILE --timeout 60000 --reporter spec
-
-# Capture exit code
-EXIT_CODE=$?
-if [ $EXIT_CODE -eq 0 ]; then
-  echo -e "\n${GREEN}TTS service selection tests passed successfully!${NC}"
+# Check if server is running
+if ! curl -s http://localhost:3000 > /dev/null; then
+  echo -e "${YELLOW}Starting server...${NC}"
+  npm run dev &
+  SERVER_PID=$!
+  echo -e "${YELLOW}Waiting for server to start...${NC}"
+  sleep 5
+  SERVER_STARTED=true
 else
-  echo -e "\n${RED}TTS service selection tests failed with exit code: $EXIT_CODE${NC}"
+  echo -e "${YELLOW}Server already running.${NC}"
+  SERVER_STARTED=false
 fi
 
-exit $EXIT_CODE
+# Run the tests
+echo -e "${YELLOW}Running TTS service selection tests...${NC}"
+APP_URL=http://localhost:3000 npm test -- tests/e2e/tts-service-selection.test.js
+TEST_STATUS=$?
+
+# Update test metrics (if applicable)
+if [ -f "./test-metrics-api.js" ]; then
+  echo -e "${YELLOW}Updating test metrics...${NC}"
+  node test-metrics-api.js --test-type=e2e --test-name=tts-service-selection --update-results
+fi
+
+# Stop server if we started it
+if [ "$SERVER_STARTED" = true ]; then
+  echo -e "${YELLOW}Stopping server...${NC}"
+  kill $SERVER_PID
+fi
+
+# Print final status
+if [ $TEST_STATUS -eq 0 ]; then
+  echo -e "${GREEN}✅ TTS service selection tests completed successfully!${NC}"
+  exit 0
+else
+  echo -e "${RED}❌ TTS service selection tests failed!${NC}"
+  exit 1
+fi
