@@ -299,19 +299,36 @@ export class WebSocketServer {
       
       const translatedText = translations[studentLanguage] || message.text;
       
+      // Get the TTS service type from the client's settings (if provided)
+      const ttsServiceType = this.clientSettings.get(client)?.ttsServiceType || process.env.TTS_SERVICE_TYPE || 'browser';
+      
       // Create translation message with audio data support
-      // Note: We're not actually including audio data here since we're using 
-      // the browser's built-in speech synthesis for now
-      const translationMessage = {
+      const translationMessage: any = {
         type: 'translation',
         text: translatedText,
         originalText: message.text,
         sourceLanguage: teacherLanguage,
         targetLanguage: studentLanguage,
-        // audioUrl is not included - we're using client-side speech synthesis
-        // In a future version, we could include server-generated audio:
-        // audioData: base64EncodedAudio 
+        ttsServiceType: ttsServiceType // Include the service type for client reference
       };
+      
+      // If using server-generated audio, include the audio data
+      if (translations[studentLanguage] && translations[studentLanguage].audioBuffer) {
+        try {
+          // Check if this is a special marker for browser speech synthesis
+          const bufferStart = translations[studentLanguage].audioBuffer.toString('utf8', 0, 100);
+          if (bufferStart.startsWith('{"type":"browser-speech"')) {
+            // This is a marker for browser-based speech synthesis
+            translationMessage.useClientSpeech = true;
+            translationMessage.speechParams = JSON.parse(bufferStart);
+          } else if (translations[studentLanguage].audioBuffer.length > 0) {
+            // This is actual audio data - encode as base64
+            translationMessage.audioData = translations[studentLanguage].audioBuffer.toString('base64');
+          }
+        } catch (error) {
+          console.error('Error processing audio data for translation:', error);
+        }
+      }
       
       client.send(JSON.stringify(translationMessage));
     });

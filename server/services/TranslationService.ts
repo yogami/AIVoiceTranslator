@@ -17,6 +17,7 @@ import path from 'path';
 import { promisify } from 'util';
 import OpenAI from 'openai';
 import { storage } from '../storage';
+import { textToSpeechService } from './TextToSpeechService';
 
 // Promisify file system operations
 const writeFile = promisify(fs.writeFile);
@@ -557,7 +558,7 @@ export class SpeechTranslationService {
   /**
    * Transcribe and translate speech
    * Main public method that orchestrates the workflow
-   * Complexity reduced by extracting methods
+   * Now includes emotional tone preservation in synthesized speech
    */
   async translateSpeech(
     audioBuffer: Buffer,
@@ -595,10 +596,27 @@ export class SpeechTranslationService {
       targetLanguage
     );
     
+    // Generate speech audio with emotional tone preservation
+    let translatedAudioBuffer = audioBuffer; // Default to original audio
+    
+    try {
+      // Use our TextToSpeechService to generate audio with emotion preservation
+      translatedAudioBuffer = await textToSpeechService.synthesizeSpeech({
+        text: translatedText || originalText,
+        languageCode: targetLanguage,
+        preserveEmotions: true // Enable emotional tone preservation
+      });
+      
+      console.log(`Generated translated audio: ${translatedAudioBuffer.length} bytes`);
+    } catch (error) {
+      console.error('Error generating audio for translation:', error);
+      // On error, keep the original audio buffer
+    }
+    
     return { 
       originalText, 
       translatedText: translatedText || originalText, // Fallback to original text if translation failed
-      audioBuffer 
+      audioBuffer: translatedAudioBuffer
     };
   }
 }
