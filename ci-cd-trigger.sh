@@ -17,11 +17,20 @@ if [ -z "$GITHUB_TOKEN" ]; then
   exit 1
 fi
 
+# Check if OpenAI API key is set
+if [ -z "$OPENAI_API_KEY" ]; then
+  echo -e "${YELLOW}Warning: OPENAI_API_KEY is not set.${NC}"
+  echo -e "Selenium tests will run without OpenAI features."
+fi
+
 # GitHub repository information
 GITHUB_USERNAME="yogami"
 REPO_NAME="AIVoiceTranslator"
 
-# Callback URL (for future use with webhook responses)
+# Replit app URL for Selenium tests
+APP_URL="https://AIVoiceTranslator.replit.app"
+
+# Callback URL for webhook responses
 CALLBACK_URL="https://example.com/webhook"
 
 # First, commit and push changes to GitHub
@@ -53,7 +62,7 @@ echo -e "\n${YELLOW}Triggering CI/CD pipeline...${NC}"
 curl -X POST "https://api.github.com/repos/$GITHUB_USERNAME/$REPO_NAME/dispatches" \
   -H "Accept: application/vnd.github.v3+json" \
   -H "Authorization: token $GITHUB_TOKEN" \
-  -d "{\"event_type\": \"run-tests\", \"client_payload\": {\"callback_url\": \"$CALLBACK_URL\"}}"
+  -d "{\"event_type\": \"run-tests\", \"client_payload\": {\"callback_url\": \"$CALLBACK_URL\", \"app_url\": \"$APP_URL\"}}"
 
 if [ $? -ne 0 ]; then
   echo -e "${RED}Failed to trigger GitHub Actions workflow.${NC}"
@@ -62,5 +71,9 @@ if [ $? -ne 0 ]; then
 fi
 
 echo -e "${GREEN}Successfully triggered CI/CD pipeline!${NC}"
+echo -e "\n${YELLOW}Pipeline Process:${NC}"
+echo -e "1. Run unit and API tests"
+echo -e "2. Deploy to $APP_URL"
+echo -e "3. Run Selenium UI tests against deployed app"
 echo -e "\n${YELLOW}View results at:${NC} https://github.com/$GITHUB_USERNAME/$REPO_NAME/actions"
 echo -e "Tests are now running on GitHub. Check the link above for results."

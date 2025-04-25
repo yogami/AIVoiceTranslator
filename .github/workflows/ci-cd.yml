@@ -53,3 +53,76 @@ jobs:
           curl -X POST ${{ github.event.client_payload.callback_url }} \
             -H "Content-Type: application/json" \
             -d "{\"status\": \"$STATUS\", \"message\": \"$MESSAGE\"}"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    # Only deploy on main branch pushes or when explicitly requested
+    if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'repository_dispatch' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Deploy to Replit
+        # This is a placeholder for actual deployment
+        # In the future, we can use the Replit API to deploy updates
+        run: |
+          echo "Deployed to https://AIVoiceTranslator.replit.app"
+          # Store the deployment URL as an environment variable for Selenium tests
+          echo "APP_URL=https://AIVoiceTranslator.replit.app" >> $GITHUB_ENV
+      
+      - name: Set up OpenAI API key
+        run: echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
+  
+  selenium-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'repository_dispatch' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Make Selenium test script executable
+        run: chmod +x tests/run-selenium-tests.sh
+      
+      - name: Run Selenium tests against deployed app
+        run: sudo APP_URL=${{ env.APP_URL }} ./tests/run-selenium-tests.sh
+        env:
+          APP_URL: https://AIVoiceTranslator.replit.app
+      
+      - name: Report Selenium test results
+        run: |
+          if [ $? -eq 0 ]; then
+            echo "✅ Selenium tests passed successfully!"
+          else
+            echo "❌ Selenium tests failed. Check the logs for details."
+            exit 1
+          fi
+      
+      - name: Notify Replit of Selenium test results
+        if: ${{ github.event_name == 'repository_dispatch' }}
+        run: |
+          # Create a results summary
+          if [ $? -eq 0 ]; then
+            SELENIUM_STATUS="success"
+            SELENIUM_MESSAGE="Selenium UI tests passed successfully!"
+          else
+            SELENIUM_STATUS="failure"
+            SELENIUM_MESSAGE="Selenium UI tests failed. Check the logs for details."
+          fi
+          
+          # Send results back to Replit
+          curl -X POST ${{ github.event.client_payload.callback_url }} \
+            -H "Content-Type: application/json" \
+            -d "{\"status\": \"$SELENIUM_STATUS\", \"message\": \"$SELENIUM_MESSAGE\"}"

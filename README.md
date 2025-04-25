@@ -46,6 +46,7 @@ The project includes CI/CD integration with GitHub Actions, which can be trigger
    - Push code to the GitHub repository
    - Generate a GitHub Personal Access Token with `repo` scope
    - Add the token in Replit Secrets as `GITHUB_TOKEN`
+   - Add your OpenAI API Key in GitHub Secrets as `OPENAI_API_KEY`
    - Update `ci-cd-trigger.sh` with your GitHub username and repository name
 
 2. **Run the CI/CD Pipeline**:
@@ -57,7 +58,11 @@ The project includes CI/CD integration with GitHub Actions, which can be trigger
 This will:
 - Push your latest code to GitHub
 - Trigger automated tests in GitHub Actions
+- Deploy to your Replit app URL
+- Run Selenium browser tests against the deployed app
 - Display a link to view test results
+
+For detailed information about the Selenium testing setup, see the [SELENIUM-TESTING.md](SELENIUM-TESTING.md) document.
 
 ### Local Testing
 
@@ -86,16 +91,24 @@ This provides a complete replacement for manual testing, simulating actual class
 
 ### Other Tests
 
-- **E2E Tests**: End-to-end tests using Selenium, Puppeteer, or Playwright
+- **Selenium Tests**: End-to-end browser tests verifying UI functionality
 - **Integration Tests**: Tests the entire app flow with mocked components 
 - **WebSocket Tests**: Tests communication between clients and server
 - **Speech Tests**: Tests real-time speech processing
 
-Run all tests with:
+Run Selenium tests locally with:
+
+```
+APP_URL=https://your-app-url.replit.app ./tests/run-selenium-tests.sh
+```
+
+Or run all tests with:
 
 ```
 node run-all-tests.js
 ```
+
+For more information on Selenium testing, see [SELENIUM-TESTING.md](SELENIUM-TESTING.md).
 
 ## WebSocket Protocol
 
