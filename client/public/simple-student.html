@@ -1488,6 +1488,53 @@
             const currentTtsService = document.getElementById('current-tts-service');
             const refreshComparisonBtn = document.getElementById('refresh-comparison');
             
+            // Add CSS for unsupported languages
+            const style = document.createElement('style');
+            style.textContent = `
+                .language-btn.unsupported {
+                    opacity: 0.6;
+                    background-color: #f8f8f8;
+                    border-color: #ddd;
+                    cursor: not-allowed;
+                }
+                .language-btn.unsupported:hover {
+                    background-color: #f8f8f8;
+                    border-color: #ddd;
+                }
+                option:disabled {
+                    color: #999;
+                    font-style: italic;
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Setup TTS service selection radio buttons
+            document.querySelectorAll('input[name="tts-service"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const ttsService = this.value;
+                    log(`TTS service changed to: ${ttsService}`);
+                    
+                    // Update language dropdown based on supported languages
+                    if (window.LanguageSupport) {
+                        window.LanguageSupport.updateDropdown(ttsService);
+                        window.LanguageSupport.updateButtons(ttsService);
+                        
+                        // Update expanded list if visible
+                        if (document.getElementById('expanded-language-list') && 
+                            document.getElementById('language-modal').style.display !== 'none') {
+                            window.LanguageSupport.updateExpandedList(ttsService);
+                        }
+                    }
+                });
+            });
+            
+            // Initialize language dropdown for current TTS service
+            const initialTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+            if (window.LanguageSupport) {
+                window.LanguageSupport.updateDropdown(initialTtsService);
+                window.LanguageSupport.updateButtons(initialTtsService);
+            }
+            
             // Setup TTS service play demo buttons
             document.querySelectorAll('.play-demo-btn').forEach(button => {
                 button.addEventListener('click', function() {
@@ -1495,7 +1542,12 @@
                     log(`Play demo button clicked for TTS service: ${ttsService}`);
                     
                     // Select the radio button for this service
-                    document.querySelector(`input[name="tts-service"][value="${ttsService}"]`).checked = true;
+                    const radioButton = document.querySelector(`input[name="tts-service"][value="${ttsService}"]`);
+                    radioButton.checked = true;
+                    
+                    // Trigger the change event manually to update language support
+                    const changeEvent = new Event('change');
+                    radioButton.dispatchEvent(changeEvent);
                     
                     // Play the current translation with this TTS service
                     playWithTTSService(ttsService);
@@ -1578,14 +1630,158 @@
             document.querySelectorAll('.language-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const lang = this.getAttribute('data-lang');
+                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                    
+                    // Check if this language is supported by the current TTS service
+                    if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
+                        showError(`${this.textContent} is not supported by the current TTS service (${getTtsServiceName(currentTtsService)}). 
+                                  Either change the TTS service or select a different language.`);
+                        return;
+                    }
+                    
+                    // Update selected language
                     languageSelect.value = lang;
                     selectedLanguage = lang;
                     
+                    // Update UI
+                    document.querySelectorAll('.language-btn').forEach(button => {
+                        button.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    
                     if (isConnected) {
                         registerAsStudent(lang);
+                        showSuccess(`Language changed to ${this.textContent}`);
                     }
                 });
             });
+            
+            // Initialize modal for expanded language selection
+            const showMoreBtn = document.getElementById('show-more-languages');
+            const closeModalBtn = document.getElementById('close-modal');
+            const languageModal = document.getElementById('language-modal');
+            
+            if (showMoreBtn && languageModal) {
+                // Initialize the expanded language list when "More Languages" is clicked
+                showMoreBtn.addEventListener('click', function() {
+                    const expandedList = document.getElementById('expanded-language-list');
+                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                    
+                    // Clear any existing content
+                    expandedList.innerHTML = '';
+                    
+                    // Get all language groups and options
+                    const select = document.getElementById('language-select');
+                    const groups = select.querySelectorAll('optgroup');
+                    
+                    // Create a language card for each option
+                    groups.forEach(group => {
+                        // Add group header
+                        const groupHeader = document.createElement('h4');
+                        groupHeader.textContent = group.label;
+                        groupHeader.style.gridColumn = '1 / -1';
+                        groupHeader.style.marginTop = '15px';
+                        groupHeader.style.marginBottom = '5px';
+                        groupHeader.style.borderBottom = '1px solid #eee';
+                        groupHeader.style.paddingBottom = '5px';
+                        expandedList.appendChild(groupHeader);
+                        
+                        // Add language buttons
+                        const options = group.querySelectorAll('option');
+                        options.forEach(option => {
+                            const isSupported = window.LanguageSupport && 
+                                               window.LanguageSupport.isSupported(option.value, currentTtsService);
+                            
+                            const button = document.createElement('button');
+                            button.className = 'expanded-language-btn';
+                            button.setAttribute('data-lang', option.value);
+                            button.textContent = option.textContent;
+                            button.style.padding = '8px';
+                            button.style.border = '1px solid #ddd';
+                            button.style.borderRadius = '4px';
+                            button.style.background = '#f8f9fa';
+                            button.style.cursor = 'pointer';
+                            button.style.transition = 'all 0.2s';
+                            
+                            // Mark button as active if it's the currently selected language
+                            if (option.value === selectedLanguage) {
+                                button.style.backgroundColor = '#3498db';
+                                button.style.color = 'white';
+                                button.style.borderColor = '#2980b9';
+                            }
+                            
+                            // Mark as unsupported if needed
+                            if (!isSupported) {
+                                button.classList.add('unsupported');
+                                button.style.opacity = '0.5';
+                                button.style.cursor = 'not-allowed';
+                                button.title = 'Not supported by current TTS service';
+                                
+                                // Add warning icon
+                                const warningIcon = document.createElement('span');
+                                warningIcon.innerHTML = ' ⚠️';
+                                warningIcon.style.fontSize = '0.7em';
+                                button.appendChild(warningIcon);
+                            } else {
+                                // Add click handler only for supported languages
+                                button.addEventListener('click', function() {
+                                    const lang = this.getAttribute('data-lang');
+                                    
+                                    // Update the language select dropdown
+                                    languageSelect.value = lang;
+                                    selectedLanguage = lang;
+                                    
+                                    // Update all language buttons
+                                    document.querySelectorAll('.language-btn').forEach(btn => {
+                                        btn.classList.remove('active');
+                                        if (btn.getAttribute('data-lang') === lang) {
+                                            btn.classList.add('active');
+                                        }
+                                    });
+                                    
+                                    // Update all expanded language buttons
+                                    document.querySelectorAll('.expanded-language-btn').forEach(btn => {
+                                        btn.style.backgroundColor = '#f8f9fa';
+                                        btn.style.color = 'inherit';
+                                        btn.style.borderColor = '#ddd';
+                                    });
+                                    this.style.backgroundColor = '#3498db';
+                                    this.style.color = 'white';
+                                    this.style.borderColor = '#2980b9';
+                                    
+                                    // Register with new language if connected
+                                    if (isConnected) {
+                                        registerAsStudent(lang);
+                                        showSuccess(`Language changed to ${this.textContent}`);
+                                    }
+                                    
+                                    // Close the modal
+                                    languageModal.style.display = 'none';
+                                });
+                            }
+                            
+                            expandedList.appendChild(button);
+                        });
+                    });
+                    
+                    // Show the modal
+                    languageModal.style.display = 'block';
+                });
+                
+                // Close modal button
+                if (closeModalBtn) {
+                    closeModalBtn.addEventListener('click', function() {
+                        languageModal.style.display = 'none';
+                    });
+                }
+                
+                // Close modal when clicking outside
+                window.addEventListener('click', function(event) {
+                    if (event.target === languageModal) {
+                        languageModal.style.display = 'none';
+                    }
+                });
+            }
             
             log('Student page initialized with TTS service options');
         });
