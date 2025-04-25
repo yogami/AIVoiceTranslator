@@ -44,7 +44,8 @@ PAYLOAD=$(cat << EOF
     "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
     "test_suites": [
       "audio-translation",
-      "tts-service-selection"
+      "tts-service-selection",
+      "tts-comparison"
     ]
   }
 }

@@ -963,131 +963,221 @@
             }
         }
         
-        function playWithTTSService(ttsService) {
-            // Check if we have a last translation to use
-            if (!window.lastTranslationData || !window.lastTranslationData.text) {
-                showError('No translation available to play');
-                return;
-            }
-            
-            const text = window.lastTranslationData.text;
-            const languageCode = window.lastTranslationData.languageCode;
-            
-            log(`Requesting TTS service ${ttsService} to play: "${text.substring(0, 20)}..."`);
-            
-            // Check if we already have this audio in cache
-            const cacheKey = `${text}_${languageCode}_${ttsService}`;
-            if (window.audioCache[cacheKey]) {
-                log(`Using cached audio for service ${ttsService}`);
-                playAudio(window.audioCache[cacheKey]);
-                return;
-            }
-            
-            // For silent service, just show a message
-            if (ttsService === 'silent') {
-                showSuccess('Silent mode - no audio played');
-                return;
-            }
-            
-            // For browser service, use the browser's speech synthesis
-            if (ttsService === 'browser') {
-                useBrowserSpeechSynthesis(text, languageCode);
-                return;
-            }
-            
-            // Otherwise request from server via WebSocket
-            if (isConnected) {
-                const ttsRequest = {
-                    type: 'tts_request',
-                    text: text,
-                    languageCode: languageCode,
-                    ttsService: ttsService
-                };
+        /**
+         * TTS Service Manager
+         * 
+         * Refactored to follow separation of concerns and improve maintainability.
+         * This class handles all TTS service related operations.
+         */
+        class TTSServiceManager {
+            /**
+             * Play audio with a specific TTS service
+             * 
+             * @param {string} ttsService - The TTS service to use (browser, openai, silent)
+             */
+            static playWithService(ttsService) {
+                // Validate required data
+                if (!this.validateTranslationData()) {
+                    return;
+                }
                 
-                socket.send(JSON.stringify(ttsRequest));
-                showSuccess(`Requesting audio from ${getTtsServiceName(ttsService)}...`);
-            } else {
-                showError('Connect to classroom first to use this TTS service');
+                const text = window.lastTranslationData.text;
+                const languageCode = window.lastTranslationData.languageCode;
+                
+                log(`Requesting TTS service ${ttsService} to play: "${text.substring(0, 20)}..."`);
+                
+                // Check cache first
+                if (this.checkAndUseCache(text, languageCode, ttsService)) {
+                    return;
+                }
+                
+                // Handle different service types
+                switch (ttsService) {
+                    case 'silent':
+                        this.handleSilentMode();
+                        break;
+                    case 'browser':
+                        this.useBrowserSpeechSynthesis(text, languageCode);
+                        break;
+                    default:
+                        this.requestServerTTS(text, languageCode, ttsService);
+                        break;
+                }
             }
+            
+            /**
+             * Validate that we have translation data to use
+             * 
+             * @returns {boolean} True if valid data exists
+             */
+            static validateTranslationData() {
+                if (!window.lastTranslationData || !window.lastTranslationData.text) {
+                    showError('No translation available to play');
+                    return false;
+                }
+                return true;
+            }
+            
+            /**
+             * Check if audio is in cache and use it if available
+             * 
+             * @param {string} text - The text to play
+             * @param {string} languageCode - The language code
+             * @param {string} ttsService - The TTS service
+             * @returns {boolean} True if cache was used
+             */
+            static checkAndUseCache(text, languageCode, ttsService) {
+                const cacheKey = `${text}_${languageCode}_${ttsService}`;
+                if (window.audioCache[cacheKey]) {
+                    log(`Using cached audio for service ${ttsService}`);
+                    AudioPlayer.playFromBase64(window.audioCache[cacheKey]);
+                    return true;
+                }
+                return false;
+            }
+            
+            /**
+             * Handle silent mode (no audio)
+             */
+            static handleSilentMode() {
+                showSuccess('Silent mode - no audio played');
+            }
+            
+            /**
+             * Use browser's built-in speech synthesis
+             * 
+             * @param {string} text - The text to speak
+             * @param {string} languageCode - The language code
+             */
+            static useBrowserSpeechSynthesis(text, languageCode) {
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = languageCode || 'en-US';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    
+                    log(`Using browser speech synthesis for language ${languageCode}`);
+                    speechSynthesis.speak(utterance);
+                    
+                    showSuccess('Playing with browser speech synthesis');
+                } else {
+                    showError('Browser speech synthesis not available');
+                }
+            }
+            
+            /**
+             * Request TTS from server
+             * 
+             * @param {string} text - The text to speak
+             * @param {string} languageCode - The language code
+             * @param {string} ttsService - The TTS service to use
+             */
+            static requestServerTTS(text, languageCode, ttsService) {
+                if (isConnected) {
+                    const ttsRequest = {
+                        type: 'tts_request',
+                        text: text,
+                        languageCode: languageCode,
+                        ttsService: ttsService
+                    };
+                    
+                    socket.send(JSON.stringify(ttsRequest));
+                    showSuccess(`Requesting audio from ${getTtsServiceName(ttsService)}...`);
+                } else {
+                    showError('Connect to classroom first to use this TTS service');
+                }
+            }
+            
+            /**
+             * Update the audio comparison UI
+             */
+            static updateComparisonUI() {
+                const comparisonContainer = document.getElementById('comparison-options');
+                if (!comparisonContainer) return;
+                
+                if (!window.lastTranslationData || !window.lastTranslationData.text) {
+                    comparisonContainer.innerHTML = '<p>No translation available for comparison</p>';
+                    return;
+                }
+                
+                const text = window.lastTranslationData.text;
+                const languageCode = window.lastTranslationData.languageCode;
+                
+                // Create comparison UI
+                let html = `
+                    <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
+                        <p><strong>Text:</strong> "${text}"</p>
+                        <p><strong>Language:</strong> ${getLanguageName(languageCode?.split('-')[0] || 'en')}</p>
+                    </div>
+                `;
+                
+                // Add buttons for each service
+                html += `
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <button onclick="TTSServiceManager.playWithService('browser')" class="comparison-btn" style="background-color: #3498db;">
+                            <span>🔊</span> Browser Speech
+                        </button>
+                        <button onclick="TTSServiceManager.playWithService('openai')" class="comparison-btn" style="background-color: #6366f1;">
+                            <span>🔊</span> OpenAI TTS
+                        </button>
+                        <button onclick="TTSServiceManager.playWithService('silent')" class="comparison-btn" style="background-color: #95a5a6;">
+                            <span>🔇</span> Silent Mode
+                        </button>
+                    </div>
+                `;
+                
+                comparisonContainer.innerHTML = html;
+            }
+        }
+        
+        /**
+         * Audio Player Utility Class
+         * 
+         * Handles all audio playback operations
+         */
+        class AudioPlayer {
+            /**
+             * Play audio from base64 encoded data
+             * 
+             * @param {string} base64Data - Base64 encoded audio data
+             */
+            static playFromBase64(base64Data) {
+                try {
+                    // Convert base64 to blob for playback
+                    const binaryString = atob(base64Data);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    // Create blob and URL
+                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); 
+                    const audioURL = URL.createObjectURL(blob);
+                    
+                    // Play the audio
+                    const audioPlayer = document.getElementById('audio-player');
+                    audioPlayer.src = audioURL;
+                    audioPlayer.play();
+                    
+                    showSuccess('Playing audio');
+                } catch (error) {
+                    log(`Error playing audio: ${error.message}`);
+                    showError('Failed to play audio');
+                }
+            }
+        }
+        
+        // Global functions that interface with the classes
+        function playWithTTSService(ttsService) {
+            TTSServiceManager.playWithService(ttsService);
         }
         
         function playAudio(base64Data) {
-            try {
-                // Convert base64 to blob for playback
-                const binaryString = atob(base64Data);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                
-                // Create blob and URL
-                const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); 
-                const audioURL = URL.createObjectURL(blob);
-                
-                // Play the audio
-                const audioPlayer = document.getElementById('audio-player');
-                audioPlayer.src = audioURL;
-                audioPlayer.play();
-                
-                showSuccess('Playing audio');
-            } catch (error) {
-                log(`Error playing audio: ${error.message}`);
-                showError('Failed to play audio');
-            }
-        }
-        
-        function useBrowserSpeechSynthesis(text, languageCode) {
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = languageCode || 'en-US';
-                utterance.rate = 1.0;
-                utterance.pitch = 1.0;
-                
-                log(`Using browser speech synthesis for language ${languageCode}`);
-                speechSynthesis.speak(utterance);
-                
-                showSuccess('Playing with browser speech synthesis');
-            } else {
-                showError('Browser speech synthesis not available');
-            }
+            AudioPlayer.playFromBase64(base64Data);
         }
         
         function updateAudioComparison() {
-            const comparisonContainer = document.getElementById('comparison-options');
-            if (!comparisonContainer) return;
-            
-            if (!window.lastTranslationData || !window.lastTranslationData.text) {
-                comparisonContainer.innerHTML = '<p>No translation available for comparison</p>';
-                return;
-            }
-            
-            const text = window.lastTranslationData.text;
-            const languageCode = window.lastTranslationData.languageCode;
-            
-            // Create comparison UI
-            let html = `
-                <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
-                    <p><strong>Text:</strong> "${text}"</p>
-                    <p><strong>Language:</strong> ${getLanguageName(languageCode?.split('-')[0] || 'en')}</p>
-                </div>
-            `;
-            
-            // Add buttons for each service
-            html += `
-                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                    <button onclick="playWithTTSService('browser')" class="comparison-btn" style="background-color: #3498db;">
-                        <span>🔊</span> Browser Speech
-                    </button>
-                    <button onclick="playWithTTSService('openai')" class="comparison-btn" style="background-color: #6366f1;">
-                        <span>🔊</span> OpenAI TTS
-                    </button>
-                    <button onclick="playWithTTSService('silent')" class="comparison-btn" style="background-color: #95a5a6;">
-                        <span>🔇</span> Silent Mode
-                    </button>
-                </div>
-            `;
-            
-            comparisonContainer.innerHTML = html;
+            TTSServiceManager.updateComparisonUI();
         }
         
         function addMessageToUI(message) {

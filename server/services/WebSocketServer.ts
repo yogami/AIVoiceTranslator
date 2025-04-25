@@ -439,6 +439,10 @@ export class WebSocketServer {
   
   /**
    * Handle TTS request message
+   * 
+   * Follows SOLID principles - Single Responsibility:
+   * This method only coordinates the TTS request handling,
+   * delegating the actual work to specialized methods
    */
   private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
     const role = this.roles.get(ws);
@@ -448,67 +452,143 @@ export class WebSocketServer {
     
     console.log(`Received TTS request from ${role} for service ${ttsService} in language ${languageCode}`);
     
-    if (!text || !languageCode) {
-      console.error('Missing required parameters for TTS request');
+    if (!this.validateTTSRequest(text, languageCode)) {
       return;
     }
     
     try {
-      // Save current TTS service type
-      const originalTtsType = process.env.TTS_SERVICE_TYPE || 'browser';
-      
+      const audioResult = await this.generateTTSAudio(text, languageCode, ttsService);
+      await this.sendTTSResponse(ws, {
+        text,
+        languageCode,
+        ttsService,
+        ...audioResult
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      await this.sendTTSErrorResponse(ws, {
+        text,
+        languageCode,
+        ttsService,
+        errorMsg
+      });
+    }
+  }
+  
+  /**
+   * Validate TTS request parameters
+   * 
+   * @param text The text to synthesize
+   * @param languageCode The language code for synthesis
+   * @returns boolean indicating if the request is valid
+   */
+  private validateTTSRequest(text: string, languageCode: string): boolean {
+    if (!text || !languageCode) {
+      console.error('Missing required parameters for TTS request');
+      return false;
+    }
+    return true;
+  }
+  
+  /**
+   * Generate audio using the specified TTS service
+   * 
+   * @param text The text to synthesize
+   * @param languageCode The language code for synthesis
+   * @param ttsService The TTS service to use
+   * @returns Object containing success status and audio buffer (if successful)
+   */
+  private async generateTTSAudio(
+    text: string, 
+    languageCode: string, 
+    ttsService: string
+  ): Promise<{ success: boolean; audioData?: string; error?: string }> {
+    // Save current TTS service type to restore later
+    const originalTtsType = process.env.TTS_SERVICE_TYPE || 'browser';
+    
+    try {
       // Set requested TTS service for this request
       process.env.TTS_SERVICE_TYPE = ttsService;
       
       // Use the translation service to generate speech audio
-      // Using translateSpeech with empty buffer, passing only the text
       const result = await speechTranslationService.translateSpeech(
         Buffer.from(''), // Empty buffer since we have the text
-        'en-US', // Source language doesn't matter for TTS
+        'en-US',        // Source language doesn't matter for TTS
         languageCode,
-        text // The text to synthesize
+        text            // The text to synthesize
       );
       
+      // Check if we have valid audio data
+      if (result && result.audioBuffer && result.audioBuffer.length > 0) {
+        return {
+          success: true,
+          audioData: result.audioBuffer.toString('base64')
+        };
+      } else {
+        console.warn(`No audio data generated for TTS service ${ttsService}`);
+        return {
+          success: false,
+          error: 'No audio data generated'
+        };
+      }
+    } finally {
       // Restore original TTS service type
       process.env.TTS_SERVICE_TYPE = originalTtsType;
-      
-      // Create response message with audio data
-      const response: any = {
-        type: 'tts_response',
-        text: text,
-        ttsService: ttsService,
-        languageCode: languageCode,
-        success: true
-      };
-      
-      // Add audio data if available
-      if (result && result.audioBuffer && result.audioBuffer.length > 0) {
-        response.audioData = result.audioBuffer.toString('base64');
-      } else {
-        console.warn(`No audio data generated for TTS request with service ${ttsService}`);
-        response.success = false;
-        response.error = 'No audio data generated';
-      }
-      
-      // Send response back to the client
-      ws.send(JSON.stringify(response));
-      
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error(`Error processing TTS request with service ${ttsService}:`, errorMsg);
-      
-      // Send error response
-      const errorResponse = {
-        type: 'tts_response',
-        text: text,
-        ttsService: ttsService,
-        languageCode: languageCode,
-        success: false,
-        error: errorMsg
-      };
-      
-      ws.send(JSON.stringify(errorResponse));
     }
+  }
+  
+  /**
+   * Send successful TTS response to client
+   * 
+   * @param ws The WebSocket client to send response to
+   * @param responseData The response data
+   */
+  private async sendTTSResponse(
+    ws: WebSocketClient, 
+    responseData: { 
+      text: string; 
+      languageCode: string; 
+      ttsService: string;
+      success: boolean;
+      audioData?: string;
+      error?: string;
+    }
+  ): Promise<void> {
+    const response = {
+      type: 'tts_response',
+      ...responseData
+    };
+    
+    ws.send(JSON.stringify(response));
+  }
+  
+  /**
+   * Send error TTS response to client
+   * 
+   * @param ws The WebSocket client to send response to
+   * @param errorData The error data
+   */
+  private async sendTTSErrorResponse(
+    ws: WebSocketClient, 
+    errorData: { 
+      text: string; 
+      languageCode: string; 
+      ttsService: string;
+      errorMsg: string;
+    }
+  ): Promise<void> {
+    console.error(`Error processing TTS request with service ${errorData.ttsService}:`, errorData.errorMsg);
+    
+    const errorResponse = {
+      type: 'tts_response',
+      text: errorData.text,
+      ttsService: errorData.ttsService,
+      languageCode: errorData.languageCode,
+      success: false,
+      error: errorData.errorMsg
+    };
+    
+    ws.send(JSON.stringify(errorResponse));
   }
   
   /**
