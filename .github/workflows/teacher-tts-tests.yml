@@ -1,0 +1,72 @@
+name: Teacher TTS Selection Tests
+
+on:
+  workflow_dispatch:  # Allow manual triggering
+  push:
+    branches: [ main ]
+    paths:
+      - 'client/**/*'
+      - 'server/services/TextToSpeechService.ts'
+      - 'server/services/WebSocketServer.ts'
+      - 'tests/e2e/teacher-tts-selection.test.js'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'client/**/*'
+      - 'server/services/TextToSpeechService.ts'
+      - 'server/services/WebSocketServer.ts'
+      - 'tests/e2e/teacher-tts-selection.test.js'
+
+jobs:
+  teacher-tts-tests:
+    name: Teacher TTS Selection Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install Selenium WebDriver
+        run: npm install -g selenium-standalone && selenium-standalone install
+        
+      - name: Start application in background
+        run: |
+          npm run dev &
+          echo "Waiting for app to start..."
+          sleep 10
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          
+      - name: Run Teacher TTS Selection tests
+        run: npm test -- tests/e2e/teacher-tts-selection.test.js
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          APP_URL: http://localhost:3000
+          
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: teacher-tts-test-results
+          path: |
+            coverage/
+            selenium-debug.log
+            screenshots/
+            
+      - name: Notify test status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Teacher TTS selection tests passed successfully!"
+          else
+            echo "❌ Teacher TTS selection tests failed!"
+          fi
