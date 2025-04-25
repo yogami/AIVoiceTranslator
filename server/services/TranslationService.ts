@@ -601,8 +601,8 @@ export class SpeechTranslationService {
     let translatedAudioBuffer = audioBuffer; // Default to original audio
     
     try {
-      // Use TTS service type from options if provided, or fall back to environment or default 'browser'
-      const ttsServiceType = (options && options.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'browser';
+      // Use TTS service type from options if provided, or fall back to environment or default 'openai'
+      const ttsServiceType = (options && options.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'openai';
       
       // Log the TTS service being used
       console.log(`Using TTS service '${ttsServiceType}' for language '${targetLanguage}'`);

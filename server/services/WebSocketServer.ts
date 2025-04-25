@@ -360,7 +360,7 @@ export class WebSocketServer {
       const translatedText = translations[studentLanguage] || message.text;
       
       // Get the teacher's preferred TTS service type (same as used for generation)
-      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'openai';
       this.connections.forEach(teacherClient => {
         if (this.roles.get(teacherClient) === 'teacher' &&
             this.clientSettings.get(teacherClient)?.ttsServiceType) {
