@@ -417,8 +417,8 @@
                 return;
             }
             
-            // Get the currently selected TTS service
-            const ttsService = document.getElementById('tts-service').value;
+            // Get the currently selected TTS service from radio buttons
+            const ttsService = document.querySelector('input[name="tts-service"]:checked').value;
             
             const message = {
                 type: 'register',
@@ -433,8 +433,9 @@
             socket.send(JSON.stringify(message));
             showSuccess(`Receiving translations in ${getLanguageName(languageCode)} using ${getTtsServiceName(ttsService)}`);
             
-            // Update UI to show active language
+            // Update UI to show active language and TTS service
             updateActiveLanguage(languageCode);
+            document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsService);
         }
         
         // Get a user-friendly name for the TTS service
@@ -745,14 +746,48 @@
             applyTtsSettings.addEventListener('click', function() {
                 // Get the selected radio button value
                 const selectedTtsService = document.querySelector('input[name="tts-service"]:checked').value;
-                log(`Applying TTS service: ${ttsService}`);
+                log(`Applying TTS service: ${selectedTtsService}`);
+                
+                // Update current TTS service display
+                document.getElementById('current-tts-service').textContent = getTtsServiceName(selectedTtsService);
+                
+                // Add settings confirmation message
+                const confirmationEl = document.createElement('div');
+                confirmationEl.className = 'settings-confirmation success-message';
+                confirmationEl.textContent = 'TTS settings updated successfully';
+                
+                // Add it to the page
+                const container = document.getElementById('success-container');
+                container.appendChild(confirmationEl);
+                
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    if (confirmationEl.parentNode) {
+                        confirmationEl.parentNode.removeChild(confirmationEl);
+                    }
+                }, 3000);
+                
+                // Update TTS status indicators
+                document.querySelectorAll('.tts-status').forEach(el => {
+                    el.classList.remove('browser', 'openai', 'silent');
+                    el.classList.add(selectedTtsService);
+                });
                 
                 if (isConnected) {
                     // Re-register with the new TTS service setting
-                    registerAsStudent(selectedLanguage);
-                    showSuccess(`TTS service changed to ${getTtsServiceName(ttsService)}`);
+                    const registerMessage = {
+                        type: 'register',
+                        role: 'student',
+                        languageCode: selectedLanguage,
+                        settings: {
+                            ttsServiceType: selectedTtsService
+                        }
+                    };
+                    
+                    socket.send(JSON.stringify(registerMessage));
+                    log(`Updated TTS service to ${selectedTtsService}`);
                 } else {
-                    showError('Connect to classroom first before changing TTS service');
+                    showError('Connect to classroom first to apply these settings');
                 }
             });
             
