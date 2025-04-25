@@ -545,6 +545,12 @@ class CodeMetricsCollector {
    * @returns {Promise<void>}
    */
   async loadMetrics(projectRoot = '.') {
+    // Show loading indicator
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator) {
+      loadingIndicator.style.display = 'flex';
+    }
+    
     try {
       // Fetch all metrics from our API
       const response = await fetch('/api/metrics');
@@ -573,6 +579,11 @@ class CodeMetricsCollector {
         // No data has been loaded yet, show error
         alert('Failed to load metrics data. Please check the console for details and try again.');
       }
+    } finally {
+      // Hide loading indicator
+      if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+      }
     }
   }
   
@@ -581,6 +592,12 @@ class CodeMetricsCollector {
    * @returns {Promise<void>}
    */
   async refreshMetrics() {
+    // Show loading indicator
+    const loadingIndicator = document.getElementById('loading-indicator');
+    if (loadingIndicator) {
+      loadingIndicator.style.display = 'flex';
+    }
+    
     try {
       // Call the API endpoint to refresh metrics
       const response = await fetch('/api/metrics/refresh', {
@@ -613,6 +630,11 @@ class CodeMetricsCollector {
     } catch (error) {
       console.error('Error refreshing metrics:', error);
       alert('Failed to refresh metrics data. Please check the console for details and try again.');
+    } finally {
+      // Hide loading indicator
+      if (loadingIndicator) {
+        loadingIndicator.style.display = 'none';
+      }
     }
   }
 }
