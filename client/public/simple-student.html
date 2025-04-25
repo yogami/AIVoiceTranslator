@@ -175,6 +175,37 @@
             margin-bottom: 15px;
             border-left: 4px solid #2ecc71;
         }
+        .audio-controls {
+            margin-top: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        #playTranslationButton {
+            background-color: #2980b9;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        #playTranslationButton:hover {
+            background-color: #3498db;
+            transform: scale(1.05);
+        }
+        #playTranslationButton:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .play-icon {
+            font-size: 18px;
+        }
     </style>
 </head>
 <body>
@@ -220,6 +251,13 @@
         <h2>Translated Speech:</h2>
         <div id="translation-box" class="translation-box">
             <p>Connect and select a language to receive translated speech from the teacher.</p>
+        </div>
+        
+        <div class="audio-controls">
+            <audio id="translationAudio" controls style="display: none;"></audio>
+            <button id="playTranslationButton" disabled>
+                <span class="play-icon">▶</span> Play Translation
+            </button>
         </div>
         
         <div>
@@ -401,6 +439,114 @@
                     }
                 `;
                 document.head.appendChild(style);
+            }
+            
+            // Generate speech from the translated text and update audio element
+            generateSpeechFromText(text, targetLanguage);
+        }
+        
+        // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
+        function generateSpeechFromText(text, languageCode) {
+            const audio = document.getElementById('translationAudio');
+            const playButton = document.getElementById('playTranslationButton');
+            
+            // Disable button during processing
+            playButton.disabled = true;
+            
+            try {
+                // Check if the browser supports speech synthesis
+                if ('speechSynthesis' in window) {
+                    log('Web Speech API available, generating audio...');
+                    
+                    // Create the utterance
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    
+                    // Set language code, mapping short codes to full BCP 47 language tags if needed
+                    const langCodeMap = {
+                        'es': 'es-ES',
+                        'fr': 'fr-FR',
+                        'de': 'de-DE',
+                        'it': 'it-IT',
+                        'zh': 'zh-CN',
+                        'ja': 'ja-JP',
+                        'ru': 'ru-RU',
+                        'ar': 'ar-SA',
+                        'pt': 'pt-BR',
+                        'ko': 'ko-KR',
+                        'en': 'en-US'
+                    };
+                    
+                    // Map short language code to full code, or use as is if already in right format
+                    utterance.lang = langCodeMap[languageCode] || languageCode;
+                    
+                    // Store audio as blob using MediaRecorder
+                    let chunks = [];
+                    
+                    // Create audio context and media stream destination
+                    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const destination = audioContext.createMediaStreamDestination();
+                    
+                    // Create oscillator and gain (to capture speech synthesis)
+                    // This is a workaround since we can't directly capture SpeechSynthesis output
+                    const oscillator = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    oscillator.connect(gain);
+                    gain.connect(destination);
+                    
+                    // Setup MediaRecorder to capture the audio
+                    const mediaRecorder = new MediaRecorder(destination.stream);
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            chunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = () => {
+                        // Create a blob from all the chunks
+                        const blob = new Blob(chunks, { type: 'audio/wav' });
+                        const audioURL = URL.createObjectURL(blob);
+                        
+                        // Set the audio source and make play button visible
+                        audio.src = audioURL;
+                        playButton.disabled = false;
+                        
+                        log('Audio generation completed, ready for playback');
+                    };
+                    
+                    // Force using speech synthesis directly instead for now
+                    // The MediaRecorder approach works in theory but is complex and unreliable across browsers
+
+                    // Create a simpler approach: we'll return immediately with a playable button,
+                    // and the button will trigger speech synthesis on demand
+                    playButton.disabled = false;
+                    playButton.onclick = () => {
+                        log(`Playing translation audio in ${utterance.lang}`);
+                        window.speechSynthesis.cancel(); // Cancel any ongoing speech
+                        window.speechSynthesis.speak(utterance);
+                        
+                        // Visual feedback during playback
+                        playButton.style.backgroundColor = '#e74c3c';
+                        playButton.innerHTML = '<span class="play-icon">🔊</span> Playing...';
+                        
+                        // Reset button when done
+                        utterance.onend = () => {
+                            playButton.style.backgroundColor = '';
+                            playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                        };
+                    };
+                    
+                    log(`Audio ready for playback in language: ${utterance.lang}`);
+                    showSuccess('Translation audio ready to play');
+                } else {
+                    // No speech synthesis support
+                    log('Speech synthesis not supported in this browser');
+                    showError('Audio playback not supported in your browser');
+                    playButton.disabled = true;
+                }
+            } catch (error) {
+                log('Error generating speech: ' + error.message);
+                showError('Failed to generate speech audio');
+                playButton.disabled = true;
             }
         }
         

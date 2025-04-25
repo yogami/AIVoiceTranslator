@@ -299,12 +299,18 @@ export class WebSocketServer {
       
       const translatedText = translations[studentLanguage] || message.text;
       
+      // Create translation message with audio data support
+      // Note: We're not actually including audio data here since we're using 
+      // the browser's built-in speech synthesis for now
       const translationMessage = {
         type: 'translation',
         text: translatedText,
         originalText: message.text,
         sourceLanguage: teacherLanguage,
-        targetLanguage: studentLanguage
+        targetLanguage: studentLanguage,
+        // audioUrl is not included - we're using client-side speech synthesis
+        // In a future version, we could include server-generated audio:
+        // audioData: base64EncodedAudio 
       };
       
       client.send(JSON.stringify(translationMessage));
