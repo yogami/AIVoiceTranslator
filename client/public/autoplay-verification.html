@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Autoplay Verification</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.5;
+            color: #333;
+        }
+        h1 {
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .header-links {
+            margin-bottom: 30px;
+        }
+        .header-links a {
+            color: #4b5563;
+            text-decoration: none;
+            margin-right: 15px;
+        }
+        .header-links a:hover {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+        .test-section {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #f9fafb;
+        }
+        h2 {
+            color: #1f2937;
+            margin-top: 0;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 10px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        button.secondary {
+            background-color: #6b7280;
+        }
+        button.secondary:hover {
+            background-color: #4b5563;
+        }
+        button.success {
+            background-color: #10b981;
+        }
+        button.success:hover {
+            background-color: #059669;
+        }
+        .status {
+            margin: 15px 0;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        .status.neutral {
+            background-color: #e5e7eb;
+            color: #1f2937;
+        }
+        .status.success {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+        .settings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        select, input, textarea {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            background-color: white;
+            font-family: inherit;
+        }
+        textarea {
+            width: 100%;
+            min-height: 80px;
+        }
+        .log-container {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+            background-color: #ffffff;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            font-family: monospace;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .log-info {
+            color: #2563eb;
+        }
+        .log-success {
+            color: #10b981;
+        }
+        .log-error {
+            color: #ef4444;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #10b981;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>TTS Autoplay Verification Test</h1>
+    <div class="header-links">
+        <a href="simple-speech-test.html">← Teacher Interface</a>
+        <a href="simple-student.html">Student Interface</a>
+        <a href="websocket-diagnostics.html">WebSocket Diagnostics</a>
+    </div>
+    
+    <div class="test-section">
+        <h2>1. Browser TTS Autoplay Test <span class="badge">With Fix</span></h2>
+        <p>This tests the fixed browser speech synthesis with autoPlay flag set to true.</p>
+        
+        <div class="settings">
+            <select id="language-select-1">
+                <option value="en-US">English (US)</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+            </select>
+        </div>
+        
+        <textarea id="text-input-1" placeholder="Enter text to test...">This is a test of the browser speech synthesis with autoplay enabled.</textarea>
+        
+        <div>
+            <button id="test-button-1" class="success">Run Test (Autoplay = TRUE)</button>
+            <button id="clear-log-1" class="secondary">Clear Log</button>
+        </div>
+        
+        <div class="status neutral" id="status-1">Ready to test</div>
+        
+        <div class="log-container" id="log-1"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Browser TTS Control Test <span class="badge">No Autoplay</span></h2>
+        <p>This is a control test without the autoPlay flag for comparison.</p>
+        
+        <div class="settings">
+            <select id="language-select-2">
+                <option value="en-US">English (US)</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+            </select>
+        </div>
+        
+        <textarea id="text-input-2" placeholder="Enter text to test...">This is a control test without autoplay.</textarea>
+        
+        <div>
+            <button id="test-button-2">Run Test (Autoplay = FALSE)</button>
+            <button id="clear-log-2" class="secondary">Clear Log</button>
+        </div>
+        
+        <div class="status neutral" id="status-2">Ready to test</div>
+        
+        <div class="log-container" id="log-2"></div>
+    </div>
+    
+    <script>
+        // Logger function for test 1
+        function log1(message, type = 'info') {
+            const logContainer = document.getElementById('log-1');
+            const logEntry = document.createElement('div');
+            logEntry.classList.add('log-entry', `log-${type}`);
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Logger function for test 2
+        function log2(message, type = 'info') {
+            const logContainer = document.getElementById('log-2');
+            const logEntry = document.createElement('div');
+            logEntry.classList.add('log-entry', `log-${type}`);
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Update status function for test 1
+        function updateStatus1(message, type = 'neutral') {
+            const statusElement = document.getElementById('status-1');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+        
+        // Update status function for test 2
+        function updateStatus2(message, type = 'neutral') {
+            const statusElement = document.getElementById('status-2');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+        
+        // Test 1: Browser TTS with autoPlay = true
+        document.getElementById('test-button-1').addEventListener('click', function() {
+            const text = document.getElementById('text-input-1').value.trim();
+            const language = document.getElementById('language-select-1').value;
+            
+            if (!text) {
+                updateStatus1('Please enter text to test', 'error');
+                return;
+            }
+            
+            if (!('speechSynthesis' in window)) {
+                updateStatus1('Speech synthesis not supported in this browser', 'error');
+                log1('Speech synthesis not supported in this browser', 'error');
+                return;
+            }
+            
+            updateStatus1('Running test with autoPlay = true...', 'neutral');
+            log1(`Starting test with text: "${text}" (Language: ${language})`, 'info');
+            
+            // Create speech params object (simulating our server's output)
+            const speechParams = {
+                type: 'browser-speech',
+                text: text,
+                languageCode: language,
+                preserveEmotions: true,
+                speed: 1.0,
+                autoPlay: true // Our fix sets this to true
+            };
+            
+            log1(`Created speech parameters: ${JSON.stringify(speechParams)}`, 'info');
+            
+            // Create utterance for SpeechSynthesis
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = language;
+            
+            // Add listeners to track events
+            utterance.onstart = function() {
+                log1('Speech playback started automatically!', 'success');
+                updateStatus1('Speech is playing...', 'success');
+            };
+            
+            utterance.onend = function() {
+                log1('Speech playback completed', 'success');
+                updateStatus1('Test completed successfully', 'success');
+            };
+            
+            utterance.onerror = function(event) {
+                log1(`Speech error: ${event.error}`, 'error');
+                updateStatus1(`Error: ${event.error}`, 'error');
+            };
+            
+            // Simulate our browser speech code fix
+            if (speechParams.autoPlay === true) {
+                log1('autoPlay flag is true, playing automatically...', 'info');
+                window.speechSynthesis.speak(utterance);
+            } else {
+                log1('autoPlay flag is false, not playing automatically', 'info');
+                // Would require manual play button in this case
+            }
+        });
+        
+        // Test 2: Browser TTS with autoPlay = false (control test)
+        document.getElementById('test-button-2').addEventListener('click', function() {
+            const text = document.getElementById('text-input-2').value.trim();
+            const language = document.getElementById('language-select-2').value;
+            
+            if (!text) {
+                updateStatus2('Please enter text to test', 'error');
+                return;
+            }
+            
+            if (!('speechSynthesis' in window)) {
+                updateStatus2('Speech synthesis not supported in this browser', 'error');
+                log2('Speech synthesis not supported in this browser', 'error');
+                return;
+            }
+            
+            updateStatus2('Running test with autoPlay = false...', 'neutral');
+            log2(`Starting test with text: "${text}" (Language: ${language})`, 'info');
+            
+            // Create speech params object (simulating behavior before our fix)
+            const speechParams = {
+                type: 'browser-speech',
+                text: text,
+                languageCode: language,
+                preserveEmotions: true,
+                speed: 1.0,
+                autoPlay: false // Control test with false
+            };
+            
+            log2(`Created speech parameters: ${JSON.stringify(speechParams)}`, 'info');
+            
+            // Create utterance for SpeechSynthesis
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = language;
+            
+            // Add listeners to track events
+            utterance.onstart = function() {
+                log2('Speech playback started', 'success');
+                updateStatus2('Speech is playing...', 'success');
+            };
+            
+            utterance.onend = function() {
+                log2('Speech playback completed', 'success');
+                updateStatus2('Test completed', 'success');
+            };
+            
+            utterance.onerror = function(event) {
+                log2(`Speech error: ${event.error}`, 'error');
+                updateStatus2(`Error: ${event.error}`, 'error');
+            };
+            
+            // Simulate the old behavior (before our fix)
+            if (speechParams.autoPlay === true) {
+                log2('autoPlay flag is true, would play automatically', 'info');
+                window.speechSynthesis.speak(utterance);
+            } else {
+                log2('autoPlay flag is false, creating manual play button...', 'info');
+                
+                // Create a play button since autoPlay is false
+                const playButton = document.createElement('button');
+                playButton.textContent = 'Play Speech Manually';
+                playButton.classList.add('success');
+                playButton.style.marginTop = '10px';
+                playButton.onclick = function() {
+                    log2('Manual play button clicked', 'info');
+                    window.speechSynthesis.speak(utterance);
+                };
+                
+                // Add button to the log
+                const logContainer = document.getElementById('log-2');
+                logContainer.appendChild(playButton);
+                
+                updateStatus2('Ready for manual playback', 'neutral');
+            }
+        });
+        
+        // Clear log buttons
+        document.getElementById('clear-log-1').addEventListener('click', function() {
+            document.getElementById('log-1').innerHTML = '';
+            log1('Log cleared', 'info');
+        });
+        
+        document.getElementById('clear-log-2').addEventListener('click', function() {
+            document.getElementById('log-2').innerHTML = '';
+            log2('Log cleared', 'info');
+        });
+        
+        // Initialize
+        window.addEventListener('DOMContentLoaded', function() {
+            log1('Test initialized. This demonstrates the fixed browser TTS with autoPlay=true.', 'info');
+            log2('Control test initialized. This demonstrates the behavior without autoPlay.', 'info');
+        });
+    </script>
+</body>
+</html>
