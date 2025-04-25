@@ -224,17 +224,17 @@ export class WebSocketServer {
       this.languages.set(ws, message.languageCode);
     }
     
-    // Store client settings with OpenAI as default TTS service
-    const settings: any = this.clientSettings.get(ws) || { ttsServiceType: 'openai' };
+    // Store client settings with Browser TTS as default service (changed from OpenAI)
+    const settings: any = this.clientSettings.get(ws) || { ttsServiceType: 'browser' };
     
     // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
       settings.ttsServiceType = message.settings.ttsServiceType;
       console.log(`Client requested TTS service type: ${settings.ttsServiceType}`);
     } else if (!settings.ttsServiceType) {
-      // Ensure we have a default TTS service (OpenAI)
-      settings.ttsServiceType = 'openai';
-      console.log(`Setting default TTS service type to OpenAI (more reliable than browser speech synthesis)`);
+      // Set browser as the default TTS service
+      settings.ttsServiceType = 'browser';
+      console.log(`Setting default TTS service type to Browser for consistency`);
     }
     
     // Store updated settings
