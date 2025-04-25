@@ -16,9 +16,9 @@ const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
 
 // Test configuration
-const BASE_URL = process.env.TEST_URL || 'http://localhost:5000';
-const TEACHER_URL = `${BASE_URL}/teacher`;
-const STUDENT_URL = `${BASE_URL}/student`;
+const BASE_URL = process.env.TEST_URL || 'https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev';
+const TEACHER_URL = `${BASE_URL}/simple-speech-test.html`;
+const STUDENT_URL = `${BASE_URL}/simple-student.html`;
 const DIAGNOSTICS_URL = `${BASE_URL}/websocket-diagnostics.html`;
 const TEST_TIMEOUT = 60000; // 60 seconds timeout for the entire test
 
@@ -30,9 +30,12 @@ async function runTest() {
     .addArguments('--allow-file-access-from-files')       // Allow file access
     .addArguments('--no-sandbox')                         // Required for CI environments
     .addArguments('--disable-dev-shm-usage')              // Overcome limited resource issues
-    .addArguments('--autoplay-policy=no-user-gesture-required'); // Allow autoplay
+    .addArguments('--autoplay-policy=no-user-gesture-required') // Allow autoplay
+    .addArguments('--headless')                          // Run in headless mode (no UI)
+    .addArguments('--disable-gpu')                       // Recommended for headless
+    .setChromeBinaryPath('/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser'); // Use the installed Chromium browser
 
-  console.log('Starting WebDriver with Chrome...');
+  console.log('Starting WebDriver with Chromium (headless)...');
   const driver = await new Builder()
     .forBrowser('chrome')
     .setChromeOptions(options)
