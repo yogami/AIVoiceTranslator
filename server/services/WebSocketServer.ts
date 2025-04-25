@@ -317,8 +317,7 @@ export class WebSocketServer {
           }
         });
         
-        // Set the TTS service type in the environment for this translation
-        process.env.TTS_SERVICE_TYPE = clientTtsServiceType;
+        // No need to set environment variable anymore - we'll pass it directly
         console.log(`Using TTS service '${clientTtsServiceType}' for language '${targetLanguage}'`);
         
         // Perform the translation with the selected TTS service
@@ -326,7 +325,8 @@ export class WebSocketServer {
           Buffer.from(''), // Empty buffer as we already have the text
           teacherLanguage,
           targetLanguage,
-          message.text // Use the pre-transcribed text
+          message.text, // Use the pre-transcribed text
+          { ttsServiceType: clientTtsServiceType } // Pass TTS service type directly
         );
         
         // Store the full result object for this language
@@ -512,19 +512,14 @@ export class WebSocketServer {
     languageCode: string, 
     ttsService: string
   ): Promise<{ success: boolean; audioData?: string; error?: string }> {
-    // Save current TTS service type to restore later
-    const originalTtsType = process.env.TTS_SERVICE_TYPE || 'browser';
-    
     try {
-      // Set requested TTS service for this request
-      process.env.TTS_SERVICE_TYPE = ttsService;
-      
-      // Use the translation service to generate speech audio
+      // Use the translation service to generate speech audio with specific TTS service
       const result = await speechTranslationService.translateSpeech(
         Buffer.from(''), // Empty buffer since we have the text
         'en-US',        // Source language doesn't matter for TTS
         languageCode,
-        text            // The text to synthesize
+        text,           // The text to synthesize
+        { ttsServiceType: ttsService } // Pass TTS service directly
       );
       
       // Check if we have valid audio data
@@ -540,9 +535,12 @@ export class WebSocketServer {
           error: 'No audio data generated'
         };
       }
-    } finally {
-      // Restore original TTS service type
-      process.env.TTS_SERVICE_TYPE = originalTtsType;
+    } catch (error) {
+      console.error(`Error generating audio for TTS service ${ttsService}:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   }
   

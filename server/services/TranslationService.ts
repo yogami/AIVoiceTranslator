@@ -564,7 +564,8 @@ export class SpeechTranslationService {
     audioBuffer: Buffer,
     sourceLanguage: string,
     targetLanguage: string,
-    preTranscribedText?: string
+    preTranscribedText?: string,
+    options?: { ttsServiceType?: string }
   ): Promise<TranslationResult> {
     console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
     
@@ -601,7 +602,7 @@ export class SpeechTranslationService {
     
     try {
       // Use TTS service type from options if provided, or fall back to environment or default 'browser'
-      const ttsServiceType = options.ttsServiceType || process.env.TTS_SERVICE_TYPE || 'browser';
+      const ttsServiceType = (options && options.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'browser';
       
       // Log the TTS service being used
       console.log(`Using TTS service '${ttsServiceType}' for language '${targetLanguage}'`);
