@@ -1343,11 +1343,13 @@
                     // Set up audio element and play button
                     audio.src = audioURL;
                     playButton.disabled = false;
-                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                    
+                    // Update button to show which TTS service is being used
+                    playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
                     
                     // Define handler for audio playback
                     const playAudio = () => {
-                        log('Playing server-generated audio');
+                        log(`Playing server-generated audio (${ttsServiceType} TTS)`);
                         audio.play().catch(err => {
                             log('Error playing audio: ' + err.message);
                             showError('Audio playback failed: ' + err.message);
@@ -1359,12 +1361,13 @@
                     };
                     
                     // Set up click handler for play button
+                    // Store a reference to the current TTS service type so it remains consistent
                     playButton.onclick = playAudio;
                     
-                    // Reset button when audio ends
+                    // Reset button when audio ends - preserve the TTS service information
                     audio.onended = () => {
                         playButton.style.backgroundColor = '';
-                        playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                        playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
                     };
                     
                     // Auto-play for OpenAI TTS when that service is selected
@@ -1394,9 +1397,32 @@
                 log('OpenAI TTS selected but no audio data received - trying to request it from server');
                 TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
             } else {
-                // Default to browser speech synthesis
-                log('No audio data available, using browser speech synthesis as fallback');
-                generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                // We don't have audio data and no explicit instruction to use client speech
+                if (ttsServiceType === 'browser') {
+                    // For browser TTS service, use the browser speech synthesis
+                    log('Using browser speech synthesis for browser TTS service');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                } else if (ttsServiceType === 'openai') {
+                    // For OpenAI TTS service with no audio, try to request from server first
+                    log('OpenAI TTS service selected but no audio available - requesting from server');
+                    
+                    // Set up a fallback just in case
+                    playButton.disabled = false;
+                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation (OpenAI)';
+                    
+                    // When clicked, try to get OpenAI audio first
+                    playButton.onclick = () => {
+                        log('Requesting OpenAI TTS audio from server for play button');
+                        TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
+                    };
+                    
+                    // Also try to request it immediately
+                    TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
+                } else {
+                    // For any other TTS service, provide a consistent fallback
+                    log('No audio data available for ' + ttsServiceType + ' service, using consistent fallback');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                }
             }
         }
         
