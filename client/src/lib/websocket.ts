@@ -244,7 +244,7 @@ export class WebSocketClient implements IWebSocketClient {
     this.roleLocked = true;
     
     // If connected, also register with the server
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws && this.ws.readyState === WebSocketState.OPEN) {
       this.register(role, this.languageCode);
     }
   }
@@ -254,7 +254,7 @@ export class WebSocketClient implements IWebSocketClient {
    * @returns boolean indicating success
    */
   public sendTranscription(text: string): boolean {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WebSocketState.OPEN) {
       console.warn('[WebSocketClient] Cannot send transcription - not connected');
       return false;
     }
@@ -283,7 +283,7 @@ export class WebSocketClient implements IWebSocketClient {
    * Send raw message
    */
   private send(message: WebSocketMessage): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WebSocketState.OPEN) {
       console.warn('[WebSocketClient] Cannot send message - not connected');
       return;
     }
@@ -355,7 +355,7 @@ export class WebSocketClient implements IWebSocketClient {
 
     // Send ping every 30 seconds
     this.pingInterval = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (this.ws && this.ws.readyState === WebSocketState.OPEN) {
         this.send({
           type: 'ping',
           timestamp: Date.now()

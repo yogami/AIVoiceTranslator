@@ -8,12 +8,12 @@
  * - Mock dependencies to isolate the unit being tested
  */
 
-import { WebSocketClient, WebSocketFactory, UserRole, ConnectionStatus } from '../../../client/src/lib/websocket';
+import { WebSocketClient, WebSocketFactory, UserRole, ConnectionStatus, WebSocketState } from '../../../client/src/lib/websocket';
 
 // Mock WebSocket factory for testing
 class MockWebSocketFactory implements WebSocketFactory {
   public mockWebSocket: any = {
-    readyState: 1, // WebSocket.OPEN
+    readyState: WebSocketState.OPEN,
     send: jest.fn(),
     close: jest.fn(),
   };
