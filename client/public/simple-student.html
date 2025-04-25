@@ -319,6 +319,47 @@
                 <!-- This will be populated dynamically -->
             </div>
             
+            <!-- TTS Metrics Section -->
+            <div id="tts-metrics" style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 15px;">
+                <h4>TTS Service Metrics</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Metric</th>
+                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">Browser Speech</th>
+                            <th style="text-align: center; padding: 8px; border-bottom: 1px solid #ddd;">OpenAI TTS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #eee;">Latency (ms)</td>
+                            <td id="browser-latency" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
+                            <td id="openai-latency" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #eee;">Audio Quality</td>
+                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">Medium</td>
+                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">High</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #eee;">File Size (KB)</td>
+                            <td id="browser-size" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
+                            <td id="openai-size" style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">-</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #eee;">Emotion Preservation</td>
+                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">Low</td>
+                            <td style="text-align: center; padding: 8px; border-bottom: 1px solid #eee;">High</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px;">Cost</td>
+                            <td style="text-align: center; padding: 8px;">Free</td>
+                            <td style="text-align: center; padding: 8px;">$0.015/1K chars</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
             <button id="refresh-comparison" style="margin-top: 15px;">
                 <span>🔄</span> Get Comparison for Current Translation
             </button>
@@ -466,6 +507,27 @@
                         
                         log(`Received TTS audio response from ${ttsService} service`);
                         
+                        // Calculate latency from request time if available
+                        if (window.ttsRequestTimes && window.ttsRequestTimes[ttsService]) {
+                            const endTime = performance.now();
+                            const startTime = window.ttsRequestTimes[ttsService];
+                            const latency = Math.round(endTime - startTime);
+                            
+                            log(`${ttsService} TTS service latency: ${latency}ms`);
+                            
+                            // Record metrics if audio data exists
+                            if (audioData && audioData.length > 0) {
+                                // Calculate size in KB (base64 is 4/3 the size of binary)
+                                const sizeInKB = (audioData.length * 3/4) / 1024;
+                                
+                                // Record metrics
+                                TTSServiceManager.recordMetrics(ttsService, latency, sizeInKB);
+                            }
+                            
+                            // Clear request time
+                            delete window.ttsRequestTimes[ttsService];
+                        }
+                        
                         if (audioData && audioData.length > 0) {
                             try {
                                 // Convert base64 to blob for playback
@@ -484,7 +546,8 @@
                                     data: audioData,
                                     url: audioURL,
                                     blob: blob,
-                                    type: 'server'
+                                    type: 'server',
+                                    size: blob.size / 1024 // Size in KB
                                 };
                                 
                                 // Play the audio
@@ -970,6 +1033,18 @@
          * This class handles all TTS service related operations.
          */
         class TTSServiceManager {
+            // Store metrics for TTS services
+            static metrics = {
+                browser: {
+                    latency: [],
+                    fileSize: []
+                },
+                openai: {
+                    latency: [],
+                    fileSize: []
+                }
+            };
+            
             /**
              * Play audio with a specific TTS service
              * 
@@ -991,16 +1066,19 @@
                     return;
                 }
                 
+                // Start latency measurement
+                const startTime = performance.now();
+                
                 // Handle different service types
                 switch (ttsService) {
                     case 'silent':
                         this.handleSilentMode();
                         break;
                     case 'browser':
-                        this.useBrowserSpeechSynthesis(text, languageCode);
+                        this.useBrowserSpeechSynthesis(text, languageCode, startTime);
                         break;
                     default:
-                        this.requestServerTTS(text, languageCode, ttsService);
+                        this.requestServerTTS(text, languageCode, ttsService, startTime);
                         break;
                 }
             }
@@ -1048,13 +1126,28 @@
              * 
              * @param {string} text - The text to speak
              * @param {string} languageCode - The language code
+             * @param {number} startTime - Start time for latency measurement
              */
-            static useBrowserSpeechSynthesis(text, languageCode) {
+            static useBrowserSpeechSynthesis(text, languageCode, startTime) {
                 if ('speechSynthesis' in window) {
                     const utterance = new SpeechSynthesisUtterance(text);
                     utterance.lang = languageCode || 'en-US';
                     utterance.rate = 1.0;
                     utterance.pitch = 1.0;
+                    
+                    // Measure audio size (estimate since browser API doesn't provide size)
+                    const estimatedSize = text.length * 0.1; // Rough estimate - 0.1KB per character
+                    
+                    // Add event listener for when speech starts
+                    utterance.onstart = () => {
+                        const endTime = performance.now();
+                        const latency = Math.round(endTime - startTime);
+                        
+                        // Record metrics
+                        this.recordMetrics('browser', latency, estimatedSize);
+                        
+                        log(`Browser TTS latency: ${latency}ms, estimated size: ${estimatedSize.toFixed(1)}KB`);
+                    };
                     
                     log(`Using browser speech synthesis for language ${languageCode}`);
                     speechSynthesis.speak(utterance);
@@ -1071,8 +1164,9 @@
              * @param {string} text - The text to speak
              * @param {string} languageCode - The language code
              * @param {string} ttsService - The TTS service to use
+             * @param {number} startTime - Start time for latency measurement
              */
-            static requestServerTTS(text, languageCode, ttsService) {
+            static requestServerTTS(text, languageCode, ttsService, startTime) {
                 if (isConnected) {
                     const ttsRequest = {
                         type: 'tts_request',
@@ -1081,11 +1175,76 @@
                         ttsService: ttsService
                     };
                     
+                    // Store start time in global object to be retrieved when response arrives
+                    window.ttsRequestTimes = window.ttsRequestTimes || {};
+                    window.ttsRequestTimes[ttsService] = startTime;
+                    
                     socket.send(JSON.stringify(ttsRequest));
                     showSuccess(`Requesting audio from ${getTtsServiceName(ttsService)}...`);
                 } else {
                     showError('Connect to classroom first to use this TTS service');
                 }
+            }
+            
+            /**
+             * Record metrics for a TTS service
+             * 
+             * @param {string} service - The TTS service (browser, openai)
+             * @param {number} latency - Latency in milliseconds
+             * @param {number} fileSize - File size in KB
+             */
+            static recordMetrics(service, latency, fileSize) {
+                if (this.metrics[service]) {
+                    // Add to metrics arrays (keep last 5 values for average)
+                    this.metrics[service].latency.push(latency);
+                    if (this.metrics[service].latency.length > 5) {
+                        this.metrics[service].latency.shift();
+                    }
+                    
+                    this.metrics[service].fileSize.push(fileSize);
+                    if (this.metrics[service].fileSize.length > 5) {
+                        this.metrics[service].fileSize.shift();
+                    }
+                    
+                    // Update UI with average values
+                    this.updateMetricsUI();
+                }
+            }
+            
+            /**
+             * Calculate average of array values
+             * 
+             * @param {Array<number>} arr - Array of numbers
+             * @returns {number} Average value
+             */
+            static calculateAverage(arr) {
+                if (!arr || arr.length === 0) return 0;
+                const sum = arr.reduce((a, b) => a + b, 0);
+                return sum / arr.length;
+            }
+            
+            /**
+             * Update metrics UI with current values
+             */
+            static updateMetricsUI() {
+                // Calculate averages
+                const browserLatencyAvg = this.calculateAverage(this.metrics.browser.latency);
+                const openaiLatencyAvg = this.calculateAverage(this.metrics.openai.latency);
+                const browserSizeAvg = this.calculateAverage(this.metrics.browser.fileSize);
+                const openaiSizeAvg = this.calculateAverage(this.metrics.openai.fileSize);
+                
+                // Update UI elements
+                document.getElementById('browser-latency').textContent = 
+                    browserLatencyAvg > 0 ? `${Math.round(browserLatencyAvg)}ms` : '-';
+                
+                document.getElementById('openai-latency').textContent = 
+                    openaiLatencyAvg > 0 ? `${Math.round(openaiLatencyAvg)}ms` : '-';
+                
+                document.getElementById('browser-size').textContent = 
+                    browserSizeAvg > 0 ? `${browserSizeAvg.toFixed(1)}KB` : '-';
+                
+                document.getElementById('openai-size').textContent = 
+                    openaiSizeAvg > 0 ? `${openaiSizeAvg.toFixed(1)}KB` : '-';
             }
             
             /**
@@ -1127,6 +1286,9 @@
                 `;
                 
                 comparisonContainer.innerHTML = html;
+                
+                // Also ensure metrics UI is updated
+                this.updateMetricsUI();
             }
         }
         
