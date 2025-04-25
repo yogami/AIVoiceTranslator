@@ -1253,20 +1253,46 @@
                     // Log audio data details before processing
                     log(`Processing audio data: length=${audioData.length} chars, first 50 chars: ${audioData.substring(0, 50)}...`);
                     
-                    // Convert base64 to a blob
-                    const binaryString = atob(audioData);
-                    log(`Converted binary string length: ${binaryString.length} bytes`);
-                    
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
+                    // Make sure the audioData is actually a base64 string
+                    // Sometimes it might be sent with a data URL prefix, so we need to remove it
+                    let cleanBase64 = audioData;
+                    if (audioData.startsWith('data:')) {
+                        // Extract the base64 part from the data URL
+                        const commaIndex = audioData.indexOf(',');
+                        if (commaIndex !== -1) {
+                            cleanBase64 = audioData.substring(commaIndex + 1);
+                            log('Extracted base64 data from data URL');
+                        }
                     }
                     
-                    // Check header bytes to determine format (MP3 starts with ID3 or 0xFF 0xFB)
-                    const headerHex = Array.from(bytes.slice(0, 4))
-                        .map(b => b.toString(16).padStart(2, '0'))
-                        .join(' ');
-                    log(`Audio data header: ${headerHex}`);
+                    // Variables to store the processed binary data
+                    let bytes = null;
+                    let headerHex = '';
+                    
+                    try {
+                        // Convert base64 to a blob
+                        const binaryString = atob(cleanBase64);
+                        log(`Converted binary string length: ${binaryString.length} bytes`);
+                        
+                        bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        
+                        // Check header bytes to determine format (MP3 starts with ID3 or 0xFF 0xFB)
+                        headerHex = Array.from(bytes.slice(0, 4))
+                            .map(b => b.toString(16).padStart(2, '0'))
+                            .join(' ');
+                        log(`Audio data header: ${headerHex}`);
+                    } catch (error) {
+                        log(`WARNING: Failed to decode base64 data: ${error.message}`);
+                        throw new Error(`Failed to decode audio data: ${error.message}`);
+                    }
+                    
+                    // Make sure we got valid binary data
+                    if (!bytes || bytes.length === 0) {
+                        throw new Error('Failed to create valid binary data from base64');
+                    }
                     
                     // Determine MIME type based on header
                     let mimeType = 'audio/mp3'; // Default assumption
@@ -1330,9 +1356,15 @@
                 }
             } else if (useClientSpeech) {
                 // Explicitly instructed to use client speech synthesis
+                log('Server explicitly requested client-side speech synthesis');
                 generateSpeechFromText(text, targetLanguage, ttsServiceType);
+            } else if (ttsServiceType === 'openai' && !audioData) {
+                // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
+                log('OpenAI TTS selected but no audio data received - trying to request it from server');
+                TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
             } else {
                 // Default to browser speech synthesis
+                log('No audio data available, using browser speech synthesis as fallback');
                 generateSpeechFromText(text, targetLanguage, ttsServiceType);
             }
         }
@@ -1496,9 +1528,19 @@
         }
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
-        function generateSpeechFromText(text, languageCode) {
+        function generateSpeechFromText(text, languageCode, ttsServiceType = 'browser') {
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
+            
+            // Log the TTS service type being used
+            log(`Generating speech with service type: ${ttsServiceType}`);
+            
+            // If OpenAI TTS was selected but we're still using browser speech,
+            // this means there was an issue with the server-generated audio
+            if (ttsServiceType === 'openai') {
+                log('WARNING: Fallback to browser speech despite OpenAI TTS selection');
+                showWarning('Using browser speech as fallback (server audio unavailable)');
+            }
             
             // Disable button during processing
             playButton.disabled = true;
