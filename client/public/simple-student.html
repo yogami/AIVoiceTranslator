@@ -1392,9 +1392,73 @@
                 // Explicitly instructed to use client speech synthesis
                 log('Server explicitly requested client-side speech synthesis');
                 
-                // Check if we have speech parameters with autoPlay flag
-                if (message && message.speechParams && message.speechParams.autoPlay === true) {
-                    log('Auto-playing browser speech synthesis due to autoPlay flag = ' + message.speechParams.autoPlay);
+                // Browser speech synthesis should always auto-play for student interface
+                log('Auto-playing browser speech synthesis for translation');
+                
+                // Create and play speech immediately using Web Speech API
+                if ('speechSynthesis' in window) {
+                    // In some browsers, speech synthesis won't work unless it's triggered by user interaction
+                    // We'll still try to auto-play, but also set up the play button for manual playback
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    
+                    // Set language code, mapping short codes to full BCP 47 language tags if needed
+                    const langCodeMap = {
+                        'es': 'es-ES',
+                        'fr': 'fr-FR',
+                        'de': 'de-DE',
+                        'it': 'it-IT',
+                        'zh': 'zh-CN',
+                        'ja': 'ja-JP',
+                        'ru': 'ru-RU',
+                        'ar': 'ar-SA',
+                        'pt': 'pt-BR',
+                        'ko': 'ko-KR',
+                        'en': 'en-US'
+                    };
+                    
+                    // Map short language code to full code, or use as is if already in right format
+                    utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
+                    log(`Auto-playing speech in language ${utterance.lang}`);
+                    
+                    // Apply speech parameters if available
+                    if (message.speechParams && message.speechParams.speed) {
+                        utterance.rate = message.speechParams.speed;
+                    }
+                    
+                    // Automatically play the speech
+                    window.speechSynthesis.cancel(); // Cancel any ongoing speech
+                    
+                    // Add event listeners to better debug speech synthesis issues
+                    utterance.onstart = () => log('Speech synthesis started');
+                    utterance.onend = () => log('Speech synthesis completed');
+                    utterance.onerror = (e) => log('Speech synthesis error: ' + e.error);
+                    
+                    // Try auto-playing
+                    window.speechSynthesis.speak(utterance);
+                    showSuccess('Auto-playing translation with Browser TTS');
+                    
+                    // Also set up the play button for manual playback
+                    playButton.disabled = false;
+                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Speech Again';
+                    playButton.onclick = () => {
+                        window.speechSynthesis.cancel();
+                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+                    };
+                } else {
+                    // Fall back to normal generation if Speech API is not available
+                    log('Speech API not available for auto-play, falling back to normal behavior');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                }
+            } else if (ttsServiceType === 'openai' && !audioData) {
+                // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
+                log('OpenAI TTS selected but no audio data received - trying to request it from server');
+                TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
+            } else {
+                // We don't have audio data and no explicit instruction to use client speech
+                if (ttsServiceType === 'browser') {
+                    // For browser TTS service, use the browser speech synthesis
+                    log('Using browser speech synthesis for browser TTS service');
+                    
                     // Create and play speech immediately using Web Speech API
                     if ('speechSynthesis' in window) {
                         const utterance = new SpeechSynthesisUtterance(text);
@@ -1416,38 +1480,28 @@
                         
                         // Map short language code to full code, or use as is if already in right format
                         utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
-                        log(`Auto-playing speech in language ${utterance.lang}`);
                         
-                        // Apply speech parameters if available
-                        if (message.speechParams.speed) {
-                            utterance.rate = message.speechParams.speed;
-                        }
+                        // Add event listeners to debug speech synthesis issues
+                        utterance.onstart = () => log('Speech synthesis started for browser TTS service');
+                        utterance.onend = () => log('Speech synthesis completed for browser TTS service');
+                        utterance.onerror = (e) => log('Speech synthesis error: ' + e.error);
                         
-                        // Automatically play the speech
+                        // Play the speech
                         window.speechSynthesis.cancel(); // Cancel any ongoing speech
                         window.speechSynthesis.speak(utterance);
-                        showSuccess('Auto-playing translation with Browser TTS');
+                        showSuccess('Playing translation with Browser TTS');
+                        
+                        // Also set up manual play button
+                        playButton.disabled = false;
+                        playButton.innerHTML = '<span class="play-icon">▶</span> Play Speech Again';
+                        playButton.onclick = () => {
+                            window.speechSynthesis.cancel();
+                            window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+                        };
                     } else {
-                        // Fall back to normal generation if Speech API is not available
-                        log('Speech API not available for auto-play, falling back to normal behavior');
+                        // If Web Speech API is not available
                         generateSpeechFromText(text, targetLanguage, ttsServiceType);
                     }
-                } else {
-                    // Still configure the play button to use speech synthesis when clicked
-                    log('Browser speech synthesis ready (click play button to hear)');
-                    playButton.disabled = false;
-                    playButton.onclick = () => generateSpeechFromText(text, targetLanguage, ttsServiceType);
-                }
-            } else if (ttsServiceType === 'openai' && !audioData) {
-                // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
-                log('OpenAI TTS selected but no audio data received - trying to request it from server');
-                TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
-            } else {
-                // We don't have audio data and no explicit instruction to use client speech
-                if (ttsServiceType === 'browser') {
-                    // For browser TTS service, use the browser speech synthesis
-                    log('Using browser speech synthesis for browser TTS service');
-                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
                 } else if (ttsServiceType === 'openai') {
                     // For OpenAI TTS service with no audio, try to request from server first
                     log('OpenAI TTS service selected but no audio available - requesting from server');
