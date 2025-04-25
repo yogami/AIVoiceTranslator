@@ -259,7 +259,7 @@ export class WebSocketService {
    */
   public broadcast(message: WebSocketMessage): void {
     this.wss.clients.forEach((client: WebSocket) => {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === WebSocketState.OPEN) {
         client.send(JSON.stringify(message));
       }
     });
@@ -271,7 +271,7 @@ export class WebSocketService {
   public broadcastToRole(role: 'teacher' | 'student', message: WebSocketMessage): void {
     this.wss.clients.forEach((client: WebSocket) => {
       const extendedClient = client as ExtendedWebSocket;
-      if (extendedClient.readyState === WebSocket.OPEN && extendedClient.role === role) {
+      if (extendedClient.readyState === WebSocketState.OPEN && extendedClient.role === role) {
         client.send(JSON.stringify(message));
       }
     });
@@ -281,7 +281,7 @@ export class WebSocketService {
    * Send a message to a specific client
    */
   public sendToClient(client: ExtendedWebSocket, message: WebSocketMessage): void {
-    if (client.readyState === WebSocket.OPEN) {
+    if (client.readyState === WebSocketState.OPEN) {
       client.send(JSON.stringify(message));
     }
   }
@@ -360,7 +360,7 @@ export function broadcastMessage(wss: WSServer | WebSocketService, message: any)
     wss.broadcast(message);
   } else {
     wss.clients.forEach((client: WebSocket) => {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === WebSocketState.OPEN) {
         client.send(JSON.stringify(message));
       }
     });
@@ -371,7 +371,7 @@ export function broadcastMessage(wss: WSServer | WebSocketService, message: any)
  * SendToClient function for backward compatibility
  */
 export function sendToClient(client: WebSocket, message: any): void {
-  if (client.readyState === WebSocket.OPEN) {
+  if (client.readyState === WebSocketState.OPEN) {
     client.send(JSON.stringify(message));
   }
 }
