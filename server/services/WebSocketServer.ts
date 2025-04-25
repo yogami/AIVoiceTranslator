@@ -291,7 +291,12 @@ export class WebSocketServer {
     const translations: Record<string, string> = {};
     
     // Translate for each language
-    const translationResults: Record<string, any> = {};
+    // Define a type for translation results that includes audioBuffer
+    const translationResults: Record<string, { 
+      originalText: string;
+      translatedText: string;
+      audioBuffer: Buffer;
+    }> = {};
     
     for (const targetLanguage of studentLanguages) {
       try {
