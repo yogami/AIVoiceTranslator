@@ -3,6 +3,7 @@
  * 
  * This test verifies that the teacher interface can select different TTS services
  * and that the selection is properly sent to the server and applied to all student connections.
+ * It also verifies that the correct audio type plays based on the teacher's selection.
  * 
  * Following TDD and Clean Code principles:
  * - Tests are self-contained with clear Arrange-Act-Assert structure
@@ -14,6 +15,11 @@
  * - This is a UI end-to-end test at the top of the pyramid
  * - It complements unit tests for the underlying TextToSpeechService components
  * - Validates the complete feature from end-user perspective
+ * 
+ * Tests the new architectural change:
+ * - TTS service selection is centrally controlled by teachers
+ * - Students can see but not change the active TTS service
+ * - The right audio system is used based on teacher's preference
  */
 
 const { Builder, By, until, logging } = require('selenium-webdriver');
