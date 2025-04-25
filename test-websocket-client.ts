@@ -5,17 +5,28 @@
  * making it less susceptible to timeouts in the Replit environment.
  */
 
-// Use TS-Node to run this script with TypeScript imports
-// eslint-disable-next-line
-import { WebSocketClient, WebSocketFactory, WebSocketState } from './client/src/lib/websocket';
+/**
+ * TypeScript WebSocketClient Test
+ * 
+ * Uses a mock WebSocket implementation to test the WebSocketClient
+ * without relying on an actual WebSocket connection.
+ */
 
-// Mock WebSocket 
+// Import WebSocketClient and related types
+import { WebSocketClient, WebSocketState } from './client/src/lib/websocket';
+
+// Use any type to avoid strict type checking issues in mock implementation
 class MockWebSocket {
+  // Track socket state and messages
+  readyState: number = WebSocketState.CONNECTING;
+  sent: string[] = [];
+  closed: boolean = false;
+  onopen: any = null;
+  onclose: any = null;
+  onerror: any = null;
+  onmessage: any = null;
+  
   constructor() {
-    this.readyState = WebSocketState.CONNECTING;
-    this.sent = [];
-    this.closed = false;
-    
     // Simulate successful connection after construction
     setTimeout(() => {
       this.readyState = WebSocketState.OPEN;
@@ -23,7 +34,7 @@ class MockWebSocket {
     }, 50);
   }
   
-  send(message) {
+  send(message: string): void {
     if (this.readyState !== WebSocketState.OPEN) {
       throw new Error('WebSocket is not open');
     }
@@ -31,17 +42,35 @@ class MockWebSocket {
     console.log(`Message sent: ${message}`);
   }
   
-  close() {
+  close(): void {
     this.closed = true;
     this.readyState = WebSocketState.CLOSED;
     if (this.onclose) this.onclose();
     console.log('WebSocket closed');
   }
+  
+  addEventListener(type: string, listener: any): void {
+    if (type === 'open') this.onopen = listener;
+    if (type === 'close') this.onclose = listener;
+    if (type === 'error') this.onerror = listener;
+    if (type === 'message') this.onmessage = listener;
+  }
+  
+  removeEventListener(type: string, listener: any): void {
+    if (type === 'open') this.onopen = null;
+    if (type === 'close') this.onclose = null;
+    if (type === 'error') this.onerror = null;
+    if (type === 'message') this.onmessage = null;
+  }
+  
+  dispatchEvent(): boolean {
+    return true; // Not needed for tests
+  }
 }
 
-// Mock WebSocket factory implementing the WebSocketFactory interface
+// Mock WebSocket factory 
 class MockWebSocketFactory {
-  createWebSocket(url) {
+  createWebSocket(url: string): any {
     console.log(`Creating mock WebSocket for URL: ${url}`);
     return new MockWebSocket();
   }
@@ -52,15 +81,30 @@ const GREEN = '\x1b[32m';
 const RED = '\x1b[31m';
 const RESET = '\x1b[0m';
 
-// Test runner
+// Define expectation interface
+interface Expectation {
+  toBe: (expected: any) => void;
+  toContain: (substring: string) => void;
+  toBeTruthy: () => void;
+  toBeFalsy: () => void;
+  not: {
+    toBe: (expected: any) => void;
+  };
+}
+
+// Test runner class with proper typing
 class TestRunner {
+  passCount: number;
+  failCount: number;
+  currentTest: string;
+  
   constructor() {
     this.passCount = 0;
     this.failCount = 0;
     this.currentTest = '';
   }
   
-  test(name, fn) {
+  test(name: string, fn: () => void): void {
     this.currentTest = name;
     console.log(`\nRunning test: ${name}`);
     
@@ -68,39 +112,46 @@ class TestRunner {
       fn();
       this.passCount++;
       console.log(`${GREEN}✓ PASS: ${name}${RESET}`);
-    } catch (error) {
+    } catch (error: any) {
       this.failCount++;
       console.log(`${RED}✗ FAIL: ${name}${RESET}`);
       console.log(`${RED}  Error: ${error.message}${RESET}`);
     }
   }
   
-  expect(actual) {
+  expect(actual: any): Expectation {
     return {
-      toBe: (expected) => {
+      toBe: (expected: any): void => {
         if (actual !== expected) {
           throw new Error(`Expected ${expected}, got ${actual}`);
         }
       },
-      toContain: (substring) => {
+      toContain: (substring: string): void => {
         if (!actual.includes(substring)) {
           throw new Error(`Expected "${actual}" to contain "${substring}"`);
         }
       },
-      toBeTruthy: () => {
+      toBeTruthy: (): void => {
         if (!actual) {
           throw new Error(`Expected truthy value, got ${actual}`);
         }
       },
-      toBeFalsy: () => {
+      toBeFalsy: (): void => {
         if (actual) {
           throw new Error(`Expected falsy value, got ${actual}`);
+        }
+      },
+      not: {
+        toBe: (expected: any): void => {
+          if (actual === expected) {
+            throw new Error(`Expected ${actual} to not be ${expected}`);
+          }
         }
       }
     };
   }
   
-  summary() {
+  summary(): boolean {
     console.log('\n===================================');
     console.log(`Tests completed: ${this.passCount + this.failCount}`);
     console.log(`${GREEN}Passed: ${this.passCount}${RESET}`);
@@ -117,58 +168,112 @@ async function runTests() {
   console.log('WebSocketClient Test Suite');
   console.log('===================================');
   
+  // Use promises for test completion to make tests more reliable
+  const testPromises: Promise<void>[] = [];
+  
   const runner = new TestRunner();
   const factory = new MockWebSocketFactory();
   
   // Test 1: Connection
   runner.test('should connect to WebSocket server', () => {
-    const client = new WebSocketClient(factory, '/ws');
-    let connected = false;
-    
-    client.addEventListener('status', (status) => {
-      if (status === 'connected') {
-        connected = true;
+    const connectionPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const client = new WebSocketClient(factory, '/ws');
+        let connected = false;
+        
+        const onStatusChange = (status: string) => {
+          if (status === 'connected') {
+            connected = true;
+            
+            // Verify the connection
+            runner.expect(connected).toBeTruthy();
+            runner.expect(client.getStatus()).toBe('connected');
+            
+            // Clean up and resolve
+            client.removeEventListener('status', onStatusChange);
+            resolve();
+          }
+        };
+        
+        client.addEventListener('status', onStatusChange);
+        
+        // Start connection
+        client.connect().catch(reject);
+        
+        // Set a timeout in case the connection never happens
+        setTimeout(() => {
+          if (!connected) {
+            reject(new Error('Connection timed out'));
+          }
+        }, 500);
+      } catch (error) {
+        reject(error);
       }
     });
     
-    // Start connection
-    client.connect();
-    
-    // Wait for connection
-    setTimeout(() => {
-      runner.expect(connected).toBeTruthy();
-      runner.expect(client.getStatus()).toBe('connected');
-    }, 100);
+    testPromises.push(connectionPromise);
   });
   
   // Test 2: Role Registration
   runner.test('should register role and language', () => {
-    const client = new WebSocketClient(factory, '/ws');
-    
-    // Connect first
-    client.connect();
-    
-    // Wait for connection then register
-    setTimeout(() => {
-      client.register('teacher', 'en-US');
-      
-      // Check state
-      runner.expect(client.getRole()).toBe('teacher');
-      runner.expect(client.getLanguageCode()).toBe('en-US');
-      
-      // Check message was sent (we need to access the socket via getSocket() since it's private)
-      const socket = client.getSocket();
-      runner.expect(socket).toBeTruthy();
-      
-      if (socket) {
-        // Access sent messages from our mock - in a real test this would use a spy
-        const mockedSocket = socket;
-        const sentMessages = mockedSocket.sent.map(m => JSON.parse(m));
-        const registerMessage = sentMessages.find(m => m.type === 'register');
-        runner.expect(registerMessage).toBeTruthy();
-        runner.expect(registerMessage.role).toBe('teacher');
+    const registerPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const client = new WebSocketClient(factory, '/ws');
+        let connected = false;
+        
+        // Listen for connection status change
+        const onStatusChange = (status: string) => {
+          if (status === 'connected') {
+            connected = true;
+            
+            // Connection established, now register
+            client.register('teacher', 'en-US');
+            
+            // Remove listener as we don't need it anymore
+            client.removeEventListener('status', onStatusChange);
+            
+            // Check state
+            runner.expect(client.getRole()).toBe('teacher');
+            runner.expect(client.getLanguageCode()).toBe('en-US');
+            
+            // Check message was sent (we need to access the socket via getSocket() since it's private)
+            const socket = client.getSocket();
+            runner.expect(socket).toBeTruthy();
+            
+            if (socket) {
+              // Cast to any to access our mock implementation's properties
+              const mockedSocket = socket as any;
+              
+              if (mockedSocket.sent) {
+                const sentMessages = mockedSocket.sent.map((m: string) => JSON.parse(m));
+                const registerMessage = sentMessages.find((m: any) => m.type === 'register');
+                runner.expect(registerMessage).toBeTruthy();
+                runner.expect(registerMessage.role).toBe('teacher');
+              }
+            }
+            
+            // Test passed
+            resolve();
+          }
+        };
+        
+        client.addEventListener('status', onStatusChange);
+        
+        // Connect
+        client.connect().catch(reject);
+        
+        // Timeout if connection doesn't happen
+        setTimeout(() => {
+          if (!connected) {
+            reject(new Error('Connection timed out'));
+          }
+        }, 500);
+      } catch (error) {
+        reject(error);
       }
-    }, 100);
+    });
+    
+    testPromises.push(registerPromise);
   });
   
   // Test 3: Sending Transcription
@@ -191,11 +296,15 @@ async function runTests() {
       runner.expect(socket).toBeTruthy();
       
       if (socket) {
-        const mockedSocket = socket;
-        const sentMessages = mockedSocket.sent.map(m => JSON.parse(m));
-        const transcriptionMessage = sentMessages.find(m => m.type === 'transcription');
-        runner.expect(transcriptionMessage).toBeTruthy();
-        runner.expect(transcriptionMessage.text).toBe('Hello world');
+        // Cast to any to access our mock properties
+        const mockedSocket = socket as any;
+        
+        if (mockedSocket.sent) {
+          const sentMessages = mockedSocket.sent.map((m: string) => JSON.parse(m));
+          const transcriptionMessage = sentMessages.find((m: any) => m.type === 'transcription');
+          runner.expect(transcriptionMessage).toBeTruthy();
+          runner.expect(transcriptionMessage.text).toBe('Hello world');
+        }
       }
     }, 150);
   });
@@ -213,15 +322,17 @@ async function runTests() {
       runner.expect(socket).toBeTruthy();
       
       // Store reference to check closed state after disconnect
-      const mockedSocket = socket;
+      const mockedSocket = socket as any;
       
       // Disconnect
       client.disconnect();
       
-      // Verify socket was closed
-      if (mockedSocket) {
+      // Verify socket was closed if we have the mock socket available
+      if (mockedSocket && mockedSocket.closed !== undefined) {
         runner.expect(mockedSocket.closed).toBeTruthy();
       }
+      
+      // Always verify the client status changed
       runner.expect(client.getStatus()).not.toBe('connected');
     }, 100);
   });

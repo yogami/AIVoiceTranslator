@@ -12,7 +12,7 @@ echo -e "${GREEN}   Benedictaitor WebSocket Tests    ${NC}"
 echo -e "${GREEN}=====================================${NC}"
 
 echo -e "\n${YELLOW}Testing WebSocket Client...${NC}"
-node test-websocket-client.js
+npx tsx test-websocket-client.ts
 
 if [ $? -eq 0 ]; then
   echo -e "\n${GREEN}WebSocket client tests passed!${NC}"
