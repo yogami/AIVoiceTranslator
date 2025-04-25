@@ -6,9 +6,21 @@
  * - Single Responsibility Principle: Each handler does one thing
  * - DRY: Constants are defined once and reused
  * - Explicit error handling with try/catch
+ * 
+ * Also provides routes for code metrics collection and analysis
  */
 import { Router, Request, Response } from 'express';
 import { storage } from './storage';
+import { 
+  getAllMetrics, 
+  refreshMetrics, 
+  CoverageMetrics, 
+  ComplexityMetrics,
+  CodeSmellsMetrics,
+  DuplicationMetrics,
+  DependenciesMetrics,
+  TestResultsMetrics
+} from './metrics';
 
 export const apiRoutes = Router();
 
@@ -94,6 +106,142 @@ apiRoutes.get('/user', async (req: Request, res: Response) => {
     console.error('Error fetching user:', error);
     res.status(500).json({ 
       error: 'Failed to retrieve user',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get all code metrics
+ * Returns all code quality metrics for the project
+ */
+apiRoutes.get('/metrics', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error fetching metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get code coverage metrics
+ * Returns test coverage metrics for the project
+ */
+apiRoutes.get('/metrics/coverage', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.coverage);
+  } catch (error) {
+    console.error('Error fetching coverage metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve coverage metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get code complexity metrics
+ * Returns complexity metrics for the project
+ */
+apiRoutes.get('/metrics/complexity', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.complexity);
+  } catch (error) {
+    console.error('Error fetching complexity metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve complexity metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get code smells metrics
+ * Returns code smells metrics for the project
+ */
+apiRoutes.get('/metrics/code-smells', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.codeSmells);
+  } catch (error) {
+    console.error('Error fetching code smells metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve code smells metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get code duplication metrics
+ * Returns duplication metrics for the project
+ */
+apiRoutes.get('/metrics/duplication', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.duplication);
+  } catch (error) {
+    console.error('Error fetching duplication metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve duplication metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get dependencies metrics
+ * Returns dependencies metrics for the project
+ */
+apiRoutes.get('/metrics/dependencies', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.dependencies);
+  } catch (error) {
+    console.error('Error fetching dependencies metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve dependencies metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get test results metrics
+ * Returns test results metrics for the project
+ */
+apiRoutes.get('/metrics/test-results', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.testResults);
+  } catch (error) {
+    console.error('Error fetching test results metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve test results metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Refresh all metrics
+ * Forces a recalculation of all metrics
+ */
+apiRoutes.post('/metrics/refresh', async (req: Request, res: Response) => {
+  try {
+    const metrics = await refreshMetrics();
+    res.json({ success: true, metrics });
+  } catch (error) {
+    console.error('Error refreshing metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to refresh metrics',
       message: error instanceof Error ? error.message : 'Unknown error' 
     });
   }

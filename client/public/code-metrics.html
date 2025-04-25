@@ -221,14 +221,44 @@
             max-height: 300px;
             overflow-y: auto;
         }
+        
+        .header-controls {
+            margin-top: 10px;
+        }
+        
+        .refresh-button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .refresh-button:hover {
+            background-color: var(--info);
+        }
+        
+        .refresh-button:active {
+            transform: translateY(1px);
+        }
     </style>
 </head>
 <body>
     <header>
         <h1>Benedictaitor - Code Quality Dashboard</h1>
+        <div class="header-controls">
+            <button id="refresh-metrics" class="refresh-button">Refresh Metrics</button>
+        </div>
     </header>
     
     <div class="container">
+        <div id="loading-indicator" class="loading-indicator" style="display: none;">
+            <div class="spinner"></div>
+            <div>Loading metrics data...</div>
+        </div>
         <div class="summary-box">
             <div class="summary-item">
                 <div id="coverage-summary" class="summary-number good-text">78%</div>

@@ -546,157 +546,73 @@ class CodeMetricsCollector {
    */
   async loadMetrics(projectRoot = '.') {
     try {
-      // In a real implementation, this would call the API endpoints
-      // that gather metrics data from Jest, ESLint, etc.
+      // Fetch all metrics from our API
+      const response = await fetch('/api/metrics');
       
-      // For demo purposes, we'll use mock data
-      this.updateCoverageMetrics({
-        overall: 78,
-        line: 82,
-        branch: 69,
-        function: 85,
-        byModule: {
-          'client/src/lib/websocket.ts': {
-            line: 92,
-            branch: 87,
-            function: 95
-          },
-          'server/services/WebSocketServer.ts': {
-            line: 85,
-            branch: 78,
-            function: 90
-          },
-          'server/services/TranslationService.ts': {
-            line: 75,
-            branch: 65,
-            function: 82
-          },
-          'server/openai.ts': {
-            line: 67,
-            branch: 55,
-            function: 80
-          },
-          'server/openai-streaming.ts': {
-            line: 61,
-            branch: 52,
-            function: 72
-          }
-        }
-      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to fetch metrics: ${errorData.message || response.statusText}`);
+      }
       
-      this.updateComplexityMetrics({
-        average: 4.2,
-        max: 12,
-        nesting: {
-          max: 3,
-          average: 2.1
-        },
-        functionLength: {
-          average: 28,
-          distribution: {
-            "1-10": 24,
-            "11-20": 28,
-            "21-40": 18,
-            "41+": 4
-          }
-        },
-        functions: [
-          {
-            name: 'processStreamingAudio',
-            complexity: 12,
-            length: 45,
-            nesting: 4
-          },
-          {
-            name: 'WebSocketClient.connect',
-            complexity: 8,
-            length: 65,
-            nesting: 3
-          },
-          {
-            name: 'TranslationService.translateText',
-            complexity: 7,
-            length: 38,
-            nesting: 3
-          },
-          {
-            name: 'finalizeStreamingSession',
-            complexity: 6,
-            length: 32,
-            nesting: 2
-          },
-          {
-            name: 'processAudioChunks',
-            complexity: 5,
-            length: 27,
-            nesting: 2
-          }
-        ]
-      });
+      const metrics = await response.json();
       
-      this.updateCodeSmellsMetrics({
-        total: 10,
-        types: {
-          'Magic Numbers': {
-            count: 4,
-            severity: 'warning'
-          },
-          'Duplicate Code': {
-            count: 3,
-            severity: 'good'
-          },
-          'Long Methods': {
-            count: 2,
-            severity: 'warning'
-          },
-          'Circular Dependencies': {
-            count: 1,
-            severity: 'poor'
-          }
-        }
-      });
+      // Update each metric section with the fetched data
+      this.updateCoverageMetrics(metrics.coverage);
+      this.updateComplexityMetrics(metrics.complexity);
+      this.updateCodeSmellsMetrics(metrics.codeSmells);
+      this.updateDuplicationMetrics(metrics.duplication);
+      this.updateDependenciesMetrics(metrics.dependencies);
+      this.updateTestResultsMetrics(metrics.testResults);
       
-      this.updateDuplicationMetrics({
-        percentage: 2.5,
-        instances: [
-          {
-            file1: 'server/openai.ts',
-            file2: 'server/openai-streaming.ts',
-            lines: 12
-          },
-          {
-            file1: 'client/src/lib/websocket.ts',
-            file2: 'tests/unit/client/websocket.test.ts',
-            lines: 8
-          },
-          {
-            file1: 'server/routes.ts',
-            file2: 'server/services/WebSocketServer.ts',
-            lines: 5
-          }
-        ]
-      });
-      
-      this.updateTestResultsMetrics({
-        unit: {
-          total: 42,
-          passed: 40,
-          failed: 2
-        },
-        integration: {
-          total: 18,
-          passed: 17,
-          failed: 1
-        },
-        e2e: {
-          total: 5,
-          passed: 4,
-          failed: 1
-        }
-      });
-      
+      console.log('Metrics loaded successfully');
     } catch (error) {
       console.error('Error loading metrics:', error);
+      
+      // Fallback to use cached data if it exists, otherwise show error
+      if (this.metrics.coverage.overall === 0) {
+        // No data has been loaded yet, show error
+        alert('Failed to load metrics data. Please check the console for details and try again.');
+      }
+    }
+  }
+  
+  /**
+   * Refresh metrics data from API
+   * @returns {Promise<void>}
+   */
+  async refreshMetrics() {
+    try {
+      // Call the API endpoint to refresh metrics
+      const response = await fetch('/api/metrics/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to refresh metrics: ${errorData.message || response.statusText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Update each metric section with the fresh data
+        this.updateCoverageMetrics(result.metrics.coverage);
+        this.updateComplexityMetrics(result.metrics.complexity);
+        this.updateCodeSmellsMetrics(result.metrics.codeSmells);
+        this.updateDuplicationMetrics(result.metrics.duplication);
+        this.updateDependenciesMetrics(result.metrics.dependencies);
+        this.updateTestResultsMetrics(result.metrics.testResults);
+        
+        console.log('Metrics refreshed successfully');
+      } else {
+        throw new Error('Failed to refresh metrics: Unknown error');
+      }
+    } catch (error) {
+      console.error('Error refreshing metrics:', error);
+      alert('Failed to refresh metrics data. Please check the console for details and try again.');
     }
   }
 }
@@ -727,4 +643,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById(tabId).classList.add('active');
     });
   });
+  
+  // Set up the refresh button functionality
+  const refreshButton = document.getElementById('refresh-metrics');
+  if (refreshButton) {
+    refreshButton.addEventListener('click', async () => {
+      refreshButton.disabled = true;
+      refreshButton.textContent = 'Refreshing...';
+      
+      try {
+        await metricsCollector.refreshMetrics();
+        refreshButton.textContent = 'Metrics Updated!';
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+          refreshButton.disabled = false;
+          refreshButton.textContent = 'Refresh Metrics';
+        }, 2000);
+      } catch (error) {
+        console.error('Error refreshing metrics:', error);
+        refreshButton.textContent = 'Refresh Failed';
+        
+        // Reset button after 2 seconds
+        setTimeout(() => {
+          refreshButton.disabled = false;
+          refreshButton.textContent = 'Refresh Metrics';
+        }, 2000);
+      }
+    });
+  }
 });
