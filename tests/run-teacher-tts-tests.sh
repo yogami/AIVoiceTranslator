@@ -27,7 +27,7 @@ fi
 
 # Run the tests
 echo -e "${YELLOW}Running teacher TTS service selection tests...${NC}"
-APP_URL=http://localhost:5000 npm test -- tests/e2e/teacher-tts-selection.test.js
+APP_URL=http://localhost:5000 NODE_ENV=test npx jest tests/e2e/teacher-tts-selection.test.js
 TEST_STATUS=$?
 
 # Update test metrics (if applicable)
