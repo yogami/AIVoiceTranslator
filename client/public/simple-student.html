@@ -351,7 +351,8 @@
                 
                 socket.onmessage = function(event) {
                     const message = JSON.parse(event.data);
-                    log('Received message: ' + JSON.stringify(message));
+                    log('Received message: ' + JSON.stringify(message).substring(0, 200) + 
+                        (JSON.stringify(message).length > 200 ? '... (truncated)' : ''));
                     
                     // Handle connection message with session ID
                     if (message.type === 'connection' && message.sessionId) {
@@ -361,7 +362,23 @@
                     
                     // Handle translation message
                     if (message.type === 'translation') {
-                        displayTranslation(message.text, message.sourceLanguage, message.targetLanguage, message.originalText);
+                        // Check if this is audio data from a server TTS service
+                        const hasAudioData = message.audioData && message.audioData.length > 0;
+                        const useClientSpeech = message.useClientSpeech === true;
+                        const ttsServiceType = message.ttsServiceType || 'browser';
+                        
+                        log(`Received translation with TTS service: ${ttsServiceType}, hasAudio: ${hasAudioData}, useClientSpeech: ${useClientSpeech}`);
+                        
+                        // Display the translation text and handle audio depending on the service type
+                        displayTranslation(
+                            message.text, 
+                            message.sourceLanguage, 
+                            message.targetLanguage, 
+                            message.originalText,
+                            hasAudioData ? message.audioData : null,
+                            useClientSpeech,
+                            ttsServiceType
+                        );
                     }
                     
                     // Add message to UI
@@ -387,18 +404,35 @@
                 return;
             }
             
+            // Get the currently selected TTS service
+            const ttsService = document.getElementById('tts-service').value;
+            
             const message = {
                 type: 'register',
                 role: 'student',
-                languageCode: languageCode
+                languageCode: languageCode,
+                settings: {
+                    ttsServiceType: ttsService
+                }
             };
             
-            log(`Registering as student with language ${languageCode}`);
+            log(`Registering as student with language ${languageCode} and TTS service ${ttsService}`);
             socket.send(JSON.stringify(message));
-            showSuccess(`Receiving translations in ${getLanguageName(languageCode)}`);
+            showSuccess(`Receiving translations in ${getLanguageName(languageCode)} using ${getTtsServiceName(ttsService)}`);
             
             // Update UI to show active language
             updateActiveLanguage(languageCode);
+        }
+        
+        // Get a user-friendly name for the TTS service
+        function getTtsServiceName(serviceType) {
+            const serviceNames = {
+                'browser': 'Browser Speech',
+                'openai': 'OpenAI TTS (Emotions)',
+                'silent': 'Silent Mode'
+            };
+            
+            return serviceNames[serviceType] || serviceType;
         }
         
         function updateConnectionUI(connected) {
@@ -420,8 +454,10 @@
             }
         }
         
-        function displayTranslation(text, sourceLanguage, targetLanguage, originalText) {
+        function displayTranslation(text, sourceLanguage, targetLanguage, originalText, audioData = null, useClientSpeech = false, ttsServiceType = 'browser') {
             const translationBox = document.getElementById('translation-box');
+            const audio = document.getElementById('audio-player');
+            const playButton = document.getElementById('play-button');
             
             // Create HTML with both original and translated text
             let html = '';
@@ -429,6 +465,11 @@
                 html += `<p style="color: #777; font-size: 0.9em; margin-bottom: 5px;">Original: "${originalText}"</p>`;
             }
             html += `<p style="font-size: 1.2em; font-weight: bold;">${text}</p>`;
+            
+            // Add a label showing which TTS service is being used
+            html += `<p style="color: #666; font-size: 0.8em; text-align: right; margin-top: 5px;">
+                        Audio: ${getTtsServiceName(ttsServiceType)}
+                     </p>`;
             
             translationBox.innerHTML = html;
             
@@ -451,8 +492,62 @@
                 document.head.appendChild(style);
             }
             
-            // Generate speech from the translated text and update audio element
-            generateSpeechFromText(text, targetLanguage);
+            // Handle audio based on the TTS service type
+            if (ttsServiceType === 'silent') {
+                // Silent mode - disable audio playback
+                playButton.disabled = true;
+                playButton.innerHTML = '<span class="play-icon">🔇</span> Audio Disabled';
+                log('Silent mode active, no audio playback');
+            } else if (audioData && audioData.length > 0) {
+                // We have server-generated audio data (base64 encoded)
+                try {
+                    log('Received server-generated audio data, preparing for playback');
+                    
+                    // Convert base64 to a blob
+                    const binaryString = atob(audioData);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    // Create blob and URL
+                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); // Assume MP3 from OpenAI
+                    const audioURL = URL.createObjectURL(blob);
+                    
+                    // Set up audio element and play button
+                    audio.src = audioURL;
+                    playButton.disabled = false;
+                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                    
+                    // Set up click handler for play button
+                    playButton.onclick = () => {
+                        log('Playing server-generated audio');
+                        audio.play();
+                        
+                        // Visual feedback during playback
+                        playButton.style.backgroundColor = '#e74c3c';
+                        playButton.innerHTML = '<span class="play-icon">🔊</span> Playing...';
+                        
+                        // Reset button when done
+                        audio.onended = () => {
+                            playButton.style.backgroundColor = '';
+                            playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                        };
+                    };
+                    
+                    showSuccess('Server-generated audio ready to play');
+                } catch (error) {
+                    log('Error processing audio data: ' + error.message);
+                    // Fall back to browser speech synthesis
+                    generateSpeechFromText(text, targetLanguage);
+                }
+            } else if (useClientSpeech) {
+                // Explicitly instructed to use client speech synthesis
+                generateSpeechFromText(text, targetLanguage);
+            } else {
+                // Default to browser speech synthesis
+                generateSpeechFromText(text, targetLanguage);
+            }
         }
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
@@ -620,6 +715,8 @@
             const connectBtn = document.getElementById('connect-btn');
             const disconnectBtn = document.getElementById('disconnect-btn');
             const languageSelect = document.getElementById('language-select');
+            const ttsServiceSelect = document.getElementById('tts-service');
+            const applyTtsBtn = document.getElementById('apply-tts-btn');
             
             connectBtn.addEventListener('click', connectWebSocket);
             disconnectBtn.addEventListener('click', disconnectWebSocket);
@@ -628,6 +725,20 @@
                 selectedLanguage = this.value;
                 if (isConnected) {
                     registerAsStudent(selectedLanguage);
+                }
+            });
+            
+            // TTS service selection button
+            applyTtsBtn.addEventListener('click', function() {
+                const ttsService = ttsServiceSelect.value;
+                log(`Applying TTS service: ${ttsService}`);
+                
+                if (isConnected) {
+                    // Re-register with the new TTS service setting
+                    registerAsStudent(selectedLanguage);
+                    showSuccess(`TTS service changed to ${getTtsServiceName(ttsService)}`);
+                } else {
+                    showError('Connect to classroom first before changing TTS service');
                 }
             });
             
@@ -644,7 +755,7 @@
                 });
             });
             
-            log('Student page initialized');
+            log('Student page initialized with TTS service options');
         });
     </script>
 </body>
