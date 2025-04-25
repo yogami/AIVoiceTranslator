@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Auto-Play Test</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #3b82f6;
+            margin-top: 0;
+        }
+        
+        .test-panel {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #f9fafb;
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        button {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        button:hover {
+            background-color: #2563eb;
+        }
+        
+        button:disabled {
+            background-color: #93c5fd;
+            cursor: not-allowed;
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+        
+        .result-box {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 15px;
+            background-color: white;
+            min-height: 150px;
+            max-height: 250px;
+            overflow: auto;
+        }
+        
+        .log-item {
+            margin-bottom: 5px;
+            font-family: monospace;
+            border-bottom: 1px solid #f3f4f6;
+            padding-bottom: 5px;
+        }
+        
+        .success {
+            color: #10b981;
+        }
+        
+        .error {
+            color: #ef4444;
+        }
+        
+        .info {
+            color: #6366f1;
+        }
+        
+        select {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+        }
+    </style>
+</head>
+<body>
+    <h1>TTS Auto-Play Test</h1>
+    <p>This page tests if browser speech synthesis auto-plays properly when the autoPlay flag is set to true.</p>
+    
+    <div class="test-panel">
+        <h2>Test Config</h2>
+        <div class="test-controls">
+            <select id="language-select">
+                <option value="en-US">English (US)</option>
+                <option value="es-ES">Spanish</option>
+                <option value="fr-FR">French</option>
+                <option value="de-DE">German</option>
+                <option value="it-IT">Italian</option>
+                <option value="zh-CN">Chinese</option>
+                <option value="ja-JP">Japanese</option>
+            </select>
+            <select id="autoplay-select">
+                <option value="true">Auto-Play: ON</option>
+                <option value="false">Auto-Play: OFF</option>
+            </select>
+        </div>
+        
+        <textarea id="test-text" rows="3" placeholder="Enter text to speak...">This is a test of the browser speech synthesis auto-play feature.</textarea>
+        
+        <div class="test-controls">
+            <button id="test-button">Run Test</button>
+            <button id="clear-log">Clear Log</button>
+        </div>
+    </div>
+    
+    <div class="test-panel">
+        <h2>Test Results</h2>
+        <div id="log" class="result-box"></div>
+    </div>
+    
+    <script>
+        // Log function
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('log');
+            const logItem = document.createElement('div');
+            logItem.classList.add('log-item', type);
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(logItem);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Test browser speech synthesis
+        async function testSpeech() {
+            const text = document.getElementById('test-text').value.trim();
+            const languageCode = document.getElementById('language-select').value;
+            const autoPlay = document.getElementById('autoplay-select').value === 'true';
+            
+            if (!text) {
+                log('Please enter text to test speech synthesis', 'error');
+                return;
+            }
+            
+            if (!('speechSynthesis' in window)) {
+                log('Speech synthesis not supported in this browser', 'error');
+                return;
+            }
+            
+            log(`Testing speech synthesis with:`, 'info');
+            log(`- Text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`, 'info');
+            log(`- Language: ${languageCode}`, 'info');
+            log(`- Auto-Play: ${autoPlay ? 'ON' : 'OFF'}`, 'info');
+            
+            // Create speech params object (mimicking what our server would send)
+            const speechParams = {
+                type: 'browser-speech',
+                text: text,
+                languageCode: languageCode,
+                preserveEmotions: true,
+                speed: 1.0,
+                autoPlay: autoPlay
+            };
+            
+            log('Speech params created: ' + JSON.stringify(speechParams), 'info');
+            
+            // Create utterance
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = languageCode;
+            
+            // Log events
+            utterance.onstart = () => {
+                log('Speech started', 'success');
+            };
+            
+            utterance.onend = () => {
+                log('Speech ended', 'success');
+            };
+            
+            utterance.onerror = (event) => {
+                log('Speech error: ' + event.error, 'error');
+            };
+            
+            // Mimic the client processing
+            if (speechParams.autoPlay) {
+                log('Auto-play is ON - speaking automatically', 'info');
+                window.speechSynthesis.speak(utterance);
+            } else {
+                log('Auto-play is OFF - speech ready but not automatic', 'info');
+                log('Click the button below to play:', 'info');
+                
+                // Create play button
+                const playButton = document.createElement('button');
+                playButton.textContent = 'Play Speech';
+                playButton.style.marginTop = '10px';
+                playButton.onclick = () => {
+                    log('Manual play button clicked', 'info');
+                    window.speechSynthesis.speak(utterance);
+                };
+                
+                document.getElementById('log').appendChild(playButton);
+            }
+        }
+        
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Test button
+            document.getElementById('test-button').addEventListener('click', testSpeech);
+            
+            // Clear log button
+            document.getElementById('clear-log').addEventListener('click', function() {
+                document.getElementById('log').innerHTML = '';
+                log('Log cleared', 'info');
+            });
+            
+            // Log initial state
+            log('Page loaded. Ready to test speech synthesis.', 'info');
+            log('This test simulates our implementation for TTS auto-play.', 'info');
+        });
+    </script>
+</body>
+</html>
