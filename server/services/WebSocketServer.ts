@@ -375,6 +375,7 @@ export class WebSocketServer {
           
           if (bufferStart.startsWith('{"type":"browser-speech"')) {
             // This is a marker for browser-based speech synthesis
+            console.log(`Using client browser speech synthesis for ${studentLanguage}`);
             translationMessage.useClientSpeech = true;
             try {
               translationMessage.speechParams = JSON.parse(bufferStart);
@@ -389,10 +390,18 @@ export class WebSocketServer {
           } else if (audioBuffer.length > 0) {
             // This is actual audio data - encode as base64
             translationMessage.audioData = audioBuffer.toString('base64');
+            translationMessage.useClientSpeech = false; // Explicitly set to false
+            
+            // Log audio data details for debugging
+            console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
+            console.log(`Using OpenAI TTS service for ${studentLanguage} (client preference: ${ttsServiceType})`);
+            console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
           }
         } catch (error) {
           console.error('Error processing audio data for translation:', error);
         }
+      } else {
+        console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
       }
       
       client.send(JSON.stringify(translationMessage));
