@@ -45,14 +45,30 @@ else
   exit 1
 fi
 
+# Determine which workflow to run
+if [ "$1" == "--tts-tests" ]; then
+  WORKFLOW="Teacher TTS Selection Tests"
+  WORKFLOW_DESC="Teacher TTS Selection Tests"
+else
+  WORKFLOW="CI/CD Pipeline"
+  WORKFLOW_DESC="CI/CD Pipeline"
+fi
+
 # Trigger workflow
-echo -e "Triggering workflow for repository: ${YELLOW}$REPO_INFO${NC}"
-gh workflow run "CI/CD Pipeline" --repo "$REPO_INFO"
+echo -e "Triggering ${YELLOW}$WORKFLOW_DESC${NC} workflow for repository: ${YELLOW}$REPO_INFO${NC}"
+gh workflow run "$WORKFLOW" --repo "$REPO_INFO"
 
 if [ $? -eq 0 ]; then
-  echo -e "${GREEN}✓ Successfully triggered CI/CD workflow${NC}"
+  echo -e "${GREEN}✓ Successfully triggered $WORKFLOW_DESC workflow${NC}"
   echo "Check the Actions tab on GitHub to monitor progress."
 else
-  echo -e "${RED}✗ Failed to trigger CI/CD workflow${NC}"
+  echo -e "${RED}✗ Failed to trigger $WORKFLOW_DESC workflow${NC}"
   exit 1
+fi
+
+# Display usage instructions
+if [ "$1" == "" ]; then
+  echo -e "\n${YELLOW}Available options:${NC}"
+  echo "  ./ci-cd-trigger.sh          - Run the full CI/CD pipeline"
+  echo "  ./ci-cd-trigger.sh --tts-tests - Run only the Teacher TTS Selection tests"
 fi
