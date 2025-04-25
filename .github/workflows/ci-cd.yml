@@ -93,20 +93,70 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Make Selenium test script executable
-        run: chmod +x tests/run-selenium-tests.sh
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
       
-      - name: Run Selenium tests against deployed app
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Make Selenium test scripts executable
+        run: |
+          chmod +x tests/run-selenium-tests.sh
+          chmod +x tests/run-audio-e2e-tests.sh
+      
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" | sudo tee -a /etc/apt/sources.list.d/google.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+          google-chrome --version
+      
+      - name: Install ChromeDriver
+        run: |
+          CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
+          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+          curl -Lo chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+          unzip chromedriver.zip
+          chmod +x chromedriver
+          sudo mv chromedriver /usr/local/bin/
+          chromedriver --version
+      
+      - name: Install Audio Support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2 libasound2-plugins alsa-utils alsa-oss
+          sudo modprobe snd-dummy || echo "snd-dummy module not available, using alternative approach"
+          # Create a virtual audio device
+          echo "options snd-dummy enable=1,1,1,1,1 index=0" | sudo tee -a /etc/modprobe.d/alsa-dummy.conf || true
+      
+      - name: Set up Xvfb for browser display
+        run: |
+          export DISPLAY=:99
+          sudo Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
+      
+      - name: Run Basic UI Selenium tests
         run: sudo APP_URL=${{ env.APP_URL }} ./tests/run-selenium-tests.sh
         env:
           APP_URL: https://AIVoiceTranslator.replit.app
+          DISPLAY: :99
+      
+      - name: Run Audio E2E Selenium tests
+        run: sudo APP_URL=${{ env.APP_URL }} ./tests/run-audio-e2e-tests.sh
+        env:
+          APP_URL: https://AIVoiceTranslator.replit.app
+          DISPLAY: :99
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       
       - name: Report Selenium test results
         run: |
           if [ $? -eq 0 ]; then
-            echo "✅ Selenium tests passed successfully!"
+            echo "✅ All Selenium tests passed successfully!"
           else
-            echo "❌ Selenium tests failed. Check the logs for details."
+            echo "❌ Some Selenium tests failed. Check the logs for details."
             exit 1
           fi
       
