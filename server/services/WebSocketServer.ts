@@ -610,9 +610,6 @@ export class WebSocketServer {
   }
   
   /**
-   * Handle ping message
-   */
-  /**
    * Handle settings message
    * 
    * Updates client settings such as TTS service type
@@ -648,6 +645,9 @@ export class WebSocketServer {
     ws.send(JSON.stringify(response));
   }
 
+  /**
+   * Handle ping message
+   */
   private handlePingMessage(ws: WebSocketClient, message: any): void {
     // Respond with pong message
     const response = {
