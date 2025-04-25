@@ -5,7 +5,7 @@
  */
 import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
-import { TranslationService } from './TranslationService';
+import { speechTranslationService } from './TranslationService';
 import { URL } from 'url';
 
 // Custom WebSocketClient type for our server
@@ -19,7 +19,7 @@ type WebSocketClient = WebSocket & {
 
 export class WebSocketServer {
   private wss: WSServer;
-  private translationService: TranslationService;
+  // We use the speechTranslationService facade
   
   // Connection tracking
   private connections: Set<WebSocketClient> = new Set();
@@ -43,8 +43,7 @@ export class WebSocketServer {
       }
     });
     
-    // Initialize translation service
-    this.translationService = new TranslationService();
+    // We now use the imported speechTranslationService instead of creating a new instance
     
     // Set up event handlers
     this.setupEventHandlers();
@@ -272,11 +271,26 @@ export class WebSocketServer {
     
     // Translate text to all student languages
     const teacherLanguage = this.languages.get(ws) || 'en-US';
-    const translations = await this.translationService.translateTextToMultipleLanguages(
-      message.text,
-      teacherLanguage,
-      studentLanguages
-    );
+    
+    // Using our new speechTranslationService to perform translations
+    // This is a simplified implementation as we don't have translateTextToMultipleLanguages in the service
+    const translations: Record<string, string> = {};
+    
+    // Translate for each language
+    for (const targetLanguage of studentLanguages) {
+      try {
+        const result = await speechTranslationService.translateSpeech(
+          Buffer.from(''), // Empty buffer as we already have the text
+          teacherLanguage,
+          targetLanguage,
+          message.text // Use the pre-transcribed text
+        );
+        translations[targetLanguage] = result.translatedText;
+      } catch (error) {
+        console.error(`Error translating to ${targetLanguage}:`, error);
+        translations[targetLanguage] = message.text; // Fallback to original text
+      }
+    }
     
     // Send translations to students
     studentConnections.forEach(client => {
