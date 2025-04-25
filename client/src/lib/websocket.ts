@@ -1,7 +1,23 @@
 /**
  * WebSocketClient for Benedictaitor
- * Implementation with proper dependency injection
+ * Implementation with proper dependency injection following SOLID principles:
+ * - Single Responsibility: Each class has a specific purpose
+ * - Open/Closed: Extensible through factories and interfaces
+ * - Liskov Substitution: Implementations are substitutable
+ * - Interface Segregation: Clear interfaces define client needs
+ * - Dependency Inversion: High-level modules depend on abstractions
  */
+
+/**
+ * WebSocket connection states
+ * Using a constant enum for better type safety and readability
+ */
+export const WebSocketState = {
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSING: 2,
+  CLOSED: 3
+};
 
 export type UserRole = 'teacher' | 'student';
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -174,7 +190,7 @@ export class WebSocketClient implements IWebSocketClient {
 
     this.cleanupConnection();
 
-    if (this.ws.readyState === WebSocket.OPEN) {
+    if (this.ws.readyState === WebSocketState.OPEN) {
       this.ws.close(1000, 'Client disconnected');
     }
   }
@@ -183,7 +199,7 @@ export class WebSocketClient implements IWebSocketClient {
    * Register role and language preference
    */
   public register(role: UserRole, languageCode: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    if (!this.ws || this.ws.readyState !== WebSocketState.OPEN) {
       console.warn('[WebSocketClient] Cannot register - not connected');
       return;
     }
