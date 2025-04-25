@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 
 # Print header
 echo -e "${GREEN}=====================================${NC}"
-echo -e "${GREEN}    Benedictaitor Metrics Tests     ${NC}"
+echo -e "${GREEN}  AIVoiceTranslator Metrics Tests   ${NC}"
 echo -e "${GREEN}=====================================${NC}"
 
 echo -e "\n${YELLOW}Testing Metrics API Endpoints...${NC}"

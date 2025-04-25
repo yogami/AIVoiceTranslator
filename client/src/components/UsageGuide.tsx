@@ -6,7 +6,7 @@ const UsageGuide: React.FC = () => {
   return (
     <Card className="bg-white border shadow-sm">
       <CardContent className="p-6">
-        <h2 className="text-xl font-bold mb-4">How to Use Benedictaitor</h2>
+        <h2 className="text-xl font-bold mb-4">How to Use AIVoiceTranslator</h2>
         
         <div className="mb-6 text-sm text-gray-600">
           Follow these steps to use our lightweight multilingual classroom translation system:

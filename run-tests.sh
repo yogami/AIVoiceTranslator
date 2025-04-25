@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Run tests script for Benedictaitor
+# Run tests script for AIVoiceTranslator
 # This script provides a convenient way to run different levels of tests
 # according to the testing pyramid
 
@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 
 # Print header
 echo -e "${GREEN}=====================================${NC}"
-echo -e "${GREEN}    Benedictaitor Test Runner       ${NC}"
+echo -e "${GREEN}    AIVoiceTranslator Test Runner   ${NC}"
 echo -e "${GREEN}=====================================${NC}"
 
 # Function to run unit tests

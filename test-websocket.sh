@@ -8,7 +8,7 @@ NC='\033[0m' # No Color
 
 # Print header
 echo -e "${GREEN}=====================================${NC}"
-echo -e "${GREEN}   Benedictaitor WebSocket Tests    ${NC}"
+echo -e "${GREEN} AIVoiceTranslator WebSocket Tests  ${NC}"
 echo -e "${GREEN}=====================================${NC}"
 
 echo -e "\n${YELLOW}Testing WebSocket Client...${NC}"
