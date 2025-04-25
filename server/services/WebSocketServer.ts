@@ -224,13 +224,17 @@ export class WebSocketServer {
       this.languages.set(ws, message.languageCode);
     }
     
-    // Store client settings
-    const settings: any = this.clientSettings.get(ws) || {};
+    // Store client settings with OpenAI as default TTS service
+    const settings: any = this.clientSettings.get(ws) || { ttsServiceType: 'openai' };
     
     // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
       settings.ttsServiceType = message.settings.ttsServiceType;
       console.log(`Client requested TTS service type: ${settings.ttsServiceType}`);
+    } else if (!settings.ttsServiceType) {
+      // Ensure we have a default TTS service (OpenAI)
+      settings.ttsServiceType = 'openai';
+      console.log(`Setting default TTS service type to OpenAI (more reliable than browser speech synthesis)`);
     }
     
     // Store updated settings
@@ -308,8 +312,8 @@ export class WebSocketServer {
     
     for (const targetLanguage of studentLanguages) {
       try {
-        // Get the teacher's preferred TTS service type
-        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+        // Get the teacher's preferred TTS service type (default to OpenAI for reliability)
+        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'openai';
         
         // Look for the teacher's TTS service preference
         this.connections.forEach(client => {
@@ -481,6 +485,7 @@ export class WebSocketServer {
   private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
     const role = this.roles.get(ws);
     const languageCode = message.languageCode || this.languages.get(ws);
+    // Use OpenAI as default TTS service (more reliable than browser speech synthesis)
     const ttsService = message.ttsService || 'openai';
     const text = message.text;
     
@@ -632,13 +637,17 @@ export class WebSocketServer {
     const role = this.roles.get(ws);
     console.log(`Processing settings update from ${role}:`, message);
     
-    // Get existing settings or create new object
-    const settings: any = this.clientSettings.get(ws) || {};
+    // Get existing settings or create new object with OpenAI as default TTS
+    const settings: any = this.clientSettings.get(ws) || { ttsServiceType: 'openai' };
     
     // Update TTS service type if provided
     if (message.ttsServiceType) {
       settings.ttsServiceType = message.ttsServiceType;
       console.log(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
+    } else if (!settings.ttsServiceType) {
+      // Ensure OpenAI is the default TTS service (more reliable than browser)
+      settings.ttsServiceType = 'openai';
+      console.log(`Setting default TTS service type to OpenAI for ${role}`);
     }
     
     // Store updated settings
