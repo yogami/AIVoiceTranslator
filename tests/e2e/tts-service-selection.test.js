@@ -11,9 +11,9 @@
  * - Clear naming conventions
  */
 
-const { Builder, By, until, logging } = require('selenium-webdriver');
-const chrome = require('selenium-webdriver/chrome');
-const assert = require('assert');
+import { Builder, By, until, logging } from 'selenium-webdriver';
+import chrome from 'selenium-webdriver/chrome.js';
+import assert from 'assert';
 
 // Set test configuration from environment or defaults
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';

@@ -27,9 +27,9 @@ fi
 echo -e "${YELLOW}Installing test dependencies...${NC}"
 npm install --no-save selenium-webdriver@4.14.0 mocha@10.2.0 chromedriver@115.0.0
 
-# Run the test with Mocha
+# Run the test with Mocha using Node.js ES modules
 echo -e "${YELLOW}Running TTS service selection tests...${NC}"
-APP_URL=$APP_URL npx mocha $TEST_FILE --timeout 60000 --reporter spec
+NODE_OPTIONS="--experimental-vm-modules" APP_URL=$APP_URL npx mocha $TEST_FILE --timeout 60000 --reporter spec
 
 # Capture exit code
 EXIT_CODE=$?
