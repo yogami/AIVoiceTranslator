@@ -1,5 +1,5 @@
 /**
- * WebSocketClient for Benedictaitor
+ * WebSocketClient for AIVoiceTranslator
  * Implementation with proper dependency injection following SOLID principles:
  * - Single Responsibility: Each class has a specific purpose
  * - Open/Closed: Extensible through factories and interfaces
