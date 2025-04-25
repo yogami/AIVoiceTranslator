@@ -173,6 +173,10 @@ export class WebSocketServer {
         case 'transcription':
           await this.handleTranscriptionMessage(ws, message);
           break;
+        
+        case 'tts_request':
+          await this.handleTTSRequestMessage(ws, message);
+          break;
           
         case 'audio':
           await this.handleAudioMessage(ws, message);
@@ -431,6 +435,79 @@ export class WebSocketServer {
     // Since we're using Web Speech API on the client side, this is just a fallback
     
     console.warn(`⚠️ No Web Speech API transcription found for ${teacherSessionId}, cannot process audio`);
+  }
+  
+  /**
+   * Handle TTS request message
+   */
+  private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
+    const role = this.roles.get(ws);
+    const languageCode = message.languageCode || this.languages.get(ws);
+    const ttsService = message.ttsService || 'openai';
+    const text = message.text;
+    
+    console.log(`Received TTS request from ${role} for service ${ttsService} in language ${languageCode}`);
+    
+    if (!text || !languageCode) {
+      console.error('Missing required parameters for TTS request');
+      return;
+    }
+    
+    try {
+      // Save current TTS service type
+      const originalTtsType = process.env.TTS_SERVICE_TYPE || 'browser';
+      
+      // Set requested TTS service for this request
+      process.env.TTS_SERVICE_TYPE = ttsService;
+      
+      // Use the translation service to generate speech audio
+      // Using translateSpeech with empty buffer, passing only the text
+      const result = await speechTranslationService.translateSpeech(
+        Buffer.from(''), // Empty buffer since we have the text
+        'en-US', // Source language doesn't matter for TTS
+        languageCode,
+        text // The text to synthesize
+      );
+      
+      // Restore original TTS service type
+      process.env.TTS_SERVICE_TYPE = originalTtsType;
+      
+      // Create response message with audio data
+      const response: any = {
+        type: 'tts_response',
+        text: text,
+        ttsService: ttsService,
+        languageCode: languageCode,
+        success: true
+      };
+      
+      // Add audio data if available
+      if (result && result.audioBuffer && result.audioBuffer.length > 0) {
+        response.audioData = result.audioBuffer.toString('base64');
+      } else {
+        console.warn(`No audio data generated for TTS request with service ${ttsService}`);
+        response.success = false;
+        response.error = 'No audio data generated';
+      }
+      
+      // Send response back to the client
+      ws.send(JSON.stringify(response));
+      
+    } catch (error) {
+      console.error(`Error processing TTS request with service ${ttsService}:`, error);
+      
+      // Send error response
+      const errorResponse = {
+        type: 'tts_response',
+        text: text,
+        ttsService: ttsService,
+        languageCode: languageCode,
+        success: false,
+        error: error.message
+      };
+      
+      ws.send(JSON.stringify(errorResponse));
+    }
   }
   
   /**

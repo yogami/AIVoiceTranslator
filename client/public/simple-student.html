@@ -1010,6 +1010,34 @@
             const languageSelect = document.getElementById('language-select');
             const applyTtsSettings = document.getElementById('apply-tts-settings');
             const currentTtsService = document.getElementById('current-tts-service');
+            const refreshComparisonBtn = document.getElementById('refresh-comparison');
+            
+            // Setup TTS service play demo buttons
+            document.querySelectorAll('.play-demo-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const ttsService = this.getAttribute('data-service');
+                    log(`Play demo button clicked for TTS service: ${ttsService}`);
+                    
+                    // Select the radio button for this service
+                    document.querySelector(`input[name="tts-service"][value="${ttsService}"]`).checked = true;
+                    
+                    // Play the current translation with this TTS service
+                    playWithTTSService(ttsService);
+                });
+            });
+            
+            // Set up audio comparison handling
+            window.audioCache = window.audioCache || {};
+            window.lastTranslationData = null;
+            
+            // Setup refresh comparison button
+            if (refreshComparisonBtn) {
+                refreshComparisonBtn.addEventListener('click', function() {
+                    log('Refreshing audio comparison panel');
+                    updateAudioComparison();
+                    document.getElementById('audio-comparison').style.display = 'block';
+                });
+            }
             
             connectBtn.addEventListener('click', connectWebSocket);
             disconnectBtn.addEventListener('click', disconnectWebSocket);
