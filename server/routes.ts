@@ -2,49 +2,99 @@
  * API Routes
  * 
  * Express routes for the API
+ * Follows Clean Code principles:
+ * - Single Responsibility Principle: Each handler does one thing
+ * - DRY: Constants are defined once and reused
+ * - Explicit error handling with try/catch
  */
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
+import { storage } from './storage';
 
 export const apiRoutes = Router();
 
-// Get available languages
-apiRoutes.get('/languages', (req, res) => {
-  // Return a list of supported languages
-  const languages = [
-    { id: 1, code: 'en-US', name: 'English (US)', isActive: true },
-    { id: 2, code: 'es-ES', name: 'Spanish (Spain)', isActive: true },
-    { id: 3, code: 'fr-FR', name: 'French (France)', isActive: true },
-    { id: 4, code: 'de-DE', name: 'German (Germany)', isActive: true },
-    { id: 5, code: 'it-IT', name: 'Italian (Italy)', isActive: true },
-    { id: 6, code: 'pt-BR', name: 'Portuguese (Brazil)', isActive: true },
-    { id: 7, code: 'zh-CN', name: 'Chinese (Simplified)', isActive: true },
-    { id: 8, code: 'ja-JP', name: 'Japanese (Japan)', isActive: true },
-    { id: 9, code: 'ru-RU', name: 'Russian (Russia)', isActive: true },
-    { id: 10, code: 'ar-SA', name: 'Arabic (Saudi Arabia)', isActive: true },
-  ];
-  
-  res.json(languages);
+// SOLID: Single Responsibility - Each handler has one specific task
+// Each route is explicitly typed for better code safety
+
+/**
+ * Get available languages
+ * Returns a list of supported languages from the storage
+ */
+apiRoutes.get('/languages', async (req: Request, res: Response) => {
+  try {
+    // Retrieve languages from the storage service
+    const languages = await storage.getLanguages();
+    
+    res.json(languages);
+  } catch (error) {
+    console.error('Error fetching languages:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve languages',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
 });
 
-// Health check endpoint
-apiRoutes.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
+/**
+ * Get active languages
+ * Returns only languages that are marked as active
+ */
+apiRoutes.get('/languages/active', async (req: Request, res: Response) => {
+  try {
+    // Retrieve only active languages
+    const activeLanguages = await storage.getActiveLanguages();
+    
+    res.json(activeLanguages);
+  } catch (error) {
+    console.error('Error fetching active languages:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve active languages',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
 });
 
-// Basic user info for testing
-apiRoutes.get('/user', (req, res) => {
-  // This would normally be authenticated
-  res.json({
-    id: 1,
-    name: 'Test User',
-    role: 'teacher',
-    settings: {
-      preferredLanguage: 'en-US',
-      theme: 'light'
+/**
+ * Health check endpoint
+ * Returns basic server health information
+ */
+apiRoutes.get('/health', (req: Request, res: Response) => {
+  try {
+    // API versioning as a constant - Single source of truth
+    const API_VERSION = '1.0.0';
+    
+    res.json({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      version: API_VERSION,
+      database: 'connected', // We're using in-memory storage, so it's always connected
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    console.error('Error in health check:', error);
+    res.status(500).json({ error: 'Health check failed' });
+  }
+});
+
+/**
+ * Get user information
+ * In a real app, this would be authenticated
+ */
+apiRoutes.get('/user', async (req: Request, res: Response) => {
+  try {
+    // In a real application, we would retrieve the user ID from the auth token
+    // For now, just retrieve user #1 for testing
+    const user = await storage.getUser(1);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
-  });
+    
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve user',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
 });
