@@ -6,45 +6,42 @@ const ws = new WebSocket(wsUrl);
 ws.on('open', function open() {
   console.log('Connected to WebSocket server');
   
-  // Register as teacher
+  // Register as teacher with explicit browser TTS preference
   const registerMessage = {
     type: 'register',
     role: 'teacher',
     languageCode: 'en-US',
     settings: {
-      ttsServiceType: 'openai'
+      ttsServiceType: 'browser' // Explicitly request browser TTS
     }
   };
   
   ws.send(JSON.stringify(registerMessage));
-  console.log('Sent register message');
+  console.log('Sent register message with browser TTS preference');
   
-  // Wait a bit before sending settings update
+  // Wait a bit before sending a transcription with the browser TTS setting
   setTimeout(() => {
-    const settingsMessage = {
-      type: 'settings',
-      ttsServiceType: 'browser'
+    // Force log to check what TTS service is set in the server
+    const debugMessage = {
+      type: 'ping',
+      message: 'Checking current TTS service type before transcription'
+    };
+    ws.send(JSON.stringify(debugMessage));
+    
+    // Now send a transcription
+    const transcriptionMessage = {
+      type: 'transcription',
+      text: 'This is a test transcription that should use browser TTS',
     };
     
-    ws.send(JSON.stringify(settingsMessage));
-    console.log('Sent settings message to change TTS to browser');
+    ws.send(JSON.stringify(transcriptionMessage));
+    console.log('Sent test transcription that should use browser TTS');
     
-    // Wait a bit before sending a transcription
+    // Allow more time for the server to process before closing
     setTimeout(() => {
-      const transcriptionMessage = {
-        type: 'transcription',
-        text: 'This is a test transcription using browser TTS'
-      };
-      
-      ws.send(JSON.stringify(transcriptionMessage));
-      console.log('Sent test transcription');
-      
-      // Allow some time for the server to process, then close
-      setTimeout(() => {
-        ws.close();
-        console.log('Test completed');
-      }, 2000);
-    }, 1000);
+      ws.close();
+      console.log('Test completed');
+    }, 3000);
   }, 1000);
 });
 
