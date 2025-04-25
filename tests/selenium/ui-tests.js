@@ -1,126 +1,125 @@
-/**
- * AIVoiceTranslator Selenium UI Tests
- * 
- * This file contains Selenium WebDriver tests for the AIVoiceTranslator application.
- * These tests verify the UI functionality in a real browser environment.
- */
-
 const { Builder, By, Key, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
 
-// Configuration
-const APP_URL = process.env.APP_URL || 'https://aivoicetranslator.replit.app'; // Should be set in CI environment
-const TEST_TIMEOUT = 30000; // 30 seconds timeout for tests
+// Set up application URL - use environment variable or default
+const APP_URL = process.env.APP_URL || 'https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev';
+console.log(`Running tests against: ${APP_URL}`);
 
-/**
- * Test suite for AIVoiceTranslator
- */
+// Set up Chrome options for headless mode
+const options = new chrome.Options();
+options.addArguments('--headless');
+options.addArguments('--no-sandbox');
+options.addArguments('--disable-dev-shm-usage');
+
 describe('AIVoiceTranslator UI Tests', function() {
-  // Extend timeout for all tests
-  this.timeout(TEST_TIMEOUT);
-  
   let driver;
-  
-  // Set up WebDriver before tests
+
   before(async function() {
-    // Configure Chrome options for headless operation in CI environment
-    const options = new chrome.Options();
-    options.addArguments('--headless');
-    options.addArguments('--no-sandbox');
-    options.addArguments('--disable-dev-shm-usage');
-    
-    // Build the driver
     driver = await new Builder()
       .forBrowser('chrome')
       .setChromeOptions(options)
       .build();
-      
-    console.log(`Testing application at: ${APP_URL}`);
+    
+    // Set implicit wait to make tests more robust
+    await driver.manage().setTimeouts({ implicit: 5000 });
   });
-  
-  // Clean up after tests
+
   after(async function() {
     if (driver) {
       await driver.quit();
     }
   });
-  
-  /**
-   * Test: Teacher interface loads successfully
-   */
-  it('should load the teacher interface', async function() {
+
+  it('should load the teacher interface correctly', async function() {
     await driver.get(`${APP_URL}/simple-speech-test.html`);
     
-    // Verify title contains AIVoiceTranslator
+    // Check page title
     const title = await driver.getTitle();
-    assert.ok(title.includes('AIVoiceTranslator') || title.includes('Teacher Interface'), 
-      `Page title should contain AIVoiceTranslator or Teacher Interface, got: ${title}`);
+    assert.ok(title.includes('AIVoiceTranslator'));
     
-    // Verify UI elements are present
-    const startBtn = await driver.findElement(By.id('startButton'));
-    assert.ok(await startBtn.isDisplayed(), 'Start button should be visible');
+    // Verify key elements are present
+    const startButton = await driver.findElement(By.id('startButton'));
+    const stopButton = await driver.findElement(By.id('stopButton'));
+    const languageSelect = await driver.findElement(By.id('languageSelect'));
     
-    const statusElement = await driver.findElement(By.id('status'));
-    assert.ok(await statusElement.isDisplayed(), 'Status element should be visible');
+    // Verify UI text
+    const headerText = await driver.findElement(By.tagName('h1')).getText();
+    assert.ok(headerText.includes('AIVoiceTranslator'));
+    
+    console.log('✅ Teacher interface loaded correctly');
   });
-  
-  /**
-   * Test: Student interface loads successfully
-   */
-  it('should load the student interface', async function() {
+
+  it('should load the student interface correctly', async function() {
     await driver.get(`${APP_URL}/simple-student.html`);
     
-    // Verify title contains AIVoiceTranslator
+    // Check page title
     const title = await driver.getTitle();
-    assert.ok(title.includes('AIVoiceTranslator') || title.includes('Student Interface'), 
-      `Page title should contain AIVoiceTranslator or Student Interface, got: ${title}`);
+    assert.ok(title.includes('AIVoiceTranslator'));
     
-    // Verify language dropdown is present
-    const languageSelect = await driver.findElement(By.id('languageSelect'));
-    assert.ok(await languageSelect.isDisplayed(), 'Language selection dropdown should be visible');
+    // Verify key elements are present
+    const languageSelect = await driver.findElement(By.id('studentLanguageSelect'));
+    const transcriptArea = await driver.findElement(By.id('translationOutput'));
     
-    // Verify translation container is present
-    const translationContainer = await driver.findElement(By.id('translationContainer'));
-    assert.ok(await translationContainer.isDisplayed(), 'Translation container should be visible');
+    // Verify UI text
+    const headerText = await driver.findElement(By.tagName('h1')).getText();
+    assert.ok(headerText.includes('AIVoiceTranslator'));
+    
+    console.log('✅ Student interface loaded correctly');
   });
-  
-  /**
-   * Test: Metrics dashboard loads successfully
-   */
-  it('should load the metrics dashboard', async function() {
+
+  it('should load the metrics dashboard correctly', async function() {
     await driver.get(`${APP_URL}/code-metrics.html`);
     
-    // Verify title contains Metrics or Dashboard
+    // Check page title
     const title = await driver.getTitle();
-    assert.ok(title.includes('Metrics') || title.includes('Dashboard'), 
-      `Page title should contain Metrics or Dashboard, got: ${title}`);
+    assert.ok(title.includes('Code Metrics'));
     
-    // Verify metrics elements are present (waiting for them to load)
-    await driver.wait(until.elementLocated(By.id('coverageChart')), 5000);
-    const coverageChart = await driver.findElement(By.id('coverageChart'));
-    assert.ok(await coverageChart.isDisplayed(), 'Coverage chart should be visible');
+    // Verify key dashboard elements are present
+    const coverageCard = await driver.findElement(By.id('coverageCard'));
+    const complexityCard = await driver.findElement(By.id('complexityCard'));
+    const codeSmellsCard = await driver.findElement(By.id('codeSmellsCard'));
+    
+    // Verify at least one metric is loaded
+    await driver.wait(until.elementLocated(By.css('.metric-value')), 10000);
+    const metricValues = await driver.findElements(By.css('.metric-value'));
+    assert.ok(metricValues.length > 0);
+    
+    console.log('✅ Metrics dashboard loaded correctly');
   });
-  
-  /**
-   * Test: WebSocket connection works
-   */
+
   it('should establish WebSocket connection on teacher page', async function() {
     await driver.get(`${APP_URL}/simple-speech-test.html`);
     
-    // Wait for page to load and WebSocket to connect
-    await driver.sleep(2000);
+    // Wait for connection status to update
+    await driver.wait(async function() {
+      const statusElement = await driver.findElement(By.id('connectionStatus'));
+      const statusText = await statusElement.getText();
+      return statusText.includes('Connected');
+    }, 10000, 'WebSocket connection failed to establish');
     
-    // Check connection status - should update after page load
-    const statusElement = await driver.findElement(By.id('status'));
+    // Verify connection established text
+    const statusElement = await driver.findElement(By.id('connectionStatus'));
     const statusText = await statusElement.getText();
+    assert.ok(statusText.includes('Connected'));
     
-    // Status should contain "Connected" if WebSocket connection was successful
-    assert.ok(
-      statusText.includes('Connected') || 
-      statusText.includes('Ready') || 
-      !statusText.includes('Error'),
-      `Status should indicate connected or ready state, got: ${statusText}`
-    );
+    console.log('✅ WebSocket connection established successfully');
+  });
+
+  it('should update test coverage metrics in the dashboard', async function() {
+    await driver.get(`${APP_URL}/code-metrics.html`);
+    
+    // Wait for coverage metrics to load
+    await driver.wait(until.elementLocated(By.css('#coverageOverall .metric-value')), 10000);
+    
+    // Get the coverage percentage
+    const coverageElement = await driver.findElement(By.css('#coverageOverall .metric-value'));
+    const coverageText = await coverageElement.getText();
+    
+    // Verify it's a valid percentage
+    const coverageValue = parseFloat(coverageText);
+    assert.ok(!isNaN(coverageValue) && coverageValue >= 0 && coverageValue <= 100);
+    
+    console.log(`✅ Test coverage loaded: ${coverageText}`);
   });
 });

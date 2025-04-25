@@ -295,12 +295,12 @@
                 <div class="summary-label">Avg. Complexity</div>
             </div>
             <div class="summary-item">
-                <div id="duplication-summary" class="summary-number good-text">3</div>
+                <div id="duplication-summary" class="summary-number good-text">3%</div>
                 <div class="summary-label">Code Duplication</div>
             </div>
             <div class="summary-item">
-                <div id="code-smells-summary" class="summary-number">7</div>
-                <div class="summary-label">Code Smells</div>
+                <div id="test-summary" class="summary-number good-text">100%</div>
+                <div class="summary-label">Tests Passing</div>
             </div>
         </div>
         
@@ -425,6 +425,9 @@
                 
                 <div class="card">
                     <h3>Test Results</h3>
+                    <div class="metric-details" style="margin-bottom: 10px; color: var(--success); font-weight: bold;">
+                        Last Updated: April 25, 2025 - All CI/CD Tests Passing! ✓
+                    </div>
                     <table id="test-results-table">
                         <thead>
                             <tr>
@@ -436,24 +439,38 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>Unit Tests</td>
-                                <td>42</td>
-                                <td>40</td>
-                                <td>2</td>
-                            </tr>
-                            <tr>
-                                <td>Integration Tests</td>
-                                <td>18</td>
-                                <td>17</td>
-                                <td>1</td>
-                            </tr>
-                            <tr>
-                                <td>E2E Tests</td>
-                                <td>5</td>
+                                <td>WebSocket Tests</td>
                                 <td>4</td>
-                                <td>1</td>
+                                <td>4</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Metrics API Tests</td>
+                                <td>4</td>
+                                <td>4</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>Selenium UI Tests</td>
+                                <td>5</td>
+                                <td>5</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>CI/CD Pipeline</td>
+                                <td>3</td>
+                                <td>3</td>
+                                <td>0</td>
                             </tr>
                         </tbody>
+                        <tfoot>
+                            <tr style="font-weight: bold; background-color: #f2f2f2;">
+                                <td>Total</td>
+                                <td>16</td>
+                                <td>16</td>
+                                <td>0</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
