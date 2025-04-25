@@ -76,6 +76,7 @@
     "jest-environment-jsdom": "^29.7.0",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
+    "mocha": "^11.1.0",
     "msw": "^2.7.5",
     "openai": "^4.93.0",
     "passport": "^0.7.0",
