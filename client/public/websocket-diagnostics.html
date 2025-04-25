@@ -420,11 +420,12 @@
     <script>
         // WebSocket Client Class
         class WebSocketClient {
-            constructor(role = 'teacher', language = 'en-US') {
+            constructor(role = 'teacher', language = 'en-US', ttsServiceType = 'browser') {
                 this.ws = null;
                 this.sessionId = null;
                 this.role = role;
                 this.language = language;
+                this.ttsServiceType = ttsServiceType;
                 this.connected = false;
                 this.eventListeners = {
                     'open': [],
@@ -513,11 +514,14 @@
                 const message = {
                     type: 'register',
                     role: role,
-                    languageCode: language
+                    languageCode: language,
+                    settings: {
+                        ttsServiceType: this.ttsServiceType
+                    }
                 };
                 
                 this.send(message);
-                this.notifyListeners('status', `Registered as ${role} with language ${language}`);
+                this.notifyListeners('status', `Registered as ${role} with language ${language} and TTS service ${this.ttsServiceType}`);
             }
             
             sendTranscription(text) {
@@ -593,6 +597,28 @@
             
             getLanguage() {
                 return this.language;
+            }
+            
+            getTtsServiceType() {
+                return this.ttsServiceType;
+            }
+            
+            setTtsServiceType(ttsServiceType) {
+                this.ttsServiceType = ttsServiceType;
+                
+                // If connected, send settings update
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const message = {
+                        type: 'settings',
+                        ttsServiceType: ttsServiceType
+                    };
+                    
+                    this.send(message);
+                    this.notifyListeners('status', `Updated TTS service to: ${ttsServiceType}`);
+                    return true;
+                }
+                
+                return false;
             }
         }
         
@@ -693,11 +719,15 @@
             const esBtn = document.getElementById('teacher-es-btn');
             const frBtn = document.getElementById('teacher-fr-btn');
             const deBtn = document.getElementById('teacher-de-btn');
+            const ttsBrowserBtn = document.getElementById('teacher-tts-browser-btn');
+            const ttsOpenaiBtn = document.getElementById('teacher-tts-openai-btn');
+            const ttsSilentBtn = document.getElementById('teacher-tts-silent-btn');
+            const currentTtsServiceEl = document.getElementById('current-tts-service');
             const messageInput = document.getElementById('teacher-message');
             const sendBtn = document.getElementById('teacher-send-btn');
             const logsEl = document.getElementById('teacher-logs');
             
-            const client = new WebSocketClient('teacher', 'en-US');
+            const client = new WebSocketClient('teacher', 'en-US', 'browser');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -753,6 +783,31 @@
                 frBtn.classList.remove('active');
                 client.register('teacher', 'de-DE');
                 languageEl.textContent = 'de-DE';
+            });
+            
+            // TTS Service selection
+            ttsBrowserBtn.addEventListener('click', () => {
+                ttsBrowserBtn.classList.add('active');
+                ttsOpenaiBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('browser');
+                currentTtsServiceEl.textContent = 'browser';
+            });
+            
+            ttsOpenaiBtn.addEventListener('click', () => {
+                ttsOpenaiBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('openai');
+                currentTtsServiceEl.textContent = 'openai';
+            });
+            
+            ttsSilentBtn.addEventListener('click', () => {
+                ttsSilentBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsOpenaiBtn.classList.remove('active');
+                client.setTtsServiceType('silent');
+                currentTtsServiceEl.textContent = 'silent';
             });
             
             client.addEventListener('status', (status) => {
