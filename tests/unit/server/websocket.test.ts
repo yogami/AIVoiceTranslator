@@ -30,7 +30,7 @@ class MockWebSocket extends EventEmitter implements Partial<ExtendedWebSocket> {
   sessionId?: string;
   role?: 'teacher' | 'student';
   languageCode?: string;
-  readyState: number = WebSocketState.OPEN;
+  readyState: 0 | 1 | 2 | 3 = WebSocketState.OPEN as 1;
   
   // Mock methods
   send = jest.fn();

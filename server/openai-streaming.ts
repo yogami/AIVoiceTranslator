@@ -12,6 +12,7 @@
  */
 import OpenAI from 'openai';
 import WebSocket from 'ws';
+import { WebSocketState } from './websocket';
 
 // Configuration constants - making magic numbers explicit
 const CONFIG = {
@@ -193,7 +194,7 @@ class WebSocketCommunicator {
    */
   private static sendMessage(ws: WebSocket, message: any): void {
     // Only send if the connection is open
-    if (ws.readyState === WebSocket.OPEN) {
+    if (ws.readyState === WebSocketState.OPEN) {
       ws.send(JSON.stringify(message));
     }
   }

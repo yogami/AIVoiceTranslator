@@ -122,10 +122,11 @@ export class WebSocketService {
       });
       
       // Handle incoming messages and route to appropriate handlers
-      extendedWs.on('message', (data: WebSocket.Data) => {
+      extendedWs.on('message', (rawData) => {
         try {
           // Parse message
-          const message = JSON.parse(data.toString());
+          const data = rawData.toString();
+          const message = JSON.parse(data);
           this.log('debug', `Received message type=${message.type || 'unknown'}`);
           
           // Process message by type
