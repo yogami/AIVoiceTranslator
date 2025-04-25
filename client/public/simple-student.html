@@ -1250,15 +1250,43 @@
                 try {
                     log('Received server-generated audio data, preparing for playback');
                     
+                    // Log audio data details before processing
+                    log(`Processing audio data: length=${audioData.length} chars, first 50 chars: ${audioData.substring(0, 50)}...`);
+                    
                     // Convert base64 to a blob
                     const binaryString = atob(audioData);
+                    log(`Converted binary string length: ${binaryString.length} bytes`);
+                    
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
                     
-                    // Create blob and URL
-                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); // Assume MP3 from OpenAI
+                    // Check header bytes to determine format (MP3 starts with ID3 or 0xFF 0xFB)
+                    const headerHex = Array.from(bytes.slice(0, 4))
+                        .map(b => b.toString(16).padStart(2, '0'))
+                        .join(' ');
+                    log(`Audio data header: ${headerHex}`);
+                    
+                    // Determine MIME type based on header
+                    let mimeType = 'audio/mp3'; // Default assumption
+                    if (headerHex.startsWith('49 44 33')) { // ID3
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio with ID3 tag');
+                    } else if (headerHex.startsWith('ff fb')) {
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio without ID3 tag');
+                    } else if (headerHex.startsWith('52 49 46 46')) { // RIFF
+                        mimeType = 'audio/wav';
+                        log('Detected WAV audio');
+                    } else {
+                        log(`Unknown audio format with header: ${headerHex}`);
+                    }
+                    
+                    // Create blob with detected MIME type
+                    const blob = new Blob([bytes.buffer], { type: mimeType });
+                    log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
+                    
                     const audioURL = URL.createObjectURL(blob);
                     
                     // Cache the audio data
@@ -1845,32 +1873,92 @@
          */
         class AudioPlayer {
             /**
-             * Play audio from base64 encoded data
+             * Play audio from base64 encoded data with improved error handling
              * 
              * @param {string} base64Data - Base64 encoded audio data
+             * @returns {Promise<boolean>} - Promise that resolves to true if playback started successfully
              */
-            static playFromBase64(base64Data) {
+            static async playFromBase64(base64Data) {
                 try {
+                    log(`Playing audio from base64, data length: ${base64Data.length} chars`);
+                    log(`First 20 chars of base64: ${base64Data.substring(0, 20)}...`);
+                    
                     // Convert base64 to blob for playback
                     const binaryString = atob(base64Data);
+                    log(`Converted to binary string of length: ${binaryString.length}`);
+                    
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
                     
-                    // Create blob and URL
-                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); 
+                    // Check header bytes to determine format
+                    const headerHex = Array.from(bytes.slice(0, 4))
+                        .map(b => b.toString(16).padStart(2, '0'))
+                        .join(' ');
+                    log(`Audio data header: ${headerHex}`);
+                    
+                    // Determine MIME type based on header
+                    let mimeType = 'audio/mp3'; // Default assumption
+                    
+                    if (headerHex.startsWith('49 44 33')) { // ID3
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio with ID3 tag');
+                    } else if (headerHex.startsWith('ff fb')) {
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio without ID3 tag');
+                    } else if (headerHex.startsWith('52 49 46 46')) { // RIFF
+                        mimeType = 'audio/wav';
+                        log('Detected WAV audio');
+                    } else {
+                        log(`Unknown audio format with header: ${headerHex}`);
+                    }
+                    
+                    // Create blob with detected MIME type
+                    const blob = new Blob([bytes.buffer], { type: mimeType });
+                    log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
+                    
                     const audioURL = URL.createObjectURL(blob);
                     
-                    // Play the audio
+                    // Get the audio player
                     const audioPlayer = document.getElementById('audio-player');
+                    
+                    // Set up promise to track audio loading status
+                    const loadPromise = new Promise((resolve, reject) => {
+                        // Handle successful loading
+                        audioPlayer.onloadeddata = () => {
+                            log('Audio loaded successfully');
+                            resolve(true);
+                        };
+                        
+                        // Handle errors
+                        audioPlayer.onerror = (e) => {
+                            const errorMessage = `Audio error: ${audioPlayer.error ? audioPlayer.error.code : 'unknown'}`;
+                            log(errorMessage);
+                            reject(new Error(errorMessage));
+                        };
+                    });
+                    
+                    // Set source and start loading
                     audioPlayer.src = audioURL;
-                    audioPlayer.play();
+                    
+                    // Wait for loading to complete with timeout
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('Audio loading timed out')), 5000);
+                    });
+                    
+                    await Promise.race([loadPromise, timeoutPromise]);
+                    
+                    // Play the audio
+                    await audioPlayer.play();
+                    log('Audio playback started');
                     
                     showSuccess('Playing audio');
+                    return true;
                 } catch (error) {
                     log(`Error playing audio: ${error.message}`);
-                    showError('Failed to play audio');
+                    showError(`Failed to play audio: ${error.message}`);
+                    return false;
                 }
             }
         }
@@ -1880,8 +1968,8 @@
             TTSServiceManager.playWithService(ttsService);
         }
         
-        function playAudio(base64Data) {
-            AudioPlayer.playFromBase64(base64Data);
+        async function playAudio(base64Data) {
+            await AudioPlayer.playFromBase64(base64Data);
         }
         
         function updateAudioComparison() {
