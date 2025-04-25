@@ -444,6 +444,54 @@
                         );
                     }
                     
+                    // Handle TTS service audio response
+                    if (message.type === 'tts_response') {
+                        const ttsService = message.ttsService || 'openai';
+                        const audioData = message.audioData;
+                        
+                        log(`Received TTS audio response from ${ttsService} service`);
+                        
+                        if (audioData && audioData.length > 0) {
+                            try {
+                                // Convert base64 to blob for playback
+                                const binaryString = atob(audioData);
+                                const bytes = new Uint8Array(binaryString.length);
+                                for (let i = 0; i < binaryString.length; i++) {
+                                    bytes[i] = binaryString.charCodeAt(i);
+                                }
+                                
+                                // Create blob and URL
+                                const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); 
+                                const audioURL = URL.createObjectURL(blob);
+                                
+                                // Cache the audio data
+                                audioCache.lastTranslation.audios[ttsService] = {
+                                    data: audioData,
+                                    url: audioURL,
+                                    blob: blob,
+                                    type: 'server'
+                                };
+                                
+                                // Play the audio
+                                const audioPlayer = document.getElementById('audio-player');
+                                audioPlayer.src = audioURL;
+                                audioPlayer.play();
+                                
+                                // Show in comparison section
+                                document.getElementById('audio-comparison').style.display = 'block';
+                                updateAudioComparison();
+                                
+                                showSuccess(`Playing with ${getTtsServiceName(ttsService)}`);
+                            } catch (error) {
+                                log(`Error processing ${ttsService} audio: ${error.message}`);
+                                showError(`Failed to process ${getTtsServiceName(ttsService)} audio`);
+                            }
+                        } else {
+                            log(`No audio data received from ${ttsService} service`);
+                            showError(`No audio received from ${getTtsServiceName(ttsService)}`);
+                        }
+                    }
+                    
                     // Add message to UI
                     addMessageToUI(message);
                 };
@@ -704,6 +752,95 @@
                 // Add card to options
                 comparisonOptions.appendChild(serviceCard);
             });
+        }
+        
+        // Play with a specific TTS service
+        async function playWithTTSService(ttsService) {
+            const translationText = audioCache.lastTranslation.text;
+            const targetLanguage = audioCache.lastTranslation.targetLanguage;
+            
+            if (!translationText || !targetLanguage) {
+                showError('No translation available to play');
+                return;
+            }
+            
+            log(`Playing translation with ${getTtsServiceName(ttsService)} service`);
+            
+            if (ttsService === 'silent') {
+                showSuccess('Silent mode - no audio played');
+                return;
+            }
+            
+            // If we already have this audio cached, use it
+            if (audioCache.lastTranslation.audios[ttsService]) {
+                const cachedAudio = audioCache.lastTranslation.audios[ttsService];
+                
+                if (cachedAudio.url) {
+                    const audioPlayer = document.getElementById('audio-player');
+                    audioPlayer.src = cachedAudio.url;
+                    audioPlayer.play();
+                    showSuccess(`Playing with ${getTtsServiceName(ttsService)}`);
+                    return;
+                }
+            }
+            
+            // For browser TTS, use speech synthesis
+            if (ttsService === 'browser') {
+                if ('speechSynthesis' in window) {
+                    // Create the utterance
+                    const utterance = new SpeechSynthesisUtterance(translationText);
+                    
+                    // Set language code, mapping short codes to full BCP 47 language tags if needed
+                    const langCodeMap = {
+                        'es': 'es-ES',
+                        'fr': 'fr-FR',
+                        'de': 'de-DE',
+                        'it': 'it-IT',
+                        'zh': 'zh-CN',
+                        'ja': 'ja-JP',
+                        'ru': 'ru-RU',
+                        'ar': 'ar-SA',
+                        'pt': 'pt-BR',
+                        'ko': 'ko-KR',
+                        'en': 'en-US'
+                    };
+                    
+                    // Map short language code to full code, or use as is if already in right format
+                    utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
+                    
+                    // Speak the text
+                    speechSynthesis.speak(utterance);
+                    
+                    // Cache this for later comparison (empty data/url as we can't capture it)
+                    audioCache.lastTranslation.audios['browser'] = {
+                        type: 'browser',
+                        data: null,
+                        url: null
+                    };
+                    
+                    showSuccess('Playing with Browser TTS');
+                } else {
+                    showError('Browser does not support speech synthesis');
+                }
+                return;
+            }
+            
+            // For OpenAI or other server-based TTS, re-register with that service
+            if (isConnected) {
+                // Send a request to get audio for the current translation but with a different TTS service
+                const message = {
+                    type: 'tts_request',
+                    text: translationText,
+                    languageCode: targetLanguage,
+                    ttsService: ttsService,
+                    originalText: audioCache.lastTranslation.originalText || ""
+                };
+                
+                socket.send(JSON.stringify(message));
+                showSuccess(`Requesting audio with ${getTtsServiceName(ttsService)}...`);
+            } else {
+                showError('Cannot use server TTS services while disconnected');
+            }
         }
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
