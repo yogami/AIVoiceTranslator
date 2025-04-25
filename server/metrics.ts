@@ -424,7 +424,27 @@ async function getDependenciesMetrics(): Promise<DependenciesMetrics> {
  * Fetch GitHub Actions workflow runs
  * @returns Promise with GitHub Actions workflow data
  */
-async function fetchGitHubActionsWorkflows() {
+/**
+ * Interface for GitHub workflow run data
+ */
+interface GitHubWorkflowRunsResponse {
+  workflow_runs: Array<{
+    id: number;
+    name: string;
+    status: string;
+    conclusion: string | null;
+    html_url: string;
+    created_at: string;
+    updated_at: string;
+  }>;
+  total_count: number;
+}
+
+/**
+ * Fetch GitHub Actions workflow runs
+ * @returns Promise<GitHubWorkflowRunsResponse | null> Workflow run data or null if not available
+ */
+async function fetchGitHubActionsWorkflows(): Promise<GitHubWorkflowRunsResponse | null> {
   try {
     if (!GITHUB_TOKEN) {
       console.warn('GitHub token not available. Using sample data for CI/CD metrics.');
@@ -444,7 +464,7 @@ async function fetchGitHubActionsWorkflows() {
       throw new Error(`GitHub API error: ${response.statusText}`);
     }
     
-    return await response.json();
+    return await response.json() as GitHubWorkflowRunsResponse;
   } catch (error) {
     console.error('Error fetching GitHub Actions workflows:', error);
     return null;
@@ -483,7 +503,13 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
     let cicdMetrics = {
       lastRun: new Date().toISOString(),
       status: "success",
-      workflows: []
+      workflows: [] as Array<{
+        name: string;
+        status: string;
+        url: string;
+        lastRun: string;
+        duration: string;
+      }>
     };
     
     let audioMetrics = {
@@ -498,7 +524,7 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
       const runs = githubData.workflow_runs;
       
       // Sort runs by date (newest first)
-      runs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      runs.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       
       // Get most recent run
       const latestRun = runs[0];
@@ -506,7 +532,7 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
       cicdMetrics.status = latestRun.conclusion || latestRun.status;
       
       // Process workflow data
-      cicdMetrics.workflows = runs.slice(0, 5).map(run => ({
+      cicdMetrics.workflows = runs.slice(0, 5).map((run: any) => ({
         name: run.name,
         status: run.conclusion || run.status,
         url: run.html_url,
@@ -517,7 +543,7 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
       }));
       
       // Look for audio E2E test runs
-      const audioRuns = runs.filter(run => run.name.toLowerCase().includes('audio'));
+      const audioRuns = runs.filter((run: any) => run.name.toLowerCase().includes('audio'));
       if (audioRuns.length > 0) {
         const latestAudioRun = audioRuns[0];
         audioMetrics.lastRun = latestAudioRun.created_at;
@@ -559,7 +585,13 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
       cicd: {
         lastRun: new Date().toISOString(),
         status: "unknown",
-        workflows: []
+        workflows: [] as Array<{
+          name: string;
+          status: string;
+          url: string;
+          lastRun: string;
+          duration: string;
+        }>
       },
       audio: {
         total: 3,
