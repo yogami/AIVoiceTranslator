@@ -1,4 +1,16 @@
 <!DOCTYPE html>
+<!-- 
+    AIVoiceTranslator Student Interface
+    
+    Architecture Note: TTS service selection is now controlled by the teacher.
+    Students can see which TTS service is active but cannot change it.
+    They can play examples of different TTS services for comparison only.
+    
+    The architecture follows these principles:
+    - Centralized control by the teacher for classroom consistency
+    - Read-only display of TTS service selection for students
+    - TTS comparison capabilities for educational purposes
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -794,28 +806,28 @@
             <div class="language-heading">Text-to-Speech Information</div>
             
             <div id="tts-service-info" style="margin-top: 15px;">
-                <div style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
+                <div id="active-tts-service-container" style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
                     <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Teacher-Controlled TTS Service</h3>
                     <p style="margin-bottom: 10px;">
-                        The Text-to-Speech service is now controlled by the teacher. Your current TTS service is:
+                        <span id="active-tts-service">The Text-to-Speech service is controlled by the teacher.</span> Your current TTS service is:
                         <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">Browser</span>
                     </p>
                     <p style="margin-bottom: 0; font-size: 0.9rem; color: var(--text-light);">
-                        The teacher can change the TTS service at any time. All students will automatically use the same service.
+                        Only the teacher can change the TTS service. All students will automatically use the same service.
                     </p>
                 </div>
                 
-                <div class="language-heading">Available TTS Services</div>
-                <div style="margin: 15px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+                <div class="language-heading">TTS Service Comparison</div>
+                <div id="tts-comparison-section" style="margin: 15px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: var(--primary-light); box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
                         <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Browser Speech</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Uses your browser's built-in speech synthesis. Fast but less natural sounding.
                         </p>
                         <div>
-                            <button class="play-demo-btn" data-service="browser" 
+                            <button class="play-example-btn play-demo-btn" data-service="browser" 
                                     style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: var(--primary-color); color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>▶️</span> Play Example
+                                <span>▶️</span> Play Example Only
                             </button>
                         </div>
                     </div>
@@ -826,9 +838,9 @@
                             Advanced neural voice with better emotional tone and natural pauses.
                         </p>
                         <div>
-                            <button class="play-demo-btn" data-service="openai" 
+                            <button class="play-example-btn play-demo-btn" data-service="openai" 
                                     style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #6366f1; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>▶️</span> Play Example
+                                <span>▶️</span> Play Example Only
                             </button>
                         </div>
                     </div>
@@ -839,14 +851,19 @@
                             Text only, no audio playback. Use in quiet environments or for accessibility.
                         </p>
                         <div>
-                            <button class="play-demo-btn" data-service="silent" 
+                            <button class="play-example-btn play-demo-btn" data-service="silent" 
                                     style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #95a5a6; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>🔇</span> Silent Mode
+                                <span>🔇</span> Example (No Sound)
                             </button>
                         </div>
                     </div>
                 </div>
-                <!-- No save button needed since teacher controls the setting -->
+                <div style="margin-top: 10px; padding: 15px; border-radius: var(--border-radius); background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #856404;">
+                        <strong>Note:</strong> These buttons only play examples of each TTS service for comparison. 
+                        They do not change the active service, which is controlled by the teacher.
+                    </p>
+                </div>
             </div>
         </div>
         
@@ -2127,20 +2144,26 @@
                 window.LanguageSupport.updateButtons(defaultTtsService);
             }
             
-            // Setup TTS service play demo buttons (for comparison only)
-            document.querySelectorAll('.play-demo-btn').forEach(button => {
+            // Setup TTS service play example buttons (for comparison only)
+            document.querySelectorAll('.play-example-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const ttsService = this.getAttribute('data-service');
-                    log(`Play demo button clicked for TTS service: ${ttsService} (for comparison only)`);
+                    log(`Play example button clicked for TTS service: ${ttsService} (comparison only)`);
                     
-                    // Update a hidden setting for comparison purposes only
-                    const hiddenTtsService = ttsService; // This is just for comparison
+                    // This is for comparison only - does NOT change the active service
+                    const comparisonOnly = true;
                     
                     // Show a message that this is just for comparison
-                    showSuccess(`Playing comparison with ${getTtsServiceName(ttsService)} (Teacher still controls the active service)`);
+                    showSuccess(`Playing example with ${getTtsServiceName(ttsService)} (Does not change the active service)`);
                     
-                    // Play the current translation with this TTS service for comparison
+                    // Play the current translation with this TTS service for comparison only
                     playWithTTSService(ttsService);
+                    
+                    // Make it extra clear this doesn't change the active service
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    setTimeout(() => {
+                        showSuccess(`Your active TTS service remains: ${currentServiceName} (controlled by teacher)`);
+                    }, 3000);
                 });
             });
             
