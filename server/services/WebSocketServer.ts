@@ -494,7 +494,8 @@ export class WebSocketServer {
       ws.send(JSON.stringify(response));
       
     } catch (error) {
-      console.error(`Error processing TTS request with service ${ttsService}:`, error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error(`Error processing TTS request with service ${ttsService}:`, errorMsg);
       
       // Send error response
       const errorResponse = {
@@ -503,7 +504,7 @@ export class WebSocketServer {
         ttsService: ttsService,
         languageCode: languageCode,
         success: false,
-        error: error.message
+        error: errorMsg
       };
       
       ws.send(JSON.stringify(errorResponse));
