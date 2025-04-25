@@ -6,7 +6,6 @@
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from './services/WebSocketServer';
-import { setupVite } from './vite';
 import { apiRoutes } from './routes';
 
 // SOLID: Single Responsibility - CORS middleware has one job
@@ -62,18 +61,43 @@ async function startServer() {
   // Create WebSocket server
   const wss = new WebSocketServer(httpServer);
   
-  // Set up Vite dev server in development mode
-  if (process.env.NODE_ENV === 'development') {
-    await setupVite(app, httpServer);
-  } else {
-    // Serve static files in production mode
-    app.use(express.static('dist/client'));
-    
-    // Serve index.html for all routes not matched by API or static files
-    app.get('*', (req, res) => {
-      res.sendFile('index.html', { root: 'dist/client' });
-    });
-  }
+  // Serve static files from client/public directory
+  app.use(express.static('client/public'));
+  
+  // Route for student page
+  app.get('/student', (req, res) => {
+    res.sendFile('simple-student.html', { root: 'client/public' });
+  });
+  
+  // Route for teacher page
+  app.get('/teacher', (req, res) => {
+    // Find the teacher HTML file
+    if (req.query.demo === 'true') {
+      res.sendFile('simple-speech-test.html', { root: 'client/public' });
+    } else {
+      res.sendFile('simple-speech-test.html', { root: 'client/public' });
+    }
+  });
+  
+  // Route for metrics dashboard
+  app.get('/metrics', (req, res) => {
+    res.sendFile('metrics-dashboard.html', { root: 'client/public' });
+  });
+  
+  // Route for feature tests dashboard
+  app.get('/tests', (req, res) => {
+    res.sendFile('feature-tests-dashboard.html', { root: 'client/public' });
+  });
+  
+  // Serve index.html for root route
+  app.get('/', (req, res) => {
+    res.sendFile('index.html', { root: 'client' });
+  });
+  
+  // Catch-all route for any other routes
+  app.get('*', (req, res) => {
+    res.sendFile('index.html', { root: 'client' });
+  });
   
   // Start server
   const port = process.env.PORT || 5000;
