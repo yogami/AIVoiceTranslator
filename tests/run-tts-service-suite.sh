@@ -89,8 +89,20 @@ fi
 echo "========================================================"
 echo "RUNNING END-TO-END TESTS"
 echo "========================================================"
+echo "Running TTS Comparison E2E tests..."
 npx mocha tests/e2e/tts-comparison.test.js --timeout 60000 --reporter spec
-E2E_RESULT=$?
+TTS_E2E_RESULT=$?
+
+echo "Running Language Selector Modal E2E tests..."
+npx mocha tests/e2e/language-selector-modal.test.js --timeout 60000 --reporter spec
+LANG_E2E_RESULT=$?
+
+# Combine results
+if [ $TTS_E2E_RESULT -eq 0 ] && [ $LANG_E2E_RESULT -eq 0 ]; then
+  E2E_RESULT=0
+else
+  E2E_RESULT=1
+fi
 
 if [ $E2E_RESULT -eq 0 ]; then
   echo "✅ End-to-end tests PASSED"
@@ -154,7 +166,17 @@ cat > test-results/tts-comparison-metrics.json << EOL
     },
     "e2e": {
       "status": "passed",
-      "exitCode": $E2E_RESULT
+      "exitCode": $E2E_RESULT,
+      "details": {
+        "tts_comparison": {
+          "status": $TTS_E2E_RESULT == 0 ? "\"passed\"" : "\"failed\"",
+          "exitCode": $TTS_E2E_RESULT
+        },
+        "language_selector_modal": {
+          "status": $LANG_E2E_RESULT == 0 ? "\"passed\"" : "\"failed\"",
+          "exitCode": $LANG_E2E_RESULT
+        }
+      }
     }
   },
   "coverage": "${COVERAGE_PCT:-"unknown"}"

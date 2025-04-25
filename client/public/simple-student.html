@@ -130,6 +130,76 @@
             margin-bottom: 4px;
             line-height: 1.3;
         }
+        
+        /* Modal styling */
+        .language-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+        }
+        
+        .language-modal .modal-content {
+            position: relative;
+            width: 90%;
+            max-width: 800px;
+            max-height: 85vh;
+            overflow-y: auto;
+            margin: 5% auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .language-modal .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #555;
+        }
+        
+        .language-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .expanded-language-btn {
+            padding: 8px;
+            text-align: left;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .expanded-language-btn:hover:not(.unsupported) {
+            background: #e9ecef;
+            border-color: #3498db;
+        }
+        
+        .expanded-language-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+        
+        .expanded-language-btn.unsupported {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
         .header {
             display: flex;
             justify-content: space-between;
@@ -351,11 +421,11 @@
         </div>
         
         <!-- Expanded Language Selection Modal -->
-        <div id="language-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000;">
-            <div style="position: relative; width: 80%; max-width: 800px; max-height: 80vh; overflow-y: auto; margin: 5% auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2);">
-                <button id="close-modal" style="position: absolute; top: 10px; right: 10px; background: none; border: none; font-size: 24px; cursor: pointer;">×</button>
+        <div id="language-modal" class="language-modal">
+            <div class="modal-content">
+                <button id="close-modal" class="close-button">×</button>
                 <h3>All Available Languages</h3>
-                <div id="expanded-language-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 15px;">
+                <div id="expanded-language-list" class="language-grid">
                     <!-- This will be populated dynamically -->
                 </div>
             </div>
