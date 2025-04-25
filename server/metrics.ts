@@ -156,6 +156,24 @@ export interface TestResultsMetrics {
       description: string;
     }>;
   };
+  loadTest: {
+    total: number;
+    passed: number;
+    failed: number;
+    lastRun: string;
+    maxConcurrentUsers: number;
+    avgLatencyMs: number;
+    successRate: number;
+    tests?: Array<{
+      name: string;
+      status: string;
+      duration: string;
+      description: string;
+      participants: number;
+      avgLatencyMs: number;
+      successRate: number;
+    }>;
+  };
 }
 
 export interface AllMetrics {
