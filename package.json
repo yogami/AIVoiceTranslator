@@ -78,6 +78,7 @@
     "memorystore": "^1.6.7",
     "mocha": "^11.1.0",
     "msw": "^2.7.5",
+    "node-fetch": "^3.3.2",
     "openai": "^4.93.0",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",

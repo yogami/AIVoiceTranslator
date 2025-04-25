@@ -231,6 +231,43 @@ apiRoutes.get('/metrics/test-results', async (req: Request, res: Response) => {
 });
 
 /**
+ * Get CI/CD workflow metrics
+ * Returns GitHub Actions workflow metrics
+ */
+apiRoutes.get('/metrics/ci-cd', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json({
+      cicd: metrics.testResults.cicd,
+      audio: metrics.testResults.audio
+    });
+  } catch (error) {
+    console.error('Error fetching CI/CD metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve CI/CD metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get audio test metrics
+ * Returns metrics specifically for audio tests
+ */
+apiRoutes.get('/metrics/audio-tests', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.testResults.audio);
+  } catch (error) {
+    console.error('Error fetching audio test metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve audio test metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
  * Refresh all metrics
  * Forces a recalculation of all metrics
  */
