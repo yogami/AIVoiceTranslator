@@ -97,3 +97,38 @@ If the autoplay feature isn't working:
 2. Ensure the test passes in both local and CI environments
 3. Be cautious of browser autoplay policies when testing manually
 4. Document any changes to the autoplay behavior or implementation
+5. **Review all markdown files in the `attached_assets` folder** to ensure implementation aligns with project requirements and specifications
+   - Pay special attention to voice translation competitor analysis documents
+   - Review all TTS-related technical documentation
+   - Ensure UI/UX requirements for autoplay are met
+
+## Clean Code & Craftsmanship Review for TTS Autoplay
+
+Before implementing or modifying any TTS autoplay feature, you must refresh your knowledge of software craftsmanship best practices:
+
+1. **Clean Code Review**: 
+   - [ ] Study `Clean-Code-Cheat-Sheet-V1.3.md` thoroughly
+   - [ ] Pay special attention to Function Design, Error Handling, and Comments sections
+   - [ ] Apply Single Responsibility Principle to speech-related code
+
+2. **TDD Methodology**: 
+   - [ ] Review `Clean-TDD-Cheat-Sheet-V1.2.md` in full
+   - [ ] Follow Red-Green-Refactor cycle strictly for all TTS autoplay code
+   - [ ] Write test cases first for all autoplay scenarios
+
+3. **Software Craftsmanship**:
+   - [ ] Read `pragmatic-principles-cheat-sheet.v1.md` to internalize best practices
+   - [ ] Apply DRY (Don't Repeat Yourself) to speech synthesis code
+   - [ ] Use SOLID principles in TTS service design
+
+## Documentation Reference Checklist
+
+After reviewing clean code and TDD principles, refer to these specific project documents:
+
+- [ ] Review `voice_translation_competitor_analysis_updated.pdf` for industry standard approaches
+- [ ] Check `AIVoiceTranslator_Proof_of_Concept_Modified.pdf` for initial design requirements
+- [ ] Consult `Functional_Prototype_Product_Requirements_Updated_Modified.pdf` for detailed specifications
+- [ ] Read `Realtime_Audio_Translation_Replit_Guide_Modified.pdf` for technical implementation guidance
+- [ ] Reference `code-quality-metrics-cheatsheet.md` for quality standards
+
+This review process must be completed every time you work on TTS autoplay functionality, no exceptions.

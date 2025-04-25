@@ -92,15 +92,21 @@ This document outlines the standard development workflow that should be followed
 
 ## Code Quality Standards
 
-Always maintain these standards:
+Always review clean code principles in `attached_assets/Clean-Code-Cheat-Sheet-V1.3.md` and TDD best practices in `attached_assets/Clean-TDD-Cheat-Sheet-V1.2.md` before writing any code. After reviewing, maintain these standards:
 
 - **Test Coverage**: >90% overall, >95% for critical paths
 - **Cyclomatic Complexity**: ≤ 3 per function
 - **Code Duplication**: <5%
 - **Code Smells**: 0 critical, <5 minor
-- **Function Length**: <50 lines
-- **Nesting Depth**: ≤ 3 levels
+- **Function Length**: <20 lines for new code, <50 lines for existing code
+- **Nesting Depth**: ≤ 2 levels for new code, ≤ 3 levels for existing code
 - **Dependencies**: No circular dependencies
+- **Naming**: Variable and function names should be descriptive and reveal intent
+- **SOLID Principles**: Apply all 5 SOLID principles in your design
+- **Test Quality**: Follow Arrange-Act-Assert pattern and test behaviors, not implementation
+- **Clean Code Review**: After writing code, verify it against clean code principles
+
+These standards are non-negotiable. Always prioritize code quality over quick delivery. Technical debt is never acceptable.
 
 ## Workflows and Scripts
 
@@ -120,6 +126,39 @@ After all changes, ensure the metrics dashboard is updated:
 2. Update metrics data
 3. Verify dashboard changes reflect current project state
 
+## Clean Code & Craftsmanship Review
+
+Every time a change is made to the codebase, you must refresh your knowledge about clean code, Test-Driven Development (TDD), and software craftsmanship best practices:
+
+1. Review all markdown files in the `attached_assets` folder, especially:
+   - `Clean-Code-Cheat-Sheet-V1.3.md`
+   - `Clean-TDD-Cheat-Sheet-V1.2.md`
+   - `pragmatic-principles-cheat-sheet.v1.md`
+   - `code-quality-metrics-cheatsheet.md`
+
+2. Internalize the core principles before writing any code:
+   - Single Responsibility Principle
+   - Test-First Development
+   - Refactoring for cleanliness
+   - Meaningful naming
+   - Function size and complexity limits
+
+3. Apply these principles directly to your implementation:
+   - Write tests before code
+   - Keep functions small (≤ 20 lines)
+   - Maintain low cyclomatic complexity (≤ 3)
+   - Use meaningful names that reveal intent
+   - Follow SOLID principles
+
+4. Reference specific best practices from these documents in your commit messages
+
+5. Review all requirements documentation relevant to your changes:
+   - Identify specifications in project documents
+   - Ensure your implementation aligns with documented requirements
+   - Update your code if any inconsistencies are found
+
+This software craftsmanship review step is mandatory for every code change, regardless of size or scope.
+
 ## Final Verification Checklist
 
 Before considering any feature complete:
@@ -128,6 +167,9 @@ Before considering any feature complete:
 - [ ] CI/CD pipeline passes
 - [ ] Code meets all quality standards
 - [ ] Documentation is updated
+- [ ] **Clean code, TDD, and software craftsmanship best practices have been reviewed**
+- [ ] **All markdown files in attached_assets folder have been thoroughly studied**
+- [ ] Implementation follows principles from Clean-Code-Cheat-Sheet and Clean-TDD-Cheat-Sheet
 - [ ] Metrics dashboard reflects changes
 - [ ] Manual verification confirms functionality
 
