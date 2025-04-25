@@ -1,6 +1,6 @@
-# Benedictaitor: Real-time Classroom Translation System
+# AIVoiceTranslator: Real-time Classroom Translation System
 
-Benedictaitor is an intelligent multilingual communication platform for educational environments. It captures a teacher's speech, translates it to multiple languages in real-time, and delivers translations as audio streams to students in their preferred languages.
+AIVoiceTranslator is an intelligent multilingual communication platform for educational environments. It captures a teacher's speech, translates it to multiple languages in real-time, and delivers translations as audio streams to students in their preferred languages.
 
 ## Features
 
@@ -35,7 +35,7 @@ OPENAI_API_KEY=your_openai_api_key
 
 ## Testing
 
-Benedictaitor includes a comprehensive suite of tests to ensure reliability:
+AIVoiceTranslator includes a comprehensive suite of tests to ensure reliability:
 
 ### Automated CI/CD Testing
 

@@ -1,6 +1,6 @@
-# Benedictaitor CI/CD Setup Guide
+# AIVoiceTranslator CI/CD Setup Guide
 
-This guide provides detailed instructions for setting up the Continuous Integration and Continuous Deployment (CI/CD) pipeline for Benedictaitor using GitHub Actions, triggered directly from Replit.
+This guide provides detailed instructions for setting up the Continuous Integration and Continuous Deployment (CI/CD) pipeline for AIVoiceTranslator using GitHub Actions, triggered directly from Replit.
 
 ## One-Time Setup Process
 
@@ -8,7 +8,7 @@ This guide provides detailed instructions for setting up the Continuous Integrat
 
 1. Go to [GitHub](https://github.com/) and sign in (or create an account if needed)
 2. Click on the "+" icon in the top-right corner and select "New repository"
-3. Name your repository (e.g., "benedictaitor")
+3. Name your repository (e.g., "AIVoiceTranslator")
 4. Choose "Public" or "Private" visibility (CI/CD minutes are limited for private repos)
 5. Click "Create repository"
 
@@ -21,7 +21,7 @@ Run these commands in the Replit Shell tab:
 git init
 
 # Add remote repository (replace with your GitHub username and repo name)
-git remote add origin https://github.com/YOUR_USERNAME/benedictaitor.git
+git remote add origin https://github.com/YOUR_USERNAME/AIVoiceTranslator.git
 
 # Add all files
 git add .
@@ -41,7 +41,7 @@ If prompted, enter your GitHub credentials.
 2. Scroll down to "Developer settings" and click on it
 3. Click on "Personal access tokens" → "Tokens (classic)"
 4. Click "Generate new token" → "Generate new token (classic)"
-5. Give your token a name (e.g., "Benedictaitor Replit Integration")
+5. Give your token a name (e.g., "AIVoiceTranslator Replit Integration")
 6. Select the "repo" scope to allow managing repositories
 7. Click "Generate token"
 8. Copy the token that appears (you won't be able to see it again!)
