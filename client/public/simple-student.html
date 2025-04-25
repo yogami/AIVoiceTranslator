@@ -1160,6 +1160,17 @@
             return serviceNames[serviceType] || serviceType;
         }
         
+        // Convert a display name back to a service type
+        function getTtsServiceTypeFromName(displayName) {
+            let serviceType = 'browser'; // Default fallback
+            if (displayName.includes('OpenAI')) {
+                serviceType = 'openai';
+            } else if (displayName.includes('Silent')) {
+                serviceType = 'silent';
+            }
+            return serviceType;
+        }
+        
         function updateConnectionUI(connected) {
             const connectBtn = document.getElementById('connect-btn');
             const disconnectBtn = document.getElementById('disconnect-btn');
@@ -2162,12 +2173,16 @@
             document.querySelectorAll('.language-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const lang = this.getAttribute('data-lang');
-                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                    
+                    // Get the current teacher-controlled TTS service from the display span
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    // Convert display name back to service ID using the helper function
+                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
                     
                     // Check if this language is supported by the current TTS service
                     if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
-                        showError(`${this.textContent} is not supported by the current TTS service (${getTtsServiceName(currentTtsService)}). 
-                                  Either change the TTS service or select a different language.`);
+                        showError(`${this.textContent} is not supported by the current TTS service (${currentServiceName}). 
+                                  Please ask the teacher to change the TTS service.`);
                         return;
                     }
                     
@@ -2196,7 +2211,10 @@
             if (showMoreBtn && languageModal) {
                 // Initialize the expanded language list when "More Languages" is clicked
                 showMoreBtn.addEventListener('click', function() {
-                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                    // Get the current teacher-controlled TTS service from the display span
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    // Convert display name back to service ID using the helper function
+                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
                     
                     // Use the LanguageSupport module to update the expanded list
                     if (window.LanguageSupport) {
