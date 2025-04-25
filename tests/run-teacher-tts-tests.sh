@@ -13,7 +13,7 @@ echo -e "${YELLOW}  Teacher TTS Selection Tests Runner  ${NC}"
 echo -e "${YELLOW}=======================================${NC}"
 
 # Check if server is running
-if ! curl -s http://localhost:3000 > /dev/null; then
+if ! curl -s http://localhost:5000 > /dev/null; then
   echo -e "${YELLOW}Starting server...${NC}"
   npm run dev &
   SERVER_PID=$!
@@ -27,7 +27,7 @@ fi
 
 # Run the tests
 echo -e "${YELLOW}Running teacher TTS service selection tests...${NC}"
-APP_URL=http://localhost:3000 npm test -- tests/e2e/teacher-tts-selection.test.js
+APP_URL=http://localhost:5000 npm test -- tests/e2e/teacher-tts-selection.test.js
 TEST_STATUS=$?
 
 # Update test metrics (if applicable)
