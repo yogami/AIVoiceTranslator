@@ -37,6 +37,37 @@ OPENAI_API_KEY=your_openai_api_key
 
 Benedictaitor includes a comprehensive suite of tests to ensure reliability:
 
+### Automated CI/CD Testing
+
+The project includes CI/CD integration with GitHub Actions, which can be triggered directly from Replit:
+
+1. **One-Time Setup**:
+   - Create a GitHub repository
+   - Push code to the GitHub repository
+   - Generate a GitHub Personal Access Token with `repo` scope
+   - Add the token in Replit Secrets as `GITHUB_TOKEN`
+   - Update `ci-cd-trigger.sh` with your GitHub username and repository name
+
+2. **Run the CI/CD Pipeline**:
+   ```
+   chmod +x ci-cd-trigger.sh
+   ./ci-cd-trigger.sh
+   ```
+
+This will:
+- Push your latest code to GitHub
+- Trigger automated tests in GitHub Actions
+- Display a link to view test results
+
+### Local Testing
+
+Run the local test suite:
+
+```
+./test-websocket.sh   # Test WebSocket client/server communication
+./test-metrics.sh     # Test metrics API functionality
+```
+
 ### Real Hardware Testing
 
 The most accurate way to test is with actual hardware in a real environment. This tests the complete audio pathway including microphones and speakers:
