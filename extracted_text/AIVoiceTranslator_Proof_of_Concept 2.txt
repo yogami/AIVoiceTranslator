@@ -1,6 +1,6 @@
 
 --- Page 1 ---
-Proof of Concept: Rapid Prototype for Benedictaitor
+Proof of Concept: Rapid Prototype for AIVoiceTranslator
 Objective:
 Develop a fully functional voice translation prototype for 1 teacher and 3 students in a live classroom
 environment. This PoC should demonstrate real-time translation from speech-to-speech in multiple
@@ -73,5 +73,5 @@ Frontend:
 - Prioritize latency over full transcript integrity.
 - PoC will inform architecture for larger 25+ student pilot.
 Document Version: April 2025
-Project: Benedictaitor
+Project: AIVoiceTranslator
 Author: GPT, Technical Co-Developer

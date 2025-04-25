@@ -27,7 +27,7 @@ def text_to_pdf(text_file, pdf_file):
         for line in content:
             # Remove trailing newlines and encode to prevent encoding issues
             clean_line = line.rstrip('\n')
-            pdf.cell(0, 10, txt=clean_line, ln=True)
+            pdf.cell(0, 10, text=clean_line, ln=True)
         
         # Save the PDF
         pdf.output(pdf_file)
