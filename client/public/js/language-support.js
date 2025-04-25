@@ -1,183 +1,376 @@
 /**
- * Language Support Module for AIVoiceTranslator
- * Handles language compatibility with various TTS services
+ * Language Support Module
+ * 
+ * This module handles all aspects of language support for the application,
+ * including filtering languages based on TTS service capabilities and
+ * providing UI elements for language selection.
+ * 
+ * It implements the facade pattern to provide a clean API for language operations.
  */
 
-// Language support configuration for different TTS services
-const languageSupport = {
+// Self-executing function to create a module with private state
+(function(window) {
+  // Language support information by TTS service
+  const languageSupport = {
+    // Browser Speech Synthesis support varies by browser
+    // This is a conservative list of well-supported languages
     browser: {
-        // Web Speech API has more limited language support
-        supported: [
-            // Common languages with good browser support
-            "en-US", "en-GB", "es", "fr", "de", "it", "zh", "ja", "ru", "pt", "ko",
-            // European languages with moderate support
-            "bg", "cs", "da", "nl", "et", "fi", "el", "hu", "is", "ga", "lv", "lt", 
-            "no", "pl", "ro", "sk", "sl", "sv", "uk",
-            // Other languages with some browser support
-            "ar", "hi", "id", "ms", "fa", "th", "tr", "vi"
-        ]
+      fullySupported: [
+        'en', 'en-US', 'en-GB', 'en-AU', 'en-IN',
+        'es', 'es-ES', 'es-MX', 'es-419',
+        'fr', 'fr-FR', 'fr-CA',
+        'de',
+        'it',
+        'zh', 'zh-CN', 'zh-TW',
+        'ja',
+        'ko',
+        'pt', 'pt-BR', 'pt-PT',
+        'ru'
+      ],
+      partiallySupported: [
+        'ar', 'bg', 'ca', 'cs', 'da', 'nl', 'fi', 'el', 'he',
+        'hi', 'hu', 'id', 'no', 'pl', 'ro', 'sk', 'sv', 'th', 
+        'tr', 'uk', 'vi'
+      ]
     },
+    
+    // OpenAI TTS service supports all languages listed in the selector
     openai: {
-        // OpenAI supports all languages in our dropdown
-        supported: "all"
+      // All languages are supported by OpenAI TTS
+      fullySupported: [], // This will be populated at runtime with all available languages
+      partiallySupported: []
     },
+    
+    // Silent mode doesn't actually speak, so all languages are "supported"
     silent: {
-        // Silent mode supports all languages (no audio)
-        supported: "all"
+      fullySupported: [], // This will be populated at runtime with all available languages
+      partiallySupported: []
     }
-};
-
-/**
- * Check if a language is supported by a TTS service
- * 
- * @param {string} languageCode - Language code to check
- * @param {string} ttsService - TTS service to check support for
- * @returns {boolean} - Whether the language is supported
- */
-function isLanguageSupported(languageCode, ttsService) {
-    if (!languageSupport[ttsService]) {
-        return true; // Default to supported if service config not found
+  };
+  
+  // Store references to DOM elements for efficiency
+  let elements = {
+    languageSelect: null,
+    languageButtons: null,
+    expandedLanguageList: null,
+    showMoreButton: null
+  };
+  
+  /**
+   * Initialize the language support module
+   */
+  function init() {
+    // Cache DOM elements
+    elements.languageSelect = document.getElementById('language-select');
+    elements.languageButtons = document.querySelectorAll('.language-btn');
+    elements.expandedLanguageList = document.getElementById('expanded-language-list');
+    elements.showMoreButton = document.getElementById('show-more-languages');
+    
+    // Populate the list of all languages for OpenAI and Silent services
+    if (elements.languageSelect) {
+      const allLanguages = [];
+      const options = elements.languageSelect.querySelectorAll('option');
+      
+      options.forEach(option => {
+        allLanguages.push(option.value);
+      });
+      
+      languageSupport.openai.fullySupported = allLanguages;
+      languageSupport.silent.fullySupported = allLanguages;
     }
     
-    if (languageSupport[ttsService].supported === "all") {
-        return true; // All languages supported
-    }
-    
-    return languageSupport[ttsService].supported.includes(languageCode);
-}
-
-/**
- * Update language dropdown based on selected TTS service
- * This filters options to only show supported languages
- * 
- * @param {string} ttsService - Selected TTS service
- */
-function updateLanguageDropdown(ttsService) {
-    const select = document.getElementById('language-select');
-    const currentValue = select.value;
-    const options = select.querySelectorAll('option');
-    
-    // Enable/disable options based on support
-    options.forEach(option => {
-        const langCode = option.value;
-        const isSupported = isLanguageSupported(langCode, ttsService);
-        option.disabled = !isSupported;
-        
-        // Add visual cue for disabled options
-        if (!isSupported) {
-            option.style.color = '#999';
-            option.style.fontStyle = 'italic';
-            if (!option.textContent.includes('(unsupported)')) {
-                option.textContent += ' (unsupported)';
-            }
-        } else {
-            option.style.color = '';
-            option.style.fontStyle = '';
-            option.textContent = option.textContent.replace(' (unsupported)', '');
-        }
-    });
-    
-    // If current selection is not supported, select first supported language
-    if (!isLanguageSupported(currentValue, ttsService)) {
-        // Find first enabled option
-        const firstSupported = Array.from(options).find(opt => !opt.disabled);
-        if (firstSupported) {
-            select.value = firstSupported.value;
-            // Trigger change event
+    // Set up event listeners for language buttons
+    setupEventListeners();
+  }
+  
+  /**
+   * Set up event listeners for language-related elements
+   */
+  function setupEventListeners() {
+    // Language quick select buttons
+    if (elements.languageButtons) {
+      elements.languageButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const lang = this.getAttribute('data-lang');
+          if (elements.languageSelect) {
+            elements.languageSelect.value = lang;
+            
+            // Dispatch change event to trigger any listeners
             const event = new Event('change');
-            select.dispatchEvent(event);
+            elements.languageSelect.dispatchEvent(event);
+            
+            // Highlight the selected button
+            updateButtonHighlighting(lang);
+          }
+        });
+      });
+    }
+  }
+  
+  /**
+   * Update the dropdown based on TTS service capabilities
+   * @param {string} ttsService - The TTS service to filter languages for
+   */
+  function updateDropdown(ttsService) {
+    if (!elements.languageSelect) return;
+    
+    const supportedLanguages = getSupportedLanguages(ttsService);
+    const options = elements.languageSelect.querySelectorAll('option');
+    
+    options.forEach(option => {
+      const langCode = option.value;
+      const supported = isLanguageSupported(langCode, ttsService);
+      
+      // Disable or enable the option based on support
+      option.disabled = !supported;
+      
+      // Add visual indication of support status
+      if (supported) {
+        option.removeAttribute('title');
+        option.style.opacity = '1';
+      } else {
+        option.setAttribute('title', 'Not fully supported by ' + getTtsServiceName(ttsService));
+        option.style.opacity = '0.5';
+      }
+    });
+    
+    // If current selection is not supported, switch to first supported language
+    const currentLang = elements.languageSelect.value;
+    if (!isLanguageSupported(currentLang, ttsService)) {
+      const firstSupported = supportedLanguages[0] || 'en-US';
+      elements.languageSelect.value = firstSupported;
+      
+      // Update button highlighting
+      updateButtonHighlighting(firstSupported);
+    }
+  }
+  
+  /**
+   * Update the button states for quick language selection
+   * @param {string} ttsService - The TTS service to filter languages for
+   */
+  function updateButtons(ttsService) {
+    if (!elements.languageButtons) return;
+    
+    elements.languageButtons.forEach(button => {
+      const langCode = button.getAttribute('data-lang');
+      const supported = isLanguageSupported(langCode, ttsService);
+      
+      // Enable/disable button and update appearance
+      if (supported) {
+        button.classList.remove('unsupported');
+        button.removeAttribute('title');
+      } else {
+        button.classList.add('unsupported');
+        button.setAttribute('title', 'Not fully supported by ' + getTtsServiceName(ttsService));
+      }
+    });
+    
+    // Update highlighting for current selection
+    updateButtonHighlighting(elements.languageSelect ? elements.languageSelect.value : null);
+  }
+  
+  /**
+   * Update the expanded language list in the modal
+   * @param {string} ttsService - The TTS service to filter languages for
+   */
+  function updateExpandedList(ttsService) {
+    if (!elements.expandedLanguageList) return;
+    
+    // Clear existing content
+    elements.expandedLanguageList.innerHTML = '';
+    
+    // Group languages by category
+    const languageGroups = {};
+    const optGroups = elements.languageSelect.querySelectorAll('optgroup');
+    
+    optGroups.forEach(group => {
+      const groupName = group.label;
+      languageGroups[groupName] = Array.from(group.querySelectorAll('option'))
+        .map(option => {
+          return {
+            code: option.value,
+            name: option.textContent,
+            supported: isLanguageSupported(option.value, ttsService)
+          };
+        });
+    });
+    
+    // Create a button for each language
+    for (const groupName in languageGroups) {
+      // Add group header
+      const groupHeader = document.createElement('div');
+      groupHeader.className = 'language-group-header';
+      groupHeader.style.gridColumn = '1 / -1';
+      groupHeader.style.borderBottom = '1px solid #ddd';
+      groupHeader.style.marginTop = '10px';
+      groupHeader.style.paddingBottom = '5px';
+      groupHeader.style.fontWeight = 'bold';
+      groupHeader.textContent = groupName;
+      elements.expandedLanguageList.appendChild(groupHeader);
+      
+      // Add language buttons
+      languageGroups[groupName].forEach(lang => {
+        const button = document.createElement('button');
+        button.className = 'expanded-language-btn';
+        button.setAttribute('data-lang', lang.code);
+        button.textContent = lang.name;
+        
+        // Add support indicator
+        if (!lang.supported) {
+          button.classList.add('unsupported');
+          button.setAttribute('title', 'Not fully supported by ' + getTtsServiceName(ttsService));
         }
+        
+        // Highlight if currently selected
+        if (elements.languageSelect && elements.languageSelect.value === lang.code) {
+          button.classList.add('active');
+        }
+        
+        // Add click handler
+        button.addEventListener('click', function() {
+          if (!lang.supported) return; // Do nothing if language not supported
+          
+          if (elements.languageSelect) {
+            elements.languageSelect.value = lang.code;
+            
+            // Dispatch change event
+            const event = new Event('change');
+            elements.languageSelect.dispatchEvent(event);
+            
+            // Update button highlighting
+            updateButtonHighlighting(lang.code);
+            
+            // Update modal button highlighting
+            updateModalButtonHighlighting(lang.code);
+            
+            // Close modal
+            const modal = document.getElementById('language-modal');
+            if (modal) {
+              modal.style.display = 'none';
+            }
+          }
+        });
+        
+        elements.expandedLanguageList.appendChild(button);
+      });
+    }
+  }
+  
+  /**
+   * Highlight the currently selected language button
+   * @param {string} selectedLang - The selected language code
+   */
+  function updateButtonHighlighting(selectedLang) {
+    if (!elements.languageButtons) return;
+    
+    elements.languageButtons.forEach(button => {
+      const langCode = button.getAttribute('data-lang');
+      if (langCode === selectedLang) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
+    });
+  }
+  
+  /**
+   * Highlight the currently selected language in the modal
+   * @param {string} selectedLang - The selected language code
+   */
+  function updateModalButtonHighlighting(selectedLang) {
+    if (!elements.expandedLanguageList) return;
+    
+    const modalButtons = elements.expandedLanguageList.querySelectorAll('.expanded-language-btn');
+    modalButtons.forEach(button => {
+      const langCode = button.getAttribute('data-lang');
+      if (langCode === selectedLang) {
+        button.classList.add('active');
+      } else {
+        button.classList.remove('active');
+      }
+    });
+  }
+  
+  /**
+   * Check if a language is supported by a TTS service
+   * @param {string} langCode - The language code to check
+   * @param {string} ttsService - The TTS service to check against
+   * @returns {boolean} - Whether the language is supported
+   */
+  function isLanguageSupported(langCode, ttsService) {
+    // Default to browser TTS if not specified
+    ttsService = ttsService || 'browser';
+    
+    const support = languageSupport[ttsService];
+    if (!support) return false;
+    
+    // Check full support first
+    if (support.fullySupported.includes(langCode)) return true;
+    
+    // Check partial support
+    if (support.partiallySupported.includes(langCode)) return true;
+    
+    // Check if a parent language is supported
+    // e.g., 'en-US' might not be explicitly listed, but 'en' is
+    if (langCode.includes('-')) {
+      const parentLang = langCode.split('-')[0];
+      return support.fullySupported.includes(parentLang) || 
+             support.partiallySupported.includes(parentLang);
     }
     
-    // Update language buttons in the quick selection area
-    updateLanguageButtons(ttsService);
-}
-
-/**
- * Update the quick access language buttons based on TTS service support
- * 
- * @param {string} ttsService - Selected TTS service
- */
-function updateLanguageButtons(ttsService) {
-    const buttons = document.querySelectorAll('.language-btn');
+    return false;
+  }
+  
+  /**
+   * Get a list of supported languages for a TTS service
+   * @param {string} ttsService - The TTS service to get languages for
+   * @returns {string[]} - Array of supported language codes
+   */
+  function getSupportedLanguages(ttsService) {
+    // Default to browser TTS if not specified
+    ttsService = ttsService || 'browser';
     
-    buttons.forEach(button => {
-        const langCode = button.getAttribute('data-lang');
-        const isSupported = isLanguageSupported(langCode, ttsService);
-        
-        if (!isSupported) {
-            button.classList.add('unsupported');
-            button.title = 'Unsupported with current TTS service';
-            // Add visual indication
-            if (!button.querySelector('.unsupported-icon')) {
-                const icon = document.createElement('span');
-                icon.className = 'unsupported-icon';
-                icon.textContent = '⚠️';
-                icon.style.fontSize = '0.7em';
-                icon.style.marginLeft = '3px';
-                button.appendChild(icon);
-            }
-        } else {
-            button.classList.remove('unsupported');
-            button.title = '';
-            // Remove visual indication if exists
-            const icon = button.querySelector('.unsupported-icon');
-            if (icon) {
-                button.removeChild(icon);
-            }
-        }
-    });
-}
-
-/**
- * Update expanded language list in modal
- * 
- * @param {string} ttsService - Selected TTS service
- */
-function updateExpandedLanguageList(ttsService) {
-    const expandedList = document.getElementById('expanded-language-list');
-    if (!expandedList) return;
+    const support = languageSupport[ttsService];
+    if (!support) return [];
     
-    const buttons = expandedList.querySelectorAll('.expanded-language-btn');
+    // Combine fully and partially supported languages
+    return [...support.fullySupported, ...support.partiallySupported];
+  }
+  
+  /**
+   * Get a user-friendly name for a TTS service
+   * @param {string} ttsService - The TTS service identifier
+   * @returns {string} - The user-friendly name
+   */
+  function getTtsServiceName(ttsService) {
+    const names = {
+      browser: 'Browser Speech',
+      openai: 'OpenAI TTS',
+      silent: 'Silent Mode'
+    };
     
-    buttons.forEach(button => {
-        const langCode = button.getAttribute('data-lang');
-        const isSupported = isLanguageSupported(langCode, ttsService);
-        
-        if (!isSupported) {
-            button.classList.add('unsupported');
-            button.style.opacity = '0.5';
-            button.style.backgroundColor = '#f8f8f8';
-            button.title = 'Unsupported with current TTS service';
-            
-            // Add visual indication
-            if (!button.querySelector('.unsupported-icon')) {
-                const icon = document.createElement('span');
-                icon.className = 'unsupported-icon';
-                icon.textContent = '⚠️';
-                icon.style.fontSize = '0.7em';
-                icon.style.marginLeft = '5px';
-                button.appendChild(icon);
-            }
-        } else {
-            button.classList.remove('unsupported');
-            button.style.opacity = '1';
-            button.style.backgroundColor = '';
-            button.title = '';
-            
-            // Remove visual indication if exists
-            const icon = button.querySelector('.unsupported-icon');
-            if (icon) {
-                button.removeChild(icon);
-            }
-        }
-    });
-}
+    return names[ttsService] || ttsService;
+  }
+  
+  // Public API
+  const LanguageSupport = {
+    init: init,
+    updateDropdown: updateDropdown,
+    updateButtons: updateButtons,
+    updateExpandedList: updateExpandedList,
+    isLanguageSupported: isLanguageSupported,
+    getSupportedLanguages: getSupportedLanguages
+  };
+  
+  // Export to window
+  window.LanguageSupport = LanguageSupport;
+  
+})(window);
 
-// Export functions for use in main script
-window.LanguageSupport = {
-    isSupported: isLanguageSupported,
-    updateDropdown: updateLanguageDropdown,
-    updateButtons: updateLanguageButtons,
-    updateExpandedList: updateExpandedLanguageList
-};
+// Initialize when the document is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.LanguageSupport) {
+    window.LanguageSupport.init();
+  }
+});
