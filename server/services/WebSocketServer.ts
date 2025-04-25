@@ -182,6 +182,10 @@ export class WebSocketServer {
           await this.handleAudioMessage(ws, message);
           break;
           
+        case 'settings':
+          this.handleSettingsMessage(ws, message);
+          break;
+          
         case 'ping':
           this.handlePingMessage(ws, message);
           break;
@@ -608,6 +612,42 @@ export class WebSocketServer {
   /**
    * Handle ping message
    */
+  /**
+   * Handle settings message
+   * 
+   * Updates client settings such as TTS service type
+   */
+  private handleSettingsMessage(ws: WebSocketClient, message: any): void {
+    const role = this.roles.get(ws);
+    console.log(`Processing settings update from ${role}:`, message);
+    
+    // Get existing settings or create new object
+    const settings: any = this.clientSettings.get(ws) || {};
+    
+    // Update TTS service type if provided
+    if (message.ttsServiceType) {
+      settings.ttsServiceType = message.ttsServiceType;
+      console.log(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
+    }
+    
+    // Store updated settings
+    this.clientSettings.set(ws, settings);
+    
+    // If this is a teacher, log that the TTS service preference will be used for all students
+    if (role === 'teacher' && message.ttsServiceType) {
+      console.log(`Teacher's TTS service preference set to '${message.ttsServiceType}'. This will be used for all student translations.`);
+    }
+    
+    // Send confirmation
+    const response = {
+      type: 'settings',
+      status: 'success',
+      data: settings
+    };
+    
+    ws.send(JSON.stringify(response));
+  }
+
   private handlePingMessage(ws: WebSocketClient, message: any): void {
     // Respond with pong message
     const response = {
