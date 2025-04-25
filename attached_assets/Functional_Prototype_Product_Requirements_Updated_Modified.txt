@@ -1,0 +1,18 @@
+            Functional Prototype Product Requirements Document
+
+This updated version includes both the traditional STT -> Translation -> TTS pipeline and a new
+direct speech-to-speech translation approach using OpenAI's Realtime API.
+New Section: Direct Speech-to-Speech Translation with OpenAI Realtime API
+OpenAI's Realtime API enables direct audio-to-audio translation via streaming. This updated
+architecture provides:
+
+- Reduced latency
+- Improved prosody and natural speech
+- Simpler system design
+
+It replaces the traditional STT -> Translation -> TTS pipeline with a unified endpoint that handles all
+three stages internally.
+System Context Diagram
+Use Case Diagram
+Component Diagram
+Sequence Diagram
