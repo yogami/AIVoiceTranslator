@@ -1028,6 +1028,12 @@
                         
                         log(`Received translation with TTS service: ${ttsServiceType}, hasAudio: ${hasAudioData}, useClientSpeech: ${useClientSpeech}`);
                         
+                        // For browser TTS, ensure useClientSpeech is always set
+                        if (ttsServiceType === 'browser' && !useClientSpeech) {
+                            log('Setting useClientSpeech=true for browser TTS service');
+                            useClientSpeech = true;
+                        }
+                        
                         // Update the displayed TTS service type (teacher's preference)
                         document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsServiceType);
                         
