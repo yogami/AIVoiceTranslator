@@ -70,15 +70,15 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       
       // Wait for the WebSocket connection and select Spanish
       await studentDriver.wait(async function() {
-        const statusElement = await studentDriver.findElement(By.id('connectionStatus'));
+        const statusElement = await studentDriver.findElement(By.id('connection-status'));
         const statusText = await statusElement.getText();
         return statusText.includes('Connected');
       }, 10000, 'Student WebSocket connection failed to establish');
       
       // Set student to receive Spanish translations
-      const studentLanguageSelect = await studentDriver.findElement(By.id('studentLanguageSelect'));
+      const studentLanguageSelect = await studentDriver.findElement(By.id('language-select'));
       await studentLanguageSelect.click();
-      const spanishOption = await studentDriver.findElement(By.css('option[value="es-ES"]'));
+      const spanishOption = await studentDriver.findElement(By.css('option[value="es"]'));
       await spanishOption.click();
       
       console.log('✓ Student interface ready to receive Spanish translations');
@@ -88,7 +88,7 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       
       // Wait for WebSocket connection
       await teacherDriver.wait(async function() {
-        const statusElement = await teacherDriver.findElement(By.id('connectionStatus'));
+        const statusElement = await teacherDriver.findElement(By.id('connection-status'));
         const statusText = await statusElement.getText();
         return statusText.includes('Connected');
       }, 10000, 'Teacher WebSocket connection failed to establish');
@@ -97,11 +97,11 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       
       // 3. Verify the audio element exists in the student interface
       // This is our new feature - the audio playback element
-      const audioElement = await studentDriver.findElement(By.id('translationAudio'));
+      const audioElement = await studentDriver.findElement(By.id('audio-player'));
       assert.ok(audioElement, 'Audio playback element should exist in student interface');
       
       // Verify the play button exists for manual playback
-      const playButton = await studentDriver.findElement(By.id('playTranslationButton'));
+      const playButton = await studentDriver.findElement(By.id('play-button'));
       assert.ok(playButton, 'Play button should exist in student interface');
       
       // 4. Inject JavaScript to simulate a transcription from the teacher interface
@@ -125,7 +125,7 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       
       // 5. Wait for translation to appear in student interface
       await studentDriver.wait(async function() {
-        const translationOutput = await studentDriver.findElement(By.id('translationOutput'));
+        const translationOutput = await studentDriver.findElement(By.id('translation-box'));
         const translationText = await translationOutput.getText();
         console.log(`Current translation text: ${translationText}`);
         
@@ -136,7 +136,7 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       }, 20000, 'Translation did not appear in student interface');
       
       // Get final translation
-      const translationOutput = await studentDriver.findElement(By.id('translationOutput'));
+      const translationOutput = await studentDriver.findElement(By.id('translation-box'));
       const translationText = await translationOutput.getText();
       
       console.log(`✓ Received translation in student interface: "${translationText}"`);
@@ -152,7 +152,7 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       // 6. Verify that the audio source was updated with a valid URL
       await studentDriver.wait(async function() {
         const audioSrc = await studentDriver.executeScript(`
-          return document.getElementById('translationAudio').src;
+          return document.getElementById('audio-player').src;
         `);
         console.log(`Audio source: ${audioSrc}`);
         return audioSrc && audioSrc.length > 0 && !audioSrc.endsWith('undefined');
@@ -160,7 +160,7 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       
       // 7. Verify that the audio can be played (we check if the audio element has data)
       const audioHasData = await studentDriver.executeScript(`
-        const audio = document.getElementById('translationAudio');
+        const audio = document.getElementById('audio-player');
         return audio.duration > 0 || audio.readyState > 0;
       `);
       
@@ -169,7 +169,7 @@ describe('AIVoiceTranslator Audio E2E Tests', function() {
       // Because actual audio playback is difficult to verify in headless testing,
       // we'll also check that the playback controls are properly enabled
       const playButtonEnabled = await studentDriver.executeScript(`
-        return !document.getElementById('playTranslationButton').disabled;
+        return !document.getElementById('play-button').disabled;
       `);
       
       assert.ok(playButtonEnabled, 'Play button should be enabled when audio is available');
