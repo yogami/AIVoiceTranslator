@@ -22,18 +22,37 @@
  * - The right audio system is used based on teacher's preference
  */
 
-const { Builder, By, until, logging } = require('selenium-webdriver');
+const { Builder, By, until, logging, Key } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
 
 // Set test configuration from environment or defaults
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 const TIMEOUT = 10000; // 10 seconds
-const TEST_TIMEOUT = 60000; // 60 seconds for entire test
+const TEST_TIMEOUT = 90000; // 90 seconds for entire test (audio tests take time)
 
 // Helper function for logging
 function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
+// Helper function to check if audio is playing
+async function isAudioPlaying(driver) {
+  try {
+    const isPlaying = await driver.executeScript(`
+      const audioElements = document.querySelectorAll('audio');
+      for (const audio of audioElements) {
+        if (!audio.paused && !audio.ended && audio.currentTime > 0) {
+          return true;
+        }
+      }
+      return false;
+    `);
+    return isPlaying;
+  } catch (error) {
+    log(`Error checking audio playback: ${error.message}`);
+    return false;
+  }
 }
 
 describe('Teacher TTS Service Selection Tests', function() {
@@ -57,6 +76,12 @@ describe('Teacher TTS Service Selection Tests', function() {
       options.addArguments('--no-sandbox');
       options.addArguments('--disable-dev-shm-usage');
     }
+    
+    // Add arguments for browser audio support
+    options.addArguments('--use-fake-ui-for-media-stream');
+    options.addArguments('--use-fake-device-for-media-stream');
+    options.addArguments('--allow-file-access-from-files');
+    options.addArguments('--autoplay-policy=no-user-gesture-required');
     
     // Enable browser console logs
     options.setLoggingPrefs({ browser: 'ALL' });
@@ -268,5 +293,129 @@ describe('Teacher TTS Service Selection Tests', function() {
       'Logs should indicate Silent TTS service was used');
     
     log('Successfully verified silent TTS mode selection by teacher');
+  });
+  
+  /**
+   * Test: Verify Browser TTS Audio Playback
+   * 
+   * Verifies that when the teacher selects Browser TTS,
+   * the correct audio system plays on the student side
+   */
+  it('should play Browser TTS audio when teacher selects Browser TTS', async function() {
+    // Select Browser TTS (usually default, but let's set it explicitly)
+    const ttsBrowserBtn = await teacherDriver.findElement(By.id('teacher-tts-browser-btn'));
+    await ttsBrowserBtn.click();
+    log('Browser TTS button clicked');
+    
+    // Wait for TTS service to update
+    await teacherDriver.sleep(1000);
+    
+    // Verify teacher's TTS selection
+    const currentTtsService = await teacherDriver.findElement(By.id('current-tts-service'));
+    const serviceText = await currentTtsService.getText();
+    assert.strictEqual(serviceText, 'browser', 'Current TTS service should be "browser"');
+    
+    // Send a test message from teacher
+    const messageInput = await teacherDriver.findElement(By.id('teacher-message'));
+    await messageInput.clear();
+    await messageInput.sendKeys('This is a test message using Browser TTS');
+    
+    const sendBtn = await teacherDriver.findElement(By.id('teacher-send-btn'));
+    await sendBtn.click();
+    log('Test message sent from teacher with Browser TTS');
+    
+    // Wait for translation to appear for student
+    await studentDriver.wait(
+      until.elementLocated(By.css('.translation')),
+      TIMEOUT,
+      'Translation not received by student'
+    );
+    
+    // Verify the student's displayed TTS service
+    try {
+      const studentTtsDisplay = await studentDriver.findElement(By.id('active-tts-service'));
+      const displayedService = await studentTtsDisplay.getText();
+      assert(displayedService.includes('browser'), 'Student should display Browser as the active TTS service');
+      log('Student correctly displays Browser as active TTS service');
+    } catch (error) {
+      log(`Error checking student TTS display: ${error.message}`);
+      assert.fail('Could not verify student TTS service display');
+    }
+    
+    // Wait briefly for audio to start playing (if applicable)
+    await studentDriver.sleep(2000);
+    
+    // Check if audio is playing on student side (for Browser TTS, SpeechSynthesis should be active)
+    const isSpeechSynthesisActive = await studentDriver.executeScript(`
+      return (window.speechSynthesis && 
+              window.speechSynthesis.speaking) ? true : false;
+    `);
+    
+    // For browser TTS, we should see speechSynthesis.speaking is true
+    assert(isSpeechSynthesisActive, 'Browser Speech Synthesis should be active when Browser TTS is selected');
+    
+    log('Successfully verified Browser TTS audio playback');
+  });
+  
+  /**
+   * Test: Student TTS Service UI is Read-Only
+   * 
+   * Verifies that student cannot change the TTS service, but can see
+   * the teacher's selection and can compare other TTS services
+   */
+  it('should show teacher-controlled TTS service to students as read-only', async function() {
+    // First, set to Browser TTS
+    const ttsBrowserBtn = await teacherDriver.findElement(By.id('teacher-tts-browser-btn'));
+    await ttsBrowserBtn.click();
+    log('Browser TTS button clicked by teacher');
+    
+    // Wait for TTS service to update and propagate
+    await teacherDriver.sleep(1000);
+    
+    // Send a test message from teacher
+    const messageInput = await teacherDriver.findElement(By.id('teacher-message'));
+    await messageInput.clear();
+    await messageInput.sendKeys('This is a message to check TTS service display');
+    
+    const sendBtn = await teacherDriver.findElement(By.id('teacher-send-btn'));
+    await sendBtn.click();
+    log('Test message sent from teacher');
+    
+    // Wait for translation to appear for student
+    await studentDriver.wait(
+      until.elementLocated(By.css('.translation')),
+      TIMEOUT,
+      'Translation not received by student'
+    );
+    
+    // Check if the student UI shows the teacher-controlled section
+    const teacherControlled = await studentDriver.executeScript(`
+      return document.body.innerHTML.includes('Teacher-Controlled TTS Service');
+    `);
+    
+    assert(teacherControlled, 'Student UI should display the Teacher-Controlled TTS Service section');
+    
+    // Verify student can see TTS service comparison section
+    const hasComparisonSection = await studentDriver.executeScript(`
+      return document.getElementById('tts-comparison-section') !== null;
+    `);
+    
+    assert(hasComparisonSection, 'Student UI should display the TTS comparison section');
+    
+    // Check if student can play comparison examples but not change the active service
+    const hasPlayExampleButtons = await studentDriver.executeScript(`
+      return document.querySelectorAll('.play-example-btn').length > 0;
+    `);
+    
+    assert(hasPlayExampleButtons, 'Student should have play example buttons for TTS comparison');
+    
+    // Verify no change service buttons are present
+    const hasChangeButtons = await studentDriver.executeScript(`
+      return document.querySelectorAll('.change-tts-btn').length === 0;
+    `);
+    
+    assert(hasChangeButtons, 'Student should not have buttons to change TTS service');
+    
+    log('Successfully verified student TTS UI is read-only with comparison functionality');
   });
 });

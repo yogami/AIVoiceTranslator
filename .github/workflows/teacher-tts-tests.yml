@@ -8,6 +8,7 @@ on:
       - 'client/**/*'
       - 'server/services/TextToSpeechService.ts'
       - 'server/services/WebSocketServer.ts'
+      - 'server/services/TranslationService.ts'
       - 'tests/e2e/teacher-tts-selection.test.js'
   pull_request:
     branches: [ main ]
@@ -15,6 +16,7 @@ on:
       - 'client/**/*'
       - 'server/services/TextToSpeechService.ts'
       - 'server/services/WebSocketServer.ts'
+      - 'server/services/TranslationService.ts'
       - 'tests/e2e/teacher-tts-selection.test.js'
 
 jobs:
@@ -47,7 +49,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           
       - name: Run Teacher TTS Selection tests
-        run: npm test -- tests/e2e/teacher-tts-selection.test.js
+        run: npm test -- --timeout 90000 tests/e2e/teacher-tts-selection.test.js
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           APP_URL: http://localhost:3000
