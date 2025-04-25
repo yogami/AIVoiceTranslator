@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benedicataitor Student Interface</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --primary-light: #e0e7ff;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --background: #f9fafb;
+            --text: #111827;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .status-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-indicator.connected {
+            background-color: var(--success);
+        }
+
+        .status-indicator.disconnected {
+            background-color: var(--error);
+        }
+
+        .status-indicator.connecting {
+            background-color: var(--warning);
+        }
+
+        .box {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .language-box {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .language-selector {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            margin-left: 8px;
+            font-size: 16px;
+        }
+
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .volume-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            margin-left: 16px;
+        }
+
+        .volume-slider {
+            flex: 1;
+            margin-left: 8px;
+        }
+
+        .text-content {
+            margin-top: 16px;
+            white-space: pre-wrap;
+        }
+
+        .original-text, .translated-text {
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+        }
+
+        .original-text {
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary);
+        }
+
+        .translated-text {
+            background-color: #f0fff4;
+            border-left: 4px solid var(--success);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: var(--text-light);
+            cursor: not-allowed;
+        }
+
+        .server-url-container {
+            margin-bottom: 16px;
+        }
+
+        #serverUrl {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            font-size: 16px;
+            box-sizing: border-box;
+            margin-bottom: 8px;
+        }
+
+        .audio-status {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .audio-message {
+            color: var(--success);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Benedicataitor Student Interface</h1>
+        
+        <div class="box server-url-container">
+            <label for="serverUrl">WebSocket Server URL:</label>
+            <input type="text" id="serverUrl" placeholder="ws://localhost:3000/ws" value="ws://localhost:3000/ws">
+            <button id="connectButton">Connect</button>
+            <button id="disconnectButton" disabled>Disconnect</button>
+        </div>
+
+        <div class="status-container">
+            <p>
+                <span id="statusIndicator" class="status-indicator disconnected"></span>
+                <span id="connectionStatus">Disconnected</span>
+            </p>
+            <p id="connectionInfo" class="hidden">
+                Session ID: <span id="sessionId">-</span>
+            </p>
+        </div>
+
+        <div class="box">
+            <div class="language-box">
+                <label for="languageSelector">Preferred Language:</label>
+                <select id="languageSelector" class="language-selector">
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="ru">Russian</option>
+                    <option value="ar">Arabic</option>
+                </select>
+            </div>
+            <button id="registerButton" disabled>Set Language</button>
+        </div>
+
+        <div class="box">
+            <h2>Translation</h2>
+            <div class="text-content">
+                <div id="originalText" class="original-text">
+                    <p><em>Original text will appear here...</em></p>
+                </div>
+                <div id="translatedText" class="translated-text">
+                    <p><em>Translated text will appear here...</em></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="box">
+            <h2>Audio</h2>
+            <div class="audio-controls">
+                <button id="audioToggle" disabled>
+                    <span id="audioToggleText">Play Audio</span>
+                </button>
+                <div class="volume-container">
+                    <label for="volumeSlider">Volume:</label>
+                    <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.1" value="0.5">
+                </div>
+            </div>
+            <p id="audioStatus" class="audio-status">Audio is disabled. Connect to the server first.</p>
+            <p id="audioMessage" class="audio-message hidden"></p>
+        </div>
+    </div>
+
+    <script src="js/client.js"></script>
+</body>
+</html>
