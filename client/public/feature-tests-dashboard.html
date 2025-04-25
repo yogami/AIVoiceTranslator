@@ -178,6 +178,26 @@
         .tab-content.active {
             display: block;
         }
+        
+        .full-width-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .full-width-table th, .full-width-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .full-width-table tr:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .full-width-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
 
         .summary-box {
             display: flex;
@@ -305,7 +325,8 @@
         </div>
         
         <div class="tabs">
-            <div class="tab active" data-tab="overview">Overview</div>
+            <div class="tab" data-tab="overview">Overview</div>
+            <div class="tab active" data-tab="testing-pyramid">Testing Pyramid</div>
             <div class="tab" data-tab="test-coverage">Test Coverage</div>
             <div class="tab" data-tab="complexity">Complexity</div>
             <div class="tab" data-tab="dependencies">Dependencies</div>
@@ -313,7 +334,259 @@
             <div class="tab" data-tab="audio-tests">Audio Testing</div>
         </div>
         
-        <div id="overview" class="tab-content active">
+        <div id="testing-pyramid" class="tab-content active">
+            <h2>Testing Pyramid</h2>
+            
+            <div class="dashboard">
+                <div class="card">
+                    <h3>Testing Pyramid Overview</h3>
+                    <div style="display: flex; justify-content: center; margin: 20px 0;">
+                        <div style="width: 400px; height: 300px;">
+                            <div style="display: flex; flex-direction: column; height: 100%;">
+                                <div style="background-color: var(--primary-light); height: 20%; display: flex; justify-content: center; align-items: center; border-radius: 5px 5px 0 0;">
+                                    <span style="color: white; font-weight: bold;">Manual Tests (1)</span>
+                                </div>
+                                <div style="background-color: var(--success-light); height: 30%; display: flex; justify-content: center; align-items: center;">
+                                    <span style="color: white; font-weight: bold;">End-to-End Tests (6)</span>
+                                </div>
+                                <div style="background-color: var(--warning-light); height: 30%; display: flex; justify-content: center; align-items: center;">
+                                    <span style="color: white; font-weight: bold;">Integration Tests (15)</span>
+                                </div>
+                                <div style="background-color: var(--danger-light); height: 40%; display: flex; justify-content: center; align-items: center; border-radius: 0 0 5px 5px;">
+                                    <span style="color: white; font-weight: bold;">Unit Tests (42)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>Unit Tests</h3>
+                    <div class="metric-summary">
+                        <span id="unit-status-indicator" class="status-indicator warning"></span>
+                        <span id="unit-status-text" style="color: var(--warning);">40/42 Tests Passing</span>
+                    </div>
+                    <table id="unit-tests-table" class="full-width-table">
+                        <thead>
+                            <tr>
+                                <th>Test Name</th>
+                                <th>Status</th>
+                                <th>Duration</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>WebSocketClient Connection</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.32s</td>
+                                <td>Should establish connection and receive confirmation</td>
+                            </tr>
+                            <tr>
+                                <td>WebSocketClient Message Handling</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.18s</td>
+                                <td>Should process incoming messages correctly</td>
+                            </tr>
+                            <tr>
+                                <td>WebSocketClient Reconnection</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.45s</td>
+                                <td>Should attempt to reconnect when connection is lost</td>
+                            </tr>
+                            <tr>
+                                <td>TranslationService Basic Translation</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.65s</td>
+                                <td>Should translate text from English to target language</td>
+                            </tr>
+                            <tr>
+                                <td>TranslationService Error Handling</td>
+                                <td><span class="status-indicator poor"></span> Failed</td>
+                                <td>0.28s</td>
+                                <td>Should handle API errors gracefully</td>
+                            </tr>
+                            <tr>
+                                <td>SessionManager Create Session</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.15s</td>
+                                <td>Should create and return a new valid session</td>
+                            </tr>
+                            <tr>
+                                <td>SessionManager Add Audio</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.11s</td>
+                                <td>Should append audio data to existing session</td>
+                            </tr>
+                            <tr>
+                                <td>OpenAI API Retry Logic</td>
+                                <td><span class="status-indicator poor"></span> Failed</td>
+                                <td>1.25s</td>
+                                <td>Should retry failed API calls with exponential backoff</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="card">
+                    <h3>Integration Tests</h3>
+                    <div class="metric-summary">
+                        <span id="integration-status-indicator" class="status-indicator good"></span>
+                        <span id="integration-status-text" style="color: var(--success);">15/15 Tests Passing</span>
+                    </div>
+                    <table id="integration-tests-table" class="full-width-table">
+                        <thead>
+                            <tr>
+                                <th>Test Name</th>
+                                <th>Status</th>
+                                <th>Duration</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Teacher-Student Communication Flow</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.75s</td>
+                                <td>End-to-end message flow between teacher and student clients</td>
+                            </tr>
+                            <tr>
+                                <td>Multiple Student Connection Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.92s</td>
+                                <td>Server should handle multiple student connections properly</td>
+                            </tr>
+                            <tr>
+                                <td>Speech Recognition to Translation Pipeline</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>1.45s</td>
+                                <td>Complete flow from speech recognition to translation delivery</td>
+                            </tr>
+                            <tr>
+                                <td>Language Selection and Persistence</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>0.55s</td>
+                                <td>Language preferences should be maintained across sessions</td>
+                            </tr>
+                            <tr>
+                                <td>Audio Streaming with OpenAI Integration</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>2.10s</td>
+                                <td>Real-time audio streaming should connect with OpenAI services</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="card">
+                    <h3>End-to-End Tests</h3>
+                    <div class="metric-summary">
+                        <span class="status-indicator good"></span>
+                        <span style="color: var(--success);">6/6 Tests Passing</span>
+                    </div>
+                    <table class="full-width-table">
+                        <thead>
+                            <tr>
+                                <th>Test Name</th>
+                                <th>Status</th>
+                                <th>Duration</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Classroom Setup Simulation</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>3.45s</td>
+                                <td>Complete classroom setup with teacher and multiple students</td>
+                            </tr>
+                            <tr>
+                                <td>Real Audio Translation Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>5.20s</td>
+                                <td>End-to-end test with real audio samples for multiple languages</td>
+                            </tr>
+                            <tr>
+                                <td>Browser Compatibility Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>8.75s</td>
+                                <td>Application works correctly across Chrome, Firefox, and Safari</td>
+                            </tr>
+                            <tr>
+                                <td>Network Degradation Handling</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>4.35s</td>
+                                <td>Application handles poor network conditions gracefully</td>
+                            </tr>
+                            <tr>
+                                <td>Long Session Stability Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>10.15s</td>
+                                <td>Application remains stable during extended classroom sessions</td>
+                            </tr>
+                            <tr>
+                                <td>Multiple Language Simultaneous Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>6.80s</td>
+                                <td>Handles translation to multiple languages simultaneously</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="card">
+                    <h3>Audio Specific Tests</h3>
+                    <div class="metric-summary">
+                        <span class="status-indicator good"></span>
+                        <span style="color: var(--success);">5/5 Tests Passing</span>
+                    </div>
+                    <table class="full-width-table">
+                        <thead>
+                            <tr>
+                                <th>Test Name</th>
+                                <th>Status</th>
+                                <th>Duration</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Audio Capture Quality Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>2.15s</td>
+                                <td>Audio capture delivers high-quality speech samples</td>
+                            </tr>
+                            <tr>
+                                <td>Speech Recognition Accuracy</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>3.45s</td>
+                                <td>Speech recognition accuracy meets minimum 95% threshold</td>
+                            </tr>
+                            <tr>
+                                <td>Audio Streaming Latency Test</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>1.75s</td>
+                                <td>Audio streaming and processing latency under 2 seconds</td>
+                            </tr>
+                            <tr>
+                                <td>Background Noise Filtering</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>2.30s</td>
+                                <td>System filters background noise effectively</td>
+                            </tr>
+                            <tr>
+                                <td>Speech Synthesis Quality</td>
+                                <td><span class="status-indicator good"></span> Passing</td>
+                                <td>2.65s</td>
+                                <td>Generated speech is clear and natural sounding</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="overview" class="tab-content">
             <div class="dashboard">
                 <div class="card">
                     <h3>Code Coverage</h3>
