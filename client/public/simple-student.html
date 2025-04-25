@@ -1328,23 +1328,37 @@
                     playButton.disabled = false;
                     playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
                     
-                    // Set up click handler for play button
-                    playButton.onclick = () => {
+                    // Define handler for audio playback
+                    const playAudio = () => {
                         log('Playing server-generated audio');
-                        audio.play();
+                        audio.play().catch(err => {
+                            log('Error playing audio: ' + err.message);
+                            showError('Audio playback failed: ' + err.message);
+                        });
                         
                         // Visual feedback during playback
                         playButton.style.backgroundColor = '#e74c3c';
                         playButton.innerHTML = '<span class="play-icon">🔊</span> Playing...';
-                        
-                        // Reset button when done
-                        audio.onended = () => {
-                            playButton.style.backgroundColor = '';
-                            playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
-                        };
                     };
                     
-                    showSuccess('Server-generated audio ready to play');
+                    // Set up click handler for play button
+                    playButton.onclick = playAudio;
+                    
+                    // Reset button when audio ends
+                    audio.onended = () => {
+                        playButton.style.backgroundColor = '';
+                        playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                    };
+                    
+                    // Auto-play for OpenAI TTS when that service is selected
+                    if (ttsServiceType === 'openai') {
+                        log('Auto-playing OpenAI TTS audio');
+                        // Slight delay to make sure audio is loaded
+                        setTimeout(playAudio, 300);
+                        showSuccess('Playing OpenAI translation audio');
+                    } else {
+                        showSuccess('Server-generated audio ready to play');
+                    }
                     
                     // Show the comparison section now that we have some audio
                     comparisonSection.style.display = 'block';
