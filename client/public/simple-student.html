@@ -791,16 +791,24 @@
         </div>
         
         <div class="container" style="margin-top: 30px;">
-            <div class="language-heading">Text-to-Speech Service Selection</div>
+            <div class="language-heading">Text-to-Speech Information</div>
             
-            <div id="tts-service-selector" class="controls" style="margin-top: 15px;">
-                <div style="margin: 10px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+            <div id="tts-service-info" style="margin-top: 15px;">
+                <div style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Teacher-Controlled TTS Service</h3>
+                    <p style="margin-bottom: 10px;">
+                        The Text-to-Speech service is now controlled by the teacher. Your current TTS service is:
+                        <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">Browser</span>
+                    </p>
+                    <p style="margin-bottom: 0; font-size: 0.9rem; color: var(--text-light);">
+                        The teacher can change the TTS service at any time. All students will automatically use the same service.
+                    </p>
+                </div>
+                
+                <div class="language-heading">Available TTS Services</div>
+                <div style="margin: 15px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: var(--primary-light); box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
-                            <input type="radio" name="tts-service" value="browser" checked 
-                                   style="width: 20px; height: 20px; accent-color: var(--primary-color);"> 
-                            <span style="font-weight: bold; font-size: 1.1rem;">Browser Speech</span>
-                        </label>
+                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Browser Speech</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Uses your browser's built-in speech synthesis. Fast but less natural sounding.
                         </p>
@@ -813,11 +821,7 @@
                     </div>
                     
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #eef2ff; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
-                            <input type="radio" name="tts-service" value="openai" 
-                                   style="width: 20px; height: 20px; accent-color: #6366f1;"> 
-                            <span style="font-weight: bold; font-size: 1.1rem;">OpenAI TTS</span>
-                        </label>
+                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">OpenAI TTS</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Advanced neural voice with better emotional tone and natural pauses.
                         </p>
@@ -830,11 +834,7 @@
                     </div>
                     
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #f8f9fa; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
-                            <input type="radio" name="tts-service" value="silent" 
-                                   style="width: 20px; height: 20px; accent-color: #95a5a6;"> 
-                            <span style="font-weight: bold; font-size: 1.1rem;">Silent Mode</span>
-                        </label>
+                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Silent Mode</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Text only, no audio playback. Use in quiet environments or for accessibility.
                         </p>
@@ -846,15 +846,7 @@
                         </div>
                     </div>
                 </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px; background-color: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--border-radius);">
-                    <button id="apply-tts-settings" style="min-width: 150px; background-color: var(--secondary-color); padding: 12px 20px; border: none; border-radius: var(--border-radius); color: white; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
-                        Save Preference
-                    </button>
-                    <div class="tts-status" style="font-size: 0.95rem; color: var(--text-color);">
-                        <span>Current Default: <strong id="current-tts-service">Browser</strong></span>
-                    </div>
-                </div>
+                <!-- No save button needed since teacher controls the setting -->
             </div>
         </div>
         
