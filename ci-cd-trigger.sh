@@ -41,7 +41,11 @@ PAYLOAD=$(cat << EOF
     "commit_message": "$COMMIT_MESSAGE",
     "callback_url": "$CALLBACK_URL",
     "triggered_from": "replit",
-    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    "timestamp": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+    "test_suites": [
+      "audio-translation",
+      "tts-service-selection"
+    ]
   }
 }
 EOF

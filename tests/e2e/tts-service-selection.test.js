@@ -9,11 +9,16 @@
  * - Each test has a single responsibility
  * - Tests are deterministic and repeatable
  * - Clear naming conventions
+ * 
+ * Following Test Pyramid principles:
+ * - This is a UI end-to-end test at the top of the pyramid
+ * - It complements unit tests for the underlying TextToSpeechService components
+ * - Validates the complete feature from end-user perspective
  */
 
-import { Builder, By, until, logging } from 'selenium-webdriver';
-import chrome from 'selenium-webdriver/chrome.js';
-import assert from 'assert';
+const { Builder, By, until, logging } = require('selenium-webdriver');
+const chrome = require('selenium-webdriver/chrome');
+const assert = require('assert');
 
 // Set test configuration from environment or defaults
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
