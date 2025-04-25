@@ -250,24 +250,49 @@
         
         <div id="tts-service-selector" class="controls" style="margin-top: 15px;">
             <h3>Text-to-Speech Service Selection</h3>
-            <div style="margin: 10px 0;">
-                <label>
-                    <input type="radio" name="tts-service" value="browser" checked> Browser Speech Synthesis (Default)
-                </label>
+            <div style="margin: 10px 0; display: flex; flex-wrap: wrap; gap: 15px;">
+                <div style="flex-basis: 250px; padding: 10px; border: 2px solid #3498db; border-radius: 8px;">
+                    <label style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                        <input type="radio" name="tts-service" value="browser" checked> 
+                        <span style="font-weight: bold;">Browser Speech (Default)</span>
+                    </label>
+                    <div>
+                        <button class="play-demo-btn" data-service="browser" style="width: 100%; margin-top: 5px; background-color: #3498db;">
+                            <span>▶️</span> Play with Browser TTS
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="flex-basis: 250px; padding: 10px; border: 2px solid #6366f1; border-radius: 8px;">
+                    <label style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                        <input type="radio" name="tts-service" value="openai"> 
+                        <span style="font-weight: bold;">OpenAI TTS (Emotional)</span>
+                    </label>
+                    <div>
+                        <button class="play-demo-btn" data-service="openai" style="width: 100%; margin-top: 5px; background-color: #6366f1;">
+                            <span>▶️</span> Play with OpenAI TTS
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="flex-basis: 250px; padding: 10px; border: 2px solid #95a5a6; border-radius: 8px;">
+                    <label style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; cursor: pointer;">
+                        <input type="radio" name="tts-service" value="silent"> 
+                        <span style="font-weight: bold;">Silent (No Audio)</span>
+                    </label>
+                    <div>
+                        <button class="play-demo-btn" data-service="silent" style="width: 100%; margin-top: 5px; background-color: #95a5a6;">
+                            <span>🔇</span> Silent Mode
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div style="margin: 10px 0;">
-                <label>
-                    <input type="radio" name="tts-service" value="openai"> OpenAI TTS (Emotional)
-                </label>
-            </div>
-            <div style="margin: 10px 0;">
-                <label>
-                    <input type="radio" name="tts-service" value="silent"> Silent (No Audio)
-                </label>
-            </div>
-            <button id="apply-tts-settings" style="min-width: 120px; margin-top: 10px;">Apply</button>
-            <div class="tts-status" style="margin-top: 10px; font-size: 14px; color: #666;">
-                <span>Current TTS Service: <strong id="current-tts-service">Browser</strong></span>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+                <button id="apply-tts-settings" style="min-width: 120px;">Apply as Default</button>
+                <div class="tts-status" style="font-size: 14px; color: #666;">
+                    <span>Current Default: <strong id="current-tts-service">Browser</strong></span>
+                </div>
             </div>
         </div>
         
@@ -280,6 +305,22 @@
             <audio id="audio-player" controls style="display: none;"></audio>
             <button id="play-button" disabled>
                 <span class="play-icon">▶</span> Play Translation
+            </button>
+        </div>
+        
+        <!-- Audio Comparison Section -->
+        <div id="audio-comparison" class="container" style="margin-top: 20px; display: none;">
+            <h3>Compare TTS Services</h3>
+            <p style="font-size: 0.9em; margin-bottom: 15px;">
+                Listen to the same translation rendered with different TTS services
+            </p>
+            
+            <div id="comparison-options" style="display: flex; flex-direction: column; gap: 15px;">
+                <!-- This will be populated dynamically -->
+            </div>
+            
+            <button id="refresh-comparison" style="margin-top: 15px;">
+                <span>🔄</span> Get Comparison for Current Translation
             </button>
         </div>
         
@@ -330,6 +371,15 @@
         let isConnected = false;
         let sessionId = null;
         let selectedLanguage = document.getElementById('language-select').value;
+        
+        // Audio Cache - Store audio data by text and TTS service
+        let audioCache = {
+            lastTranslation: {
+                text: "",
+                originalText: "",
+                audios: {}  // { "browser": { data: base64, url: blobUrl }, "openai": {...} }
+            }
+        };
         
         function connectWebSocket() {
             try {
@@ -472,6 +522,12 @@
             const translationBox = document.getElementById('translation-box');
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
+            const comparisonSection = document.getElementById('audio-comparison');
+            
+            // Update the cache with this new translation
+            audioCache.lastTranslation.text = text;
+            audioCache.lastTranslation.originalText = originalText || "";
+            audioCache.lastTranslation.targetLanguage = targetLanguage;
             
             // Create HTML with both original and translated text
             let html = '';
@@ -512,6 +568,11 @@
                 playButton.disabled = true;
                 playButton.innerHTML = '<span class="play-icon">🔇</span> Audio Disabled';
                 log('Silent mode active, no audio playback');
+                
+                // Store in cache that this service is silent
+                audioCache.lastTranslation.audios[ttsServiceType] = { 
+                    isSilent: true
+                };
             } else if (audioData && audioData.length > 0) {
                 // We have server-generated audio data (base64 encoded)
                 try {
@@ -527,6 +588,14 @@
                     // Create blob and URL
                     const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); // Assume MP3 from OpenAI
                     const audioURL = URL.createObjectURL(blob);
+                    
+                    // Cache the audio data
+                    audioCache.lastTranslation.audios[ttsServiceType] = {
+                        data: audioData,
+                        url: audioURL,
+                        blob: blob,
+                        type: 'server'
+                    };
                     
                     // Set up audio element and play button
                     audio.src = audioURL;
@@ -550,6 +619,10 @@
                     };
                     
                     showSuccess('Server-generated audio ready to play');
+                    
+                    // Show the comparison section now that we have some audio
+                    comparisonSection.style.display = 'block';
+                    updateAudioComparison();
                 } catch (error) {
                     log('Error processing audio data: ' + error.message);
                     // Fall back to browser speech synthesis
@@ -557,11 +630,80 @@
                 }
             } else if (useClientSpeech) {
                 // Explicitly instructed to use client speech synthesis
-                generateSpeechFromText(text, targetLanguage);
+                generateSpeechFromText(text, targetLanguage, ttsServiceType);
             } else {
                 // Default to browser speech synthesis
-                generateSpeechFromText(text, targetLanguage);
+                generateSpeechFromText(text, targetLanguage, ttsServiceType);
             }
+        }
+        
+        // Function to update audio comparison UI
+        function updateAudioComparison() {
+            const comparisonOptions = document.getElementById('comparison-options');
+            comparisonOptions.innerHTML = '';
+            
+            // Get available TTS services with audio for the current translation
+            const audioServices = Object.keys(audioCache.lastTranslation.audios);
+            
+            if (audioServices.length === 0) {
+                comparisonOptions.innerHTML = '<p>No audio available for comparison yet.</p>';
+                return;
+            }
+            
+            // Create a player for each available TTS service
+            audioServices.forEach(service => {
+                const audioInfo = audioCache.lastTranslation.audios[service];
+                
+                // Skip if this is silent mode
+                if (audioInfo.isSilent) {
+                    return;
+                }
+                
+                const serviceCard = document.createElement('div');
+                serviceCard.className = 'service-comparison-card';
+                serviceCard.style.padding = '15px';
+                serviceCard.style.backgroundColor = '#f5f8fa';
+                serviceCard.style.borderRadius = '8px';
+                serviceCard.style.border = '1px solid #e1e4e8';
+                
+                // Create audio element 
+                const audioElement = document.createElement('audio');
+                audioElement.style.width = '100%';
+                audioElement.controls = true;
+                
+                if (audioInfo.url) {
+                    audioElement.src = audioInfo.url;
+                }
+                
+                // Create service info
+                const serviceInfo = document.createElement('div');
+                serviceInfo.style.display = 'flex';
+                serviceInfo.style.justifyContent = 'space-between';
+                serviceInfo.style.alignItems = 'center';
+                serviceInfo.style.marginBottom = '10px';
+                
+                const serviceName = document.createElement('h4');
+                serviceName.style.margin = '0';
+                serviceName.textContent = getTtsServiceName(service);
+                
+                const serviceBadge = document.createElement('span');
+                serviceBadge.style.backgroundColor = service === 'openai' ? '#6366f1' : '#3498db';
+                serviceBadge.style.color = 'white';
+                serviceBadge.style.padding = '3px 8px';
+                serviceBadge.style.borderRadius = '12px';
+                serviceBadge.style.fontSize = '12px';
+                serviceBadge.textContent = service === 'openai' ? 'Emotional' : 'Standard';
+                
+                serviceInfo.appendChild(serviceName);
+                serviceInfo.appendChild(serviceBadge);
+                
+                // Add elements to card
+                serviceCard.appendChild(serviceInfo);
+                serviceCard.appendChild(audioElement);
+                
+                // Add card to options
+                comparisonOptions.appendChild(serviceCard);
+            });
         }
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
