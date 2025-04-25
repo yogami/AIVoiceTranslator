@@ -384,15 +384,27 @@ export class WebSocketServer {
           // Check if this is a special marker for browser speech synthesis
           const bufferString = audioBuffer.toString('utf8');
           
-          if (bufferString.startsWith('{"type":"browser-speech"')) {
+          // Check if this is a browser speech JSON marker
+          // First try with a simple string check
+          if (bufferString.includes('"type":"browser-speech"') || bufferString.includes("'type':'browser-speech'")) {
             // This is a marker for browser-based speech synthesis
             console.log(`Using client browser speech synthesis for ${studentLanguage}`);
             translationMessage.useClientSpeech = true;
+            
             try {
+              // Try to parse the JSON - this should now work with the format from TextToSpeechService
               translationMessage.speechParams = JSON.parse(bufferString);
               console.log(`Successfully parsed speech params for ${studentLanguage}`);
+              
+              // Ensure autoPlay is set to true in the speech params
+              if (translationMessage.speechParams.autoPlay === undefined) {
+                translationMessage.speechParams.autoPlay = true;
+              }
+              
+              console.log(`Speech params: autoPlay=${translationMessage.speechParams.autoPlay}`);
             } catch (jsonError) {
               console.error('Error parsing speech params:', jsonError);
+              // Fallback to default speech params
               translationMessage.speechParams = {
                 type: 'browser-speech',
                 text: translatedText,

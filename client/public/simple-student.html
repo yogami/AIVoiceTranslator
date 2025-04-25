@@ -1394,8 +1394,44 @@
                 
                 // Check if we have speech parameters with autoPlay flag
                 if (message && message.speechParams && message.speechParams.autoPlay === true) {
-                    log('Auto-playing browser speech synthesis due to autoPlay flag');
-                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                    log('Auto-playing browser speech synthesis due to autoPlay flag = ' + message.speechParams.autoPlay);
+                    // Create and play speech immediately using Web Speech API
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        
+                        // Set language code, mapping short codes to full BCP 47 language tags if needed
+                        const langCodeMap = {
+                            'es': 'es-ES',
+                            'fr': 'fr-FR',
+                            'de': 'de-DE',
+                            'it': 'it-IT',
+                            'zh': 'zh-CN',
+                            'ja': 'ja-JP',
+                            'ru': 'ru-RU',
+                            'ar': 'ar-SA',
+                            'pt': 'pt-BR',
+                            'ko': 'ko-KR',
+                            'en': 'en-US'
+                        };
+                        
+                        // Map short language code to full code, or use as is if already in right format
+                        utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
+                        log(`Auto-playing speech in language ${utterance.lang}`);
+                        
+                        // Apply speech parameters if available
+                        if (message.speechParams.speed) {
+                            utterance.rate = message.speechParams.speed;
+                        }
+                        
+                        // Automatically play the speech
+                        window.speechSynthesis.cancel(); // Cancel any ongoing speech
+                        window.speechSynthesis.speak(utterance);
+                        showSuccess('Auto-playing translation with Browser TTS');
+                    } else {
+                        // Fall back to normal generation if Speech API is not available
+                        log('Speech API not available for auto-play, falling back to normal behavior');
+                        generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                    }
                 } else {
                     // Still configure the play button to use speech synthesis when clicked
                     log('Browser speech synthesis ready (click play button to hear)');
