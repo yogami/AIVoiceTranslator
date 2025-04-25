@@ -181,7 +181,7 @@
             display: flex;
             justify-content: center;
         }
-        #playTranslationButton {
+        #play-button {
             background-color: #2980b9;
             color: white;
             border: none;
@@ -194,11 +194,11 @@
             gap: 8px;
             transition: all 0.2s ease;
         }
-        #playTranslationButton:hover {
+        #play-button:hover {
             background-color: #3498db;
             transform: scale(1.05);
         }
-        #playTranslationButton:disabled {
+        #play-button:disabled {
             background-color: #bdc3c7;
             cursor: not-allowed;
             transform: none;
@@ -254,8 +254,8 @@
         </div>
         
         <div class="audio-controls">
-            <audio id="translationAudio" controls style="display: none;"></audio>
-            <button id="playTranslationButton" disabled>
+            <audio id="audio-player" controls style="display: none;"></audio>
+            <button id="play-button" disabled>
                 <span class="play-icon">▶</span> Play Translation
             </button>
         </div>
@@ -447,8 +447,8 @@
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
         function generateSpeechFromText(text, languageCode) {
-            const audio = document.getElementById('translationAudio');
-            const playButton = document.getElementById('playTranslationButton');
+            const audio = document.getElementById('audio-player');
+            const playButton = document.getElementById('play-button');
             
             // Disable button during processing
             playButton.disabled = true;
