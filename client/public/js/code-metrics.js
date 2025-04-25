@@ -1195,11 +1195,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
   
-  // Set the default active tab to "pyramid" (Testing Pyramid Overview)
-  const pyramidTab = document.querySelector('.tab[data-tab="pyramid"]');
+  // Set the default active tab to "testing-pyramid" (Testing Pyramid Overview)
+  const pyramidTab = document.querySelector('.tab[data-tab="testing-pyramid"]');
   if (pyramidTab) {
     // Click the pyramid tab to activate it by default
     pyramidTab.click();
+  }
+  
+  // Make sure our TTS service tests tab works
+  const ttsServiceTab = document.querySelector('.tab[data-tab="tts-service-tests"]');
+  if (ttsServiceTab) {
+    ttsServiceTab.addEventListener('click', () => {
+      // Show TTS Service Testing content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      document.getElementById('tts-service-tests').classList.add('active');
+    });
+  }
   }
   
   // Set up the refresh button functionality
