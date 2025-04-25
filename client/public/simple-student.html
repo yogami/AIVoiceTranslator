@@ -106,7 +106,7 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .language-btn:hover {
+        .language-btn:hover:not(.unsupported) {
             background-color: #e8f4fd;
             border-color: #3498db;
         }
@@ -114,6 +114,16 @@
             background-color: #3498db;
             color: white;
             border-color: #2980b9;
+        }
+        .language-btn.unsupported {
+            opacity: 0.6;
+            background-color: #f8f8f8;
+            border-color: #ddd;
+            cursor: not-allowed;
+        }
+        .language-btn.unsupported:hover {
+            background-color: #f8f8f8;
+            border-color: #ddd;
         }
         .debug-log {
             margin-top: 20px;
@@ -1737,105 +1747,12 @@
             if (showMoreBtn && languageModal) {
                 // Initialize the expanded language list when "More Languages" is clicked
                 showMoreBtn.addEventListener('click', function() {
-                    const expandedList = document.getElementById('expanded-language-list');
                     const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
                     
-                    // Clear any existing content
-                    expandedList.innerHTML = '';
-                    
-                    // Get all language groups and options
-                    const select = document.getElementById('language-select');
-                    const groups = select.querySelectorAll('optgroup');
-                    
-                    // Create a language card for each option
-                    groups.forEach(group => {
-                        // Add group header
-                        const groupHeader = document.createElement('h4');
-                        groupHeader.textContent = group.label;
-                        groupHeader.style.gridColumn = '1 / -1';
-                        groupHeader.style.marginTop = '15px';
-                        groupHeader.style.marginBottom = '5px';
-                        groupHeader.style.borderBottom = '1px solid #eee';
-                        groupHeader.style.paddingBottom = '5px';
-                        expandedList.appendChild(groupHeader);
-                        
-                        // Add language buttons
-                        const options = group.querySelectorAll('option');
-                        options.forEach(option => {
-                            const isSupported = window.LanguageSupport && 
-                                               window.LanguageSupport.isSupported(option.value, currentTtsService);
-                            
-                            const button = document.createElement('button');
-                            button.className = 'expanded-language-btn';
-                            button.setAttribute('data-lang', option.value);
-                            button.textContent = option.textContent;
-                            button.style.padding = '8px';
-                            button.style.border = '1px solid #ddd';
-                            button.style.borderRadius = '4px';
-                            button.style.background = '#f8f9fa';
-                            button.style.cursor = 'pointer';
-                            button.style.transition = 'all 0.2s';
-                            
-                            // Mark button as active if it's the currently selected language
-                            if (option.value === selectedLanguage) {
-                                button.style.backgroundColor = '#3498db';
-                                button.style.color = 'white';
-                                button.style.borderColor = '#2980b9';
-                            }
-                            
-                            // Mark as unsupported if needed
-                            if (!isSupported) {
-                                button.classList.add('unsupported');
-                                button.style.opacity = '0.5';
-                                button.style.cursor = 'not-allowed';
-                                button.title = 'Not supported by current TTS service';
-                                
-                                // Add warning icon
-                                const warningIcon = document.createElement('span');
-                                warningIcon.innerHTML = ' ⚠️';
-                                warningIcon.style.fontSize = '0.7em';
-                                button.appendChild(warningIcon);
-                            } else {
-                                // Add click handler only for supported languages
-                                button.addEventListener('click', function() {
-                                    const lang = this.getAttribute('data-lang');
-                                    
-                                    // Update the language select dropdown
-                                    languageSelect.value = lang;
-                                    selectedLanguage = lang;
-                                    
-                                    // Update all language buttons
-                                    document.querySelectorAll('.language-btn').forEach(btn => {
-                                        btn.classList.remove('active');
-                                        if (btn.getAttribute('data-lang') === lang) {
-                                            btn.classList.add('active');
-                                        }
-                                    });
-                                    
-                                    // Update all expanded language buttons
-                                    document.querySelectorAll('.expanded-language-btn').forEach(btn => {
-                                        btn.style.backgroundColor = '#f8f9fa';
-                                        btn.style.color = 'inherit';
-                                        btn.style.borderColor = '#ddd';
-                                    });
-                                    this.style.backgroundColor = '#3498db';
-                                    this.style.color = 'white';
-                                    this.style.borderColor = '#2980b9';
-                                    
-                                    // Register with new language if connected
-                                    if (isConnected) {
-                                        registerAsStudent(lang);
-                                        showSuccess(`Language changed to ${this.textContent}`);
-                                    }
-                                    
-                                    // Close the modal
-                                    languageModal.style.display = 'none';
-                                });
-                            }
-                            
-                            expandedList.appendChild(button);
-                        });
-                    });
+                    // Use the LanguageSupport module to update the expanded list
+                    if (window.LanguageSupport) {
+                        window.LanguageSupport.updateExpandedList(currentTtsService);
+                    }
                     
                     // Show the modal
                     languageModal.style.display = 'block';

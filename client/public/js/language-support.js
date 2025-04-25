@@ -360,6 +360,7 @@
     updateButtons: updateButtons,
     updateExpandedList: updateExpandedList,
     isLanguageSupported: isLanguageSupported,
+    isSupported: isLanguageSupported, // Alias for backward compatibility
     getSupportedLanguages: getSupportedLanguages
   };
   
