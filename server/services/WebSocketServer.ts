@@ -312,18 +312,27 @@ export class WebSocketServer {
     
     for (const targetLanguage of studentLanguages) {
       try {
-        // Get the teacher's preferred TTS service type (default to OpenAI for reliability)
-        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'openai';
+        // Get the teacher's preferred TTS service type
+        // IMPORTANT FIX: Default to 'browser' if the teacher selected it, not 'openai'
+        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
         
         // Look for the teacher's TTS service preference
+        let foundTeacherPreference = false;
         this.connections.forEach(client => {
           if (this.roles.get(client) === 'teacher') {
             if (this.clientSettings.get(client)?.ttsServiceType) {
               // Use the teacher's preference for all student translations
               teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+              foundTeacherPreference = true;
+              console.log(`Found teacher preference for TTS service: ${teacherTtsServiceType}`);
             }
           }
         });
+        
+        // Explicitly log if we couldn't find a teacher preference (to help with debugging)
+        if (!foundTeacherPreference) {
+          console.log(`No explicit teacher preference found for TTS service, using: ${teacherTtsServiceType}`);
+        }
         
         // Only log in development mode to avoid cluttering the logs
         if (process.env.NODE_ENV === 'development') {
@@ -366,14 +375,26 @@ export class WebSocketServer {
       const translatedText = translations[studentLanguage] || message.text;
       
       // Get the teacher's preferred TTS service type (same as used for generation)
-      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'openai';
+      // IMPORTANT FIX: Default to 'browser' here too, not 'openai'
+      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+      
+      // Look for explicit teacher preference
+      let foundTeacherPreference = false;
       this.connections.forEach(teacherClient => {
         if (this.roles.get(teacherClient) === 'teacher' &&
             this.clientSettings.get(teacherClient)?.ttsServiceType) {
           teacherTtsServiceType = this.clientSettings.get(teacherClient)?.ttsServiceType;
+          foundTeacherPreference = true;
+          console.log(`Student translation: Using teacher's TTS service preference: ${teacherTtsServiceType}`);
         }
       });
-      // Use teacher's preference instead of individual student settings
+      
+      // Explicitly log if we're using a default (for debugging)
+      if (!foundTeacherPreference) {
+        console.log(`Student translation: No teacher preference found, using default: ${teacherTtsServiceType}`);
+      }
+      
+      // Use teacher's preference for student
       const ttsServiceType = teacherTtsServiceType;
       
       // Create translation message with audio data support
