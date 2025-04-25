@@ -123,6 +123,30 @@ node run-all-tests.js
 
 For more information on Selenium testing, see [SELENIUM-TESTING.md](SELENIUM-TESTING.md).
 
+### Load Testing
+
+The project includes specialized load tests to simulate real classroom environments with multiple simultaneous users:
+
+- **Classroom Simulation**: A load test that simulates a teacher speaking German with 25 students listening in various languages
+- **Performance Metrics**: Measures connection time, translation latency, and audio delivery success rate
+- **Deployment Validation**: Helps verify system performance before staging/production deployments
+
+Run load tests locally with:
+
+```bash
+# Run with default settings (25 students)
+./run-load-tests.sh
+
+# Run with custom server URL and student count
+./run-load-tests.sh ws://your-server-url.com/ws 50
+```
+
+**Note**: These load tests are resource-intensive and not part of the regular CI/CD pipeline. They should only be run when preparing for staging/production deployments or when specifically testing system capacity.
+
+Load tests can also be triggered manually in GitHub Actions via the "Classroom Load Test" workflow. This allows testing against staging environments with configurable parameters.
+
+For detailed information about load testing, see [LOAD-TESTING.md](LOAD-TESTING.md).
+
 ## WebSocket Protocol
 
 The application uses a custom WebSocket protocol for real-time communication:

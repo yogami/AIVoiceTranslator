@@ -1,0 +1,95 @@
+name: Classroom Load Test
+
+# This workflow runs the classroom simulation load test
+# It is NOT triggered automatically - only runs when manually dispatched
+# This test is resource-intensive and should only be run before staging/production deployments
+
+on:
+  # Manual trigger only
+  workflow_dispatch:
+    inputs:
+      num_students:
+        description: 'Number of simultaneous student connections'
+        required: true
+        default: '25'
+        type: number
+      test_duration:
+        description: 'Test duration in seconds'
+        required: true
+        default: '60'
+        type: number
+
+jobs:
+  classroom-load-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install uuid package
+        run: npm install uuid ws
+      
+      - name: Start server in background
+        run: |
+          npm run dev &
+          echo "Waiting for server to start..."
+          sleep 10
+          
+      - name: Run classroom simulation load test
+        env:
+          TEST_SERVER_URL: ws://localhost:5000/ws
+          TEST_NUM_STUDENTS: ${{ github.event.inputs.num_students }}
+          TEST_DURATION_MS: ${{ github.event.inputs.test_duration * 1000 }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node tests/load-tests/classroom_simulation_load_test.js
+        
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: load-test-results
+          path: test-results/
+          retention-days: 14
+          
+      - name: Generate load test report
+        if: always()
+        run: |
+          echo "# Classroom Simulation Load Test Results" > load-test-report.md
+          echo "" >> load-test-report.md
+          echo "## Test Configuration" >> load-test-report.md
+          echo "- Students: ${{ github.event.inputs.num_students }}" >> load-test-report.md
+          echo "- Duration: ${{ github.event.inputs.test_duration }} seconds" >> load-test-report.md
+          echo "" >> load-test-report.md
+          echo "## Summary" >> load-test-report.md
+          if [ -f test-results/*.json ]; then
+            echo "Test completed. See attached artifacts for detailed results." >> load-test-report.md
+          else
+            echo "Test failed. No results generated." >> load-test-report.md
+          fi
+      
+      - name: Upload load test report
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: load-test-report
+          path: load-test-report.md
+          
+      - name: Check test results
+        run: |
+          if [ -f test-results/*.json ]; then
+            echo "Load test completed successfully"
+            exit 0
+          else
+            echo "Load test failed to generate results"
+            exit 1
+          fi
