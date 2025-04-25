@@ -1,4 +1,4 @@
-import React, { useState, createContext } from "react";
+import React, { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,26 +7,8 @@ import Home from "./pages/Home";
 import UsageGuidePage from "./pages/UsageGuidePage";
 import StudentPage from "./pages/StudentPage";
 
-// Simple toast context
-import { useToast } from "./hooks/use-toast";
-
-// Define toast interfaces
-interface ToastProps {
-  title?: string;
-  description?: string;
-  variant?: 'default' | 'destructive';
-}
-
-// Create toast context
-interface ToastContextType {
-  toast: (props: ToastProps) => void;
-  message: ToastProps | null;
-}
-
-const ToastContext = createContext<ToastContextType>({
-  toast: () => {},
-  message: null
-});
+// Import toast functionality
+import { ToastProps, setToastHandler } from "./hooks/use-toast";
 
 function Router() {
   return (
@@ -61,21 +43,22 @@ function Toaster({ message }: { message: ToastProps | null }) {
 function App() {
   const [toastMessage, setToastMessage] = useState<ToastProps | null>(null);
   
-  const toast = (props: ToastProps) => {
-    setToastMessage(props);
-    
-    // Auto-dismiss after 3 seconds
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3000);
-  };
+  // Register our toast handler
+  useEffect(() => {
+    setToastHandler((toast) => {
+      setToastMessage(toast);
+      
+      // Auto-dismiss after 3 seconds
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 3000);
+    });
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ToastContext.Provider value={{ toast, message: toastMessage }}>
-        <Router />
-        <Toaster message={toastMessage} />
-      </ToastContext.Provider>
+      <Router />
+      <Toaster message={toastMessage} />
     </QueryClientProvider>
   );
 }

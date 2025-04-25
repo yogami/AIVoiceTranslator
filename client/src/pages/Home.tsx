@@ -1,46 +1,62 @@
 import React from 'react';
 import { Link } from 'wouter';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Home: React.FC = () => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-      <div className="max-w-4xl w-full bg-white rounded-lg shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-center mb-8">AIVoiceTranslator - Speech Translation System</h1>
+    <div className="container mx-auto py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-4xl font-bold mb-8 text-center bg-gradient-to-r from-blue-500 to-green-500 text-transparent bg-clip-text">
+          AIVoiceTranslator
+        </h1>
         
-        <div className="text-center mb-8">
-          <p className="mb-4">
-            A lightweight multilingual communication system for classrooms, focused on simplifying 
-            speech recognition and translation with minimal dependencies.
-          </p>
-          <p className="mb-4">
-            <strong>For Best Results:</strong> Use the Teacher Interface on your computer and the Student Interface on mobile devices.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-4 mt-6">
-            <a href="/simple-speech-test.html" className="px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition">
-              Teacher Interface
-            </a>
-            <a href="/simple-student.html" className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
-              Student Interface
-            </a>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+          <Card>
+            <CardHeader>
+              <CardTitle>Teacher Interface</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4">For teachers who want to broadcast their speech for translation.</p>
+              <Link to="/teacher">
+                <Button className="w-full">Go to Teacher Interface</Button>
+              </Link>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Student Interface</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4">For students who want to hear translations in their preferred language.</p>
+              <Link to="/student">
+                <Button className="w-full">Go to Student Interface</Button>
+              </Link>
+            </CardContent>
+          </Card>
         </div>
         
-        <div className="border border-gray-200 rounded-lg p-6 mt-8">
-          <h2 className="text-xl font-semibold mb-4">Documentation & Usage Guide</h2>
-          <p className="text-gray-600 mb-4">
-            Learn how the system works and how to use it effectively.
-          </p>
-          <div className="flex justify-center mt-4">
-            <Link href="/guide">
-              <a className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium text-center">
-                Usage Guide
-              </a>
-            </Link>
-          </div>
-        </div>
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>About AIVoiceTranslator</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">
+              AIVoiceTranslator is a real-time classroom translation system that captures a teacher's speech,
+              translates it into multiple languages, and delivers it to students with minimal latency.
+            </p>
+            <p>
+              This creates an inclusive learning environment where students can learn in their preferred language
+              while preserving the emotional tone of the teacher's delivery.
+            </p>
+          </CardContent>
+        </Card>
         
-        <div className="mt-8 text-center text-gray-600">
-          <p>AIVoiceTranslator - Built for simplified classroom translation</p>
+        <div className="text-center">
+          <Link to="/guide">
+            <Button variant="outline">View Usage Guide</Button>
+          </Link>
         </div>
       </div>
     </div>

@@ -1,4 +1,6 @@
-import { createContext, useContext } from 'react';
+// A simple implementation of useToast
+// In practice, a real context system would be used
+// This is a temporary solution for our demo
 
 export interface ToastProps {
   title?: string;
@@ -6,17 +8,22 @@ export interface ToastProps {
   variant?: 'default' | 'destructive';
 }
 
-// Create a context to share the toast state across components
-interface ToastContextType {
-  toast: (props: ToastProps) => void;
-  message: ToastProps | null;
+let lastToast: ToastProps | null = null;
+let toastCallback: ((toast: ToastProps) => void) | null = null;
+
+export function setToastHandler(callback: (toast: ToastProps) => void) {
+  toastCallback = callback;
 }
 
-export const ToastContext = createContext<ToastContextType>({
-  toast: () => {},
-  message: null
-});
-
 export function useToast() {
-  return useContext(ToastContext);
+  return {
+    toast: (props: ToastProps) => {
+      lastToast = props;
+      if (toastCallback) {
+        toastCallback(props);
+      } else {
+        console.log('Toast displayed:', props);
+      }
+    }
+  };
 }
