@@ -1219,6 +1219,13 @@
             const playButton = document.getElementById('play-button');
             const comparisonSection = document.getElementById('audio-comparison');
             
+            // CRITICAL FIX: Ensure that useClientSpeech is ALWAYS true when ttsServiceType is 'browser'
+            // This is the key fix for the browser TTS issue
+            if (ttsServiceType === 'browser') {
+                useClientSpeech = true;
+                log('🔧 FIX: Forcing useClientSpeech=true for browser TTS service');
+            }
+            
             // Update the cache with this new translation
             audioCache.lastTranslation.text = text;
             audioCache.lastTranslation.originalText = originalText || "";
@@ -1463,39 +1470,81 @@
                 // We don't have audio data and no explicit instruction to use client speech
                 if (ttsServiceType === 'browser') {
                     // For browser TTS service, use the browser speech synthesis
-                    log('Using browser speech synthesis for browser TTS service');
+                    log('🔊 BROWSER TTS: Using browser speech synthesis (fixed implementation)');
                     
                     // Create and play speech immediately using Web Speech API
                     if ('speechSynthesis' in window) {
-                        const utterance = new SpeechSynthesisUtterance(text);
+                        log('✅ Browser support check: speechSynthesis API is available');
                         
-                        // Set language code, mapping short codes to full BCP 47 language tags if needed
-                        const langCodeMap = {
-                            'es': 'es-ES',
-                            'fr': 'fr-FR',
-                            'de': 'de-DE',
-                            'it': 'it-IT',
-                            'zh': 'zh-CN',
-                            'ja': 'ja-JP',
-                            'ru': 'ru-RU',
-                            'ar': 'ar-SA',
-                            'pt': 'pt-BR',
-                            'ko': 'ko-KR',
-                            'en': 'en-US'
-                        };
-                        
-                        // Map short language code to full code, or use as is if already in right format
-                        utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
-                        
-                        // Add event listeners to debug speech synthesis issues
-                        utterance.onstart = () => log('Speech synthesis started for browser TTS service');
-                        utterance.onend = () => log('Speech synthesis completed for browser TTS service');
-                        utterance.onerror = (e) => log('Speech synthesis error: ' + e.error);
-                        
-                        // Play the speech
-                        window.speechSynthesis.cancel(); // Cancel any ongoing speech
-                        window.speechSynthesis.speak(utterance);
-                        showSuccess('Playing translation with Browser TTS');
+                        try {
+                            // Create a new utterance with the translated text
+                            const utterance = new SpeechSynthesisUtterance(text);
+                            
+                            // Set language code, mapping short codes to full BCP 47 language tags if needed
+                            const langCodeMap = {
+                                'es': 'es-ES',
+                                'fr': 'fr-FR',
+                                'de': 'de-DE',
+                                'it': 'it-IT',
+                                'zh': 'zh-CN',
+                                'ja': 'ja-JP',
+                                'ru': 'ru-RU',
+                                'ar': 'ar-SA',
+                                'pt': 'pt-BR',
+                                'ko': 'ko-KR',
+                                'en': 'en-US'
+                            };
+                            
+                            // Map short language code to full code, or use as is if already in right format
+                            utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
+                            log(`🔤 Language set to: ${utterance.lang}`);
+                            
+                            // Add event listeners for detailed debugging
+                            utterance.onstart = () => {
+                                log('🎙️ BROWSER TTS: Speech synthesis STARTED');
+                                // Update UI to show speaking state
+                                playButton.style.backgroundColor = '#e74c3c';
+                                playButton.innerHTML = '<span class="play-icon">🔊</span> Speaking...';
+                            };
+                            
+                            utterance.onend = () => {
+                                log('✅ BROWSER TTS: Speech synthesis COMPLETED');
+                                // Reset UI
+                                playButton.style.backgroundColor = '';
+                                playButton.innerHTML = '<span class="play-icon">▶</span> Play Again';
+                            };
+                            
+                            utterance.onerror = (e) => {
+                                log(`❌ BROWSER TTS ERROR: ${e.error || 'Unknown error'}`);
+                                showError(`Speech synthesis error: ${e.error || 'Unknown error'}`);
+                                playButton.style.backgroundColor = '';
+                                playButton.innerHTML = '<span class="play-icon">▶</span> Try Again';
+                            };
+                            
+                            // Make sure any speech is canceled
+                            window.speechSynthesis.cancel();
+                            
+                            // Force resume the synthesis (workaround for Chrome issue)
+                            // Chrome has a bug where it pauses speech synthesis after ~15 seconds
+                            window.speechSynthesis.resume();
+                            
+                            // Play the speech
+                            log('▶️ BROWSER TTS: Speaking now...');
+                            window.speechSynthesis.speak(utterance);
+                            
+                            // Show success message
+                            showSuccess('Auto-playing translation with Browser TTS');
+                            
+                            // Store in cache that we used browser speech
+                            audioCache.lastTranslation.audios['browser'] = {
+                                text: text,
+                                language: utterance.lang,
+                                type: 'browser'
+                            };
+                        } catch (speechError) {
+                            log(`❌ FATAL ERROR initializing speech: ${speechError.message}`);
+                            showError(`Failed to initialize speech: ${speechError.message}`);
+                        }
                         
                         // Also set up manual play button
                         playButton.disabled = false;
