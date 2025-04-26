@@ -79,9 +79,10 @@ export class AssistantMemoryManager {
         const [result] = await db.insert(memory).values(memoryData).returning();
         return result;
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error storing memory:', error);
-      throw new Error(`Failed to store memory: ${error.message}`);
+      throw new Error(`Failed to store memory: ${errorMessage}`);
     }
   }
 
@@ -95,8 +96,9 @@ export class AssistantMemoryManager {
         .where(eq(memory.key, key))
         .limit(1);
       return result;
-    } catch (error) {
-      console.error('Error retrieving memory:', error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error retrieving memory:', errorMessage);
       return undefined;
     }
   }
@@ -110,8 +112,9 @@ export class AssistantMemoryManager {
         .from(memory)
         .where(eq(memory.category, category))
         .orderBy(desc(memory.timestamp));
-    } catch (error) {
-      console.error('Error retrieving memories by category:', error);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error retrieving memories by category:', errorMessage);
       return [];
     }
   }
@@ -137,9 +140,10 @@ export class AssistantMemoryManager {
         .returning();
       
       return result;
-    } catch (error) {
-      console.error('Error storing conversation:', error);
-      throw new Error(`Failed to store conversation: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error storing conversation:', errorMessage);
+      throw new Error(`Failed to store conversation: ${errorMessage}`);
     }
   }
 
@@ -200,9 +204,10 @@ export class AssistantMemoryManager {
         const [result] = await db.insert(configuration).values(configData).returning();
         return result;
       }
-    } catch (error) {
-      console.error('Error storing configuration:', error);
-      throw new Error(`Failed to store configuration: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error storing configuration:', errorMessage);
+      throw new Error(`Failed to store configuration: ${errorMessage}`);
     }
   }
 

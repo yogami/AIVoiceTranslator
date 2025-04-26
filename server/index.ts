@@ -7,6 +7,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from './services/WebSocketServer';
 import { apiRoutes } from './routes';
+import { memoryService } from './services/MemoryService';
 
 // SOLID: Single Responsibility - CORS middleware has one job
 const configureCorsMiddleware = (app: express.Express): void => {

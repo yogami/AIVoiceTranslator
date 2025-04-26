@@ -1,276 +1,190 @@
 /**
- * MemoryService.ts
+ * Memory Service
  * 
- * This service provides persistent memory capabilities for the AI Voice Translator project.
- * It allows storing and retrieving key-value data, conversation history, and configuration
- * information across sessions, enabling the AI assistant to maintain context.
+ * This service provides a convenient API for interacting with
+ * the assistant's memory system from various parts of the application.
  */
 
-import { db } from '../db';
-import { memory, conversations, configuration, insertMemorySchema, insertConversationSchema, insertConfigurationSchema } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { assistantMemory } from './AssistantMemoryManager';
 
-export interface MemoryServiceInterface {
-  // Basic key-value memory operations
-  store(key: string, value: any, category: string): Promise<void>;
-  retrieve(key: string): Promise<any | null>;
-  retrieveByCategory(category: string): Promise<Record<string, any>>;
-  delete(key: string): Promise<void>;
-  
-  // Conversation history operations
-  storeConversation(sessionId: string, userMessage: string, assistantMessage: string, context?: any): Promise<void>;
-  getConversationHistory(sessionId: string, limit?: number): Promise<any[]>;
-  getRecentConversations(limit?: number): Promise<any[]>;
-  
-  // Configuration operations
-  storeConfiguration(name: string, value: any): Promise<void>;
-  getConfiguration(name: string): Promise<any | null>;
-  getAllConfiguration(): Promise<Record<string, any>>;
-}
-
-export class MemoryService implements MemoryServiceInterface {
-  
+class MemoryService {
   /**
-   * Store a key-value pair in memory
-   * @param key The unique identifier for this data
-   * @param value The value to store (will be stringified if object)
-   * @param category The category for organizing memory items
+   * Initialize the memory system and migrate existing data
    */
-  async store(key: string, value: any, category: string): Promise<void> {
-    const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-    
+  public async initialize(): Promise<void> {
     try {
-      // Check if key already exists
-      const existing = await db.select().from(memory).where(eq(memory.key, key));
+      // Migrate data from files to the database
+      await assistantMemory.initializeFromFiles();
       
-      if (existing.length > 0) {
-        // Update existing record
-        await db.update(memory)
-          .set({ value: stringValue, category, timestamp: new Date() })
-          .where(eq(memory.key, key));
-      } else {
-        // Insert new record
-        await db.insert(memory).values({
-          key,
-          value: stringValue,
-          category,
-        });
-      }
-      
-      console.log(`Memory stored: ${key} in category ${category}`);
-    } catch (error) {
-      console.error(`Error storing memory: ${error.message}`);
-      throw new Error(`Failed to store memory: ${error.message}`);
+      // Log initialization success
+      console.log('Memory system initialized successfully');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to initialize memory system:', errorMessage);
     }
   }
   
   /**
-   * Retrieve a value from memory by key
-   * @param key The key to look up
-   * @returns The stored value, or null if not found
+   * Store GitHub configuration
    */
-  async retrieve(key: string): Promise<any | null> {
+  public async storeGitHubConfig(config: Record<string, any>): Promise<void> {
     try {
-      const result = await db.select().from(memory).where(eq(memory.key, key));
-      
-      if (result.length === 0) {
-        return null;
-      }
-      
-      const { value } = result[0];
-      
-      // Try to parse as JSON, return as string if not valid JSON
-      try {
-        return JSON.parse(value);
-      } catch {
-        return value;
-      }
-    } catch (error) {
-      console.error(`Error retrieving memory: ${error.message}`);
-      return null;
+      await assistantMemory.storeGitHubConfig(config);
+      console.log('GitHub configuration stored successfully');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to store GitHub configuration:', errorMessage);
     }
   }
   
   /**
-   * Retrieve all memory items in a specific category
-   * @param category The category to retrieve
-   * @returns Object with key-value pairs from that category
+   * Get GitHub configuration
    */
-  async retrieveByCategory(category: string): Promise<Record<string, any>> {
+  public async getGitHubConfig(): Promise<Record<string, any>> {
     try {
-      const results = await db.select()
-        .from(memory)
-        .where(eq(memory.category, category));
-      
-      const categoryData: Record<string, any> = {};
-      
-      for (const item of results) {
-        // Try to parse as JSON, use as string if not valid JSON
-        try {
-          categoryData[item.key] = JSON.parse(item.value);
-        } catch {
-          categoryData[item.key] = item.value;
-        }
-      }
-      
-      return categoryData;
-    } catch (error) {
-      console.error(`Error retrieving category: ${error.message}`);
+      return await assistantMemory.getGitHubConfig();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to retrieve GitHub configuration:', errorMessage);
       return {};
     }
   }
   
   /**
-   * Delete a memory item by key
-   * @param key The key to delete
+   * Store project configuration
    */
-  async delete(key: string): Promise<void> {
+  public async storeProjectConfig(config: Record<string, any>): Promise<void> {
     try {
-      await db.delete(memory).where(eq(memory.key, key));
-      console.log(`Memory deleted: ${key}`);
-    } catch (error) {
-      console.error(`Error deleting memory: ${error.message}`);
-      throw new Error(`Failed to delete memory: ${error.message}`);
+      await assistantMemory.storeProjectConfig(config);
+      console.log('Project configuration stored successfully');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to store project configuration:', errorMessage);
     }
   }
   
   /**
-   * Store a conversation exchange between user and assistant
-   * @param sessionId Unique identifier for the conversation session
-   * @param userMessage The message from the user
-   * @param assistantMessage The response from the assistant
-   * @param context Optional context data for the conversation
+   * Get project configuration
    */
-  async storeConversation(
-    sessionId: string,
+  public async getProjectConfig(): Promise<Record<string, any>> {
+    try {
+      return await assistantMemory.getProjectConfig();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to retrieve project configuration:', errorMessage);
+      return {};
+    }
+  }
+  
+  /**
+   * Store a conversation exchange
+   */
+  public async storeConversation(
     userMessage: string,
     assistantMessage: string,
-    context?: any
+    context?: Record<string, any>
   ): Promise<void> {
     try {
-      await db.insert(conversations).values({
-        sessionId,
-        userMessage,
-        assistantMessage,
-        context: context || null,
-      });
-      console.log(`Conversation stored for session ${sessionId}`);
-    } catch (error) {
-      console.error(`Error storing conversation: ${error.message}`);
-      throw new Error(`Failed to store conversation: ${error.message}`);
+      await assistantMemory.storeConversation(userMessage, assistantMessage, context);
+      console.log('Conversation stored successfully');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to store conversation:', errorMessage);
     }
   }
   
   /**
-   * Get conversation history for a specific session
-   * @param sessionId The session to retrieve history for
-   * @param limit Maximum number of conversation exchanges to retrieve
-   * @returns Array of conversation exchanges
+   * Get conversation history for current session
    */
-  async getConversationHistory(sessionId: string, limit: number = 100): Promise<any[]> {
+  public async getSessionConversations(): Promise<any[]> {
     try {
-      const history = await db.select()
-        .from(conversations)
-        .where(eq(conversations.sessionId, sessionId))
-        .orderBy(conversations.timestamp)
-        .limit(limit);
-      
-      return history;
-    } catch (error) {
-      console.error(`Error retrieving conversation history: ${error.message}`);
+      return await assistantMemory.getSessionConversations();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to retrieve session conversations:', errorMessage);
       return [];
     }
   }
   
   /**
-   * Get recent conversations across all sessions
-   * @param limit Maximum number of conversation exchanges to retrieve
-   * @returns Array of recent conversation exchanges
+   * Store memory item
    */
-  async getRecentConversations(limit: number = 50): Promise<any[]> {
+  public async storeMemory(key: string, value: string, category: string): Promise<void> {
     try {
-      const recent = await db.select()
-        .from(conversations)
-        .orderBy(conversations.timestamp)
-        .limit(limit);
-      
-      return recent;
-    } catch (error) {
-      console.error(`Error retrieving recent conversations: ${error.message}`);
+      await assistantMemory.storeMemory(key, value, category);
+      console.log(`Memory item '${key}' stored successfully`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to store memory item '${key}':`, errorMessage);
+    }
+  }
+  
+  /**
+   * Get memory item
+   */
+  public async getMemory(key: string): Promise<string | undefined> {
+    try {
+      const memoryItem = await assistantMemory.getMemory(key);
+      return memoryItem?.value;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to retrieve memory item '${key}':`, errorMessage);
+      return undefined;
+    }
+  }
+  
+  /**
+   * Get all memories in a category
+   */
+  public async getMemoriesByCategory(category: string): Promise<Array<{key: string, value: string}>> {
+    try {
+      const memories = await assistantMemory.getMemoriesByCategory(category);
+      return memories.map(mem => ({
+        key: mem.key,
+        value: mem.value
+      }));
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to retrieve memories in category '${category}':`, errorMessage);
       return [];
     }
   }
   
   /**
-   * Store configuration settings
-   * @param name Configuration name/key
-   * @param value Configuration value (object)
+   * Search memories and conversations
    */
-  async storeConfiguration(name: string, value: any): Promise<void> {
+  public async search(query: string): Promise<{
+    memories: Array<{key: string, value: string, category: string}>;
+    conversations: Array<{userMessage: string, assistantMessage: string}>;
+  }> {
     try {
-      // Check if configuration already exists
-      const existing = await db.select().from(configuration).where(eq(configuration.name, name));
+      const results = await assistantMemory.search(query);
       
-      if (existing.length > 0) {
-        // Update existing configuration
-        await db.update(configuration)
-          .set({ value, updatedAt: new Date() })
-          .where(eq(configuration.name, name));
-      } else {
-        // Insert new configuration
-        await db.insert(configuration).values({
-          name,
-          value,
-        });
-      }
-      
-      console.log(`Configuration stored: ${name}`);
-    } catch (error) {
-      console.error(`Error storing configuration: ${error.message}`);
-      throw new Error(`Failed to store configuration: ${error.message}`);
+      return {
+        memories: results.memories.map(mem => ({
+          key: mem.key,
+          value: mem.value,
+          category: mem.category
+        })),
+        conversations: results.conversations.map(conv => ({
+          userMessage: conv.userMessage,
+          assistantMessage: conv.assistantMessage
+        }))
+      };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to search for '${query}':`, errorMessage);
+      return { memories: [], conversations: [] };
     }
   }
   
   /**
-   * Get configuration by name
-   * @param name Configuration name to retrieve
-   * @returns Configuration value or null if not found
+   * Get the session ID for linking related information
    */
-  async getConfiguration(name: string): Promise<any | null> {
-    try {
-      const result = await db.select().from(configuration).where(eq(configuration.name, name));
-      
-      if (result.length === 0) {
-        return null;
-      }
-      
-      return result[0].value;
-    } catch (error) {
-      console.error(`Error retrieving configuration: ${error.message}`);
-      return null;
-    }
-  }
-  
-  /**
-   * Get all configuration settings
-   * @returns Object with all configuration settings
-   */
-  async getAllConfiguration(): Promise<Record<string, any>> {
-    try {
-      const results = await db.select().from(configuration);
-      
-      const allConfig: Record<string, any> = {};
-      for (const item of results) {
-        allConfig[item.name] = item.value;
-      }
-      
-      return allConfig;
-    } catch (error) {
-      console.error(`Error retrieving all configuration: ${error.message}`);
-      return {};
-    }
+  public getSessionId(): string {
+    return assistantMemory.getSessionId();
   }
 }
 
-// Export singleton instance
+// Export a singleton instance
 export const memoryService = new MemoryService();
