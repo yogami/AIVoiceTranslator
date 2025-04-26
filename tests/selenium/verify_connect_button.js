@@ -4,8 +4,11 @@
  * This test verifies that the Connect button on the student interface works correctly
  * by simulating a student clicking the Connect button and checking that the WebSocket
  * connection is established.
+ * 
+ * This test is designed to run in a CI/CD environment with Chrome headless.
  */
 
+// Use CommonJS modules for compatibility with the CI/CD environment
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
