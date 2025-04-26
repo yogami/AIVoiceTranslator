@@ -11,6 +11,7 @@
  */
 import { Router, Request, Response } from 'express';
 import { storage } from './storage';
+import { assetService } from './services/AssetService';
 import { 
   getAllMetrics, 
   refreshMetrics, 
@@ -330,6 +331,108 @@ apiRoutes.post('/metrics/refresh', async (req: Request, res: Response) => {
     console.error('Error refreshing metrics:', error);
     res.status(500).json({ 
       error: 'Failed to refresh metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Asset API Routes
+ * These endpoints handle retrieval of project assets from the database
+ */
+
+/**
+ * Get all assets
+ * Returns a list of all assets in the database
+ */
+apiRoutes.get('/assets', async (req: Request, res: Response) => {
+  try {
+    const assets = await assetService.getAllAssets();
+    
+    // Return a list with filename, filetype, and creation date but not the content
+    const assetList = assets.map(asset => ({
+      id: asset.id,
+      filename: asset.filename,
+      filetype: asset.filetype,
+      created_at: asset.created_at,
+      size: asset.metadata && typeof asset.metadata === 'object' ? (asset.metadata as any).size : null
+    }));
+    
+    res.json(assetList);
+  } catch (error) {
+    console.error('Error fetching assets:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve assets',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get assets by filetype
+ * Returns a list of assets with a specific filetype
+ */
+apiRoutes.get('/assets/type/:filetype', async (req: Request, res: Response) => {
+  try {
+    const { filetype } = req.params;
+    const assets = await assetService.getAssetsByType(filetype);
+    
+    // Return a list with filename, filetype, and creation date but not the content
+    const assetList = assets.map(asset => ({
+      id: asset.id,
+      filename: asset.filename,
+      filetype: asset.filetype,
+      created_at: asset.created_at,
+      size: asset.metadata && typeof asset.metadata === 'object' ? (asset.metadata as any).size : null
+    }));
+    
+    res.json(assetList);
+  } catch (error) {
+    console.error(`Error fetching assets by type:`, error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve assets by type',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get asset by filename
+ * Returns a single asset with its content
+ */
+apiRoutes.get('/assets/file/:filename', async (req: Request, res: Response) => {
+  try {
+    const { filename } = req.params;
+    const asset = await assetService.getAssetByFilename(filename);
+    
+    if (!asset) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+    
+    // For PDF, images etc., we need to convert from base64 to binary
+    if (['pdf', 'png', 'jpg', 'jpeg'].includes(asset.filetype)) {
+      const buffer = Buffer.from(asset.content, 'base64');
+      
+      // Set appropriate content type
+      const contentTypes: Record<string, string> = {
+        'pdf': 'application/pdf',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg'
+      };
+      
+      res.setHeader('Content-Type', contentTypes[asset.filetype] || 'application/octet-stream');
+      res.setHeader('Content-Disposition', `inline; filename="${asset.filename}"`);
+      return res.send(buffer);
+    }
+    
+    // For text files, we can send the content directly
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(asset.content);
+  } catch (error) {
+    console.error(`Error fetching asset by filename:`, error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve asset',
       message: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
