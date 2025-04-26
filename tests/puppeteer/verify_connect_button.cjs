@@ -24,6 +24,7 @@ async function testConnectButton(serverUrl) {
   try {
     // Start a browser instance
     console.log('Launching browser in headless mode...');
+    // Let Puppeteer find the installed browser
     browser = await puppeteer.launch({
       headless: true,
       args: [

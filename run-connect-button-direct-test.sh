@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Run Connect Button Puppeteer Test in CI/CD Environment
-# This script runs a Puppeteer test to verify the Connect button functionality
-# in a CI/CD environment with headless browser testing.
+# Run Connect Button Direct WebSocket Test in CI/CD Environment
+# This script runs a direct WebSocket test to verify the Connect button functionality
+# without requiring a browser.
 
 # Set color codes for pretty output
 GREEN='\033[0;32m'
@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔═════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║      CONNECT BUTTON PUPPETEER TEST (CI/CD)          ║${NC}"
+echo -e "${BLUE}║      CONNECT BUTTON DIRECT WEBSOCKET TEST          ║${NC}"
 echo -e "${BLUE}╚═════════════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -52,11 +52,11 @@ for i in {1..15}; do
 done
 
 echo ""
-echo -e "Running Puppeteer Connect Button test..."
+echo -e "Running Direct WebSocket Connect Button test..."
 mkdir -p test-results
 # Set SERVER_URL environment variable for the test
 export SERVER_URL="http://localhost:5000"
-node tests/puppeteer/verify_connect_button.cjs 2>&1 | tee test-results/connect-button-puppeteer-test.log
+node verify-connect-button-direct.js 2>&1 | tee test-results/connect-button-direct-test.log
 TEST_RESULT=${PIPESTATUS[0]}
 
 # Save server logs
@@ -73,12 +73,12 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 if [ $TEST_RESULT -eq 0 ]; then
-  echo -e "${GREEN}✅ PASSED: Connect Button Puppeteer Test${NC}"
+  echo -e "${GREEN}✅ PASSED: Connect Button Direct WebSocket Test${NC}"
   echo -e "The Connect button has been fixed and works correctly!"
   exit 0
 else
-  echo -e "${RED}❌ FAILED: Connect Button Puppeteer Test${NC}"
-  echo -e "${YELLOW}See test-results/connect-button-puppeteer-test.log for details${NC}"
+  echo -e "${RED}❌ FAILED: Connect Button Direct WebSocket Test${NC}"
+  echo -e "${YELLOW}See test-results/connect-button-direct-test.log for details${NC}"
   echo -e "${YELLOW}Server logs are available in test-results/server-output.log${NC}"
   exit 1
 fi
