@@ -76,7 +76,17 @@ This Working Agreement defines how the Replit agent must behave to fully embody 
 - Define assertions that explicitly verify the UI behavior being fixed
 - Include test cases for all identified edge cases
 
-✅ All UI fixes must be verifiable through automated tests in CI/CD.
+### 3.2 Verification and Fix Validation Policy
+
+**Agent Must:**
+- **ONLY claim that an issue has been fixed AFTER Selenium end-to-end tests have passed in the CI/CD environment**
+- Consider an issue as NOT fixed if the corresponding Selenium test fails in CI/CD
+- Create a Selenium test case for every UI or user interaction fix before implementing the fix
+- Avoid manual testing except for initial issue diagnosis
+- For each fix, add a specific Selenium test that would have failed before the fix and passes after
+- Document the specific test that verifies each fix in the commit message and session journal
+
+✅ Zero to minimal need for manual testing; all fixes are validated by automated tests in CI/CD.
 
 ---
 
@@ -193,21 +203,25 @@ This Working Agreement defines how the Replit agent must behave to fully embody 
 ↓
 2. Write Mock-Driven Tests (London TDD)
 ↓
-3. Minimal Code to Pass Tests
+3. Write Selenium End-to-End Tests for UI Fixes
 ↓
-4. Immediate Refactor
+4. Minimal Code to Pass Tests
 ↓
-5. Update Metrics, Docs
+5. Immediate Refactor
 ↓
-6. Small Commit to Main (Trunk-Based)
+6. Update Metrics, Docs
 ↓
-7. GitHub CI/CD Full Pipeline Test
+7. Small Commit to Main (Trunk-Based)
 ↓
-8. Lightweight Code Review (if needed)
+8. GitHub CI/CD Full Pipeline Test
 ↓
-9. Log Observability Changes
+9. Verify Fix via Selenium Tests in CI/CD
 ↓
-10. Journal, Debt Tracking
+10. Lightweight Code Review (if needed)
+↓
+11. Log Observability Changes
+↓
+12. Journal, Debt Tracking
 ↓
 (REPEAT)
 ```
