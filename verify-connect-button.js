@@ -69,13 +69,28 @@ async function testWebSocketConnection() {
     // Create promise that waits for server response
     const responsePromise = new Promise((resolve, reject) => {
       // Handle incoming messages
+      let receivedConnectionMsg = false;
+      let receivedRegisterSuccessMsg = false;
+      
       ws.on('message', (data) => {
         try {
           const message = JSON.parse(data.toString());
           console.log('✓ Received response from server:', message);
           
-          if (message.type === 'connection-confirmation') {
+          // Check for connection message
+          if (message.type === 'connection' && message.status === 'connected') {
             console.log('✓ Connection confirmation received with session ID:', message.sessionId);
+            receivedConnectionMsg = true;
+          }
+          
+          // Check for register success message
+          if (message.type === 'register' && message.status === 'success') {
+            console.log('✓ Registration successful with role:', message.data.role);
+            receivedRegisterSuccessMsg = true;
+          }
+          
+          // If we've received both messages, the test passes
+          if (receivedConnectionMsg && receivedRegisterSuccessMsg) {
             resolve(true);
           }
         } catch (error) {
@@ -85,7 +100,13 @@ async function testWebSocketConnection() {
       
       // Response timeout
       setTimeout(() => {
-        reject(new Error(`No response received after ${TIMEOUT}ms`));
+        if (receivedConnectionMsg && !receivedRegisterSuccessMsg) {
+          reject(new Error(`Received connection message but no registration confirmation after ${TIMEOUT}ms`));
+        } else if (!receivedConnectionMsg) {
+          reject(new Error(`No connection message received after ${TIMEOUT}ms`));
+        } else {
+          reject(new Error(`No response received after ${TIMEOUT}ms`));
+        }
       }, TIMEOUT);
     });
     
