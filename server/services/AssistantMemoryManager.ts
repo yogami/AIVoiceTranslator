@@ -1,35 +1,41 @@
 /**
- * AssistantMemoryManager.ts
+ * Assistant Memory Manager
  * 
- * High-level manager for maintaining AI assistant's memory across sessions.
- * Provides specialized methods for common memory patterns specifically for
- * the AI Voice Translator project.
+ * This service manages the persistent memory for the AI assistant using PostgreSQL.
+ * It provides methods to store and retrieve various types of memory data including:
+ * - Configuration settings
+ * - Conversation history
+ * - Technical decisions
+ * - Project context
  */
 
-import { memoryService } from './MemoryService';
 import { v4 as uuidv4 } from 'uuid';
-
-// Memory categories
-export const MEMORY_CATEGORIES = {
-  GITHUB: 'github',
-  PROJECT: 'project',
-  USER_PREFERENCES: 'user_preferences',
-  DEVELOPMENT_STATE: 'development_state',
-  TEST_RESULTS: 'test_results',
-  CONVERSATION_CONTEXT: 'conversation_context',
-};
+import { db } from '../db';
+import { 
+  memory,
+  conversations,
+  configuration,
+  type Memory,
+  type InsertMemory,
+  type Conversation,
+  type InsertConversation,
+  type Configuration,
+  type InsertConfiguration
+} from '@shared/schema';
+import { eq, and, desc, sql } from 'drizzle-orm';
 
 export class AssistantMemoryManager {
   private static instance: AssistantMemoryManager;
-  private currentSessionId: string;
-  
+  private sessionId: string;
+
   private constructor() {
-    this.currentSessionId = `session_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    // Generate a unique session ID for this conversation
+    this.sessionId = uuidv4();
+    console.log(`AssistantMemoryManager initialized with session ID: ${this.sessionId}`);
   }
-  
+
   /**
-   * Get singleton instance
-   * @returns AssistantMemoryManager instance
+   * Get the singleton instance of the memory manager
    */
   public static getInstance(): AssistantMemoryManager {
     if (!AssistantMemoryManager.instance) {
@@ -37,246 +43,313 @@ export class AssistantMemoryManager {
     }
     return AssistantMemoryManager.instance;
   }
-  
+
   /**
-   * Store GitHub credentials
-   * @param username GitHub username
-   * @param repoName GitHub repository name
+   * Get the current session ID
    */
-  async storeGitHubCredentials(username: string, repoName: string): Promise<void> {
-    await memoryService.store('github_username', username, MEMORY_CATEGORIES.GITHUB);
-    await memoryService.store('github_repo', repoName, MEMORY_CATEGORIES.GITHUB);
-    
-    // Also store in project configuration for easy access
-    await this.updateProjectConfig({
-      github: {
-        username,
-        repository: repoName
+  public getSessionId(): string {
+    return this.sessionId;
+  }
+
+  /**
+   * Store a key-value pair in memory
+   */
+  public async storeMemory(key: string, value: string, category: string): Promise<Memory> {
+    try {
+      // Check if this key already exists
+      const existingMemory = await db.select()
+        .from(memory)
+        .where(eq(memory.key, key))
+        .limit(1);
+
+      if (existingMemory.length > 0) {
+        // Update existing memory
+        const [updated] = await db.update(memory)
+          .set({ value, category, timestamp: new Date() })
+          .where(eq(memory.id, existingMemory[0].id))
+          .returning();
+        return updated;
+      } else {
+        // Insert new memory
+        const memoryData: InsertMemory = {
+          key,
+          value,
+          category
+        };
+        const [result] = await db.insert(memory).values(memoryData).returning();
+        return result;
       }
-    });
-    
-    console.log(`Stored GitHub credentials for ${username}/${repoName}`);
+    } catch (error) {
+      console.error('Error storing memory:', error);
+      throw new Error(`Failed to store memory: ${error.message}`);
+    }
   }
-  
+
   /**
-   * Get GitHub credentials
-   * @returns Object with username and repository name
+   * Retrieve a memory value by key
    */
-  async getGitHubCredentials(): Promise<{ username: string | null, repoName: string | null }> {
-    const username = await memoryService.retrieve('github_username');
-    const repoName = await memoryService.retrieve('github_repo');
-    return { username, repoName };
+  public async getMemory(key: string): Promise<Memory | undefined> {
+    try {
+      const [result] = await db.select()
+        .from(memory)
+        .where(eq(memory.key, key))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error retrieving memory:', error);
+      return undefined;
+    }
   }
-  
+
   /**
-   * Store project state information
-   * @param key Specific state key
-   * @param value State value
+   * Get all memories in a specific category
    */
-  async storeProjectState(key: string, value: any): Promise<void> {
-    await memoryService.store(`project_state_${key}`, value, MEMORY_CATEGORIES.DEVELOPMENT_STATE);
+  public async getMemoriesByCategory(category: string): Promise<Memory[]> {
+    try {
+      return await db.select()
+        .from(memory)
+        .where(eq(memory.category, category))
+        .orderBy(desc(memory.timestamp));
+    } catch (error) {
+      console.error('Error retrieving memories by category:', error);
+      return [];
+    }
   }
-  
+
   /**
-   * Get project state information
-   * @param key Specific state key
-   * @returns The stored state value or null
+   * Store a conversation exchange between the user and assistant
    */
-  async getProjectState(key: string): Promise<any> {
-    return await memoryService.retrieve(`project_state_${key}`);
-  }
-  
-  /**
-   * Update project configuration with partial config
-   * @param configUpdate Partial configuration object to update
-   */
-  async updateProjectConfig(configUpdate: Record<string, any>): Promise<void> {
-    // Get existing config or create new one
-    const existingConfig = await memoryService.getConfiguration('project_config') || {};
-    
-    // Merge updates with existing config
-    const updatedConfig = {
-      ...existingConfig,
-      ...configUpdate,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    // Store updated config
-    await memoryService.storeConfiguration('project_config', updatedConfig);
-  }
-  
-  /**
-   * Get complete project configuration
-   * @returns Project configuration object
-   */
-  async getProjectConfig(): Promise<Record<string, any>> {
-    return await memoryService.getConfiguration('project_config') || {};
-  }
-  
-  /**
-   * Remember current conversation exchange
-   * @param userMessage Message from the user
-   * @param assistantMessage Response from the assistant
-   * @param context Additional context for this exchange
-   */
-  async rememberConversation(
+  public async storeConversation(
     userMessage: string,
     assistantMessage: string,
     context?: any
-  ): Promise<void> {
-    await memoryService.storeConversation(
-      this.currentSessionId,
-      userMessage,
-      assistantMessage,
-      context
-    );
-  }
-  
-  /**
-   * Get recent conversation history
-   * @param limit Maximum number of exchanges to retrieve
-   * @returns Array of conversation exchanges
-   */
-  async getRecentConversations(limit: number = 10): Promise<any[]> {
-    return await memoryService.getRecentConversations(limit);
-  }
-  
-  /**
-   * Remember test results
-   * @param testName Name of the test
-   * @param passed Whether the test passed
-   * @param details Additional test details
-   */
-  async rememberTestResult(testName: string, passed: boolean, details?: any): Promise<void> {
-    const testResult = {
-      name: testName,
-      passed,
-      details,
-      timestamp: new Date().toISOString()
-    };
-    
-    await memoryService.store(`test_result_${testName}`, testResult, MEMORY_CATEGORIES.TEST_RESULTS);
-    
-    // Update the list of tests
-    const testsList = await this.getTestResultsList();
-    if (!testsList.includes(testName)) {
-      testsList.push(testName);
-      await memoryService.store('tests_list', testsList, MEMORY_CATEGORIES.TEST_RESULTS);
+  ): Promise<Conversation> {
+    try {
+      const conversationData: InsertConversation = {
+        sessionId: this.sessionId,
+        userMessage,
+        assistantMessage,
+        context: context || null
+      };
+      
+      const [result] = await db.insert(conversations)
+        .values(conversationData)
+        .returning();
+      
+      return result;
+    } catch (error) {
+      console.error('Error storing conversation:', error);
+      throw new Error(`Failed to store conversation: ${error.message}`);
     }
   }
-  
+
   /**
-   * Get list of all test names
-   * @returns Array of test names
+   * Get conversation history for the current session
    */
-  async getTestResultsList(): Promise<string[]> {
-    const list = await memoryService.retrieve('tests_list');
-    return Array.isArray(list) ? list : [];
-  }
-  
-  /**
-   * Get results for a specific test
-   * @param testName Name of the test
-   * @returns Test result or null
-   */
-  async getTestResult(testName: string): Promise<any> {
-    return await memoryService.retrieve(`test_result_${testName}`);
-  }
-  
-  /**
-   * Remember user preference
-   * @param key Preference key
-   * @param value Preference value
-   */
-  async rememberUserPreference(key: string, value: any): Promise<void> {
-    await memoryService.store(`user_pref_${key}`, value, MEMORY_CATEGORIES.USER_PREFERENCES);
-  }
-  
-  /**
-   * Get user preference
-   * @param key Preference key
-   * @returns Preference value or null
-   */
-  async getUserPreference(key: string): Promise<any> {
-    return await memoryService.retrieve(`user_pref_${key}`);
-  }
-  
-  /**
-   * Track a development feature status
-   * @param featureName Name of the feature
-   * @param status Status of the feature (e.g., 'planned', 'in-progress', 'completed')
-   * @param details Additional details about the feature
-   */
-  async trackFeature(featureName: string, status: string, details?: any): Promise<void> {
-    const feature = {
-      name: featureName,
-      status,
-      details,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    await memoryService.store(`feature_${featureName}`, feature, MEMORY_CATEGORIES.DEVELOPMENT_STATE);
-    
-    // Update features list
-    const featuresList = await this.getFeaturesList();
-    if (!featuresList.includes(featureName)) {
-      featuresList.push(featureName);
-      await memoryService.store('features_list', featuresList, MEMORY_CATEGORIES.DEVELOPMENT_STATE);
+  public async getSessionConversations(): Promise<Conversation[]> {
+    try {
+      return await db.select()
+        .from(conversations)
+        .where(eq(conversations.sessionId, this.sessionId))
+        .orderBy(conversations.timestamp);
+    } catch (error) {
+      console.error('Error retrieving session conversations:', error);
+      return [];
     }
   }
-  
+
   /**
-   * Get list of all feature names
-   * @returns Array of feature names
+   * Get all conversations across all sessions
    */
-  async getFeaturesList(): Promise<string[]> {
-    const list = await memoryService.retrieve('features_list');
-    return Array.isArray(list) ? list : [];
-  }
-  
-  /**
-   * Get status of a specific feature
-   * @param featureName Name of the feature
-   * @returns Feature status or null
-   */
-  async getFeatureStatus(featureName: string): Promise<any> {
-    return await memoryService.retrieve(`feature_${featureName}`);
-  }
-  
-  /**
-   * Initialize core project memory on first use
-   * This stores essential project information and configuration
-   */
-  async initializeProjectMemory(): Promise<void> {
-    // Check if already initialized to avoid overwriting
-    const isInitialized = await memoryService.retrieve('project_initialized');
-    if (isInitialized) {
-      return;
+  public async getAllConversations(limit: number = 50): Promise<Conversation[]> {
+    try {
+      return await db.select()
+        .from(conversations)
+        .orderBy(desc(conversations.timestamp))
+        .limit(limit);
+    } catch (error) {
+      console.error('Error retrieving all conversations:', error);
+      return [];
     }
-    
-    // Set up initial project configuration
-    await this.updateProjectConfig({
-      projectName: "AIVoiceTranslator",
-      projectDescription: "Advanced multilingual communication web application that provides interactive, real-time language translation experiences",
-      initializedDate: new Date().toISOString(),
-      testingStrategy: {
-        direct: "Using direct WebSocket testing for core functionality",
-        selenium: "Using Selenium for browser-based UI testing",
-        ci: "GitHub Actions workflows for automated CI/CD"
+  }
+
+  /**
+   * Store configuration settings
+   */
+  public async storeConfiguration(name: string, value: any): Promise<Configuration> {
+    try {
+      // Check if this configuration already exists
+      const existingConfig = await db.select()
+        .from(configuration)
+        .where(eq(configuration.name, name))
+        .limit(1);
+
+      if (existingConfig.length > 0) {
+        // Update existing configuration
+        const [updated] = await db.update(configuration)
+          .set({ value, updatedAt: new Date() })
+          .where(eq(configuration.id, existingConfig[0].id))
+          .returning();
+        return updated;
+      } else {
+        // Insert new configuration
+        const configData: InsertConfiguration = {
+          name,
+          value
+        };
+        const [result] = await db.insert(configuration).values(configData).returning();
+        return result;
       }
-    });
-    
-    // Initialize development workflow tracking
-    await this.trackFeature('connect-button', 'completed', {
-      description: 'Fix Connect button functionality in student interface',
-      testMethod: 'Direct WebSocket testing'
-    });
-    
-    // Mark as initialized
-    await memoryService.store('project_initialized', true, MEMORY_CATEGORIES.PROJECT);
-    console.log('Project memory initialized');
+    } catch (error) {
+      console.error('Error storing configuration:', error);
+      throw new Error(`Failed to store configuration: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get configuration settings by name
+   */
+  public async getConfiguration(name: string): Promise<Configuration | undefined> {
+    try {
+      const [result] = await db.select()
+        .from(configuration)
+        .where(eq(configuration.name, name))
+        .limit(1);
+      return result;
+    } catch (error) {
+      console.error('Error retrieving configuration:', error);
+      return undefined;
+    }
+  }
+
+  /**
+   * Get all configuration settings
+   */
+  public async getAllConfigurations(): Promise<Configuration[]> {
+    try {
+      return await db.select().from(configuration);
+    } catch (error) {
+      console.error('Error retrieving all configurations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Store GitHub configuration
+   */
+  public async storeGitHubConfig(config: any): Promise<Configuration> {
+    return this.storeConfiguration('github', config);
+  }
+
+  /**
+   * Get GitHub configuration
+   */
+  public async getGitHubConfig(): Promise<any> {
+    const config = await this.getConfiguration('github');
+    return config?.value || {};
+  }
+
+  /**
+   * Store project configuration
+   */
+  public async storeProjectConfig(config: any): Promise<Configuration> {
+    return this.storeConfiguration('project', config);
+  }
+
+  /**
+   * Get project configuration
+   */
+  public async getProjectConfig(): Promise<any> {
+    const config = await this.getConfiguration('project');
+    return config?.value || {};
+  }
+
+  /**
+   * Search for memories and conversations by text query
+   */
+  public async search(query: string): Promise<{memories: Memory[], conversations: Conversation[]}> {
+    try {
+      // Search in memories
+      const matchingMemories = await db.select()
+        .from(memory)
+        .where(sql`${memory.value} ILIKE ${`%${query}%`}`)
+        .orderBy(desc(memory.timestamp))
+        .limit(10);
+      
+      // Search in conversations
+      const matchingConversations = await db.select()
+        .from(conversations)
+        .where(
+          sql`${conversations.userMessage} ILIKE ${`%${query}%`} OR 
+              ${conversations.assistantMessage} ILIKE ${`%${query}%`}`
+        )
+        .orderBy(desc(conversations.timestamp))
+        .limit(10);
+      
+      return {
+        memories: matchingMemories,
+        conversations: matchingConversations
+      };
+    } catch (error) {
+      console.error('Error searching memory:', error);
+      return { memories: [], conversations: [] };
+    }
+  }
+
+  /**
+   * Initialize by migrating data from file-based storage
+   */
+  public async initializeFromFiles(): Promise<void> {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const memoryDir = '.assistant_memory';
+      
+      // Check if directory exists
+      if (!fs.existsSync(memoryDir)) {
+        console.log('Memory directory not found, skipping initialization');
+        return;
+      }
+      
+      // Migrate GitHub config
+      const githubConfigPath = path.join(memoryDir, 'github_config.json');
+      if (fs.existsSync(githubConfigPath)) {
+        const githubConfig = JSON.parse(fs.readFileSync(githubConfigPath, 'utf-8'));
+        await this.storeGitHubConfig(githubConfig);
+        console.log('GitHub configuration migrated to database');
+      }
+      
+      // Migrate project config
+      const projectConfigPath = path.join(memoryDir, 'project_config.json');
+      if (fs.existsSync(projectConfigPath)) {
+        const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf-8'));
+        await this.storeProjectConfig(projectConfig);
+        console.log('Project configuration migrated to database');
+      }
+      
+      // Store conversation history as a memory entry
+      const conversationHistoryPath = path.join(memoryDir, 'conversation_history.md');
+      if (fs.existsSync(conversationHistoryPath)) {
+        const conversationHistory = fs.readFileSync(conversationHistoryPath, 'utf-8');
+        await this.storeMemory('conversation_history', conversationHistory, 'history');
+        console.log('Conversation history migrated to database');
+      }
+      
+      // Store session journal as a memory entry
+      const sessionJournalPath = path.join(memoryDir, 'session_journal.md');
+      if (fs.existsSync(sessionJournalPath)) {
+        const sessionJournal = fs.readFileSync(sessionJournalPath, 'utf-8');
+        await this.storeMemory('session_journal', sessionJournal, 'journal');
+        console.log('Session journal migrated to database');
+      }
+      
+      console.log('Memory initialization from files complete');
+    } catch (error) {
+      console.error('Error initializing memory from files:', error);
+    }
   }
 }
 
-// Export singleton instance
+// Export the singleton instance
 export const assistantMemory = AssistantMemoryManager.getInstance();
