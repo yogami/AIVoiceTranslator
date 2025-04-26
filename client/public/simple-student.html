@@ -977,6 +977,197 @@
             }
         };
         
+        // Initialize browser speech synthesis on page load 
+        // This is to work around browser security restrictions that require user interaction
+        let speechSynthesisInitialized = false;
+        
+        // Function to initialize browser speech synthesis
+        function initializeSpeechSynthesis() {
+            if ('speechSynthesis' in window && !speechSynthesisInitialized) {
+                try {
+                    // Create a short, silent utterance
+                    const silentUtterance = new SpeechSynthesisUtterance('.');
+                    silentUtterance.volume = 0; // Make it silent
+                    silentUtterance.rate = 10; // Make it extremely fast
+                    
+                    // Speak the silent utterance to initialize the speech synthesis engine
+                    window.speechSynthesis.speak(silentUtterance);
+                    window.speechSynthesis.cancel(); // Cancel it immediately
+                    
+                    log('🎵 Browser speech synthesis initialized on page load');
+                    speechSynthesisInitialized = true;
+                    
+                    // Also periodically resume speech synthesis to prevent Chrome from pausing it
+                    setInterval(() => {
+                        try {
+                            if (window.speechSynthesis) {
+                                window.speechSynthesis.resume();
+                            }
+                        } catch (e) {
+                            // Ignore errors
+                        }
+                    }, 5000);
+                    
+                    return true;
+                } catch (error) {
+                    log('⚠️ Failed to initialize speech synthesis: ' + error.message);
+                    return false;
+                }
+            }
+            return false;
+        }
+        
+        // Try to initialize speech synthesis on page load
+        document.addEventListener('DOMContentLoaded', initializeSpeechSynthesis);
+        
+        // Try to initialize speech synthesis on first click anywhere on the page
+        document.addEventListener('click', function() {
+            if (!speechSynthesisInitialized) {
+                initializeSpeechSynthesis();
+            }
+        }, { once: true });
+        
+        // Function to create an audio URL from browser speech synthesis
+        // This is a fallback method that works even when the direct speech synthesis fails
+        async function createAndCacheBrowserSpeechAudio(text, language) {
+            return new Promise((resolve, reject) => {
+                try {
+                    log('Creating browser speech audio fallback for: ' + text.substring(0, 20) + (text.length > 20 ? '...' : ''));
+                    
+                    // First try using a simpler approach for all browsers
+                    // This doesn't actually create an audio file, but provides a URL that will trigger speech
+                    try {
+                        // Create a data URL that contains a minimal HTML page with script to speak the text
+                        const encodedText = encodeURIComponent(text);
+                        const encodedLang = encodeURIComponent(language);
+                        
+                        // Create a data URI with HTML that will speak the text when loaded
+                        const dataUrl = `data:text/html;charset=utf-8,<!DOCTYPE html><html><body>
+                            <script>
+                                window.onload = function() {
+                                    try {
+                                        if ('speechSynthesis' in window) {
+                                            const utterance = new SpeechSynthesisUtterance("${encodedText}");
+                                            utterance.lang = "${encodedLang}";
+                                            window.speechSynthesis.speak(utterance);
+                                        }
+                                    } catch(e) {
+                                        console.error("Speech error:", e);
+                                    }
+                                };
+                            </script>
+                        </body></html>`;
+                        
+                        // Cache this URL
+                        audioCache.lastTranslation.audios['browser_simple_fallback'] = {
+                            url: dataUrl,
+                            text: text,
+                            language: language,
+                            type: 'browser_iframe'
+                        };
+                        
+                        log('✅ Created simple browser speech fallback');
+                        
+                        // Try the more advanced method if available
+                        if (window.MediaRecorder && (window.AudioContext || window.webkitAudioContext)) {
+                            advancedBrowserSpeechFallback(text, language)
+                                .then(url => {
+                                    log('✅ Advanced browser speech fallback created successfully');
+                                    resolve(url);
+                                })
+                                .catch(err => {
+                                    log('⚠️ Advanced browser speech fallback failed, using simple fallback: ' + err.message);
+                                    resolve(dataUrl);
+                                });
+                        } else {
+                            // If MediaRecorder is not available, just use the simple method
+                            log('⚠️ MediaRecorder not available, using simple fallback');
+                            resolve(dataUrl);
+                        }
+                    } catch (simpleError) {
+                        log('❌ Error creating simple fallback: ' + simpleError.message);
+                        reject(simpleError);
+                    }
+                } catch (error) {
+                    log('❌ Error in createAndCacheBrowserSpeechAudio: ' + error.message);
+                    reject(error);
+                }
+            });
+        }
+        
+        // Advanced fallback method using MediaRecorder
+        function advancedBrowserSpeechFallback(text, language) {
+            return new Promise((resolve, reject) => {
+                try {
+                    // Create an audio context
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContext) {
+                        reject(new Error('AudioContext not supported'));
+                        return;
+                    }
+                    
+                    // Use MediaRecorder API to record the audio
+                    // First set up an audio context and destination node
+                    const audioContext = new AudioContext();
+                    const destination = audioContext.createMediaStreamDestination();
+                    const mediaRecorder = new MediaRecorder(destination.stream);
+                    
+                    // Create an utterance 
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = language;
+                    
+                    // We'll store the audio chunks here
+                    const audioChunks = [];
+                    
+                    // Set up event listeners for recording
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    // When recording stops, create a blob and URL
+                    mediaRecorder.onstop = () => {
+                        try {
+                            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                            const audioUrl = URL.createObjectURL(audioBlob);
+                            
+                            // Cache the audio
+                            audioCache.lastTranslation.audios['browser_advanced_fallback'] = {
+                                url: audioUrl,
+                                blob: audioBlob,
+                                text: text,
+                                language: language,
+                                type: 'browser_audio_element'
+                            };
+                            
+                            resolve(audioUrl);
+                        } catch (blobError) {
+                            reject(blobError);
+                        }
+                    };
+                    
+                    // Start recording
+                    mediaRecorder.start();
+                    
+                    // Play the speech but send it to the destination node
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.speak(utterance);
+                    
+                    // Stop recording after a reasonable time
+                    // Calculate a good duration based on text length (rough estimate)
+                    const durationMs = Math.min(10000, Math.max(2000, text.length * 100));
+                    setTimeout(() => {
+                        if (mediaRecorder.state === 'recording') {
+                            mediaRecorder.stop();
+                        }
+                    }, durationMs);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+        
         function connectWebSocket() {
             try {
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1470,7 +1661,15 @@
                 // We don't have audio data and no explicit instruction to use client speech
                 if (ttsServiceType === 'browser') {
                     // For browser TTS service, use the browser speech synthesis
-                    log('🔊 BROWSER TTS: Using browser speech synthesis (fixed implementation)');
+                    log('🔊 BROWSER TTS: Using enhanced browser speech synthesis');
+                    
+                    // First try to initialize the speech synthesis API if it hasn't been initialized yet
+                    if (!speechSynthesisInitialized) {
+                        initializeSpeechSynthesis();
+                    }
+                    
+                    // Create a flag to track if the direct speech synthesis approach works
+                    let directSpeechFailed = false;
                     
                     // Create and play speech immediately using Web Speech API
                     if ('speechSynthesis' in window) {
@@ -1499,6 +1698,41 @@
                             utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
                             log(`🔤 Language set to: ${utterance.lang}`);
                             
+                            // IMPORTANT: Store the audio conversion for later playback using audio element
+                            // This is a fallback in case the direct speech synthesis doesn't work
+                            createAndCacheBrowserSpeechAudio(text, utterance.lang).then(audioUrl => {
+                                if (directSpeechFailed) {
+                                    log('🔄 Using audio element fallback for browser speech synthesis');
+                                    
+                                    // Check if this is a data URL (the simple fallback)
+                                    if (audioUrl.startsWith('data:text/html')) {
+                                        // Create a hidden iframe to play the speech
+                                        const speechFrame = document.createElement('iframe');
+                                        speechFrame.style.display = 'none';
+                                        speechFrame.src = audioUrl;
+                                        document.body.appendChild(speechFrame);
+                                        
+                                        // Remove the iframe after a reasonable time
+                                        setTimeout(() => {
+                                            try {
+                                                document.body.removeChild(speechFrame);
+                                            } catch (e) {
+                                                // Ignore errors
+                                            }
+                                        }, 10000);
+                                        
+                                        log('🔄 Using iframe fallback for speech synthesis');
+                                    } else {
+                                        // Use regular audio element for advanced fallback
+                                        const audioPlayer = document.getElementById('audio-player');
+                                        audioPlayer.src = audioUrl;
+                                        audioPlayer.play().catch(error => {
+                                            log('🔄 Audio element fallback also failed: ' + error.message);
+                                        });
+                                    }
+                                }
+                            });
+                            
                             // Add event listeners for detailed debugging
                             utterance.onstart = () => {
                                 log('🎙️ BROWSER TTS: Speech synthesis STARTED');
@@ -1516,7 +1750,7 @@
                             
                             utterance.onerror = (e) => {
                                 log(`❌ BROWSER TTS ERROR: ${e.error || 'Unknown error'}`);
-                                showError(`Speech synthesis error: ${e.error || 'Unknown error'}`);
+                                directSpeechFailed = true;
                                 playButton.style.backgroundColor = '';
                                 playButton.innerHTML = '<span class="play-icon">▶</span> Try Again';
                             };
@@ -1525,7 +1759,6 @@
                             window.speechSynthesis.cancel();
                             
                             // Force resume the synthesis (workaround for Chrome issue)
-                            // Chrome has a bug where it pauses speech synthesis after ~15 seconds
                             window.speechSynthesis.resume();
                             
                             // Play the speech
@@ -1541,9 +1774,19 @@
                                 language: utterance.lang,
                                 type: 'browser'
                             };
+                            
+                            // Set a timeout to check if speech started
+                            setTimeout(() => {
+                                // If speech synthesis is paused, force resume it
+                                if (window.speechSynthesis && window.speechSynthesis.paused) {
+                                    window.speechSynthesis.resume();
+                                    log('🔄 Detected paused speech synthesis, resuming it');
+                                }
+                            }, 500);
                         } catch (speechError) {
                             log(`❌ FATAL ERROR initializing speech: ${speechError.message}`);
                             showError(`Failed to initialize speech: ${speechError.message}`);
+                            directSpeechFailed = true;
                         }
                         
                         // Also set up manual play button
