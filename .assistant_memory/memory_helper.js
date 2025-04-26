@@ -5,10 +5,13 @@
  * files for maintaining context across sessions.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const MEMORY_DIR = '.assistant_memory';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const MEMORY_DIR = path.resolve(__dirname, '..');
 
 // Helper functions for working with memory files
 const memoryHelper = {
@@ -37,6 +40,7 @@ const memoryHelper = {
     );
     
     console.log('GitHub configuration updated');
+    return updatedConfig;
   },
   
   /**
@@ -67,6 +71,29 @@ const memoryHelper = {
     );
     
     console.log('Project configuration updated');
+    return updatedConfig;
+  },
+  
+  /**
+   * Create a README for the memory system
+   */
+  createReadme: () => {
+    const readmePath = path.join(MEMORY_DIR, 'README.md');
+    const content = `# Assistant Memory
+
+This directory contains files used by the AI assistant to maintain context across conversations. These files are not part of the actual AIVoiceTranslator project but are used to help us work together more efficiently by remembering important information.
+
+## Files
+
+- **project_config.json**: General information about the project
+- **github_config.json**: GitHub repository information
+- **conversation_history.md**: History of our important discussions
+- **session_journal.md**: Technical decisions and progress notes
+
+These files will be updated as we work together to maintain a persistent memory of our development work.`;
+    
+    fs.writeFileSync(readmePath, content, 'utf8');
+    console.log('README created successfully');
   },
   
   /**
@@ -218,19 +245,11 @@ function isObject(item) {
   return (item && typeof item === 'object' && !Array.isArray(item));
 }
 
-// Export helper functions
-module.exports = memoryHelper;
+// Process command line arguments when run directly
+const command = process.argv[2];
+const args = process.argv.slice(3);
 
-// Run when called directly
-if (require.main === module) {
-  const command = process.argv[2];
-  const args = process.argv.slice(3);
-  
-  if (!command) {
-    console.log('Usage: node memory_helper.js <command> [args]');
-    process.exit(1);
-  }
-  
+if (command) {
   switch (command) {
     case 'update-github':
       const githubConfig = JSON.parse(args[0]);
@@ -260,8 +279,14 @@ if (require.main === module) {
       memoryHelper.createMemoryFile(fileName, fileContent);
       break;
       
+    case 'create-readme':
+      memoryHelper.createReadme();
+      break;
+      
     default:
       console.log(`Unknown command: ${command}`);
       process.exit(1);
   }
 }
+
+export default memoryHelper;
