@@ -5,108 +5,114 @@
  * to verify that the Connect button works correctly after code cleanup.
  */
 
-const WebSocket = require('ws');
-const http = require('http');
-const { spawn } = require('child_process');
+import WebSocket from 'ws';
+import http from 'http';
+
+// Configuration
+const SERVER_URL = 'http://localhost:5000';
+const WS_URL = 'ws://localhost:5000/ws';
+const TIMEOUT = 5000; // milliseconds
+
+/**
+ * Test the WebSocket connection functionality
+ */
+async function testWebSocketConnection() {
+  console.log('🧪 Starting WebSocket connection test...');
+
+  // First test the server is up
+  try {
+    console.log('✓ Checking if server is running...');
+    await fetch(SERVER_URL);
+    console.log('✓ Server is running');
+  } catch (error) {
+    console.error('❌ Server is not running:', error.message);
+    return false;
+  }
+
+  // Create WebSocket connection
+  console.log('✓ Creating WebSocket connection...');
+  const ws = new WebSocket(WS_URL);
+  
+  // Create promise that resolves when connection is established
+  const connectionPromise = new Promise((resolve, reject) => {
+    // Success: connection established
+    ws.on('open', () => {
+      console.log('✓ WebSocket connection established');
+      resolve(true);
+    });
+    
+    // Connection error
+    ws.on('error', (error) => {
+      console.error('❌ WebSocket connection error:', error.message);
+      reject(error);
+    });
+    
+    // Connection timeout
+    setTimeout(() => {
+      reject(new Error(`Connection timed out after ${TIMEOUT}ms`));
+    }, TIMEOUT);
+  });
+  
+  try {
+    // Wait for connection to be established
+    await connectionPromise;
+    
+    // Simulate sending registration message (as if Connect button was clicked)
+    console.log('✓ Simulating Connect button click (sending registration)...');
+    const registrationMessage = {
+      type: 'register',
+      role: 'student',
+      languageCode: 'es-ES'
+    };
+    ws.send(JSON.stringify(registrationMessage));
+    
+    // Create promise that waits for server response
+    const responsePromise = new Promise((resolve, reject) => {
+      // Handle incoming messages
+      ws.on('message', (data) => {
+        try {
+          const message = JSON.parse(data.toString());
+          console.log('✓ Received response from server:', message);
+          
+          if (message.type === 'connection-confirmation') {
+            console.log('✓ Connection confirmation received with session ID:', message.sessionId);
+            resolve(true);
+          }
+        } catch (error) {
+          console.error('❌ Error parsing message:', error.message);
+        }
+      });
+      
+      // Response timeout
+      setTimeout(() => {
+        reject(new Error(`No response received after ${TIMEOUT}ms`));
+      }, TIMEOUT);
+    });
+    
+    // Wait for server response
+    await responsePromise;
+    
+    // Close connection after test
+    ws.close();
+    console.log('✓ WebSocket connection closed');
+    
+    console.log('\n✅ TEST PASSED: WebSocket connection works correctly');
+    return true;
+  } catch (error) {
+    console.error('\n❌ TEST FAILED:', error.message);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    }
+    return false;
+  }
+}
 
 // Run the test
-console.log('💻 Starting Student Connect Button Verification Test');
-
-// Create a WebSocket server to represent the teacher
-const wss = new WebSocket.Server({ port: 6789 });
-
-// Track connections
-let studentConnection = null;
-let registrationReceived = false;
-
-// Handle connections to the teacher WebSocket
-wss.on('connection', (ws) => {
-  console.log('✅ Student WebSocket connected to test server');
-  studentConnection = ws;
-  
-  // Send connection confirmation
-  const sessionId = `test_session_${Date.now()}`;
-  ws.send(JSON.stringify({
-    type: 'connection',
-    sessionId: sessionId
-  }));
-  
-  // Handle messages from the student
-  ws.on('message', (data) => {
-    try {
-      const message = JSON.parse(data.toString());
-      console.log(`📩 Received message from student: ${message.type}`);
-      
-      if (message.type === 'register') {
-        registrationReceived = true;
-        console.log(`✅ Registration message received: ${JSON.stringify(message)}`);
-        
-        // Send confirmation
-        ws.send(JSON.stringify({
-          type: 'registration_confirmation',
-          role: message.role,
-          languageCode: message.languageCode
-        }));
-        
-        // Test passed
-        console.log('\n🎉 TEST PASSED: Student Connect button is working correctly\n');
-        console.log('✅ Connection established');
-        console.log('✅ Registration message received with correct format');
-        
-        // Close everything and exit
-        setTimeout(() => {
-          ws.close();
-          wss.close();
-          process.exit(0);
-        }, 1000);
-      }
-    } catch (error) {
-      console.error('❌ Error processing message:', error);
-    }
-  });
-});
-
-// Start the test
-console.log('📋 Test plan:');
-console.log('1. Launch mock WebSocket server (teacher)');
-console.log('2. Use curl to simulate clicking the Connect button');
-console.log('3. Verify that a WebSocket connection is established');
-console.log('4. Verify that a proper registration message is sent');
-console.log('\n⏳ Setting up test environment...\n');
-
-// Wait for WebSocket server to be ready
-setTimeout(() => {
-  console.log('🔌 WebSocket server running on port 6789');
-  console.log('📤 Sending HTTP request to simulate Connect button click');
-  
-  // Use curl to make a request that triggers the WebSocket connection
-  // This simulates the Connect button functionality
-  const connectButtonUrl = `http://localhost:5000/simple-student.html`;
-  
-  // Check if the server is running
-  http.get(connectButtonUrl, (res) => {
-    console.log(`🌐 Student page HTTP status: ${res.statusCode}`);
-    
-    // Check for WebSocket functionality
-    if (!studentConnection) {
-      console.log('⏰ Waiting for WebSocket connection...');
-      
-      // Set a timeout for the test
-      setTimeout(() => {
-        if (!registrationReceived) {
-          console.error('❌ TEST FAILED: No registration message received within timeout');
-          process.exit(1);
-        }
-      }, 10000);
-    }
-  }).on('error', (err) => {
-    console.error(`❌ Error accessing student page: ${err.message}`);
+testWebSocketConnection()
+  .then(success => {
+    process.exit(success ? 0 : 1);
+  })
+  .catch(error => {
+    console.error('Unhandled error:', error);
     process.exit(1);
   });
-}, 1000);
-
-// Set overall timeout
-setTimeout(() => {
-  console.error('❌ TEST FAILED: Test timed out after 15 seconds');
-  process.exit(1);
-}, 15000);
