@@ -1330,8 +1330,7 @@
                                 audioPlayer.play();
                                 
                                 // Show in comparison section
-                                document.getElementById('audio-comparison').style.display = 'block';
-                                updateAudioComparison();
+                                // Audio comparison section removed
                                 
                                 showSuccess(`Playing with ${getTtsServiceName(ttsService)}`);
                             } catch (error) {
@@ -1427,7 +1426,7 @@
             const translationBox = document.getElementById('translation-box');
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
-            const comparisonSection = document.getElementById('audio-comparison');
+            // Audio comparison section removed
             
             // CRITICAL FIX: Ensure that useClientSpeech is ALWAYS true when ttsServiceType is 'browser'
             // This is the key fix for the browser TTS issue
@@ -1603,9 +1602,7 @@
                         showSuccess('Server-generated audio ready to play');
                     }
                     
-                    // Show the comparison section now that we have some audio
-                    comparisonSection.style.display = 'block';
-                    updateAudioComparison();
+                    // Audio comparison section removed
                 } catch (error) {
                     log('Error processing audio data: ' + error.message);
                     // Fall back to browser speech synthesis
@@ -2500,9 +2497,7 @@
             await AudioPlayer.playFromBase64(base64Data);
         }
         
-        function updateAudioComparison() {
-            TTSServiceManager.updateComparisonUI();
-        }
+        // Audio comparison function removed
         
         function addMessageToUI(message) {
             const messagesContainer = document.getElementById('messages');
@@ -2626,14 +2621,7 @@
             window.audioCache = window.audioCache || {};
             window.lastTranslationData = null;
             
-            // Setup refresh comparison button
-            if (refreshComparisonBtn) {
-                refreshComparisonBtn.addEventListener('click', function() {
-                    log('Refreshing audio comparison panel');
-                    updateAudioComparison();
-                    document.getElementById('audio-comparison').style.display = 'block';
-                });
-            }
+            // Audio comparison removed
             
             connectBtn.addEventListener('click', connectWebSocket);
             disconnectBtn.addEventListener('click', disconnectWebSocket);
