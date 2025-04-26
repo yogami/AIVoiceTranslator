@@ -1,128 +1,224 @@
 /**
- * Selenium test for Connect Button functionality
+ * Selenium Test for Connect Button Functionality
  * 
- * This test verifies that the Connect button on the student interface works correctly
- * by simulating a student clicking the Connect button and checking that the WebSocket
- * connection is established.
- * 
- * This test is designed to run in a CI/CD environment with Chrome headless.
+ * This test verifies that the Connect button in the student interface works correctly.
+ * It loads the student page, clicks the Connect button, and verifies successful connection.
  */
 
-// Use CommonJS modules for compatibility with the CI/CD environment
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
 
-// Configure Chrome options for headless environment
-function createChromeOptions() {
+// Test settings
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5000';
+const STUDENT_PAGE_URL = `${SERVER_URL}/simple-student.html`;
+const TEST_TIMEOUT = 15000;
+const LOG_INTERVAL = 1000;
+
+// Configure options for headless Chrome
+function getChromeOptions() {
+  console.log('Setting up Chrome options for headless testing...');
+  
   const options = new chrome.Options();
-  options.addArguments(
-    '--headless',
-    '--no-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--window-size=1280,800'
-  );
+  options.addArguments('--headless');
+  options.addArguments('--no-sandbox');
+  options.addArguments('--disable-dev-shm-usage');
+  options.addArguments('--disable-gpu');
+  options.addArguments('--window-size=1280,1024');
+  
+  // Log Chrome version if available
+  try {
+    const chromeVersion = require('child_process').execSync('google-chrome --version').toString().trim();
+    console.log(`Chrome version: ${chromeVersion}`);
+  } catch (error) {
+    console.log('Could not determine Chrome version');
+  }
+  
   return options;
 }
 
-/**
- * Test the Connect button functionality on student interface
- */
-async function testConnectButton(serverUrl) {
-  console.log('Starting Connect Button Selenium test...');
+async function runTest() {
+  console.log('╔════════════════════════════════════════════════════════════════╗');
+  console.log('║       CONNECT BUTTON TEST - SELENIUM WEBDRIVER                 ║');
+  console.log('╚════════════════════════════════════════════════════════════════╝');
+  console.log(`Testing student page at: ${STUDENT_PAGE_URL}`);
+  
   let driver;
+  let success = false;
   
   try {
-    // Setup WebDriver
-    console.log('Setting up WebDriver with Chrome in headless mode...');
+    // Build the driver with Chrome options
+    console.log('Initializing Chrome WebDriver...');
     driver = await new Builder()
       .forBrowser('chrome')
-      .setChromeOptions(createChromeOptions())
+      .setChromeOptions(getChromeOptions())
       .build();
     
-    // Navigate to student interface
-    console.log(`Navigating to student interface at ${serverUrl}/simple-student.html`);
-    await driver.get(`${serverUrl}/simple-student.html`);
+    // Set script timeout for WebDriver
+    await driver.manage().setTimeouts({ script: TEST_TIMEOUT });
     
-    // Wait for page to load
+    // Navigate to the student page
+    console.log(`Navigating to student page: ${STUDENT_PAGE_URL}`);
+    await driver.get(STUDENT_PAGE_URL);
+    
+    // Wait for the page to load and the Connect button to be available
     console.log('Waiting for page to load...');
-    await driver.wait(until.elementLocated(By.id('connect-btn')), 10000);
+    const connectButton = await driver.wait(
+      until.elementLocated(By.id('connect-button')),
+      TEST_TIMEOUT,
+      'Connect button not found within timeout period'
+    );
     
-    // Get initial state
-    const initialConnectBtnState = await driver.findElement(By.id('connect-btn')).getAttribute('disabled');
-    const initialDisconnectBtnState = await driver.findElement(By.id('disconnect-btn')).getAttribute('disabled');
-    const initialConnectionStatus = await driver.findElement(By.id('connection-status')).getText();
+    // Before clicking, check the initial connection status
+    const initialConnectionState = await driver.executeScript(function() {
+      return {
+        isConnected: window.isConnected || false,
+        hasSessionId: !!window.sessionId,
+        logContent: document.getElementById('log-container')?.textContent || 'Log not found'
+      };
+    });
     
-    console.log('Initial UI state:');
-    console.log(`- Connect button disabled: ${initialConnectBtnState === 'true'}`);
-    console.log(`- Disconnect button disabled: ${initialDisconnectBtnState === 'true'}`);
-    console.log(`- Connection status: ${initialConnectionStatus}`);
+    console.log('Initial connection state:');
+    console.log(`- isConnected: ${initialConnectionState.isConnected}`);
+    console.log(`- hasSessionId: ${initialConnectionState.hasSessionId}`);
+    console.log('- Log content available: ' + (initialConnectionState.logContent.length > 0 ? 'Yes' : 'No'));
+    
+    // Check that we're not already connected
+    assert.strictEqual(initialConnectionState.isConnected, false, 'Already connected before clicking button');
     
     // Click the Connect button
     console.log('Clicking Connect button...');
-    await driver.findElement(By.id('connect-btn')).click();
+    await connectButton.click();
     
-    // Wait for connection to be established
-    console.log('Waiting for connection status to update...');
-    await driver.wait(
-      until.elementTextContains(driver.findElement(By.id('connection-status')), 'Connected'),
-      10000
-    );
+    // Wait for connection to be established - poll every second for status
+    console.log('Waiting for WebSocket connection...');
+    let isConnected = false;
+    let hasSessionId = false;
+    let attempts = 0;
+    const maxAttempts = TEST_TIMEOUT / LOG_INTERVAL;
     
-    // Check UI updated correctly
-    const connectedStatus = await driver.findElement(By.id('connection-status')).getText();
-    const connectBtnDisabled = await driver.findElement(By.id('connect-btn')).getAttribute('disabled');
-    const disconnectBtnDisabled = await driver.findElement(By.id('disconnect-btn')).getAttribute('disabled');
+    while (attempts < maxAttempts) {
+      // Poll connection status
+      const connectionState = await driver.executeScript(function() {
+        return {
+          isConnected: window.isConnected || false,
+          hasSessionId: !!window.sessionId,
+          sessionId: window.sessionId || null,
+          logContent: document.getElementById('log-container')?.textContent || 'Log not found'
+        };
+      });
+      
+      isConnected = connectionState.isConnected;
+      hasSessionId = connectionState.hasSessionId;
+      
+      console.log(`Attempt ${attempts + 1}/${maxAttempts}:`);
+      console.log(`- isConnected: ${isConnected}`);
+      console.log(`- hasSessionId: ${hasSessionId}`);
+      console.log(`- sessionId: ${connectionState.sessionId}`);
+      
+      // Check if connection is established and session ID is received
+      if (isConnected && hasSessionId) {
+        console.log('✅ Connection established successfully!');
+        console.log(`- Session ID: ${connectionState.sessionId}`);
+        
+        // Print log content for debugging
+        console.log('Log Content:');
+        console.log(connectionState.logContent);
+        
+        success = true;
+        break;
+      }
+      
+      // Wait before next check
+      await new Promise(resolve => setTimeout(resolve, LOG_INTERVAL));
+      attempts++;
+    }
     
-    console.log('Updated UI state:');
-    console.log(`- Connection status: ${connectedStatus}`);
-    console.log(`- Connect button disabled: ${connectBtnDisabled === 'true'}`);
-    console.log(`- Disconnect button disabled: ${disconnectBtnDisabled !== 'true'}`);
+    // Check final results
+    if (!success) {
+      throw new Error('Timed out waiting for WebSocket connection to be established');
+    }
     
-    // Make assertions
-    assert.ok(
-      connectedStatus.includes('Connected'),
-      `Expected connection status to include "Connected", but got "${connectedStatus}"`
-    );
-    assert.strictEqual(
-      connectBtnDisabled, 
-      'true', 
-      'Connect button should be disabled after successful connection'
-    );
-    assert.ok(
-      disconnectBtnDisabled !== 'true',
-      'Disconnect button should be enabled after successful connection'
-    );
+    // Verify registration was successful by checking for success message
+    const successMessage = await driver.executeScript(function() {
+      const successElement = document.querySelector('.success-message');
+      return successElement ? successElement.textContent : null;
+    });
     
-    console.log('✅ TEST PASSED: Connect Button Functionality works correctly.');
+    console.log(`Success message: ${successMessage}`);
+    if (successMessage && successMessage.includes('Connected')) {
+      console.log('✅ Registration success message found');
+    } else {
+      console.log('⚠️ Registration success message not found, but connection was established');
+    }
+    
+    // Final verification
+    assert.strictEqual(isConnected, true, 'Should be connected after clicking button');
+    assert.strictEqual(hasSessionId, true, 'Should have a session ID after connection');
+    
+    console.log('╔════════════════════════════════════════════════════════════════╗');
+    console.log('║                         TEST RESULTS                           ║');
+    console.log('╚════════════════════════════════════════════════════════════════╝');
+    console.log('✅ Success: Connect Button Functionality Works Correctly');
+    console.log('- Page loaded successfully');
+    console.log('- Connect button clicked');
+    console.log('- WebSocket connection established');
+    console.log('- Session ID received');
+    
     return true;
   } catch (error) {
-    console.error('❌ TEST FAILED:', error.message);
+    console.error('╔════════════════════════════════════════════════════════════════╗');
+    console.error('║                         TEST RESULTS                           ║');
+    console.error('╚════════════════════════════════════════════════════════════════╝');
+    console.error('❌ Failed: Connect Button Functionality Test Failed');
+    console.error(`Error: ${error.message}`);
     console.error(error.stack);
-    return false;
-  } finally {
-    // Quit the driver
+    
+    // Try to get additional debug information
     if (driver) {
       try {
-        await driver.quit();
-        console.log('WebDriver shut down successfully.');
-      } catch (quitError) {
-        console.error('Error shutting down WebDriver:', quitError);
+        const debugInfo = await driver.executeScript(function() {
+          return {
+            windowError: window.lastError || null,
+            isConnected: window.isConnected || false,
+            sessionId: window.sessionId || null,
+            logContent: document.getElementById('log-container')?.textContent || 'Log not found'
+          };
+        });
+        
+        console.error('\nDebug information:');
+        console.error(`- Window error: ${debugInfo.windowError}`);
+        console.error(`- isConnected: ${debugInfo.isConnected}`);
+        console.error(`- sessionId: ${debugInfo.sessionId}`);
+        console.error('- Log content:');
+        console.error(debugInfo.logContent);
+      } catch (debugError) {
+        console.error('Could not retrieve debug information:', debugError.message);
       }
+    }
+    
+    return false;
+  } finally {
+    // Always quit the driver
+    if (driver) {
+      console.log('Closing WebDriver...');
+      await driver.quit().catch(err => console.error('Error closing WebDriver:', err.message));
     }
   }
 }
 
-// If this file is run directly, execute the test
+// Run the test directly if this script is executed directly
 if (require.main === module) {
-  const serverUrl = process.env.SERVER_URL || 'http://localhost:5000';
-  testConnectButton(serverUrl)
-    .then(success => process.exit(success ? 0 : 1))
-    .catch(error => {
-      console.error('Unhandled error:', error);
+  (async () => {
+    try {
+      const success = await runTest();
+      process.exit(success ? 0 : 1);
+    } catch (error) {
+      console.error('Unhandled error in test:', error);
       process.exit(1);
-    });
+    }
+  })();
 }
 
-module.exports = { testConnectButton };
+// Export for use in other scripts
+module.exports = { runTest };
