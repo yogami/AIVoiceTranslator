@@ -2346,49 +2346,7 @@
                     openaiSizeAvg > 0 ? `${openaiSizeAvg.toFixed(1)}KB` : '-';
             }
             
-            /**
-             * Update the audio comparison UI
-             */
-            static updateComparisonUI() {
-                const comparisonContainer = document.getElementById('comparison-options');
-                if (!comparisonContainer) return;
-                
-                if (!window.lastTranslationData || !window.lastTranslationData.text) {
-                    comparisonContainer.innerHTML = '<p>No translation available for comparison</p>';
-                    return;
-                }
-                
-                const text = window.lastTranslationData.text;
-                const languageCode = window.lastTranslationData.languageCode;
-                
-                // Create comparison UI
-                let html = `
-                    <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
-                        <p><strong>Text:</strong> "${text}"</p>
-                        <p><strong>Language:</strong> ${getLanguageName(languageCode?.split('-')[0] || 'en')}</p>
-                    </div>
-                `;
-                
-                // Add buttons for each service
-                html += `
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                        <button onclick="TTSServiceManager.playWithService('browser')" class="comparison-btn" style="background-color: #3498db;">
-                            <span>🔊</span> Browser Speech
-                        </button>
-                        <button onclick="TTSServiceManager.playWithService('openai')" class="comparison-btn" style="background-color: #6366f1;">
-                            <span>🔊</span> OpenAI TTS
-                        </button>
-                        <button onclick="TTSServiceManager.playWithService('silent')" class="comparison-btn" style="background-color: #95a5a6;">
-                            <span>🔇</span> Silent Mode
-                        </button>
-                    </div>
-                `;
-                
-                comparisonContainer.innerHTML = html;
-                
-                // Also ensure metrics UI is updated
-                this.updateMetricsUI();
-            }
+            // Audio comparison UI method removed
         }
         
         /**
@@ -2594,34 +2552,9 @@
                 window.LanguageSupport.updateButtons(defaultTtsService);
             }
             
-            // Setup TTS service play example buttons (for comparison only)
-            document.querySelectorAll('.play-example-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    const ttsService = this.getAttribute('data-service');
-                    log(`Play example button clicked for TTS service: ${ttsService} (comparison only)`);
-                    
-                    // This is for comparison only - does NOT change the active service
-                    const comparisonOnly = true;
-                    
-                    // Show a message that this is just for comparison
-                    showSuccess(`Playing example with ${getTtsServiceName(ttsService)} (Does not change the active service)`);
-                    
-                    // Play the current translation with this TTS service for comparison only
-                    playWithTTSService(ttsService);
-                    
-                    // Make it extra clear this doesn't change the active service
-                    const currentServiceName = document.getElementById('current-tts-service').textContent;
-                    setTimeout(() => {
-                        showSuccess(`Your active TTS service remains: ${currentServiceName} (controlled by teacher)`);
-                    }, 3000);
-                });
-            });
+            // TTS service play example buttons removed - comparison feature no longer needed
             
-            // Set up audio comparison handling
-            window.audioCache = window.audioCache || {};
-            window.lastTranslationData = null;
-            
-            // Audio comparison removed
+            // Audio comparison functionality removed
             
             connectBtn.addEventListener('click', connectWebSocket);
             disconnectBtn.addEventListener('click', disconnectWebSocket);
