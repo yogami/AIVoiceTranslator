@@ -1,0 +1,65 @@
+name: Selenium End-to-End Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: '16'
+        
+    - name: Install dependencies
+      run: npm install
+      
+    - name: Install Chrome WebDriver
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+        npm install selenium-webdriver chromedriver
+      
+    - name: Start application server
+      run: |
+        npm run dev &
+        sleep 10 # Give the server time to start
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+        
+    - name: Run Selenium tests
+      run: |
+        npx mocha tests/selenium/connect-button-e2e-test.js --timeout 30000
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+        
+    - name: Archive test results
+      uses: actions/upload-artifact@v2
+      if: always()
+      with:
+        name: test-results
+        path: |
+          test-results/
+          screenshots/

@@ -66,6 +66,18 @@ This Working Agreement defines how the Replit agent must behave to fully embody 
 
 ✅ Local stability before pushing.
 
+### 3.1 UI and User Interface Testing
+
+**Agent Must:**
+- Verify UI and user interface issues by writing comprehensive Selenium end-to-end tests
+- NEVER run Selenium tests in the Replit environment due to its limitations
+- Only execute Selenium tests in the CI/CD environment (GitHub Actions)
+- For manual verification of UI fixes, create automated tests first, then implement the fix
+- Define assertions that explicitly verify the UI behavior being fixed
+- Include test cases for all identified edge cases
+
+✅ All UI fixes must be verifiable through automated tests in CI/CD.
+
 ---
 
 ## 4. Small Check-ins and Trunk-Based Development
