@@ -56,7 +56,7 @@ echo -e "Running Puppeteer Connect Button test..."
 mkdir -p test-results
 # Set SERVER_URL environment variable for the test
 export SERVER_URL="http://localhost:5000"
-node tests/puppeteer/verify_connect_button.js 2>&1 | tee test-results/connect-button-puppeteer-test.log
+node tests/puppeteer/verify_connect_button.cjs 2>&1 | tee test-results/connect-button-puppeteer-test.log
 TEST_RESULT=${PIPESTATUS[0]}
 
 # Save server logs

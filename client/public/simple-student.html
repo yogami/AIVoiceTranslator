@@ -1029,7 +1029,7 @@
                         
                         // Create a data URI with HTML that will speak the text when loaded
                         // Use a single-line data URL to avoid template literal issues
-                        const dataUrl = 'data:text/html;charset=utf-8,<!DOCTYPE html><html><body><script>window.onload=function(){try{if("speechSynthesis" in window){const u=new SpeechSynthesisUtterance(decodeURIComponent("' + encodedText + '"));u.lang=decodeURIComponent("' + encodedLang + '");window.speechSynthesis.speak(u);}}catch(e){console.error("Speech error:",e);}}</script></body></html>';
+                        const dataUrl = `data:text/html;charset=utf-8,<!DOCTYPE html><html><body><script>window.onload=function(){try{if("speechSynthesis" in window){const u=new SpeechSynthesisUtterance(decodeURIComponent("${encodedText}"));u.lang=decodeURIComponent("${encodedLang}");window.speechSynthesis.speak(u);}}catch(e){console.error("Speech error:",e);}}</script></body></html>`;
                         
                         // Cache this URL
                         audioCache.lastTranslation.audios['browser_simple_fallback'] = {

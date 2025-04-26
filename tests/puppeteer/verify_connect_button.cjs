@@ -9,12 +9,10 @@
  */
 
 // Import puppeteer with stealth plugin to avoid detection
-import puppeteerExtra from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import assert from 'assert';
-
-// Initialize puppeteer with stealth plugin
-puppeteerExtra.use(StealthPlugin());
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+const assert = require('assert');
 
 /**
  * Test the Connect button functionality on student interface
@@ -26,7 +24,7 @@ async function testConnectButton(serverUrl) {
   try {
     // Start a browser instance
     console.log('Launching browser in headless mode...');
-    browser = await puppeteerExtra.launch({
+    browser = await puppeteer.launch({
       headless: true,
       args: [
         '--no-sandbox',
@@ -140,16 +138,17 @@ async function testConnectButton(serverUrl) {
   }
 }
 
-// Run the test if this is the main module
-const serverUrl = process.env.SERVER_URL || 'http://localhost:5000';
-testConnectButton(serverUrl)
-  .then(success => {
-    process.exit(success ? 0 : 1);
-  })
-  .catch(error => {
-    console.error('Unhandled error:', error);
-    process.exit(1);
-  });
+// Run the test
+if (require.main === module) {
+  const serverUrl = process.env.SERVER_URL || 'http://localhost:5000';
+  testConnectButton(serverUrl)
+    .then(success => {
+      process.exit(success ? 0 : 1);
+    })
+    .catch(error => {
+      console.error('Unhandled error:', error);
+      process.exit(1);
+    });
+}
 
-// Export the function for ES modules
-export { testConnectButton };
+module.exports = { testConnectButton };
