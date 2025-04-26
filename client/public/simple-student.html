@@ -16,6 +16,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student View - AIVoiceTranslator</title>
+    
+    <!-- Autoplay Permission Handler -->
+    <script>
+        // This script runs immediately to request audio permission as early as possible
+        window.browserTTSPermissionGranted = false;
+        
+        function requestAudioPermission() {
+            try {
+                // Create and play a silent audio element to satisfy user interaction requirement
+                const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
+                silentAudio.volume = 0.01; // Almost silent
+                
+                // When user clicks anywhere, try to play it
+                document.addEventListener('click', function audioPermissionHandler() {
+                    silentAudio.play().then(() => {
+                        console.log("✅ Audio permission granted");
+                        window.browserTTSPermissionGranted = true;
+                        
+                        // Also initialize speech synthesis
+                        if ('speechSynthesis' in window) {
+                            const tinyUtterance = new SpeechSynthesisUtterance('.');
+                            tinyUtterance.volume = 0;
+                            tinyUtterance.rate = 10;
+                            window.speechSynthesis.speak(tinyUtterance);
+                            window.speechSynthesis.cancel();
+                            console.log("Speech synthesis initialized");
+                        }
+                        
+                        // Remove this event listener once permission is granted
+                        document.removeEventListener('click', audioPermissionHandler);
+                        
+                        // Hide the permission banner if it exists
+                        const banner = document.getElementById('permission-banner');
+                        if (banner) banner.style.display = 'none';
+                    }).catch(err => {
+                        console.log("❌ Audio permission denied:", err);
+                    });
+                }, { once: false });
+                
+                // Show permission request banner after page loads
+                document.addEventListener('DOMContentLoaded', function() {
+                    const permissionBanner = document.createElement('div');
+                    permissionBanner.id = 'permission-banner';
+                    permissionBanner.style.position = 'fixed';
+                    permissionBanner.style.top = '0';
+                    permissionBanner.style.left = '0';
+                    permissionBanner.style.right = '0';
+                    permissionBanner.style.backgroundColor = '#f8d7da';
+                    permissionBanner.style.color = '#721c24';
+                    permissionBanner.style.padding = '10px';
+                    permissionBanner.style.textAlign = 'center';
+                    permissionBanner.style.zIndex = '1000';
+                    permissionBanner.style.display = 'block';
+                    permissionBanner.innerHTML = '<strong>Please click anywhere on this page</strong> to enable automatic audio playback. This is required for the translation system to work properly.';
+                    
+                    document.body.appendChild(permissionBanner);
+                });
+            } catch (e) {
+                console.error("Error setting up audio permission:", e);
+            }
+        }
+        
+        // Initialize permission request
+        requestAudioPermission();
+    </script>
+    
     <script src="js/language-support.js"></script>
     <style>
         :root {
@@ -1653,6 +1719,18 @@
                     // First try to initialize the speech synthesis API if it hasn't been initialized yet
                     if (!speechSynthesisInitialized) {
                         initializeSpeechSynthesis();
+                    }
+                    
+                    // Check if we've been granted audio permission
+                    const hasPermission = window.browserTTSPermissionGranted === true;
+                    log(`🔊 BROWSER TTS: Audio permission status: ${hasPermission ? 'Granted ✓' : 'Not yet granted ✗'}`);
+                    
+                    // If we don't have permission yet, show a notice
+                    if (!hasPermission) {
+                        showError('Please click anywhere on the page to enable audio playback');
+                        // Make sure the permission banner is visible
+                        const banner = document.getElementById('permission-banner');
+                        if (banner) banner.style.display = 'block';
                     }
                     
                     // Create a flag to track if the direct speech synthesis approach works
