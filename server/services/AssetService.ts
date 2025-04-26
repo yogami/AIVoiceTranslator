@@ -17,6 +17,70 @@ import { eq } from 'drizzle-orm';
 
 class AssetService {
   /**
+   * Store the Working Agreement document in the database
+   * This is a special document that guides the agent's behavior
+   */
+  public async storeWorkingAgreement(content: string): Promise<Asset> {
+    try {
+      const filename = "Working_Agreement.md";
+      const filetype = "md";
+      
+      // Metadata for the working agreement
+      const metadata = {
+        purpose: "Software Craftsmanship Guidance",
+        priority: "critical",
+        created: new Date(),
+        modified: new Date()
+      };
+      
+      // Check if working agreement already exists in database
+      const [existingAgreement] = await db.select()
+        .from(assets)
+        .where(eq(assets.filename, filename));
+      
+      if (existingAgreement) {
+        // Update existing asset
+        const [updatedAsset] = await db.update(assets)
+          .set({
+            content,
+            metadata,
+            updated_at: new Date()
+          })
+          .where(eq(assets.id, existingAgreement.id))
+          .returning();
+        
+        console.log(`Updated Working Agreement in database`);
+        return updatedAsset;
+      } else {
+        // Create new asset
+        const assetData: InsertAsset = {
+          filename,
+          filetype,
+          content,
+          metadata
+        };
+        
+        const [result] = await db.insert(assets)
+          .values(assetData)
+          .returning();
+        
+        console.log(`Stored Working Agreement in database`);
+        return result;
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Error storing Working Agreement:`, errorMessage);
+      throw new Error(`Failed to store Working Agreement: ${errorMessage}`);
+    }
+  }
+  
+  /**
+   * Fetch the Working Agreement from the database
+   */
+  public async getWorkingAgreement(): Promise<Asset | undefined> {
+    return this.getAssetByFilename("Working_Agreement.md");
+  }
+  /**
    * Upload a single file to the database
    */
   public async uploadFile(filePath: string): Promise<Asset> {
