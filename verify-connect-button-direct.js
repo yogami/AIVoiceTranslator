@@ -13,9 +13,9 @@
  * This is a headless test suitable for CI/CD environments.
  */
 
-const WebSocket = require('ws');
-const assert = require('assert');
-const http = require('http');
+import WebSocket from 'ws';
+import assert from 'assert';
+import http from 'http';
 
 // Test settings
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5000';
@@ -104,8 +104,8 @@ async function testConnectButtonWebSocket() {
                   const regMessage = JSON.parse(event.data);
                   console.log(`📥 Received message: ${JSON.stringify(regMessage)}`);
                   
-                  // Check for registration confirmation
-                  if (regMessage.type === 'registration_success') {
+                  // Check for registration confirmation - our server returns 'register' with status 'success'
+                  if (regMessage.type === 'register' && regMessage.status === 'success') {
                     console.log('✅ Registration confirmed by server');
                     isRegistered = true;
                     clearTimeout(registrationTimeout);
