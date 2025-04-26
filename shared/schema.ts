@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -103,6 +103,24 @@ export const insertConfigurationSchema = createInsertSchema(configuration).pick(
   value: true,
 });
 
+// Project assets (PDFs, images, markdown files, etc.)
+export const assets = pgTable("assets", {
+  id: serial("id").primaryKey(),
+  filename: text("filename").notNull().unique(),
+  filetype: varchar("filetype", { length: 50 }).notNull(),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata"),
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAssetSchema = createInsertSchema(assets).pick({
+  filename: true,
+  filetype: true,
+  content: true,
+  metadata: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -123,3 +141,6 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 export type Configuration = typeof configuration.$inferSelect;
 export type InsertConfiguration = z.infer<typeof insertConfigurationSchema>;
+
+export type Asset = typeof assets.$inferSelect;
+export type InsertAsset = z.infer<typeof insertAssetSchema>;

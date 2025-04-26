@@ -44,6 +44,15 @@ async function startServer() {
     console.log('OpenAI Streaming - client initialized successfully');
   }
   
+  // Initialize memory system
+  try {
+    await memoryService.initialize();
+    console.log('Assistant memory system initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize memory system:', error);
+    console.warn('Continuing startup with limited memory functionality');
+  }
+  
   // Create Express app
   const app = express();
   
