@@ -1042,21 +1042,8 @@
                         const encodedLang = encodeURIComponent(language);
                         
                         // Create a data URI with HTML that will speak the text when loaded
-                        const dataUrl = `data:text/html;charset=utf-8,<!DOCTYPE html><html><body>
-                            <script>
-                                window.onload = function() {
-                                    try {
-                                        if ('speechSynthesis' in window) {
-                                            const utterance = new SpeechSynthesisUtterance("${encodedText}");
-                                            utterance.lang = "${encodedLang}";
-                                            window.speechSynthesis.speak(utterance);
-                                        }
-                                    } catch(e) {
-                                        console.error("Speech error:", e);
-                                    }
-                                };
-                            </script>
-                        </body></html>`;
+                        // Use a single-line data URL to avoid template literal issues
+                        const dataUrl = `data:text/html;charset=utf-8,<!DOCTYPE html><html><body><script>window.onload=function(){try{if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(decodeURIComponent("${encodedText}"));u.lang=decodeURIComponent("${encodedLang}");window.speechSynthesis.speak(u);}}catch(e){console.error("Speech error:",e);}}</script></body></html>`;
                         
                         // Cache this URL
                         audioCache.lastTranslation.audios['browser_simple_fallback'] = {
@@ -2628,8 +2615,7 @@
                     
                     // Check if this language is supported by the current TTS service
                     if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
-                        showError(`${this.textContent} is not supported by the current TTS service (${currentServiceName}). 
-                                  Please ask the teacher to change the TTS service.`);
+                        showError(`${this.textContent} is not supported by the current TTS service (${currentServiceName}). Please ask the teacher to change the TTS service.`);
                         return;
                     }
                     
