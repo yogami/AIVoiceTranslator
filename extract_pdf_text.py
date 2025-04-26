@@ -37,5 +37,11 @@ def extract_text_from_pdf(pdf_path, output_dir="extracted_text"):
         print(f"Error extracting text from {pdf_path}: {e}")
 
 if __name__ == "__main__":
-    pdf_path = "./attached_assets/AIVoiceTranslator_Proof_of_Concept 2.pdf"
-    extract_text_from_pdf(pdf_path)
+    import sys
+    
+    if len(sys.argv) > 1:
+        pdf_path = sys.argv[1]
+        extract_text_from_pdf(pdf_path)
+    else:
+        print("Please provide a PDF file path as a command line argument.")
+        print("Usage: python extract_pdf_text.py path/to/pdf_file.pdf")
