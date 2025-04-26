@@ -1,50 +1,50 @@
-name: Connect Button Functionality Test
+name: Connect Button WebSocket Test
 
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'client/public/simple-student.html'
+      - 'server/services/WebSocketServer.ts'
+      - 'server/services/TranslationService.ts'
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
-    inputs:
-      reason:
-        description: 'Reason for manual run'
-        required: true
-        default: 'Manual verification'
+    paths:
+      - 'client/public/simple-student.html'
+      - 'server/services/WebSocketServer.ts'
+      - 'server/services/TranslationService.ts'
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  test-connect-button:
+  connect-button-test:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Setup Node.js
+        
+      - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-          cache: 'npm'
-
+          
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Puppeteer dependencies
+        
+      - name: Run Connect Button WebSocket Test
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser
-          npm install puppeteer-core puppeteer-extra puppeteer-extra-plugin-stealth
-
-      - name: Run Connect Button Test with Puppeteer
-        run: |
+          # Create test results directory
           mkdir -p test-results
-          bash ./run-connect-button-puppeteer-test.sh
-        env:
-          NODE_ENV: test
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
+          
+          # Run the direct WebSocket test
+          chmod +x run-connect-button-direct-test.sh
+          ./run-connect-button-direct-test.sh
+        
       - name: Upload test results
+        if: always()  # Upload logs even on test failure
         uses: actions/upload-artifact@v3
-        if: always()
         with:
-          name: test-results
-          path: test-results/
+          name: connect-button-test-results
+          path: |
+            test-results/
+            server-output.log
