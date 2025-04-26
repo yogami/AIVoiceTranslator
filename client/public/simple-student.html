@@ -1142,12 +1142,22 @@
         }
         
         function connectWebSocket() {
+            log('ConnectWebSocket function called');
             try {
+                // Ensure we don't have an existing connection
+                if (socket && socket.readyState !== WebSocket.CLOSED) {
+                    log('Closing existing WebSocket connection before creating a new one');
+                    socket.close();
+                }
+                
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws`;
                 
                 log(`Connecting to WebSocket at ${wsUrl}`);
                 socket = new WebSocket(wsUrl);
+                
+                // Update UI to show we're connecting
+                document.getElementById('connection-status').textContent = 'Connecting...';
                 
                 socket.onopen = function() {
                     log('WebSocket connection established');
@@ -2509,8 +2519,53 @@
             
             // Audio comparison functionality removed
             
-            connectBtn.addEventListener('click', connectWebSocket);
-            disconnectBtn.addEventListener('click', disconnectWebSocket);
+            // Connect event listeners to WebSocket functions
+            connectBtn.addEventListener('click', function(event) {
+                // Prevent default action if any
+                event.preventDefault();
+                
+                // Log the click for debugging purposes
+                log('Connect button clicked');
+                
+                // Visually indicate button press
+                this.classList.add('clicked');
+                
+                // Update status immediately to show we're trying to connect
+                document.getElementById('connection-status').textContent = 'Connecting...';
+                
+                // Disable the button while connecting
+                this.disabled = true;
+                
+                // Call the WebSocket connection function
+                connectWebSocket();
+                
+                // Remove button highlight after a short delay
+                setTimeout(() => {
+                    this.classList.remove('clicked');
+                }, 300);
+            });
+            
+            disconnectBtn.addEventListener('click', function(event) {
+                // Prevent default action if any
+                event.preventDefault();
+                
+                // Log the click for debugging purposes
+                log('Disconnect button clicked');
+                
+                // Visually indicate button press
+                this.classList.add('clicked');
+                
+                // Disable the button while disconnecting
+                this.disabled = true;
+                
+                // Call the WebSocket disconnection function
+                disconnectWebSocket();
+                
+                // Remove button highlight after a short delay
+                setTimeout(() => {
+                    this.classList.remove('clicked');
+                }, 300);
+            });
             
             languageSelect.addEventListener('change', function() {
                 selectedLanguage = this.value;
