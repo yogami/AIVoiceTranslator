@@ -20,6 +20,22 @@ jobs:
     name: Direct WebSocket Test
     runs-on: ubuntu-latest
     
+    # Add PostgreSQL service container
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -40,6 +56,9 @@ jobs:
           # Run the direct WebSocket test
           chmod +x run-connect-button-direct-test.sh
           ./run-connect-button-direct-test.sh
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         
       - name: Upload test results (Direct Test)
         if: always()  # Upload logs even on test failure
@@ -54,6 +73,22 @@ jobs:
     name: Selenium WebDriver Test
     runs-on: ubuntu-latest
     needs: direct-websocket-test  # Run this only if the direct test succeeds
+    
+    # Add PostgreSQL service container
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     
     steps:
       - name: Checkout code
@@ -88,6 +123,9 @@ jobs:
           # Run the Selenium test
           chmod +x run-connect-button-selenium-test.sh
           ./run-connect-button-selenium-test.sh
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           
       - name: Upload test results (Selenium)
         if: always()  # Upload logs even on test failure
