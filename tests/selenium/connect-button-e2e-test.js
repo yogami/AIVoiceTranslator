@@ -15,6 +15,10 @@ const { Builder, By, until, Key } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 const assert = require('assert');
 
+// Configure test environment
+const BASE_URL = process.env.TEST_APP_URL || 'http://localhost:5000';
+console.log(`Using base URL: ${BASE_URL}`);
+
 describe('Connect Button End-to-End Tests', function() {
   let driver;
   
@@ -44,7 +48,7 @@ describe('Connect Button End-to-End Tests', function() {
   
   it('should change connection status when Connect button is clicked', async function() {
     // Navigate to the student interface
-    await driver.get('https://aivoicetranslator.replit.app/simple-student.html');
+    await driver.get(`${BASE_URL}/simple-student.html`);
     
     // Wait for the page to load completely
     await driver.wait(until.elementLocated(By.id('connect-btn')), 10000);
@@ -110,7 +114,7 @@ describe('Connect Button End-to-End Tests', function() {
   
   it('should attempt connection when Enter key is pressed on Connect button', async function() {
     // Navigate to the student interface
-    await driver.get('https://aivoicetranslator.replit.app/simple-student.html');
+    await driver.get(`${BASE_URL}/simple-student.html`);
     
     // Wait for the page to load completely
     await driver.wait(until.elementLocated(By.id('connect-btn')), 10000);
@@ -146,7 +150,7 @@ describe('Connect Button End-to-End Tests', function() {
     // 3. Verify the UI shows appropriate error state
     
     // For this example, we'll check the error handling element exists
-    await driver.get('https://aivoicetranslator.replit.app/simple-student.html');
+    await driver.get(`${BASE_URL}/simple-student.html`);
     
     // Wait for the page to load
     await driver.wait(until.elementLocated(By.id('connect-btn')), 10000);

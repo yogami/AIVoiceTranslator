@@ -59,6 +59,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TEST_APP_URL: http://localhost:5000
+          NODE_ENV: test
         
       - name: Upload test results (Direct Test)
         if: always()  # Upload logs even on test failure
@@ -119,6 +121,7 @@ jobs:
         run: |
           # Create test results directory
           mkdir -p test-results
+          mkdir -p screenshots
           
           # Run the Selenium test
           chmod +x run-connect-button-selenium-test.sh
@@ -126,6 +129,8 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TEST_APP_URL: http://localhost:5000
+          NODE_ENV: test
           
       - name: Upload test results (Selenium)
         if: always()  # Upload logs even on test failure
