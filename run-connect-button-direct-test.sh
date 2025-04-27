@@ -43,8 +43,15 @@ if [ -n "$GITHUB_ACTIONS" ]; then
   done
 else
   # Running on Replit
-  echo "Testing against server: http://localhost:5000"
-  SERVER_URL="http://localhost:5000"
+  # Use the Replit-provided URL if available
+  REPLIT_URL="https://$REPL_SLUG-$REPL_OWNER.replit.app"
+  if [ -n "$REPLIT_URL" ]; then
+    echo "Testing against Replit URL: $REPLIT_URL"
+    SERVER_URL="$REPLIT_URL"
+  else
+    echo "Testing against local server: http://localhost:5000"
+    SERVER_URL="http://localhost:5000"
+  fi
 fi
 
 # Run the direct WebSocket test
@@ -58,7 +65,18 @@ else
 fi
 
 echo "🧪 Starting Direct WebSocket Connection Test"
-echo "🔌 Connecting to WebSocket server at: ws://localhost:5000/ws"
+# Extract WebSocket URL from server URL
+if [[ "$SERVER_URL" == "http://localhost"* ]]; then
+  WS_URL="ws://localhost:5000/ws"
+else
+  WS_PROTOCOL=$(echo $SERVER_URL | sed -E 's|^(http[s]?)://.*|\1|')
+  WS_PROTOCOL=${WS_PROTOCOL/http/ws}
+  WS_PROTOCOL=${WS_PROTOCOL/https/wss}
+  WS_HOST=$(echo $SERVER_URL | sed -E 's|^http[s]?://([^/]*).*|\1|')
+  WS_URL="${WS_PROTOCOL}://${WS_HOST}/ws"
+fi
+echo "🔌 Connecting to WebSocket server at: $WS_URL"
+export WS_URL="$WS_URL"
 
 # Run the verify-connect-button-direct.js script if it exists
 if [ -f "verify-connect-button-direct.js" ]; then
@@ -78,7 +96,7 @@ const WebSocket = require('ws');
 const http = require('http');
 
 // Test configuration
-const WS_URL = 'ws://localhost:5000/ws';
+const WS_URL = process.env.WS_URL || 'ws://localhost:5000/ws';
 const CONNECTION_TIMEOUT = 5000;
 const TEST_TIMEOUT = 15000;
 
