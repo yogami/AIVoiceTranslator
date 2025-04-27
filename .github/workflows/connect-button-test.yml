@@ -37,6 +37,10 @@ jobs:
           --health-retries 5
     
     steps:
+      - name: Force Fresh Actions Download
+        run: |
+          rm -rf ~/.local/share/actions/cache
+          
       - name: Checkout code
         uses: actions/checkout@v4
         
@@ -64,7 +68,7 @@ jobs:
         
       - name: Upload test results (Direct Test)
         if: always()  # Upload logs even on test failure
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: direct-websocket-test-results
           path: |
@@ -93,6 +97,10 @@ jobs:
           --health-retries 5
     
     steps:
+      - name: Force Fresh Actions Download
+        run: |
+          rm -rf ~/.local/share/actions/cache
+          
       - name: Checkout code
         uses: actions/checkout@v4
         
@@ -143,9 +151,10 @@ jobs:
           
       - name: Upload test results (Selenium)
         if: always()  # Upload logs even on test failure
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: selenium-test-results
           path: |
             test-results/
+            screenshots/
             server-output.log
