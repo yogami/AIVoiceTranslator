@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   test:
@@ -26,40 +27,108 @@ jobs:
           --health-retries 5
     
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v3
     
     - name: Set up Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
-        node-version: '16'
+        node-version: '20'
         
     - name: Install dependencies
-      run: npm install
+      run: npm ci
       
-    - name: Install Chrome WebDriver
+    - name: Install Chrome and ChromeDriver
       run: |
         sudo apt-get update
         sudo apt-get install -y google-chrome-stable
-        npm install selenium-webdriver chromedriver
+        sudo apt-get install -y libnspr4 libnss3 libgbm1  # Required libraries
+
+        # Get Chrome version and install matching chromedriver
+        CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
+        echo "Chrome version: $CHROME_VERSION"
+        
+        # Install Selenium and appropriate ChromeDriver
+        npm install selenium-webdriver
+        npm install chromedriver@$CHROME_VERSION
+        
+        # Verify installation
+        echo "Chrome version: $(google-chrome --version)"
+        echo "ChromeDriver version: $(npx chromedriver --version)"
+      
+    - name: Create test directories
+      run: |
+        mkdir -p test-results
+        mkdir -p screenshots
       
     - name: Start application server
       run: |
-        npm run dev &
-        sleep 10 # Give the server time to start
+        # Start the server and capture its PID
+        NODE_ENV=test node server/index.js > server-output.log 2>&1 &
+        SERVER_PID=$!
+        echo "Server PID: $SERVER_PID"
+        
+        # Wait for server to be ready
+        echo "Waiting for server to start..."
+        for i in {1..15}; do
+          if curl -s http://localhost:5000 > /dev/null; then
+            echo "Server is up and running!"
+            break
+          fi
+          if [ $i -eq 15 ]; then
+            echo "Server failed to start within the timeout period"
+            cat server-output.log
+            kill $SERVER_PID
+            exit 1
+          fi
+          echo "Waiting for server... (attempt $i)"
+          sleep 1
+        done
+        
+        # Save PID for later cleanup
+        echo $SERVER_PID > server.pid
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        NODE_ENV: test
         
     - name: Run Selenium tests
       run: |
+        # Start ChromeDriver in the background
+        npx chromedriver --port=4444 > chromedriver.log 2>&1 &
+        CHROMEDRIVER_PID=$!
+        echo "ChromeDriver PID: $CHROMEDRIVER_PID"
+        
+        # Run the tests
         npx mocha tests/selenium/connect-button-e2e-test.js --timeout 30000
+        TEST_RESULT=$?
+        
+        # Stop ChromeDriver
+        kill $CHROMEDRIVER_PID
+        
+        # Return the original test result
+        exit $TEST_RESULT
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        NODE_ENV: test
+        
+    - name: Clean up server
+      if: always()
+      run: |
+        if [ -f server.pid ]; then
+          SERVER_PID=$(cat server.pid)
+          echo "Stopping server with PID: $SERVER_PID"
+          kill $SERVER_PID || true
+        fi
         
     - name: Archive test results
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       if: always()
       with:
         name: test-results
         path: |
           test-results/
           screenshots/
+          server-output.log
+          chromedriver.log
