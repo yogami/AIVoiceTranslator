@@ -111,6 +111,7 @@ jobs:
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost:5432/testdb
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        TEST_APP_URL: http://localhost:5000
         NODE_ENV: test
         
     - name: Clean up server

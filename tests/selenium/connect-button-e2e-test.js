@@ -34,9 +34,13 @@ describe('Connect Button End-to-End Tests', function() {
       .addArguments('--disable-gpu')
       .windowSize({ width: 1280, height: 1024 });
     
+    // Set WebDriver to use local ChromeDriver
+    const chromedriver = require('chromedriver');
+    
     driver = await new Builder()
       .forBrowser('chrome')
       .setChromeOptions(options)
+      .usingServer('http://localhost:4444/wd/hub') // Use the local ChromeDriver
       .build();
   });
   
