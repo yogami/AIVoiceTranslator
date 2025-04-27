@@ -11,74 +11,209 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}╔═════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║      CONNECT BUTTON DIRECT WEBSOCKET TEST          ║${NC}"
-echo -e "${BLUE}╚═════════════════════════════════════════════════════╝${NC}"
-echo ""
+echo -e "${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║       CONNECT BUTTON FUNCTIONALITY - DIRECT WEBSOCKET TEST     ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 
-# Environment information
-echo -e "Environment Information:"
-echo -e "Node.js version: $(node -v)"
-echo -e "npm version: $(npm -v)"
-echo ""
+# For GitHub Actions CI environment
+if [ -n "$GITHUB_ACTIONS" ]; then
+  # Running in GitHub Actions
+  echo "Running in GitHub Actions environment"
+  
+  # Start the server for testing
+  echo "Starting server..."
+  NODE_ENV=test node server/index.js > server-output.log 2>&1 &
+  SERVER_PID=$!
+  
+  # Wait for server to be ready
+  SERVER_URL="http://localhost:5000"
+  for i in {1..15}; do
+    if curl -s $SERVER_URL > /dev/null; then
+      echo "Server is up and running!"
+      break
+    fi
+    if [ $i -eq 15 ]; then
+      echo "Server failed to start within the timeout period"
+      cat server-output.log
+      kill $SERVER_PID
+      exit 1
+    fi
+    echo "Waiting for server... (attempt $i)"
+    sleep 1
+  done
+else
+  # Running on Replit
+  echo "Testing against server: http://localhost:5000"
+  SERVER_URL="http://localhost:5000"
+fi
 
-# Stop any running servers
-echo -e "Stopping any running servers..."
-pkill -f "node server/index.js" || true
-pkill -f "tsx server/index.ts" || true
-sleep 2
+# Run the direct WebSocket test
+echo "🔍 Checking if server is running at $SERVER_URL"
+curl -s $SERVER_URL > /dev/null
+if [ $? -eq 0 ]; then
+  echo "✅ Server is running (Status: 200)"
+else
+  echo "❌ Server is not running or not accessible"
+  exit 1
+fi
 
-# Start the server in the background
-echo -e "Starting server..."
-NODE_ENV=test npm run dev > server-output.log 2>&1 &
-SERVER_PID=$!
+echo "🧪 Starting Direct WebSocket Connection Test"
+echo "🔌 Connecting to WebSocket server at: ws://localhost:5000/ws"
 
-# Wait for server to be ready
-echo -e "Waiting for server to start..."
-for i in {1..15}; do
-  if curl -s http://localhost:5000 > /dev/null; then
-    echo -e "Server is up and running!"
-    break
-  fi
-  if [ $i -eq 15 ]; then
-    echo -e "${RED}Server failed to start within the timeout period${NC}"
-    echo -e "Server logs:"
-    cat server-output.log
-    kill $SERVER_PID
-    exit 1
-  fi
-  echo -e "Waiting for server... (attempt $i)"
-  sleep 1
-done
+# Run the verify-connect-button-direct.js script if it exists
+if [ -f "verify-connect-button-direct.js" ]; then
+  node verify-connect-button-direct.js
+  TEST_RESULT=$?
+else
+  # Create a simple test script if one doesn't exist
+  cat > connect-button-direct-test.js << 'EOF'
+/**
+ * Direct WebSocket Test for Connect Button
+ * 
+ * This script tests the WebSocket functionality that is used by the Connect button
+ * without requiring a browser.
+ */
 
-echo ""
-echo -e "Running Direct WebSocket Connect Button test..."
-mkdir -p test-results
-# Set SERVER_URL environment variable for the test
-export SERVER_URL="http://localhost:5000"
-node verify-connect-button-direct.js 2>&1 | tee test-results/connect-button-direct-test.log
-TEST_RESULT=${PIPESTATUS[0]}
+const WebSocket = require('ws');
+const http = require('http');
 
-# Save server logs
-cat server-output.log >> test-results/server-output.log
+// Test configuration
+const WS_URL = 'ws://localhost:5000/ws';
+const CONNECTION_TIMEOUT = 5000;
+const TEST_TIMEOUT = 15000;
 
-# Stop the server
-echo -e "Stopping server..."
-kill $SERVER_PID
+// Test state
+let connected = false;
+let sessionId = null;
+let registered = false;
+let errors = [];
 
-echo ""
-echo -e "${BLUE}╔═════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║                     TEST RESULTS                    ║${NC}"
-echo -e "${BLUE}╚═════════════════════════════════════════════════════╝${NC}"
-echo ""
+// Start test
+console.log('🧪 Starting Direct WebSocket Test');
+console.log(`🔌 Connecting to WebSocket server at: ${WS_URL}`);
 
+// Set an overall timeout
+const testTimeout = setTimeout(() => {
+  console.error('❌ Test timed out after 15 seconds');
+  process.exit(1);
+}, TEST_TIMEOUT);
+
+// Create WebSocket connection
+const ws = new WebSocket(WS_URL);
+
+// Connection error handler
+ws.on('error', (error) => {
+  console.error('❌ WebSocket connection error:', error.message);
+  clearTimeout(testTimeout);
+  process.exit(1);
+});
+
+// Connection opened handler
+ws.on('open', () => {
+  console.log('✅ WebSocket connection established');
+  connected = true;
+  
+  // Set a timeout for the connection confirmation
+  const connectionConfirmationTimeout = setTimeout(() => {
+    console.error('❌ Timed out waiting for connection confirmation');
+    ws.close();
+    clearTimeout(testTimeout);
+    process.exit(1);
+  }, CONNECTION_TIMEOUT);
+  
+  // Message handler
+  ws.on('message', (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log(`📥 Received message: ${message}`);
+      
+      // Handle connection confirmation
+      if (data.type === 'connection' && data.sessionId) {
+        console.log(`✅ Received connection confirmation with session ID: ${data.sessionId}`);
+        sessionId = data.sessionId;
+        clearTimeout(connectionConfirmationTimeout);
+        
+        // Send registration message
+        console.log('📤 Sending student registration message...');
+        ws.send(JSON.stringify({
+          type: 'register',
+          role: 'student',
+          languageCode: 'es'
+        }));
+        
+        // Set timeout for registration confirmation
+        const registrationTimeout = setTimeout(() => {
+          console.error('❌ Timed out waiting for registration confirmation');
+          ws.close();
+          clearTimeout(testTimeout);
+          process.exit(1);
+        }, CONNECTION_TIMEOUT);
+        
+        // Update message handler for registration confirmation
+        ws.removeAllListeners('message');
+        ws.on('message', (regMessage) => {
+          try {
+            const regData = JSON.parse(regMessage);
+            console.log(`📥 Received message: ${regMessage}`);
+            
+            // Check for registration confirmation
+            if (regData.type === 'register') {
+              console.log('✅ Registration confirmed by server');
+              registered = true;
+              clearTimeout(registrationTimeout);
+              
+              // Complete the test successfully
+              ws.close();
+              clearTimeout(testTimeout);
+              
+              // Log test results
+              console.log('╔════════════════════════════════════════════════════════════════╗');
+              console.log('║                         TEST RESULTS                           ║');
+              console.log('╚════════════════════════════════════════════════════════════════╝');
+              console.log('✅ Success: Connect Button WebSocket Functionality Works Correctly');
+              console.log('- WebSocket connection established successfully');
+              console.log('- Server sent connection confirmation with session ID');
+              console.log('- Client sent registration message');
+              console.log('- Server confirmed registration');
+              process.exit(0);
+            }
+          } catch (error) {
+            console.error('❌ Error parsing registration message:', error);
+            process.exit(1);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error parsing message:', error);
+      process.exit(1);
+    }
+  });
+});
+
+// Connection closed handler
+ws.on('close', () => {
+  console.log('WebSocket connection closed');
+  if (!registered) {
+    console.error('❌ WebSocket closed before registration was confirmed');
+    clearTimeout(testTimeout);
+    process.exit(1);
+  }
+});
+EOF
+
+  # Run the test script
+  node connect-button-direct-test.js
+  TEST_RESULT=$?
+fi
+
+# Stop the server if in GitHub Actions
+if [ -n "$GITHUB_ACTIONS" ] && [ -n "$SERVER_PID" ]; then
+  kill $SERVER_PID
+fi
+
+# Report results
 if [ $TEST_RESULT -eq 0 ]; then
-  echo -e "${GREEN}✅ PASSED: Connect Button Direct WebSocket Test${NC}"
-  echo -e "The Connect button has been fixed and works correctly!"
   exit 0
 else
-  echo -e "${RED}❌ FAILED: Connect Button Direct WebSocket Test${NC}"
-  echo -e "${YELLOW}See test-results/connect-button-direct-test.log for details${NC}"
-  echo -e "${YELLOW}Server logs are available in test-results/server-output.log${NC}"
   exit 1
 fi
