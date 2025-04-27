@@ -26,22 +26,41 @@ describe('Connect Button End-to-End Tests', function() {
     // Set longer timeout for CI environment
     this.timeout(30000);
     
+    // Check environment to determine Chrome binary path and approach
+    const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+    
     // Set up headless Chrome for CI
-    const options = new chrome.Options()
-      .headless()
-      .addArguments('--no-sandbox')
-      .addArguments('--disable-dev-shm-usage')
-      .addArguments('--disable-gpu')
-      .windowSize({ width: 1280, height: 1024 });
+    const options = new chrome.Options();
     
-    // Set WebDriver to use local ChromeDriver
-    const chromedriver = require('chromedriver');
+    // If running in CI environment, use Chromium binary
+    if (isCI) {
+      options.setChromeBinaryPath('/usr/bin/chromium-browser');
+    }
     
-    driver = await new Builder()
-      .forBrowser('chrome')
-      .setChromeOptions(options)
-      .usingServer('http://localhost:4444/wd/hub') // Use the local ChromeDriver
-      .build();
+    // Common options for both environments
+    options.addArguments('--headless=new'); // New headless mode
+    options.addArguments('--no-sandbox');
+    options.addArguments('--disable-dev-shm-usage');
+    options.addArguments('--disable-gpu');
+    options.windowSize({ width: 1280, height: 1024 });
+    
+    // Load ChromeDriver
+    require('chromedriver');
+    
+    console.log('Starting Chrome WebDriver...');
+    
+    try {
+      // Create WebDriver instance
+      driver = await new Builder()
+        .forBrowser('chrome')
+        .setChromeOptions(options)
+        .build();
+        
+      console.log('WebDriver started successfully');
+    } catch (error) {
+      console.error('Error starting WebDriver:', error);
+      throw error;
+    }
   });
   
   after(async function() {
