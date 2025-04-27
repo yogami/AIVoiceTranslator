@@ -38,10 +38,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           
@@ -64,7 +64,7 @@ jobs:
         
       - name: Upload test results (Direct Test)
         if: always()  # Upload logs even on test failure
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: direct-websocket-test-results
           path: |
@@ -94,10 +94,10 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           
@@ -105,17 +105,26 @@ jobs:
         run: |
           npm ci
           
-          # Install Chrome and ChromeDriver using apt
+          # Install Chromium instead of Chrome
           sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
+          sudo apt-get install -y chromium-browser
           sudo apt-get install -y libnspr4 libnss3 libgbm1  # Required libraries
           
           # Install Selenium WebDriver
           npm install selenium-webdriver
+          npm install chromedriver
+          
+          # Install ChromeDriver with specific setup
+          CHROME_VERSION=$(chromium-browser --version | cut -d ' ' -f 2 | cut -d '.' -f 1)
+          echo "Chrome (Chromium) version: $CHROME_VERSION"
+          npm install chromedriver@$CHROME_VERSION || npm install chromedriver
           
           # Check versions
-          google-chrome --version
-          chromedriver --version
+          chromium-browser --version
+          npx chromedriver --version
+          
+          # Set CI environment variable to true
+          echo "CI=true" >> $GITHUB_ENV
         
       - name: Run Selenium Test
         run: |
@@ -134,7 +143,7 @@ jobs:
           
       - name: Upload test results (Selenium)
         if: always()  # Upload logs even on test failure
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: selenium-test-results
           path: |

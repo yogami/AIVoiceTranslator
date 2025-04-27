@@ -28,10 +28,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '20'
         
@@ -40,21 +40,25 @@ jobs:
       
     - name: Install Chrome and ChromeDriver
       run: |
+        # Install Chromium instead of Chrome
         sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
+        sudo apt-get install -y chromium-browser
         sudo apt-get install -y libnspr4 libnss3 libgbm1  # Required libraries
-
-        # Get Chrome version and install matching chromedriver
-        CHROME_VERSION=$(google-chrome --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
-        echo "Chrome version: $CHROME_VERSION"
         
-        # Install Selenium and appropriate ChromeDriver
+        # Get Chromium version and install matching chromedriver
+        CHROME_VERSION=$(chromium-browser --version | cut -d ' ' -f 2 | cut -d '.' -f 1)
+        echo "Chromium version: $CHROME_VERSION"
+        
+        # Install Selenium and ChromeDriver
         npm install selenium-webdriver
-        npm install chromedriver@$CHROME_VERSION
+        npm install chromedriver@$CHROME_VERSION || npm install chromedriver
         
         # Verify installation
-        echo "Chrome version: $(google-chrome --version)"
+        echo "Chromium version: $(chromium-browser --version)"
         echo "ChromeDriver version: $(npx chromedriver --version)"
+        
+        # Set CI environment variable to true
+        echo "CI=true" >> $GITHUB_ENV
       
     - name: Create test directories
       run: |
@@ -124,7 +128,7 @@ jobs:
         fi
         
     - name: Archive test results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results
