@@ -7,6 +7,10 @@ on:
     branches: [ main ]
   workflow_dispatch:  # Allow manual triggering
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,10 +31,6 @@ jobs:
           --health-retries 5
     
     steps:
-    - name: Force Fresh Actions Download
-      run: |
-        rm -rf ~/.local/share/actions/cache
-        
     - name: Checkout code
       uses: actions/checkout@v4
     
@@ -42,26 +42,11 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Install Chrome and ChromeDriver
+    - name: Install Browser and ChromeDriver
       run: |
-        # Install Chromium instead of Chrome
         sudo apt-get update
-        sudo apt-get install -y chromium-browser
-        sudo apt-get install -y libnspr4 libnss3 libgbm1  # Required libraries
-        
-        # Get Chromium version and install matching chromedriver
-        CHROME_VERSION=$(chromium-browser --version | cut -d ' ' -f 2 | cut -d '.' -f 1)
-        echo "Chromium version: $CHROME_VERSION"
-        
-        # Install Selenium and ChromeDriver
-        npm install selenium-webdriver
-        npm install chromedriver@$CHROME_VERSION || npm install chromedriver
-        
-        # Verify installation
-        echo "Chromium version: $(chromium-browser --version)"
-        echo "ChromeDriver version: $(npx chromedriver --version)"
-        
-        # Set CI environment variable to true
+        sudo apt-get install -y chromium-browser libnspr4 libnss3 libgbm1
+        npm install selenium-webdriver chromedriver
         echo "CI=true" >> $GITHUB_ENV
       
     - name: Create test directories
