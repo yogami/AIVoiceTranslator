@@ -103,11 +103,15 @@ async function transcribeSpeech(audioBuffer: Buffer, sourceLanguage: string): Pr
     const tempFilePath = `/tmp/audio-${uuidv4()}.webm`;
     fs.writeFileSync(tempFilePath, audioBuffer);
     
+    // Format the language code to ISO-639-1 format (e.g., 'en', 'es')
+    // Extract the primary language code if it's in the format 'en-US' or similar
+    const primaryLanguage = sourceLanguage.split('-')[0].toLowerCase();
+    
     // Create readable stream
     const transcription = await openai.audio.transcriptions.create({
       file: fs.createReadStream(tempFilePath),
       model: 'whisper-1',
-      language: sourceLanguage,
+      language: primaryLanguage,
     });
     
     // Clean up temp file

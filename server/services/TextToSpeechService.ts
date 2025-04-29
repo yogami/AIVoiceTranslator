@@ -886,25 +886,28 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
       // Create speech using OpenAI's API
       console.log(`Using voice: ${voice}, speed: ${speed}`);
       
-      const mp3 = await this.openai.audio.speech.create({
-        model: "tts-1", // Basic model, use tts-1-hd for higher quality
-        voice: voice,
-        input: input,
-        speed: speed,
-        response_format: "mp3",
-      });
+      try {
+        const mp3 = await this.openai.audio.speech.create({
+          model: "tts-1", // Basic model, use tts-1-hd for higher quality
+          voice: voice,
+          input: input,
+          speed: speed,
+          response_format: "mp3",
+        });
+        
+        // Get the audio as a buffer
+        if (mp3 && mp3.arrayBuffer) {
+          const buffer = Buffer.from(await mp3.arrayBuffer());
+          return buffer;
+        } else {
+          throw new Error('Invalid response from OpenAI speech API');
+        }
+      } catch (apiError) {
+        console.error('API error when creating speech:', apiError);
+        throw apiError;
+      }
       
-      // Get the audio as a buffer
-      const buffer = Buffer.from(await mp3.arrayBuffer());
-      
-      // Save to file (optional - for debugging)
-      await writeFile(outputFilePath, buffer);
-      console.log(`Saved synthesized speech to: ${outputFilePath}`);
-      
-      // Cache the result for future use
-      await this.cacheAudio(cacheKey, buffer);
-      
-      return buffer;
+
     } catch (error) {
       console.error('Error synthesizing speech:', error);
       throw new Error(`Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
