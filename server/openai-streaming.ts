@@ -251,6 +251,9 @@ const audioProcessor = new AudioProcessingService();
  * @param isFirstChunk Whether this is the first chunk in a new stream
  * @param language Language code for transcription (e.g., 'en-US')
  */
+/**
+ * Handles audio buffer management and triggers audio processing
+ */
 export async function processStreamingAudio(
   ws: WebSocket,
   sessionId: string,
@@ -259,29 +262,41 @@ export async function processStreamingAudio(
   language: string
 ): Promise<void> {
   try {
-    // Convert base64 to buffer
     const audioBuffer = Buffer.from(audioBase64, 'base64');
-    
-    // Initialize session if it's the first chunk or doesn't exist
-    if (isFirstChunk || !sessionManager.getSession(sessionId)) {
-      sessionManager.createSession(sessionId, language, audioBuffer);
-    } else {
-      // Add to existing session
-      sessionManager.addAudioToSession(sessionId, audioBuffer);
-    }
-    
-    // Process if not already processing
-    const session = sessionManager.getSession(sessionId);
-    if (session && !session.transcriptionInProgress) {
-      // Start processing in the background
-      processAudioChunks(ws, sessionId).catch(error => {
-        console.error(`${CONFIG.LOG_PREFIX} Error processing audio chunks:`, error);
-        WebSocketCommunicator.sendErrorMessage(ws, 'Error processing audio stream', 'server_error');
-      });
-    }
+    await manageAudioSession(sessionId, audioBuffer, isFirstChunk, language);
+    await triggerAudioProcessing(ws, sessionId);
   } catch (error) {
     console.error(`${CONFIG.LOG_PREFIX} Error processing streaming audio:`, error);
     WebSocketCommunicator.sendErrorMessage(ws, 'Failed to process audio data', 'server_error');
+  }
+}
+
+/**
+ * Creates or updates an audio session with the provided buffer
+ */
+async function manageAudioSession(
+  sessionId: string,
+  audioBuffer: Buffer,
+  isFirstChunk: boolean,
+  language: string
+): Promise<void> {
+  if (isFirstChunk || !sessionManager.getSession(sessionId)) {
+    sessionManager.createSession(sessionId, language, audioBuffer);
+  } else {
+    sessionManager.addAudioToSession(sessionId, audioBuffer);
+  }
+}
+
+/**
+ * Triggers audio processing if the session is not already being processed
+ */
+async function triggerAudioProcessing(ws: WebSocket, sessionId: string): Promise<void> {
+  const session = sessionManager.getSession(sessionId);
+  if (session && !session.transcriptionInProgress) {
+    processAudioChunks(ws, sessionId).catch(error => {
+      console.error(`${CONFIG.LOG_PREFIX} Error processing audio chunks:`, error);
+      WebSocketCommunicator.sendErrorMessage(ws, 'Error processing audio stream', 'server_error');
+    });
   }
 }
 
