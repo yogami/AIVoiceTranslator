@@ -704,6 +704,9 @@
             }
         }
     </style>
+    
+    <!-- Debug Script for WebSocket Connection -->
+    <script src="debug-connect-button.js"></script>
 </head>
 <body>
     <div class="header">
@@ -1142,10 +1145,13 @@
         }
         
         function connectWebSocket() {
+            // Add very visible debug message
+            console.warn('🛠️ DEBUG: ConnectWebSocket function called');
             log('ConnectWebSocket function called');
             try {
                 // Ensure we don't have an existing connection
                 if (socket && socket.readyState !== WebSocket.CLOSED) {
+                    console.warn('🛠️ DEBUG: Closing existing WebSocket connection');
                     log('Closing existing WebSocket connection before creating a new one');
                     socket.close();
                 }
@@ -1153,13 +1159,24 @@
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws`;
                 
+                console.warn('🛠️ DEBUG: WebSocket URL:', wsUrl);
                 log(`Connecting to WebSocket at ${wsUrl}`);
-                socket = new WebSocket(wsUrl);
+                
+                // Create connection with explicit debug
+                try {
+                    socket = new WebSocket(wsUrl);
+                    console.warn('🛠️ DEBUG: WebSocket created successfully', socket);
+                } catch (wsError) {
+                    console.error('🛠️ CRITICAL ERROR creating WebSocket:', wsError);
+                    showError('Failed to create WebSocket connection: ' + wsError.message);
+                    return;
+                }
                 
                 // Update UI to show we're connecting
                 document.getElementById('connection-status').textContent = 'Connecting...';
                 
                 socket.onopen = function() {
+                    console.warn('🛠️ DEBUG: WebSocket.onopen fired - Connection established');
                     log('WebSocket connection established');
                     isConnected = true;
                     updateConnectionUI(true);
@@ -1169,13 +1186,15 @@
                     registerAsStudent(selectedLanguage);
                 };
                 
-                socket.onclose = function() {
-                    log('WebSocket connection closed');
+                socket.onclose = function(event) {
+                    console.warn('🛠️ DEBUG: WebSocket.onclose fired', event.code, event.reason);
+                    log('WebSocket connection closed - Code: ' + event.code + ' Reason: ' + event.reason);
                     isConnected = false;
                     updateConnectionUI(false);
                 };
                 
                 socket.onerror = function(error) {
+                    console.error('🛠️ CRITICAL ERROR: WebSocket error:', error);
                     log('WebSocket error: ' + JSON.stringify(error));
                     showError('Connection error. Please try again.');
                     isConnected = false;
@@ -1324,12 +1343,23 @@
         }
         
         function registerAsStudent(languageCode) {
-            if (!isConnected) {
-                log('Cannot register, WebSocket not connected');
-                showError('Not connected to classroom');
+            console.warn('🛠️ DEBUG: registerAsStudent called with language', languageCode);
+            
+            if (!socket) {
+                console.error('🛠️ CRITICAL ERROR: Cannot register - socket is null');
+                log('Cannot register, WebSocket is null');
+                showError('Connection error: WebSocket not initialized');
                 return;
             }
             
+            if (socket.readyState !== WebSocket.OPEN) {
+                console.error('🛠️ CRITICAL ERROR: Cannot register - WebSocket not OPEN', socket.readyState);
+                log('Cannot register, WebSocket not in OPEN state: ' + socket.readyState);
+                showError('Connection error: WebSocket not ready (state ' + socket.readyState + ')');
+                return;
+            }
+            
+            console.warn('🛠️ DEBUG: Creating registration message for language', languageCode);
             const message = {
                 type: 'register',
                 role: 'student',
@@ -1337,12 +1367,21 @@
                 // No TTS service settings - controlled by teacher
             };
             
-            log(`Registering as student with language ${languageCode}`);
-            socket.send(JSON.stringify(message));
-            showSuccess(`Receiving translations in ${getLanguageName(languageCode)}`);
-            
-            // Update UI to show active language
-            updateActiveLanguage(languageCode);
+            try {
+                console.warn('🛠️ DEBUG: Sending registration message');
+                log(`Registering as student with language ${languageCode}`);
+                const jsonMsg = JSON.stringify(message);
+                socket.send(jsonMsg);
+                console.warn('🛠️ DEBUG: Registration message sent successfully');
+                showSuccess(`Receiving translations in ${getLanguageName(languageCode)}`);
+                
+                // Update UI to show active language
+                updateActiveLanguage(languageCode);
+            } catch (error) {
+                console.error('🛠️ CRITICAL ERROR sending registration:', error);
+                log('Failed to send registration: ' + error.message);
+                showError('Failed to register: ' + error.message);
+            }
         }
         
         // Get a user-friendly name for the TTS service
