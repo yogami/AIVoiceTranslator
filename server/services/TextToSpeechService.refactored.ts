@@ -183,6 +183,7 @@ export interface ICacheManager {
   getCachedAudio(cacheKey: string): Promise<Buffer | null>;
   cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void>;
   ensureCacheDirectories(): Promise<void>;
+  saveToTemporaryFile(buffer: Buffer): Promise<string>;
 }
 
 /**
@@ -609,242 +610,55 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
     this.emotionProcessor = emotionProcessor;
     this.errorHandler = errorHandler;
   }
-  
+
   /**
-   * Ensure cache directory exists
+   * Process the emotion preservation in speech synthesis
    */
-  private async ensureCacheDirectoryExists(): Promise<void> {
-    try {
-      await access(CACHE_DIR, fs.constants.F_OK);
-    } catch (error) {
-      // Directory doesn't exist, create it
-      try {
-        await mkdir(CACHE_DIR, { recursive: true });
-        console.log(`Created audio cache directory: ${CACHE_DIR}`);
-      } catch (mkdirError) {
-        console.error('Error creating audio cache directory:', mkdirError);
-      }
+  private processEmotionPreservation(options: TextToSpeechOptions): SpeechParams {
+    // Default parameters without emotion processing
+    const defaultParams: SpeechParams = {
+      voice: options.voice || 'nova',
+      speed: options.speed || 1.0,
+      input: options.text
+    };
+    
+    // Skip emotion processing if not requested
+    if (!options.preserveEmotions) {
+      return defaultParams;
     }
     
-    try {
-      await access(TEMP_DIR, fs.constants.F_OK);
-    } catch (error) {
-      // Directory doesn't exist, create it
-      try {
-        await mkdir(TEMP_DIR, { recursive: true });
-        console.log(`Created temp directory: ${TEMP_DIR}`);
-      } catch (mkdirError) {
-        console.error('Error creating temp directory:', mkdirError);
-      }
-    }
-  }
-  
-  /**
-   * Generate cache key for a TTS request
-   */
-  private generateCacheKey(options: TextToSpeechOptions): string {
-    const dataToHash = JSON.stringify({
-      text: options.text,
-      languageCode: options.languageCode,
-      voice: options.voice,
-      speed: options.speed,
-      preserveEmotions: options.preserveEmotions
-    });
+    // Detect emotions in the text
+    const detectedEmotions = this.emotionProcessor.detectEmotions(options.text);
     
-    return createHash('md5').update(dataToHash).digest('hex');
-  }
-  
-  /**
-   * Check if cached audio exists and is valid
-   */
-  private async getCachedAudio(cacheKey: string): Promise<Buffer | null> {
-    const cachePath = path.join(CACHE_DIR, `${cacheKey}.mp3`);
-    
-    try {
-      // Check if file exists
-      await access(cachePath, fs.constants.F_OK);
-      
-      // Check file age
-      const fileStats = await stat(cachePath);
-      const fileAgeMs = Date.now() - fileStats.mtimeMs;
-      
-      if (fileAgeMs < MAX_CACHE_AGE_MS) {
-        console.log(`Using cached audio: ${cachePath}`);
-        return await readFile(cachePath);
-      } else {
-        console.log(`Cache expired for: ${cachePath}`);
-        return null;
-      }
-    } catch (error) {
-      // File doesn't exist or can't be accessed
-      return null;
-    }
-  }
-  
-  /**
-   * Save audio to cache
-   */
-  private async cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void> {
-    const cachePath = path.join(CACHE_DIR, `${cacheKey}.mp3`);
-    
-    try {
-      await writeFile(cachePath, audioBuffer);
-      console.log(`Cached audio to: ${cachePath}`);
-    } catch (error) {
-      console.error('Error caching audio:', error);
-    }
-  }
-  
-  /**
-   * Detect emotions in text
-   */
-  private detectEmotions(text: string): DetectedEmotion[] {
-    const detectedEmotions: DetectedEmotion[] = [];
-    
-    // Check for each emotion pattern
-    EMOTION_PATTERNS.forEach(emotionPattern => {
-      let matchCount = 0;
-      let totalMatches = 0;
-      
-      // Check each pattern for this emotion
-      emotionPattern.patterns.forEach(pattern => {
-        const matches = text.match(pattern);
-        if (matches && matches.length > 0) {
-          matchCount++;
-          totalMatches += matches.length;
-        }
-      });
-      
-      // Calculate confidence - based on how many different patterns matched
-      if (matchCount > 0) {
-        const patternRatio = matchCount / emotionPattern.patterns.length;
-        const textLength = text.length;
-        // Normalized confidence (0-1) with some smoothing based on text length
-        const confidence = Math.min(0.3 + (patternRatio * 0.5) + (totalMatches / textLength) * 20, 1);
-        
-        detectedEmotions.push({
-          emotion: emotionPattern.name,
-          confidence
-        });
-      }
-    });
-    
-    // Sort by confidence (descending)
-    return detectedEmotions.sort((a, b) => b.confidence - a.confidence);
-  }
-  
-  /**
-   * Select appropriate voice for language and emotion
-   */
-  private selectVoice(languageCode: string, detectedEmotion?: string): string {
-    // Extract base language code (e.g., 'en' from 'en-US')
-    const baseLanguage = languageCode.split('-')[0].toLowerCase();
-    
-    // Get available voices for this language
-    const availableVoices = VOICE_OPTIONS[baseLanguage] || VOICE_OPTIONS.default;
-    
-    // Simple voice selection logic - can be extended
-    if (detectedEmotion === 'excited') {
-      // For excited: prefer echo or alloy
-      return availableVoices.includes('echo') ? 'echo' : availableVoices[0];
-    } else if (detectedEmotion === 'serious') {
-      // For serious: prefer onyx
-      return availableVoices.includes('onyx') ? 'onyx' : availableVoices[0];
-    } else if (detectedEmotion === 'calm') {
-      // For calm: prefer nova
-      return availableVoices.includes('nova') ? 'nova' : availableVoices[0];
-    } else if (detectedEmotion === 'sad') {
-      // For sad: prefer shimmer
-      return availableVoices.includes('shimmer') ? 'shimmer' : availableVoices[0];
+    // If no emotions detected, return default parameters
+    if (detectedEmotions.length === 0) {
+      return defaultParams;
     }
     
-    // Default to first available voice
-    return availableVoices[0];
-  }
-  
-  /**
-   * Adjust speech parameters based on detected emotion
-   */
-  private adjustSpeechParams(emotion: string, options: TextToSpeechOptions): {
-    voice: string;
-    speed: number;
-    input: string;
-  } {
-    let voice = options.voice || this.selectVoice(options.languageCode, emotion);
-    let speed = options.speed || 1.0;
-    let input = options.text;
+    // Use the highest confidence emotion
+    const topEmotion = detectedEmotions[0];
+    console.log(`Detected emotion: ${topEmotion.emotion} (confidence: ${topEmotion.confidence.toFixed(2)}`);
     
-    // Adjust parameters based on emotion
-    switch (emotion) {
-      case 'excited':
-        speed = Math.min(speed * 1.2, 1.75); // Faster for excitement
-        // Add SSML markup for emphasis - not used in OpenAI TTS directly but in prompt preparation
-        input = options.text.replace(
-          /(!+|\bwow\b|\bamazing\b|\bincredible\b|\bawesome\b)/gi,
-          match => match.toUpperCase()
-        );
-        break;
-        
-      case 'serious':
-        speed = Math.max(speed * 0.9, 0.7); // Slower for seriousness
-        // Add more spacing between important words
-        input = options.text.replace(
-          /(\bimportant\b|\bcritical\b|\bcrucial\b|\bserious\b|\bwarning\b)/gi,
-          match => `. ${match.toUpperCase()} .`
-        );
-        break;
-        
-      case 'calm':
-        speed = Math.max(speed * 0.85, 0.7); // Slower for calmness
-        break;
-        
-      case 'sad':
-        speed = Math.max(speed * 0.8, 0.7); // Slower for sadness
-        break;
-        
-      default:
-        // No modifications for default
-        break;
+    // Adjust speech parameters based on the detected emotion
+    const adjustedParams = this.emotionProcessor.adjustSpeechParams(topEmotion.emotion, options);
+    
+    // Apply additional emotional formatting if confidence is high enough
+    if (topEmotion.confidence > 0.5) {
+      adjustedParams.input = this.emotionProcessor.formatInputForEmotion(adjustedParams.input, topEmotion.emotion);
     }
     
-    return { voice, speed, input };
-  }
-  
-  /**
-   * Format input text with SSML (Speech Synthesis Markup Language)
-   * Note: OpenAI TTS doesn't support SSML directly but we can use text formatting
-   * to better convey mood to the model
-   */
-  private formatInputForEmotion(text: string, emotion: string): string {
-    // Basic formatting based on emotion
-    switch (emotion) {
-      case 'excited':
-        return text.replace(/\!/g, '!!').replace(/\./g, '! ');
-      case 'serious':
-        return text.replace(/(\w+)/g, (match) => {
-          if (match.length > 4 && Math.random() > 0.7) {
-            return match.toUpperCase();
-          }
-          return match;
-        });
-      case 'calm':
-        return text.replace(/\./g, '... ').replace(/\!/g, '.');
-      case 'sad':
-        return text.replace(/\./g, '... ').replace(/\!/g, '...');
-      default:
-        return text;
-    }
+    return adjustedParams;
   }
   
   /**
    * Synthesize speech from text using OpenAI's TTS API
    */
   public async synthesizeSpeech(options: TextToSpeechOptions): Promise<Buffer> {
-    // Generate cache key
-    const cacheKey = this.generateCacheKey(options);
+    await this.cacheManager.ensureCacheDirectories();
     
-    // Check cache first
-    const cachedAudio = await this.getCachedAudio(cacheKey);
+    // Generate cache key and check for cached audio
+    const cacheKey = this.cacheManager.generateCacheKey(options);
+    const cachedAudio = await this.cacheManager.getCachedAudio(cacheKey);
     if (cachedAudio) {
       return cachedAudio;
     }
@@ -852,132 +666,89 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
     try {
       console.log(`Synthesizing speech for text (${options.text.length} chars) in ${options.languageCode}`);
       
-      let voice = options.voice || this.selectVoice(options.languageCode);
-      let speed = options.speed || 1.0;
-      let input = options.text;
+      // Process speech parameters with emotion preservation if requested
+      const speechParams = this.processEmotionPreservation(options);
       
-      // If emotion preservation is requested
-      if (options.preserveEmotions) {
-        // Detect emotions in the text
-        const detectedEmotions = this.detectEmotions(options.text);
-        
-        if (detectedEmotions.length > 0) {
-          // Use the highest confidence emotion
-          const topEmotion = detectedEmotions[0];
-          console.log(`Detected emotion: ${topEmotion.emotion} (confidence: ${topEmotion.confidence.toFixed(2)})`);
-          
-          // Adjust speech parameters
-          const adjustedParams = this.adjustSpeechParams(topEmotion.emotion, options);
-          voice = adjustedParams.voice;
-          speed = adjustedParams.speed;
-          
-          // Format input for emotion if confidence is high enough
-          if (topEmotion.confidence > 0.5) {
-            input = this.formatInputForEmotion(adjustedParams.input, topEmotion.emotion);
-          } else {
-            input = adjustedParams.input;
-          }
-        }
-      }
+      // Generate speech using the API provider
+      const buffer = await this.apiProvider.createSpeech(
+        speechParams.voice,
+        speechParams.speed,
+        speechParams.input
+      );
       
-      // Temporary file path for the output
-      const outputFilePath = path.join(TEMP_DIR, `tts-${Date.now()}.mp3`);
-      
-      // Create speech using OpenAI's API
-      console.log(`Using voice: ${voice}, speed: ${speed}`);
-      
-      const mp3 = await this.openai.audio.speech.create({
-        model: "tts-1", // Basic model, use tts-1-hd for higher quality
-        voice: voice,
-        input: input,
-        speed: speed,
-        response_format: "mp3",
-      });
-      
-      // Get the audio as a buffer
-      const buffer = Buffer.from(await mp3.arrayBuffer());
-      
-      // Save to file (optional - for debugging)
-      await writeFile(outputFilePath, buffer);
-      console.log(`Saved synthesized speech to: ${outputFilePath}`);
-      
-      // Cache the result for future use
-      await this.cacheAudio(cacheKey, buffer);
+      // Save to temporary file for debugging and cache for future use
+      await this.cacheManager.saveToTemporaryFile(buffer);
+      await this.cacheManager.cacheAudio(cacheKey, buffer);
       
       return buffer;
     } catch (error) {
-      console.error('Error synthesizing speech:', error);
-      throw new Error(`Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return this.errorHandler.handleSynthesisError(error);
     }
   }
 }
 
 /**
- * Text to Speech Factory class
- * Creates and provides different text-to-speech service implementations
+ * Text to Speech Factory - Updated to use SOLID principles and dependency injection
  */
 export class TextToSpeechFactory {
-  private static instance: TextToSpeechFactory;
-  private openai: OpenAI;
-  private services: Map<string, ITextToSpeechService> = new Map();
-  
-  private constructor() {
-    // Initialize OpenAI client with API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || '';
+  /**
+   * Create an OpenAI TTS service with all required dependencies
+   */
+  public static createOpenAIService(openai: OpenAI): ITextToSpeechService {
+    // Create file system implementation
+    const fileSystem = new NodeFileSystem();
     
-    try {
-      this.openai = new OpenAI({ 
-        apiKey: apiKey || 'sk-placeholder-for-initialization-only' 
-      });
-      console.log('OpenAI client initialized for TTS service');
-    } catch (error) {
-      console.error('Error initializing OpenAI client for TTS:', error);
-      this.openai = new OpenAI({ apiKey: 'sk-placeholder-for-initialization-only' });
-    }
+    // Create cache manager
+    const cacheManager = new TTSCacheManager(fileSystem);
     
-    // Register services
-    this.services.set('openai', new OpenAITextToSpeechService(this.openai));
-    this.services.set('browser', new BrowserSpeechSynthesisService());
-    this.services.set('silent', new SilentTextToSpeechService());
+    // Create voice selector
+    const voiceSelector = new VoiceSelector();
+    
+    // Create emotion processor
+    const emotionProcessor = new EmotionDetector(EMOTION_PATTERNS, voiceSelector);
+    
+    // Create API provider
+    const apiProvider = new OpenAITTSApiProvider(openai);
+    
+    // Create error handler
+    const errorHandler = new TTSErrorHandler();
+    
+    // Create and return the service with all dependencies
+    return new OpenAITextToSpeechService(
+      apiProvider,
+      cacheManager,
+      emotionProcessor,
+      errorHandler
+    );
   }
   
-  public static getInstance(): TextToSpeechFactory {
-    if (!TextToSpeechFactory.instance) {
-      TextToSpeechFactory.instance = new TextToSpeechFactory();
-    }
-    return TextToSpeechFactory.instance;
+  /**
+   * Create a browser speech synthesis service
+   */
+  public static createBrowserSpeechService(): ITextToSpeechService {
+    return new BrowserSpeechSynthesisService();
   }
   
-  public getService(serviceType: string = 'openai'): ITextToSpeechService {
-    const service = this.services.get(serviceType.toLowerCase());
-    if (!service) {
-      console.warn(`TTS service '${serviceType}' not found, falling back to openai`);
-      return this.services.get('openai')!;
-    }
-    return service;
+  /**
+   * Create a silent TTS service
+   */
+  public static createSilentService(): ITextToSpeechService {
+    return new SilentTextToSpeechService();
   }
 }
 
-// Export factory instance for getting TTS services
-export const ttsFactory = TextToSpeechFactory.getInstance();
-
-// Export a convenience function to get the default TTS service (backward compatibility)
-export const textToSpeechService = {
-  synthesizeSpeech: async (options: TextToSpeechOptions, serviceTypeOverride?: string): Promise<Buffer> => {
-    // Use the explicitly provided service type if available, otherwise use environment variable or fall back to OpenAI
-    // Always honor the service type override if provided
-    let serviceType = serviceTypeOverride || process.env.TTS_SERVICE_TYPE || 'openai';
-    
-    // Explicitly log the choice to help with debugging
-    if (serviceTypeOverride) {
-      console.log(`TTS Service selection: Explicitly using '${serviceTypeOverride}' (overridden from outside)`);
-    }
-    
-    // Simple log for diagnostic purposes - not visible to end users
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`TTS service: Using ${serviceType} service for ${options.languageCode}`);
-    }
-    
-    return ttsFactory.getService(serviceType).synthesizeSpeech(options);
+// Export a function to get a TTS service by type
+export function getTextToSpeechService(serviceType: string = 'openai', openai?: OpenAI): ITextToSpeechService {
+  switch (serviceType.toLowerCase()) {
+    case 'browser':
+      return TextToSpeechFactory.createBrowserSpeechService();
+    case 'silent':
+      return TextToSpeechFactory.createSilentService();
+    case 'openai':
+    default:
+      if (!openai) {
+        throw new Error('OpenAI client is required for OpenAI TTS service');
+      }
+      return TextToSpeechFactory.createOpenAIService(openai);
   }
-};
+}
