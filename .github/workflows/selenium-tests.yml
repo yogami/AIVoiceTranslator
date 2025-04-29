@@ -1,11 +1,12 @@
-name: Selenium End-to-End Tests
+# NOTICE: Selenium testing has been disabled per UPDATED-WORKING-AGREEMENT.md
+# This workflow is kept for reference but will not be triggered
+
+name: Selenium End-to-End Tests (DISABLED)
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # Allow manual triggering
+  # This workflow is disabled and will not be triggered automatically
+  # Only manual workflow_dispatch is allowed for reference/testing purposes
+  workflow_dispatch:  # Allow manual triggering only
 
 permissions:
   actions: read
@@ -14,6 +15,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Skip this job as Selenium testing is disabled
+    if: false
     
     services:
       postgres:
