@@ -14,6 +14,15 @@ jest.mock('../../server/services/TranslationService', () => ({
   }
 }));
 
+// Mock the WS server
+jest.mock('ws', () => ({
+  WebSocketServer: jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    handleUpgrade: jest.fn(),
+    emit: jest.fn()
+  }))
+}));
+
 // Mock WebSocket client type
 type MockWebSocketClient = {
   isAlive: boolean;
