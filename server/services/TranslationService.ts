@@ -560,6 +560,10 @@ export class SpeechTranslationService {
    * Main public method that orchestrates the workflow
    * Now includes emotional tone preservation in synthesized speech
    */
+  /**
+   * Translates speech from one language to another and generates audio
+   * This method coordinates the entire speech translation process
+   */
   async translateSpeech(
     audioBuffer: Buffer,
     sourceLanguage: string,
@@ -583,11 +587,7 @@ export class SpeechTranslationService {
     
     // Skip empty transcriptions
     if (!originalText) {
-      return { 
-        originalText: '', 
-        translatedText: '', 
-        audioBuffer 
-      };
+      return this.createEmptyTranslationResult(audioBuffer);
     }
     
     // Translate the text
@@ -597,40 +597,102 @@ export class SpeechTranslationService {
       targetLanguage
     );
     
-    // Generate speech audio with emotional tone preservation
-    let translatedAudioBuffer = audioBuffer; // Default to original audio
+    // Generate speech audio with the translated text
+    const translatedAudioBuffer = await this.generateTranslatedAudio(
+      translatedText || originalText,
+      targetLanguage,
+      audioBuffer,
+      options
+    );
+    
+    return this.createTranslationResult(originalText, translatedText, translatedAudioBuffer);
+  }
+  
+  /**
+   * Creates an empty translation result when original text is missing
+   */
+  private createEmptyTranslationResult(audioBuffer: Buffer): TranslationResult {
+    return { 
+      originalText: '', 
+      translatedText: '', 
+      audioBuffer 
+    };
+  }
+  
+  /**
+   * Creates the final translation result object
+   */
+  private createTranslationResult(
+    originalText: string,
+    translatedText: string | undefined,
+    audioBuffer: Buffer
+  ): TranslationResult {
+    return { 
+      originalText, 
+      translatedText: translatedText || originalText, // Fallback to original text if translation failed
+      audioBuffer
+    };
+  }
+  
+  /**
+   * Generates audio for the translated text using the specified TTS service
+   */
+  private async generateTranslatedAudio(
+    text: string,
+    targetLanguage: string,
+    fallbackAudioBuffer: Buffer,
+    options?: { ttsServiceType?: string }
+  ): Promise<Buffer> {
+    // Default to original audio if anything fails
+    let translatedAudioBuffer = fallbackAudioBuffer;
     
     try {
-      // Use TTS service type from options if provided, or fall back to environment or default 'openai'
-      const ttsServiceType = (options && options.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'openai';
+      // Determine which TTS service to use
+      const ttsServiceType = this.determineTTSServiceType(options);
       
-      // Minimal logging in development mode only
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`Translation service: Selected TTS type ${ttsServiceType} for language ${targetLanguage}`);
-      }
+      // Log TTS service selection in development mode
+      this.logTTSServiceSelection(ttsServiceType, targetLanguage);
       
-      // Instead of getting the service directly, use textToSpeechService with explicit override
-      // This ensures the service type is respected throughout the entire flow
+      // Generate the audio using the selected TTS service
       translatedAudioBuffer = await textToSpeechService.synthesizeSpeech({
-        text: translatedText || originalText,
+        text: text,
         languageCode: targetLanguage,
         preserveEmotions: true // Enable emotional tone preservation
       }, ttsServiceType); // Pass service type explicitly
       
-      // Only log in development mode
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`Generated audio (${translatedAudioBuffer.length} bytes) using ${ttsServiceType} service`);
-      }
+      // Log audio generation success in development mode
+      this.logAudioGenerationSuccess(translatedAudioBuffer, ttsServiceType);
     } catch (error) {
       console.error('Error generating audio for translation:', error);
       // On error, keep the original audio buffer
     }
     
-    return { 
-      originalText, 
-      translatedText: translatedText || originalText, // Fallback to original text if translation failed
-      audioBuffer: translatedAudioBuffer
-    };
+    return translatedAudioBuffer;
+  }
+  
+  /**
+   * Determines which TTS service to use based on options or environment defaults
+   */
+  private determineTTSServiceType(options?: { ttsServiceType?: string }): string {
+    return (options?.ttsServiceType) || process.env.TTS_SERVICE_TYPE || 'openai';
+  }
+  
+  /**
+   * Logs TTS service selection in development mode
+   */
+  private logTTSServiceSelection(ttsServiceType: string, targetLanguage: string): void {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Translation service: Selected TTS type ${ttsServiceType} for language ${targetLanguage}`);
+    }
+  }
+  
+  /**
+   * Logs audio generation success in development mode
+   */
+  private logAudioGenerationSuccess(audioBuffer: Buffer, ttsServiceType: string): void {
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Generated audio (${audioBuffer.length} bytes) using ${ttsServiceType} service`);
+    }
   }
 }
 
