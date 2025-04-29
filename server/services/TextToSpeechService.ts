@@ -148,6 +148,228 @@ export class SilentTextToSpeechService implements ITextToSpeechService {
 }
 
 /**
+ * Interface for speech parameters used in TTS processing
+ */
+interface SpeechParams {
+  voice: string;
+  speed: number;
+  input: string;
+}
+
+/**
+ * Cache management for TTS service
+ */
+class TTSCacheManager {
+  /**
+   * Generate cache key for a TTS request
+   */
+  static generateCacheKey(options: TextToSpeechOptions): string {
+    const dataToHash = JSON.stringify({
+      text: options.text,
+      languageCode: options.languageCode,
+      voice: options.voice,
+      speed: options.speed,
+      preserveEmotions: options.preserveEmotions
+    });
+    
+    return createHash('md5').update(dataToHash).digest('hex');
+  }
+  
+  /**
+   * Check if cached audio exists and is valid
+   */
+  static async getCachedAudio(cacheKey: string): Promise<Buffer | null> {
+    const cachePath = path.join(CACHE_DIR, `${cacheKey}.mp3`);
+    
+    try {
+      // Check if file exists
+      await access(cachePath, fs.constants.F_OK);
+      
+      // Check file age
+      const fileStats = await stat(cachePath);
+      const fileAgeMs = Date.now() - fileStats.mtimeMs;
+      
+      if (fileAgeMs < MAX_CACHE_AGE_MS) {
+        console.log(`Using cached audio: ${cachePath}`);
+        return await readFile(cachePath);
+      } else {
+        console.log(`Cache expired for: ${cachePath}`);
+        return null;
+      }
+    } catch (error) {
+      // File doesn't exist or can't be accessed
+      return null;
+    }
+  }
+  
+  /**
+   * Save audio to cache
+   */
+  static async cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void> {
+    const cachePath = path.join(CACHE_DIR, `${cacheKey}.mp3`);
+    
+    try {
+      await writeFile(cachePath, audioBuffer);
+      console.log(`Cached audio to: ${cachePath}`);
+    } catch (error) {
+      console.error('Error caching audio:', error);
+    }
+  }
+  
+  /**
+   * Ensure cache directory exists
+   */
+  static async ensureCacheDirectoryExists(): Promise<void> {
+    await TTSFileManager.ensureDirectoryExists(CACHE_DIR, 'audio cache');
+    await TTSFileManager.ensureDirectoryExists(TEMP_DIR, 'temp');
+  }
+}
+
+/**
+ * File management utilities for TTS service
+ */
+class TTSFileManager {
+  /**
+   * Ensure a directory exists
+   */
+  static async ensureDirectoryExists(dirPath: string, dirName: string): Promise<void> {
+    try {
+      await access(dirPath, fs.constants.F_OK);
+    } catch (error) {
+      try {
+        await mkdir(dirPath, { recursive: true });
+        console.log(`Created ${dirName} directory: ${dirPath}`);
+      } catch (mkdirError) {
+        console.error(`Error creating ${dirName} directory:`, mkdirError);
+      }
+    }
+  }
+  
+  /**
+   * Save audio buffer to a temporary file for debugging
+   */
+  static async saveToTemporaryFile(buffer: Buffer): Promise<string> {
+    const outputFilePath = path.join(TEMP_DIR, `tts-${Date.now()}.mp3`);
+    await writeFile(outputFilePath, buffer);
+    console.log(`Saved synthesized speech to: ${outputFilePath}`);
+    return outputFilePath;
+  }
+}
+
+/**
+ * Emotion detection and processing for TTS
+ */
+class EmotionProcessor {
+  /**
+   * Detect emotions in text
+   */
+  static detectEmotions(text: string): DetectedEmotion[] {
+    const detectedEmotions: DetectedEmotion[] = [];
+    
+    // Check for each emotion pattern
+    EMOTION_PATTERNS.forEach(emotionPattern => {
+      let matchCount = 0;
+      let totalMatches = 0;
+      
+      // Check each pattern for this emotion
+      emotionPattern.patterns.forEach(pattern => {
+        const matches = text.match(pattern);
+        if (matches && matches.length > 0) {
+          matchCount++;
+          totalMatches += matches.length;
+        }
+      });
+      
+      // Calculate confidence - based on how many different patterns matched
+      if (matchCount > 0) {
+        const patternRatio = matchCount / emotionPattern.patterns.length;
+        const textLength = text.length;
+        // Normalized confidence (0-1) with some smoothing based on text length
+        const confidence = Math.min(0.3 + (patternRatio * 0.5) + (totalMatches / textLength) * 20, 1);
+        
+        detectedEmotions.push({
+          emotion: emotionPattern.name,
+          confidence
+        });
+      }
+    });
+    
+    // Sort by confidence (descending)
+    return detectedEmotions.sort((a, b) => b.confidence - a.confidence);
+  }
+  
+  /**
+   * Format input text with SSML (Speech Synthesis Markup Language)
+   * Note: OpenAI TTS doesn't support SSML directly but we can use text formatting
+   * to better convey mood to the model
+   */
+  static formatInputForEmotion(text: string, emotion: string): string {
+    // Basic formatting based on emotion
+    switch (emotion) {
+      case 'excited':
+        return text.replace(/\!/g, '!!').replace(/\./g, '! ');
+      case 'serious':
+        return text.replace(/(\w+)/g, (match) => {
+          if (match.length > 4 && Math.random() > 0.7) {
+            return match.toUpperCase();
+          }
+          return match;
+        });
+      case 'calm':
+        return text.replace(/\./g, '... ').replace(/\!/g, '.');
+      case 'sad':
+        return text.replace(/\./g, '... ').replace(/\!/g, '...');
+      default:
+        return text;
+    }
+  }
+  
+  /**
+   * Adjust speech parameters based on detected emotion
+   */
+  static adjustSpeechParams(emotion: string, options: TextToSpeechOptions, voiceSelector: (lang: string, emotion?: string) => string): SpeechParams {
+    let voice = options.voice || voiceSelector(options.languageCode, emotion);
+    let speed = options.speed || 1.0;
+    let input = options.text;
+    
+    // Adjust parameters based on emotion
+    switch (emotion) {
+      case 'excited':
+        speed = Math.min(speed * 1.2, 1.75); // Faster for excitement
+        // Add SSML markup for emphasis - not used in OpenAI TTS directly but in prompt preparation
+        input = options.text.replace(
+          /(!+|\bwow\b|\bamazing\b|\bincredible\b|\bawesome\b)/gi,
+          match => match.toUpperCase()
+        );
+        break;
+        
+      case 'serious':
+        speed = Math.max(speed * 0.9, 0.7); // Slower for seriousness
+        // Add more spacing between important words
+        input = options.text.replace(
+          /(\bimportant\b|\bcritical\b|\bcrucial\b|\bserious\b|\bwarning\b)/gi,
+          match => `. ${match.toUpperCase()} .`
+        );
+        break;
+        
+      case 'calm':
+        speed = Math.max(speed * 0.85, 0.7); // Slower for calmness
+        break;
+        
+      case 'sad':
+        speed = Math.max(speed * 0.8, 0.7); // Slower for sadness
+        break;
+        
+      default:
+        // No modifications for default
+        break;
+    }
+    
+    return { voice, speed, input };
+  }
+}
+
+/**
  * OpenAI Text to Speech Service
  * Handles text-to-speech conversion using OpenAI's TTS API
  */
