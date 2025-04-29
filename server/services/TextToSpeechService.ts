@@ -1,8 +1,16 @@
 /**
- * Text to Speech Service
+ * Text to Speech Service - Modular Implementation
  * 
  * This service is responsible for generating speech from translated text
  * with preserved emotional tone using OpenAI's Text-to-Speech API.
+ * 
+ * Refactored to improve code quality with:
+ * - Lower cyclomatic complexity (target: ≤ 3)
+ * - Smaller functions (target: < 20 lines)
+ * - Smaller classes (target: < 100 lines) 
+ * - Reduced nesting depth (target: ≤ 3)
+ * - SOLID principles (Single Responsibility, Open/Closed, Liskov Substitution,
+ *   Interface Segregation, Dependency Inversion)
  */
 
 import OpenAI from 'openai';
@@ -157,13 +165,98 @@ interface SpeechParams {
 }
 
 /**
- * Cache management for TTS service
+ * Interface for file system operations
  */
-class TTSCacheManager {
-  /**
-   * Generate cache key for a TTS request
-   */
-  static generateCacheKey(options: TextToSpeechOptions): string {
+export interface IFileSystem {
+  readFile(path: string): Promise<Buffer>;
+  writeFile(path: string, data: Buffer): Promise<void>;
+  checkFileExists(path: string): Promise<boolean>;
+  getFileStats(path: string): Promise<fs.Stats>;
+  ensureDirectoryExists(dirPath: string): Promise<void>;
+}
+
+/**
+ * Interface for cache operations
+ */
+export interface ICacheManager {
+  generateCacheKey(options: TextToSpeechOptions): string;
+  getCachedAudio(cacheKey: string): Promise<Buffer | null>;
+  cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void>;
+  ensureCacheDirectories(): Promise<void>;
+}
+
+/**
+ * Interface for voice selection
+ */
+export interface IVoiceSelector {
+  selectVoice(languageCode: string, emotion?: string): string;
+}
+
+/**
+ * Interface for emotion processing
+ */
+export interface IEmotionProcessor {
+  detectEmotions(text: string): DetectedEmotion[];
+  formatInputForEmotion(text: string, emotion: string): string;
+  adjustSpeechParams(emotion: string, options: TextToSpeechOptions): SpeechParams;
+}
+
+/**
+ * Node file system implementation
+ */
+export class NodeFileSystem implements IFileSystem {
+  public async readFile(filePath: string): Promise<Buffer> {
+    return await readFile(filePath);
+  }
+
+  public async writeFile(filePath: string, data: Buffer): Promise<void> {
+    await writeFile(filePath, data);
+  }
+
+  public async checkFileExists(filePath: string): Promise<boolean> {
+    try {
+      await access(filePath, fs.constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  public async getFileStats(filePath: string): Promise<fs.Stats> {
+    return await stat(filePath);
+  }
+
+  public async ensureDirectoryExists(dirPath: string): Promise<void> {
+    try {
+      await access(dirPath, fs.constants.F_OK);
+    } catch (error) {
+      try {
+        await mkdir(dirPath, { recursive: true });
+        console.log(`Created directory: ${dirPath}`);
+      } catch (mkdirError) {
+        console.error(`Error creating directory:`, mkdirError);
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of cache manager
+ */
+export class TTSCacheManager implements ICacheManager {
+  private readonly fileSystem: IFileSystem;
+  private readonly cacheDir: string;
+  private readonly tempDir: string;
+  private readonly maxCacheAgeMs: number;
+
+  constructor(fileSystem: IFileSystem, cacheDir: string = CACHE_DIR, tempDir: string = TEMP_DIR, maxCacheAgeMs: number = MAX_CACHE_AGE_MS) {
+    this.fileSystem = fileSystem;
+    this.cacheDir = cacheDir;
+    this.tempDir = tempDir;
+    this.maxCacheAgeMs = maxCacheAgeMs;
+  }
+
+  public generateCacheKey(options: TextToSpeechOptions): string {
     const dataToHash = JSON.stringify({
       text: options.text,
       languageCode: options.languageCode,
@@ -175,82 +268,45 @@ class TTSCacheManager {
     return createHash('md5').update(dataToHash).digest('hex');
   }
   
-  /**
-   * Check if cached audio exists and is valid
-   */
-  static async getCachedAudio(cacheKey: string): Promise<Buffer | null> {
-    const cachePath = path.join(CACHE_DIR, `${cacheKey}.mp3`);
+  public async getCachedAudio(cacheKey: string): Promise<Buffer | null> {
+    const cachePath = path.join(this.cacheDir, `${cacheKey}.mp3`);
     
-    try {
-      // Check if file exists
-      await access(cachePath, fs.constants.F_OK);
-      
-      // Check file age
-      const fileStats = await stat(cachePath);
-      const fileAgeMs = Date.now() - fileStats.mtimeMs;
-      
-      if (fileAgeMs < MAX_CACHE_AGE_MS) {
-        console.log(`Using cached audio: ${cachePath}`);
-        return await readFile(cachePath);
-      } else {
-        console.log(`Cache expired for: ${cachePath}`);
-        return null;
-      }
-    } catch (error) {
-      // File doesn't exist or can't be accessed
+    if (!await this.fileSystem.checkFileExists(cachePath)) {
+      return null;
+    }
+    
+    // Check file age
+    const fileStats = await this.fileSystem.getFileStats(cachePath);
+    const fileAgeMs = Date.now() - fileStats.mtimeMs;
+    
+    if (fileAgeMs < this.maxCacheAgeMs) {
+      console.log(`Using cached audio: ${cachePath}`);
+      return await this.fileSystem.readFile(cachePath);
+    } else {
+      console.log(`Cache expired for: ${cachePath}`);
       return null;
     }
   }
   
-  /**
-   * Save audio to cache
-   */
-  static async cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void> {
-    const cachePath = path.join(CACHE_DIR, `${cacheKey}.mp3`);
+  public async cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void> {
+    const cachePath = path.join(this.cacheDir, `${cacheKey}.mp3`);
     
     try {
-      await writeFile(cachePath, audioBuffer);
+      await this.fileSystem.writeFile(cachePath, audioBuffer);
       console.log(`Cached audio to: ${cachePath}`);
     } catch (error) {
       console.error('Error caching audio:', error);
     }
   }
   
-  /**
-   * Ensure cache directory exists
-   */
-  static async ensureCacheDirectoryExists(): Promise<void> {
-    await TTSFileManager.ensureDirectoryExists(CACHE_DIR, 'audio cache');
-    await TTSFileManager.ensureDirectoryExists(TEMP_DIR, 'temp');
+  public async ensureCacheDirectories(): Promise<void> {
+    await this.fileSystem.ensureDirectoryExists(this.cacheDir);
+    await this.fileSystem.ensureDirectoryExists(this.tempDir);
   }
-}
 
-/**
- * File management utilities for TTS service
- */
-class TTSFileManager {
-  /**
-   * Ensure a directory exists
-   */
-  static async ensureDirectoryExists(dirPath: string, dirName: string): Promise<void> {
-    try {
-      await access(dirPath, fs.constants.F_OK);
-    } catch (error) {
-      try {
-        await mkdir(dirPath, { recursive: true });
-        console.log(`Created ${dirName} directory: ${dirPath}`);
-      } catch (mkdirError) {
-        console.error(`Error creating ${dirName} directory:`, mkdirError);
-      }
-    }
-  }
-  
-  /**
-   * Save audio buffer to a temporary file for debugging
-   */
-  static async saveToTemporaryFile(buffer: Buffer): Promise<string> {
-    const outputFilePath = path.join(TEMP_DIR, `tts-${Date.now()}.mp3`);
-    await writeFile(outputFilePath, buffer);
+  public async saveToTemporaryFile(buffer: Buffer): Promise<string> {
+    const outputFilePath = path.join(this.tempDir, `tts-${Date.now()}.mp3`);
+    await this.fileSystem.writeFile(outputFilePath, buffer);
     console.log(`Saved synthesized speech to: ${outputFilePath}`);
     return outputFilePath;
   }
@@ -366,6 +422,81 @@ class EmotionProcessor {
     }
     
     return { voice, speed, input };
+  }
+}
+
+/**
+ * Voice selection utilities
+ */
+class VoiceSelector {
+  /**
+   * Select appropriate voice for language and emotion
+   */
+  static selectVoice(languageCode: string, detectedEmotion?: string): string {
+    // Extract base language code (e.g., 'en' from 'en-US')
+    const baseLanguage = languageCode.split('-')[0].toLowerCase();
+    
+    // Get available voices for this language
+    const availableVoices = VOICE_OPTIONS[baseLanguage] || VOICE_OPTIONS.default;
+    
+    // Simple voice selection logic 
+    if (detectedEmotion === 'excited') {
+      // For excited: prefer echo or alloy
+      return availableVoices.includes('echo') ? 'echo' : availableVoices[0];
+    } 
+    
+    if (detectedEmotion === 'serious') {
+      // For serious: prefer onyx
+      return availableVoices.includes('onyx') ? 'onyx' : availableVoices[0];
+    } 
+    
+    if (detectedEmotion === 'calm') {
+      // For calm: prefer nova
+      return availableVoices.includes('nova') ? 'nova' : availableVoices[0];
+    } 
+    
+    if (detectedEmotion === 'sad') {
+      // For sad: prefer shimmer
+      return availableVoices.includes('shimmer') ? 'shimmer' : availableVoices[0];
+    }
+    
+    // Default to first available voice
+    return availableVoices[0];
+  }
+}
+
+/**
+ * OpenAI API wrapper for text-to-speech
+ */
+class OpenAITTSAPI {
+  /**
+   * Call OpenAI API to create speech audio
+   */
+  static async createSpeech(openai: OpenAI, voice: string, speed: number, input: string): Promise<Buffer> {
+    console.log(`Using voice: ${voice}, speed: ${speed}`);
+    
+    const mp3 = await openai.audio.speech.create({
+      model: "tts-1", // Basic model, use tts-1-hd for higher quality
+      voice: voice,
+      input: input,
+      speed: speed,
+      response_format: "mp3",
+    });
+    
+    return Buffer.from(await mp3.arrayBuffer());
+  }
+}
+
+/**
+ * Error handling utilities
+ */
+class ErrorHandler {
+  /**
+   * Handle errors during speech synthesis
+   */
+  static handleSynthesisError(error: unknown): never {
+    console.error('Error synthesizing speech:', error);
+    throw new Error(`Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
