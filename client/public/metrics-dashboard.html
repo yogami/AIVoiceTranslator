@@ -198,6 +198,10 @@
     <div class="header">
       <h1>AIVoiceTranslator Metrics</h1>
       <p class="text-muted">Comprehensive quality and testing metrics dashboard</p>
+      <p class="text-muted">
+        <small id="lastUpdatedTime">Last updated: Never</small>
+        <small class="ms-2">(auto-refreshes every 30 seconds)</small>
+      </p>
     </div>
     
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -456,6 +460,9 @@
     const smallClassesProgressBar = document.getElementById('smallClassesProgressBar');
     const classesTableBody = document.getElementById('classesTableBody');
     
+    // Last updated timestamp element
+    const lastUpdatedTime = document.getElementById('lastUpdatedTime');
+    
     /**
      * Fetch metrics data from the API
      */
@@ -466,18 +473,28 @@
         // Fetch test results
         const testResults = await fetch(`${API_BASE_URL}/metrics/test-results`).then(res => res.json());
         
-        // Fetch code quality metrics
-        const codeQuality = await fetch(`${API_BASE_URL}/metrics`).then(res => res.json());
+        // Fetch general metrics
+        const generalMetrics = await fetch(`${API_BASE_URL}/metrics`).then(res => res.json());
+        
+        // Fetch specific code quality metrics for refactoring
+        const codeQualityMetrics = await fetch(`${API_BASE_URL}/metrics/code-quality`).then(res => res.json());
         
         hideLoading();
         
         // Update the UI with the fetched metrics
         updateTestMetrics(testResults);
-        updateCodeQualityMetrics(codeQuality);
+        updateCodeQualityMetrics(generalMetrics);
         updateAudioMetrics(testResults.audio);
         updateCICDMetrics(testResults.cicd);
         
-        return { testResults, codeQuality };
+        // Update the refactoring metrics specifically
+        updateRefactoringMetrics(codeQualityMetrics);
+        
+        // Update the last updated timestamp
+        const now = new Date();
+        lastUpdatedTime.textContent = `Last updated: ${now.toLocaleString()}`;
+        
+        return { testResults, generalMetrics, codeQualityMetrics };
       } catch (error) {
         console.error('Error fetching metrics:', error);
         hideLoading();
@@ -688,11 +705,43 @@
       loadingOverlay.style.display = 'none';
     }
     
+    // Auto-refresh timer for metrics (every 30 seconds)
+    let refreshTimer;
+    
+    function startAutoRefresh() {
+      // Clear any existing timer
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+      }
+      
+      // Set up a new refresh timer (every 30 seconds)
+      refreshTimer = setInterval(fetchMetrics, 30000);
+    }
+    
+    function stopAutoRefresh() {
+      if (refreshTimer) {
+        clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    }
+    
     // Event Listeners
     refreshButton.addEventListener('click', fetchMetrics);
     
     // Initialize on page load
-    document.addEventListener('DOMContentLoaded', fetchMetrics);
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchMetrics();
+      startAutoRefresh();
+    });
+    
+    // Stop auto-refresh when the page is hidden/inactive
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        stopAutoRefresh();
+      } else {
+        startAutoRefresh();
+      }
+    });
   </script>
 </body>
 </html>
