@@ -304,30 +304,59 @@ export class OpenAITranslationService implements ITranslationService {
   }
   
   /**
+   * Extract error message from unknown error type
+   */
+  private extractErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return 'Unknown error occurred';
+  }
+  
+  /**
+   * Extract status code from error if available
+   */
+  private extractStatusCode(error: unknown): number | undefined {
+    if (error instanceof Error && 'status' in error && typeof (error as any).status === 'number') {
+      return (error as any).status;
+    }
+    return undefined;
+  }
+  
+  /**
+   * Determine if retry should be attempted based on error type and retry count
+   */
+  private shouldAttemptRetry(statusCode: number | undefined, retryCount: number): boolean {
+    if (retryCount >= this.maxRetries) {
+      return false;
+    }
+    
+    // If no status code, use default retry logic
+    if (statusCode === undefined) {
+      return true;
+    }
+    
+    // Only retry on specific error codes (429 rate limit, 500 server error, etc.)
+    return statusCode === 429 || statusCode >= 500;
+  }
+  
+  /**
+   * Log error information for debugging and monitoring
+   */
+  private logTranslationError(errorMessage: string, retryCount: number): void {
+    console.error(`Translation error [attempt ${retryCount + 1}/${this.maxRetries + 1}]:`, errorMessage);
+  }
+  
+  /**
    * Handle translation errors in a standardized way
    * Extracts useful information from various error types
    */
   private handleTranslationError(error: unknown, originalText: string, retryCount: number): TranslationErrorResponse {
-    let errorMessage = 'Unknown error occurred';
-    let statusCode: number | undefined = undefined;
-    let shouldRetry = retryCount < this.maxRetries;
+    const errorMessage = this.extractErrorMessage(error);
+    const statusCode = this.extractStatusCode(error);
+    const shouldRetry = this.shouldAttemptRetry(statusCode, retryCount);
     
-    // Process different types of errors
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      
-      // Check for specific OpenAI API error patterns
-      if ('status' in error && typeof (error as any).status === 'number') {
-        statusCode = (error as any).status;
-        
-        // Only retry on specific error codes (429 rate limit, 500 server error, etc.)
-        const code = statusCode || 0; // Use 0 if undefined
-        shouldRetry = retryCount < this.maxRetries && 
-          (code === 429 || code >= 500 || code === 0);
-      }
-    }
-    
-    console.error(`Translation error [attempt ${retryCount + 1}/${this.maxRetries + 1}]:`, errorMessage);
+    this.logTranslationError(errorMessage, retryCount);
     
     return {
       error: errorMessage,
@@ -606,13 +635,29 @@ export class SpeechTranslationService {
   }
   
   /**
+   * Check if development mode should be used (no API key)
+   */
+  private shouldUseDevelopmentMode(): boolean {
+    return !this.apiKeyAvailable;
+  }
+
+  /**
+   * Log start of speech translation process
+   */
+  private logTranslationStart(sourceLanguage: string, targetLanguage: string): void {
+    console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
+  }
+
+  /**
+   * Prepare text for audio generation, using translated text or fallback
+   */
+  private prepareTextForAudio(translatedText: string, originalText: string): string {
+    return translatedText || originalText; // Use original if translation failed
+  }
+
+  /**
    * Transcribe and translate speech
    * Main public method that orchestrates the workflow
-   * Now includes emotional tone preservation in synthesized speech
-   */
-  /**
-   * Translates speech from one language to another and generates audio
-   * This method coordinates the entire speech translation process
    */
   async translateSpeech(
     audioBuffer: Buffer,
@@ -621,19 +666,15 @@ export class SpeechTranslationService {
     preTranscribedText?: string,
     options?: { ttsServiceType?: string }
   ): Promise<TranslationResult> {
-    console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
+    this.logTranslationStart(sourceLanguage, targetLanguage);
     
     // DEVELOPMENT MODE: Check if API key is missing
-    if (!this.apiKeyAvailable) {
+    if (this.shouldUseDevelopmentMode()) {
       return this.createDevelopmentModeTranslation(sourceLanguage, targetLanguage, preTranscribedText);
     }
     
     // Get original text (either from transcription or pre-provided)
-    const originalText = await this.getOriginalText(
-      audioBuffer,
-      sourceLanguage,
-      preTranscribedText
-    );
+    const originalText = await this.getOriginalText(audioBuffer, sourceLanguage, preTranscribedText);
     
     // Skip empty transcriptions
     if (!originalText) {
@@ -641,15 +682,14 @@ export class SpeechTranslationService {
     }
     
     // Translate the text
-    const translatedText = await this.translateText(
-      originalText,
-      sourceLanguage,
-      targetLanguage
-    );
+    const translatedText = await this.translateText(originalText, sourceLanguage, targetLanguage);
+    
+    // Prepare text for audio generation
+    const textForAudio = this.prepareTextForAudio(translatedText, originalText);
     
     // Generate speech audio with the translated text
     const translatedAudioBuffer = await this.generateTranslatedAudio(
-      translatedText || originalText,
+      textForAudio,
       targetLanguage,
       audioBuffer,
       options
@@ -685,6 +725,17 @@ export class SpeechTranslationService {
   }
   
   /**
+   * Prepares and sends the request to the TTS service
+   */
+  private async callTTSService(text: string, targetLanguage: string, ttsServiceType: string): Promise<Buffer> {
+    return await textToSpeechService.synthesizeSpeech({
+      text: text,
+      languageCode: targetLanguage,
+      preserveEmotions: true // Enable emotional tone preservation
+    }, ttsServiceType); // Pass service type explicitly
+  }
+  
+  /**
    * Generates audio for the translated text using the specified TTS service
    */
   private async generateTranslatedAudio(
@@ -703,12 +754,8 @@ export class SpeechTranslationService {
       // Log TTS service selection in development mode
       this.logTTSServiceSelection(ttsServiceType, targetLanguage);
       
-      // Generate the audio using the selected TTS service
-      translatedAudioBuffer = await textToSpeechService.synthesizeSpeech({
-        text: text,
-        languageCode: targetLanguage,
-        preserveEmotions: true // Enable emotional tone preservation
-      }, ttsServiceType); // Pass service type explicitly
+      // Generate audio using the selected TTS service
+      translatedAudioBuffer = await this.callTTSService(text, targetLanguage, ttsServiceType);
       
       // Log audio generation success in development mode
       this.logAudioGenerationSuccess(translatedAudioBuffer, ttsServiceType);
@@ -777,6 +824,28 @@ export const speechTranslationService = new SpeechTranslationService(
   Boolean(process.env.OPENAI_API_KEY)
 );
 
+/**
+ * Format TTS service options to handle both string and object formats
+ * @param ttsServiceType The TTS service type as string or object
+ * @returns Formatted TTS service options
+ */
+function formatTTSServiceOptions(ttsServiceType?: string | { ttsServiceType?: string }): { ttsServiceType?: string } {
+  if (typeof ttsServiceType === 'string') {
+    return { ttsServiceType };
+  }
+  return ttsServiceType || {};
+}
+
+/**
+ * Log TTS service selection in development mode
+ * @param ttsServiceOptions The TTS service options
+ */
+function logTTSServiceSelection(ttsServiceOptions: { ttsServiceType?: string }): void {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`Using TTS service: ${ttsServiceOptions.ttsServiceType || 'default'}`);
+  }
+}
+
 // Export the legacy function for backward compatibility
 export async function translateSpeech(
   audioBuffer: Buffer, 
@@ -785,20 +854,11 @@ export async function translateSpeech(
   preTranscribedText?: string,
   ttsServiceType?: string | { ttsServiceType?: string }
 ): Promise<TranslationResult> {
-  // Handle both string and object format
-  let ttsServiceOptions: { ttsServiceType?: string };
+  // Format options and log service selection
+  const ttsServiceOptions = formatTTSServiceOptions(ttsServiceType);
+  logTTSServiceSelection(ttsServiceOptions);
   
-  if (typeof ttsServiceType === 'string') {
-    ttsServiceOptions = { ttsServiceType };
-  } else {
-    ttsServiceOptions = ttsServiceType || {};
-  }
-  
-  // Only log in development mode
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`Using TTS service: ${ttsServiceOptions.ttsServiceType || 'default'}`);
-  }
-  
+  // Call the actual service implementation
   return speechTranslationService.translateSpeech(
     audioBuffer,
     sourceLanguage,
