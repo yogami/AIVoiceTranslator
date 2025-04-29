@@ -166,18 +166,82 @@ export class OpenAITranscriptionService implements ITranscriptionService {
   }
   
   /**
-   * Transcribe audio using OpenAI Whisper API
+   * Validate if audio buffer is suitable for transcription
    */
-  async transcribe(audioBuffer: Buffer, sourceLanguage: string): Promise<string> {
-    // Skip transcription for empty or tiny audio buffers
+  private validateAudioBuffer(audioBuffer: Buffer): boolean {
     if (!audioBuffer || audioBuffer.length < 1000) {
       console.log(`Audio buffer too small for transcription: ${audioBuffer?.length} bytes`);
-      return '';
+      return false;
     }
     
     console.log(`Transcribing audio buffer of size ${audioBuffer.length}...`);
     console.log(`Audio buffer header (hex): ${audioBuffer.slice(0, 32).toString('hex')}`);
     console.log(`Audio buffer has valid WAV header: ${audioBuffer.slice(0, 4).toString() === 'RIFF'}`);
+    
+    return true;
+  }
+  
+  /**
+   * Extract primary language code from full language code
+   */
+  private extractPrimaryLanguage(sourceLanguage: string): string {
+    // Extract the primary language code (e.g., 'en' from 'en-US')
+    return sourceLanguage.split('-')[0];
+  }
+  
+  /**
+   * Call OpenAI Whisper API to transcribe audio
+   */
+  private async callWhisperAPI(audioReadStream: fs.ReadStream, language: string): Promise<string> {
+    console.log('Sending read stream to OpenAI API');
+    console.log('Using minimal parameters with no prompt to avoid preconceptions');
+    
+    const transcriptionResponse = await this.openai.audio.transcriptions.create({
+      file: audioReadStream,
+      model: DEFAULT_WHISPER_MODEL,
+      language: language,
+      response_format: 'json'
+    });
+    
+    // Log the full response for debugging
+    console.log(`Full transcription response: ${JSON.stringify(transcriptionResponse)}`);
+    
+    return transcriptionResponse.text || '';
+  }
+  
+  /**
+   * Validate transcription text for prompt leakage or other issues
+   */
+  private validateTranscriptionText(text: string): { isValid: boolean, cleanedText: string } {
+    if (!text) {
+      console.log('Transcription returned no text - Whisper API failed to detect speech');
+      return { isValid: false, cleanedText: '' };
+    }
+    
+    console.log(`Transcription successful: { text: '${text}' }`);
+    console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${text}"`);
+    
+    // Check for potential prompt leakage
+    const isPotentialPromptLeak = SUSPICIOUS_PHRASES.some(phrase => 
+      text.includes(phrase)
+    );
+    
+    if (isPotentialPromptLeak) {
+      console.log('⚠️ DETECTED PROMPT LEAKAGE: The transcription appears to contain prompt instructions');
+      console.log('Treating this as an empty transcription and triggering fallback mechanism');
+      return { isValid: false, cleanedText: '' };
+    }
+    
+    return { isValid: true, cleanedText: text };
+  }
+  
+  /**
+   * Transcribe audio using OpenAI Whisper API
+   */
+  async transcribe(audioBuffer: Buffer, sourceLanguage: string): Promise<string> {
+    if (!this.validateAudioBuffer(audioBuffer)) {
+      return '';
+    }
     
     let tempFilePath = '';
     
@@ -187,47 +251,14 @@ export class OpenAITranscriptionService implements ITranscriptionService {
       
       // Create stream from file
       const audioReadStream = fs.createReadStream(tempFilePath);
-      console.log('Sending read stream to OpenAI API');
       
-      // Use minimal parameters to avoid hallucination issues
-      console.log('Using minimal parameters with no prompt to avoid preconceptions');
+      // Extract the primary language code and call Whisper API
+      const primaryLanguage = this.extractPrimaryLanguage(sourceLanguage);
+      const transcriptionText = await this.callWhisperAPI(audioReadStream, primaryLanguage);
       
-      // Extract the primary language code (e.g., 'en' from 'en-US')
-      const primaryLanguage = sourceLanguage.split('-')[0];
-      
-      // Transcribe with OpenAI Whisper API
-      const transcriptionResponse = await this.openai.audio.transcriptions.create({
-        file: audioReadStream,
-        model: DEFAULT_WHISPER_MODEL,
-        language: primaryLanguage,
-        response_format: 'json'
-      });
-      
-      // Log the full response for debugging
-      console.log(`Full transcription response: ${JSON.stringify(transcriptionResponse)}`);
-      
-      // Use the detected text or empty string if not found
-      if (transcriptionResponse.text) {
-        const originalText = transcriptionResponse.text;
-        console.log(`Transcription successful: { text: '${originalText}' }`);
-        console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${originalText}"`);
-        
-        // Check for potential prompt leakage
-        const isPotentialPromptLeak = SUSPICIOUS_PHRASES.some(phrase => 
-          originalText.includes(phrase)
-        );
-        
-        if (isPotentialPromptLeak) {
-          console.log('⚠️ DETECTED PROMPT LEAKAGE: The transcription appears to contain prompt instructions');
-          console.log('Treating this as an empty transcription and triggering fallback mechanism');
-          return '';
-        }
-        
-        return originalText;
-      } else {
-        console.log('Transcription returned no text - Whisper API failed to detect speech');
-        return '';
-      }
+      // Validate the transcription result
+      const { isValid, cleanedText } = this.validateTranscriptionText(transcriptionText);
+      return isValid ? cleanedText : '';
     } catch (error: unknown) {
       console.error('Error during transcription:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -308,6 +339,47 @@ export class OpenAITranslationService implements ITranslationService {
   }
   
   /**
+   * Create a translation prompt with consistent formatting
+   */
+  private createTranslationPrompt(text: string, sourceLangName: string, targetLangName: string): string {
+    return `
+      Translate this text from ${sourceLangName} to ${targetLangName}. 
+      Maintain the same tone and style. Return only the translation without explanations or notes.
+      
+      Original text: "${text}"
+      
+      Translation:
+    `;
+  }
+
+  /**
+   * Call OpenAI API to translate text
+   */
+  private async callOpenAITranslationAPI(prompt: string): Promise<string> {
+    const translation = await this.openai.chat.completions.create({
+      model: DEFAULT_CHAT_MODEL,
+      messages: [
+        { role: 'system', content: 'You are a professional translator with expertise in multiple languages.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 500
+    });
+    
+    return translation.choices[0].message.content?.trim() || '';
+  }
+  
+  /**
+   * Implement exponential backoff delay for retries
+   */
+  private async performRetryDelay(retryCount: number): Promise<void> {
+    const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+    console.log(`Retrying translation in ${delay}ms...`);
+    
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  /**
    * Create translation request with exponential backoff retry
    */
   private async executeWithRetry(
@@ -317,36 +389,14 @@ export class OpenAITranslationService implements ITranslationService {
     retryCount: number = 0
   ): Promise<string> {
     try {
-      const prompt = `
-        Translate this text from ${sourceLangName} to ${targetLangName}. 
-        Maintain the same tone and style. Return only the translation without explanations or notes.
-        
-        Original text: "${text}"
-        
-        Translation:
-      `;
-      
-      const translation = await this.openai.chat.completions.create({
-        model: DEFAULT_CHAT_MODEL,
-        messages: [
-          { role: 'system', content: 'You are a professional translator with expertise in multiple languages.' },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.1,
-        max_tokens: 500
-      });
-      
-      const translatedText = translation.choices[0].message.content?.trim() || text;
-      return translatedText;
+      const prompt = this.createTranslationPrompt(text, sourceLangName, targetLangName);
+      const translatedText = await this.callOpenAITranslationAPI(prompt);
+      return translatedText || text; // Fallback to original text if translation is empty
     } catch (error) {
       const errorResponse = this.handleTranslationError(error, text, retryCount);
       
-      // Implement exponential backoff retry
       if (errorResponse.shouldRetry) {
-        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-        console.log(`Retrying translation in ${delay}ms...`);
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await this.performRetryDelay(retryCount);
         return this.executeWithRetry(text, sourceLangName, targetLangName, retryCount + 1);
       }
       
