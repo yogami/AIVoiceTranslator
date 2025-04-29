@@ -76,7 +76,7 @@ interface AudioStreamingSessionState {
  * Session Manager - responsible for maintaining session state
  * Follows the repository pattern for data access
  */
-class SessionManager {
+export class SessionManager {
   private sessions = new Map<string, AudioStreamingSessionState>();
   
   /**
@@ -153,13 +153,13 @@ class SessionManager {
 }
 
 // Singleton instance of the session manager
-const sessionManager = new SessionManager();
+export const sessionManager = new SessionManager();
 
 /**
  * WebSocket communication utilities
  * Encapsulates message formatting and sending
  */
-class WebSocketCommunicator {
+export class WebSocketCommunicator {
   /**
    * Send a transcription result over WebSocket
    */
@@ -203,7 +203,7 @@ class WebSocketCommunicator {
 /**
  * Audio Processing Service - handles transcription using OpenAI
  */
-class AudioProcessingService {
+export class AudioProcessingService {
   private openai: OpenAI;
   
   constructor() {
@@ -240,7 +240,7 @@ class AudioProcessingService {
 }
 
 // Create a single instance of the audio processor
-const audioProcessor = new AudioProcessingService();
+export const audioProcessor = new AudioProcessingService();
 
 /**
  * Process streaming audio data from WebSocket
@@ -306,6 +306,13 @@ async function triggerAudioProcessing(ws: WebSocket, sessionId: string): Promise
  * @param ws WebSocket connection
  * @param sessionId Session ID
  */
+/**
+ * Process accumulated audio chunks for a session
+ * Broken down into smaller functions for better maintainability
+ *
+ * @param ws WebSocket connection
+ * @param sessionId Session ID
+ */
 async function processAudioChunks(ws: WebSocket, sessionId: string): Promise<void> {
   const session = sessionManager.getSession(sessionId);
   if (!session || session.audioBuffer.length === 0) return;
@@ -314,42 +321,14 @@ async function processAudioChunks(ws: WebSocket, sessionId: string): Promise<voi
   session.transcriptionInProgress = true;
   
   try {
-    // Create a single buffer from all chunks
-    const combinedBuffer = Buffer.concat(session.audioBuffer);
+    const combinedBuffer = combineAndManageAudioBuffers(session);
     
-    // Manage buffer size to maintain context but reduce processing load
-    if (combinedBuffer.length > CONFIG.MAX_AUDIO_BUFFER_BYTES) {
-      // Keep only the most recent audio
-      session.audioBuffer = [combinedBuffer.slice(-CONFIG.MAX_AUDIO_BUFFER_BYTES)];
-    } else {
-      // Clear processed audio chunks
-      session.audioBuffer = [];
-    }
-    
-    // Skip processing if buffer is too small
-    if (combinedBuffer.length < CONFIG.MIN_AUDIO_SIZE_BYTES) {
+    if (isBufferTooSmallForProcessing(combinedBuffer)) {
       session.transcriptionInProgress = false;
       return;
     }
     
-    // Transcribe using our audio processing service
-    const transcriptionText = await audioProcessor.transcribeAudio(
-      combinedBuffer, 
-      session.language
-    );
-    
-    // Send result if we got meaningful text
-    if (transcriptionText && transcriptionText.trim() !== '') {
-      // Store the latest transcription for finalization
-      session.transcriptionText = transcriptionText;
-      
-      // Send back transcription result
-      WebSocketCommunicator.sendTranscriptionResult(ws, {
-        text: transcriptionText,
-        isFinal: false,
-        languageCode: session.language
-      });
-    }
+    await transcribeAndSendResults(ws, session, combinedBuffer);
   } catch (error) {
     console.error(`${CONFIG.LOG_PREFIX} Error transcribing audio:`, error);
     WebSocketCommunicator.sendErrorMessage(ws, 'Failed to transcribe audio', 'server_error');
@@ -360,34 +339,107 @@ async function processAudioChunks(ws: WebSocket, sessionId: string): Promise<voi
 }
 
 /**
+ * Combines audio buffers and manages buffer size
+ */
+function combineAndManageAudioBuffers(session: AudioStreamingSessionState): Buffer {
+  // Create a single buffer from all chunks
+  const combinedBuffer = Buffer.concat(session.audioBuffer);
+  
+  // Manage buffer size to maintain context but reduce processing load
+  if (combinedBuffer.length > CONFIG.MAX_AUDIO_BUFFER_BYTES) {
+    // Keep only the most recent audio
+    session.audioBuffer = [combinedBuffer.slice(-CONFIG.MAX_AUDIO_BUFFER_BYTES)];
+  } else {
+    // Clear processed audio chunks
+    session.audioBuffer = [];
+  }
+  
+  return combinedBuffer;
+}
+
+/**
+ * Checks if the buffer is too small for processing
+ */
+function isBufferTooSmallForProcessing(buffer: Buffer): boolean {
+  return buffer.length < CONFIG.MIN_AUDIO_SIZE_BYTES;
+}
+
+/**
+ * Transcribes audio and sends results to client
+ */
+async function transcribeAndSendResults(
+  ws: WebSocket, 
+  session: AudioStreamingSessionState, 
+  audioBuffer: Buffer
+): Promise<void> {
+  // Transcribe using our audio processing service
+  const transcriptionText = await audioProcessor.transcribeAudio(
+    audioBuffer, 
+    session.language
+  );
+  
+  // Send result if we got meaningful text
+  if (transcriptionText && transcriptionText.trim() !== '') {
+    // Store the latest transcription for finalization
+    session.transcriptionText = transcriptionText;
+    
+    // Send back transcription result
+    WebSocketCommunicator.sendTranscriptionResult(ws, {
+      text: transcriptionText,
+      isFinal: false,
+      languageCode: session.language
+    });
+  }
+}
+
+/**
  * Finalize a streaming session
  * 
  * @param ws WebSocket connection
  * @param sessionId Session ID
+ */
+/**
+ * Finalize a streaming session - broken down into smaller functions
  */
 export async function finalizeStreamingSession(ws: WebSocket, sessionId: string): Promise<void> {
   try {
     const session = sessionManager.getSession(sessionId);
     if (!session) return;
     
-    // Process any remaining audio
-    if (session.audioBuffer.length > 0) {
-      await processAudioChunks(ws, sessionId);
-    }
-    
-    // Send final transcription
-    WebSocketCommunicator.sendTranscriptionResult(ws, {
-      text: session.transcriptionText,
-      isFinal: true,
-      languageCode: session.language
-    });
-    
-    // Clean up the session
-    sessionManager.deleteSession(sessionId);
-    console.log(`${CONFIG.LOG_PREFIX} Finalized and closed session: ${sessionId}`);
+    await processRemainingAudio(ws, session, sessionId);
+    sendFinalTranscription(ws, session);
+    cleanupSession(sessionId);
   } catch (error) {
     console.error(`${CONFIG.LOG_PREFIX} Error finalizing session:`, error);
   }
+}
+
+/**
+ * Process any remaining audio in the session
+ */
+async function processRemainingAudio(ws: WebSocket, session: AudioStreamingSessionState, sessionId: string): Promise<void> {
+  if (session.audioBuffer.length > 0) {
+    await processAudioChunks(ws, sessionId);
+  }
+}
+
+/**
+ * Send the final transcription result to the client
+ */
+function sendFinalTranscription(ws: WebSocket, session: AudioStreamingSessionState): void {
+  WebSocketCommunicator.sendTranscriptionResult(ws, {
+    text: session.transcriptionText,
+    isFinal: true,
+    languageCode: session.language
+  });
+}
+
+/**
+ * Clean up the session after finalization
+ */
+function cleanupSession(sessionId: string): void {
+  sessionManager.deleteSession(sessionId);
+  console.log(`${CONFIG.LOG_PREFIX} Finalized and closed session: ${sessionId}`);
 }
 
 /**
