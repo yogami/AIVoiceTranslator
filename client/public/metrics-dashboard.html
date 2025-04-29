@@ -359,6 +359,48 @@
         </div>
       </div>
     </div>
+    
+    <div class="card mb-4">
+      <div class="card-header">TextToSpeechService Refactoring</div>
+      <div class="card-body">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="metric-title">Line Reduction</div>
+            <div class="metric-value" id="lineReductionValue">0%</div>
+            <div class="metric-subtitle" id="lineReductionDetails">Reduction: 0 lines</div>
+            <div class="progress mt-2">
+              <div id="lineReductionProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="metric-title">Small Classes (<100 lines)</div>
+            <div class="metric-value" id="smallClassesValue">0%</div>
+            <div class="metric-subtitle" id="smallClassesDetails">0 of 0 classes</div>
+            <div class="progress mt-2">
+              <div id="smallClassesProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+        
+        <h5 class="mt-4">Class Sizes</h5>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Class Name</th>
+                <th>Lines</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="classesTableBody">
+              <tr>
+                <td colspan="3" class="text-center">No class data available</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -404,6 +446,15 @@
     const codeSmellsProgressBar = document.getElementById('codeSmellsProgressBar');
     const duplicationValue = document.getElementById('duplicationValue');
     const duplicationProgressBar = document.getElementById('duplicationProgressBar');
+    
+    // Refactoring metrics elements
+    const lineReductionValue = document.getElementById('lineReductionValue');
+    const lineReductionDetails = document.getElementById('lineReductionDetails');
+    const lineReductionProgressBar = document.getElementById('lineReductionProgressBar');
+    const smallClassesValue = document.getElementById('smallClassesValue');
+    const smallClassesDetails = document.getElementById('smallClassesDetails');
+    const smallClassesProgressBar = document.getElementById('smallClassesProgressBar');
+    const classesTableBody = document.getElementById('classesTableBody');
     
     /**
      * Fetch metrics data from the API
@@ -562,6 +613,58 @@
       // For duplication, less is better, so we invert the scale
       const duplicationPercentage = Math.max(0, 100 - metrics.duplication.percentage * 4);
       duplicationProgressBar.style.width = `${duplicationPercentage}%`;
+      
+      // Update TextToSpeechService refactoring metrics if available
+      if (metrics.codeQuality) {
+        updateRefactoringMetrics(metrics.codeQuality);
+      }
+    }
+    
+    /**
+     * Update the refactoring metrics UI
+     */
+    function updateRefactoringMetrics(codeQuality) {
+      // Line reduction
+      const lineReductionPct = codeQuality.improvement.lineReductionPercentage;
+      lineReductionValue.textContent = `${lineReductionPct.toFixed(1)}%`;
+      lineReductionDetails.textContent = `Reduction: ${codeQuality.improvement.lineReduction} lines (${codeQuality.original.lines} → ${codeQuality.refactored.lines})`;
+      lineReductionProgressBar.style.width = `${Math.min(100, lineReductionPct * 2)}%`;
+      
+      // Small classes
+      const smallClassesPct = codeQuality.refactored.smallClassesPercentage;
+      smallClassesValue.textContent = `${smallClassesPct}%`;
+      smallClassesDetails.textContent = `${codeQuality.refactored.smallClassesCount} of ${codeQuality.refactored.classCount} classes`;
+      smallClassesProgressBar.style.width = `${smallClassesPct}%`;
+      
+      // Class size table
+      if (codeQuality.refactored.classes) {
+        const classData = Object.entries(codeQuality.refactored.classes).map(([className, lineCount]) => {
+          const isSmall = lineCount < 100;
+          return {
+            name: className,
+            lines: lineCount,
+            isSmall
+          };
+        }).sort((a, b) => b.lines - a.lines); // Sort by size (largest first)
+        
+        const tableRows = classData.map(cls => {
+          return `
+            <tr>
+              <td>${cls.name}</td>
+              <td>${cls.lines}</td>
+              <td>
+                <span class="badge ${cls.isSmall ? 'bg-success' : 'bg-warning'}">
+                  ${cls.isSmall ? '✓' : '✗'}
+                </span>
+              </td>
+            </tr>
+          `;
+        }).join('');
+        
+        classesTableBody.innerHTML = tableRows;
+      } else {
+        classesTableBody.innerHTML = '<tr><td colspan="3" class="text-center">No class data available</td></tr>';
+      }
     }
     
     /**
