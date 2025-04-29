@@ -1196,6 +1196,13 @@
             const playButton = document.getElementById('play-button');
             const comparisonSection = document.getElementById('audio-comparison');
             
+            // CRITICAL FIX: Ensure that useClientSpeech is ALWAYS true when ttsServiceType is 'browser'
+            // This is the key fix for the browser TTS issue
+            if (ttsServiceType === 'browser') {
+                useClientSpeech = true;
+                console.log('🔧 FIX: Forcing useClientSpeech=true for browser TTS service');
+            }
+            
             // Update the cache with this new translation
             audioCache.lastTranslation.text = text;
             audioCache.lastTranslation.originalText = originalText || "";
