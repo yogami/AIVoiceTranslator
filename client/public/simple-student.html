@@ -1,87 +1,9 @@
 <!DOCTYPE html>
-<!-- 
-    AIVoiceTranslator Student Interface
-    
-    Architecture Note: TTS service selection is now controlled by the teacher.
-    Students can see which TTS service is active but cannot change it.
-    They can play examples of different TTS services for comparison only.
-    
-    The architecture follows these principles:
-    - Centralized control by the teacher for classroom consistency
-    - Read-only display of TTS service selection for students
-    - TTS comparison capabilities for educational purposes
--->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student View - AIVoiceTranslator</title>
-    
-    <!-- Autoplay Permission Handler -->
-    <script>
-        // This script runs immediately to request audio permission as early as possible
-        window.browserTTSPermissionGranted = false;
-        
-        function requestAudioPermission() {
-            try {
-                // Create and play a silent audio element to satisfy user interaction requirement
-                const silentAudio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA");
-                silentAudio.volume = 0.01; // Almost silent
-                
-                // When user clicks anywhere, try to play it
-                document.addEventListener('click', function audioPermissionHandler() {
-                    silentAudio.play().then(() => {
-                        console.log("✅ Audio permission granted");
-                        window.browserTTSPermissionGranted = true;
-                        
-                        // Also initialize speech synthesis
-                        if ('speechSynthesis' in window) {
-                            const tinyUtterance = new SpeechSynthesisUtterance('.');
-                            tinyUtterance.volume = 0;
-                            tinyUtterance.rate = 10;
-                            window.speechSynthesis.speak(tinyUtterance);
-                            window.speechSynthesis.cancel();
-                            console.log("Speech synthesis initialized");
-                        }
-                        
-                        // Remove this event listener once permission is granted
-                        document.removeEventListener('click', audioPermissionHandler);
-                        
-                        // Hide the permission banner if it exists
-                        const banner = document.getElementById('permission-banner');
-                        if (banner) banner.style.display = 'none';
-                    }).catch(err => {
-                        console.log("❌ Audio permission denied:", err);
-                    });
-                }, { once: false });
-                
-                // Show permission request banner after page loads
-                document.addEventListener('DOMContentLoaded', function() {
-                    const permissionBanner = document.createElement('div');
-                    permissionBanner.id = 'permission-banner';
-                    permissionBanner.style.position = 'fixed';
-                    permissionBanner.style.top = '0';
-                    permissionBanner.style.left = '0';
-                    permissionBanner.style.right = '0';
-                    permissionBanner.style.backgroundColor = '#f8d7da';
-                    permissionBanner.style.color = '#721c24';
-                    permissionBanner.style.padding = '10px';
-                    permissionBanner.style.textAlign = 'center';
-                    permissionBanner.style.zIndex = '10'; // Much lower z-index to not block buttons
-                    permissionBanner.style.display = 'block';
-                    permissionBanner.innerHTML = '<strong>Please click anywhere on this page</strong> to enable automatic audio playback. This is required for the translation system to work properly.';
-                    
-                    document.body.appendChild(permissionBanner);
-                });
-            } catch (e) {
-                console.error("Error setting up audio permission:", e);
-            }
-        }
-        
-        // Initialize permission request
-        requestAudioPermission();
-    </script>
-    
     <script src="js/language-support.js"></script>
     <style>
         :root {
@@ -704,9 +626,6 @@
             }
         }
     </style>
-    
-    <!-- Debug Script for WebSocket Connection -->
-    <script src="debug-connect-button.js"></script>
 </head>
 <body>
     <div class="header">
@@ -872,21 +791,70 @@
         </div>
         
         <div class="container" style="margin-top: 30px;">
-            <div class="language-heading">Text-to-Speech Information</div>
+            <div class="language-heading">Text-to-Speech Service Selection</div>
             
-            <div id="tts-service-info" style="margin-top: 15px;">
-                <div id="active-tts-service-container" style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
-                    <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Teacher-Controlled TTS Service</h3>
-                    <p style="margin-bottom: 10px;">
-                        <span id="active-tts-service">The Text-to-Speech service is controlled by the teacher.</span> Your current TTS service is:
-                        <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">Browser</span>
-                    </p>
-                    <p style="margin-bottom: 0; font-size: 0.9rem; color: var(--text-light);">
-                        Only the teacher can change the TTS service. All students will automatically use the same service.
-                    </p>
+            <div id="tts-service-selector" class="controls" style="margin-top: 15px;">
+                <div style="margin: 10px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+                    <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: var(--primary-light); box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
+                            <input type="radio" name="tts-service" value="browser" checked 
+                                   style="width: 20px; height: 20px; accent-color: var(--primary-color);"> 
+                            <span style="font-weight: bold; font-size: 1.1rem;">Browser Speech</span>
+                        </label>
+                        <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
+                            Uses your browser's built-in speech synthesis. Fast but less natural sounding.
+                        </p>
+                        <div>
+                            <button class="play-demo-btn" data-service="browser" 
+                                    style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: var(--primary-color); color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
+                                <span>▶️</span> Play Example
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #eef2ff; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
+                            <input type="radio" name="tts-service" value="openai" 
+                                   style="width: 20px; height: 20px; accent-color: #6366f1;"> 
+                            <span style="font-weight: bold; font-size: 1.1rem;">OpenAI TTS</span>
+                        </label>
+                        <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
+                            Advanced neural voice with better emotional tone and natural pauses.
+                        </p>
+                        <div>
+                            <button class="play-demo-btn" data-service="openai" 
+                                    style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #6366f1; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
+                                <span>▶️</span> Play Example
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #f8f9fa; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
+                            <input type="radio" name="tts-service" value="silent" 
+                                   style="width: 20px; height: 20px; accent-color: #95a5a6;"> 
+                            <span style="font-weight: bold; font-size: 1.1rem;">Silent Mode</span>
+                        </label>
+                        <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
+                            Text only, no audio playback. Use in quiet environments or for accessibility.
+                        </p>
+                        <div>
+                            <button class="play-demo-btn" data-service="silent" 
+                                    style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #95a5a6; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
+                                <span>🔇</span> Silent Mode
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
-                <!-- TTS Service Comparison section removed -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px; background-color: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--border-radius);">
+                    <button id="apply-tts-settings" style="min-width: 150px; background-color: var(--secondary-color); padding: 12px 20px; border: none; border-radius: var(--border-radius); color: white; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                        Save Preference
+                    </button>
+                    <div class="tts-status" style="font-size: 0.95rem; color: var(--text-color);">
+                        <span>Current Default: <strong id="current-tts-service">Browser</strong></span>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -904,7 +872,41 @@
             </div>
         </div>
         
-        <!-- Audio Comparison Section Removed -->
+        <!-- Audio Comparison Section -->
+        <div id="audio-comparison" class="container" style="margin-top: 30px; display: none;">
+            <div class="language-heading">Compare TTS Services</div>
+            <p style="font-size: 0.95rem; margin-bottom: 20px; color: var(--text-light);">
+                Listen to the same translation rendered with different TTS services to compare quality and performance
+            </p>
+            
+            <div id="comparison-options" style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- This will be populated dynamically -->
+            </div>
+            
+            <!-- Metrics moved to code-metrics.html dashboard -->
+            <div style="margin-top: 25px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 15px; font-size: 0.9rem; color: var(--text-light); text-align: center;">
+                <a href="/code-metrics.html#audio-tests" style="color: var(--primary-color); text-decoration: none; font-weight: 500; display: inline-flex; align-items: center; gap: 5px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 20V10"></path>
+                        <path d="M18 20V4"></path>
+                        <path d="M6 20v-4"></path>
+                    </svg>
+                    View detailed TTS service metrics in the Code Quality Dashboard
+                </a>
+            </div>
+            
+            <div style="display: flex; justify-content: center; margin-top: 25px;">
+                <button id="refresh-comparison" style="display: flex; align-items: center; gap: 8px; background-color: var(--primary-color); color: white; border: none; padding: 12px 20px; border-radius: var(--border-radius); font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 2v6h-6"></path>
+                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                        <path d="M3 22v-6h6"></path>
+                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                    </svg>
+                    Get New Comparison
+                </button>
+            </div>
+        </div>
         
         <div class="container" style="margin-top: 30px;">
             <div class="language-heading">Connection Messages</div>
@@ -966,217 +968,15 @@
             }
         };
         
-        // Initialize browser speech synthesis on page load 
-        // This is to work around browser security restrictions that require user interaction
-        let speechSynthesisInitialized = false;
-        
-        // Function to initialize browser speech synthesis
-        function initializeSpeechSynthesis() {
-            if ('speechSynthesis' in window && !speechSynthesisInitialized) {
-                try {
-                    // Create a short, silent utterance
-                    const silentUtterance = new SpeechSynthesisUtterance('.');
-                    silentUtterance.volume = 0; // Make it silent
-                    silentUtterance.rate = 10; // Make it extremely fast
-                    
-                    // Speak the silent utterance to initialize the speech synthesis engine
-                    window.speechSynthesis.speak(silentUtterance);
-                    window.speechSynthesis.cancel(); // Cancel it immediately
-                    
-                    log('🎵 Browser speech synthesis initialized on page load');
-                    speechSynthesisInitialized = true;
-                    
-                    // Also periodically resume speech synthesis to prevent Chrome from pausing it
-                    setInterval(() => {
-                        try {
-                            if (window.speechSynthesis) {
-                                window.speechSynthesis.resume();
-                            }
-                        } catch (e) {
-                            // Ignore errors
-                        }
-                    }, 5000);
-                    
-                    return true;
-                } catch (error) {
-                    log('⚠️ Failed to initialize speech synthesis: ' + error.message);
-                    return false;
-                }
-            }
-            return false;
-        }
-        
-        // Try to initialize speech synthesis on page load
-        document.addEventListener('DOMContentLoaded', initializeSpeechSynthesis);
-        
-        // Try to initialize speech synthesis on first click anywhere on the page
-        document.addEventListener('click', function() {
-            if (!speechSynthesisInitialized) {
-                initializeSpeechSynthesis();
-            }
-        }, { once: true });
-        
-        // Function to create an audio URL from browser speech synthesis
-        // This is a fallback method that works even when the direct speech synthesis fails
-        async function createAndCacheBrowserSpeechAudio(text, language) {
-            return new Promise((resolve, reject) => {
-                try {
-                    log('Creating browser speech audio fallback for: ' + text.substring(0, 20) + (text.length > 20 ? '...' : ''));
-                    
-                    // First try using a simpler approach for all browsers
-                    // This doesn't actually create an audio file, but provides a URL that will trigger speech
-                    try {
-                        // Create a data URL that contains a minimal HTML page with script to speak the text
-                        const encodedText = encodeURIComponent(text);
-                        const encodedLang = encodeURIComponent(language);
-                        
-                        // Create a data URI with HTML that will speak the text when loaded
-                        // Use a single-line data URL to avoid template literal issues
-                        const dataUrl = `data:text/html;charset=utf-8,<!DOCTYPE html><html><body><script>window.onload=function(){try{if("speechSynthesis" in window){const u=new SpeechSynthesisUtterance(decodeURIComponent("${encodedText}"));u.lang=decodeURIComponent("${encodedLang}");window.speechSynthesis.speak(u);}}catch(e){console.error("Speech error:",e);}}</script></body></html>`;
-                        
-                        // Cache this URL
-                        audioCache.lastTranslation.audios['browser_simple_fallback'] = {
-                            url: dataUrl,
-                            text: text,
-                            language: language,
-                            type: 'browser_iframe'
-                        };
-                        
-                        log('✅ Created simple browser speech fallback');
-                        
-                        // Try the more advanced method if available
-                        if (window.MediaRecorder && (window.AudioContext || window.webkitAudioContext)) {
-                            advancedBrowserSpeechFallback(text, language)
-                                .then(url => {
-                                    log('✅ Advanced browser speech fallback created successfully');
-                                    resolve(url);
-                                })
-                                .catch(err => {
-                                    log('⚠️ Advanced browser speech fallback failed, using simple fallback: ' + err.message);
-                                    resolve(dataUrl);
-                                });
-                        } else {
-                            // If MediaRecorder is not available, just use the simple method
-                            log('⚠️ MediaRecorder not available, using simple fallback');
-                            resolve(dataUrl);
-                        }
-                    } catch (simpleError) {
-                        log('❌ Error creating simple fallback: ' + simpleError.message);
-                        reject(simpleError);
-                    }
-                } catch (error) {
-                    log('❌ Error in createAndCacheBrowserSpeechAudio: ' + error.message);
-                    reject(error);
-                }
-            });
-        }
-        
-        // Advanced fallback method using MediaRecorder
-        function advancedBrowserSpeechFallback(text, language) {
-            return new Promise((resolve, reject) => {
-                try {
-                    // Create an audio context
-                    const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    if (!AudioContext) {
-                        reject(new Error('AudioContext not supported'));
-                        return;
-                    }
-                    
-                    // Use MediaRecorder API to record the audio
-                    // First set up an audio context and destination node
-                    const audioContext = new AudioContext();
-                    const destination = audioContext.createMediaStreamDestination();
-                    const mediaRecorder = new MediaRecorder(destination.stream);
-                    
-                    // Create an utterance 
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    utterance.lang = language;
-                    
-                    // We'll store the audio chunks here
-                    const audioChunks = [];
-                    
-                    // Set up event listeners for recording
-                    mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                            audioChunks.push(event.data);
-                        }
-                    };
-                    
-                    // When recording stops, create a blob and URL
-                    mediaRecorder.onstop = () => {
-                        try {
-                            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                            const audioUrl = URL.createObjectURL(audioBlob);
-                            
-                            // Cache the audio
-                            audioCache.lastTranslation.audios['browser_advanced_fallback'] = {
-                                url: audioUrl,
-                                blob: audioBlob,
-                                text: text,
-                                language: language,
-                                type: 'browser_audio_element'
-                            };
-                            
-                            resolve(audioUrl);
-                        } catch (blobError) {
-                            reject(blobError);
-                        }
-                    };
-                    
-                    // Start recording
-                    mediaRecorder.start();
-                    
-                    // Play the speech but send it to the destination node
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.speak(utterance);
-                    
-                    // Stop recording after a reasonable time
-                    // Calculate a good duration based on text length (rough estimate)
-                    const durationMs = Math.min(10000, Math.max(2000, text.length * 100));
-                    setTimeout(() => {
-                        if (mediaRecorder.state === 'recording') {
-                            mediaRecorder.stop();
-                        }
-                    }, durationMs);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-        }
-        
         function connectWebSocket() {
-            // Add very visible debug message
-            console.warn('🛠️ DEBUG: ConnectWebSocket function called');
-            log('ConnectWebSocket function called');
             try {
-                // Ensure we don't have an existing connection
-                if (socket && socket.readyState !== WebSocket.CLOSED) {
-                    console.warn('🛠️ DEBUG: Closing existing WebSocket connection');
-                    log('Closing existing WebSocket connection before creating a new one');
-                    socket.close();
-                }
-                
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws`;
                 
-                console.warn('🛠️ DEBUG: WebSocket URL:', wsUrl);
                 log(`Connecting to WebSocket at ${wsUrl}`);
-                
-                // Create connection with explicit debug
-                try {
-                    socket = new WebSocket(wsUrl);
-                    console.warn('🛠️ DEBUG: WebSocket created successfully', socket);
-                } catch (wsError) {
-                    console.error('🛠️ CRITICAL ERROR creating WebSocket:', wsError);
-                    showError('Failed to create WebSocket connection: ' + wsError.message);
-                    return;
-                }
-                
-                // Update UI to show we're connecting
-                document.getElementById('connection-status').textContent = 'Connecting...';
+                socket = new WebSocket(wsUrl);
                 
                 socket.onopen = function() {
-                    console.warn('🛠️ DEBUG: WebSocket.onopen fired - Connection established');
                     log('WebSocket connection established');
                     isConnected = true;
                     updateConnectionUI(true);
@@ -1186,15 +986,13 @@
                     registerAsStudent(selectedLanguage);
                 };
                 
-                socket.onclose = function(event) {
-                    console.warn('🛠️ DEBUG: WebSocket.onclose fired', event.code, event.reason);
-                    log('WebSocket connection closed - Code: ' + event.code + ' Reason: ' + event.reason);
+                socket.onclose = function() {
+                    log('WebSocket connection closed');
                     isConnected = false;
                     updateConnectionUI(false);
                 };
                 
                 socket.onerror = function(error) {
-                    console.error('🛠️ CRITICAL ERROR: WebSocket error:', error);
                     log('WebSocket error: ' + JSON.stringify(error));
                     showError('Connection error. Please try again.');
                     isConnected = false;
@@ -1220,15 +1018,6 @@
                         const ttsServiceType = message.ttsServiceType || 'browser';
                         
                         log(`Received translation with TTS service: ${ttsServiceType}, hasAudio: ${hasAudioData}, useClientSpeech: ${useClientSpeech}`);
-                        
-                        // For browser TTS, ensure useClientSpeech is always set
-                        if (ttsServiceType === 'browser' && !useClientSpeech) {
-                            log('Setting useClientSpeech=true for browser TTS service');
-                            useClientSpeech = true;
-                        }
-                        
-                        // Update the displayed TTS service type (teacher's preference)
-                        document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsServiceType);
                         
                         // Store this translation data for audio comparison
                         window.lastTranslationData = {
@@ -1313,7 +1102,8 @@
                                 audioPlayer.play();
                                 
                                 // Show in comparison section
-                                // Audio comparison section removed
+                                document.getElementById('audio-comparison').style.display = 'block';
+                                updateAudioComparison();
                                 
                                 showSuccess(`Playing with ${getTtsServiceName(ttsService)}`);
                             } catch (error) {
@@ -1349,22 +1139,25 @@
                 return;
             }
             
-            // Create registration message
+            // Get the currently selected TTS service from radio buttons
+            const ttsService = document.querySelector('input[name="tts-service"]:checked').value;
+            
             const message = {
                 type: 'register',
                 role: 'student',
                 languageCode: languageCode,
                 settings: {
-                    ttsServiceType: 'browser' // Default to browser TTS
+                    ttsServiceType: ttsService
                 }
             };
             
-            log(`Registering as student with language ${languageCode}`);
+            log(`Registering as student with language ${languageCode} and TTS service ${ttsService}`);
             socket.send(JSON.stringify(message));
-            showSuccess(`Receiving translations in ${getLanguageName(languageCode)}`);
+            showSuccess(`Receiving translations in ${getLanguageName(languageCode)} using ${getTtsServiceName(ttsService)}`);
             
-            // Update UI to show active language
+            // Update UI to show active language and TTS service
             updateActiveLanguage(languageCode);
+            document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsService);
         }
         
         // Get a user-friendly name for the TTS service
@@ -1376,17 +1169,6 @@
             };
             
             return serviceNames[serviceType] || serviceType;
-        }
-        
-        // Convert a display name back to a service type
-        function getTtsServiceTypeFromName(displayName) {
-            let serviceType = 'browser'; // Default fallback
-            if (displayName.includes('OpenAI')) {
-                serviceType = 'openai';
-            } else if (displayName.includes('Silent')) {
-                serviceType = 'silent';
-            }
-            return serviceType;
         }
         
         function updateConnectionUI(connected) {
@@ -1412,14 +1194,7 @@
             const translationBox = document.getElementById('translation-box');
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
-            // Audio comparison section removed
-            
-            // CRITICAL FIX: Ensure that useClientSpeech is ALWAYS true when ttsServiceType is 'browser'
-            // This is the key fix for the browser TTS issue
-            if (ttsServiceType === 'browser') {
-                useClientSpeech = true;
-                log('🔧 FIX: Forcing useClientSpeech=true for browser TTS service');
-            }
+            const comparisonSection = document.getElementById('audio-comparison');
             
             // Update the cache with this new translation
             audioCache.lastTranslation.text = text;
@@ -1475,69 +1250,15 @@
                 try {
                     log('Received server-generated audio data, preparing for playback');
                     
-                    // Log audio data details before processing
-                    log(`Processing audio data: length=${audioData.length} chars, first 50 chars: ${audioData.substring(0, 50)}...`);
-                    
-                    // Make sure the audioData is actually a base64 string
-                    // Sometimes it might be sent with a data URL prefix, so we need to remove it
-                    let cleanBase64 = audioData;
-                    if (audioData.startsWith('data:')) {
-                        // Extract the base64 part from the data URL
-                        const commaIndex = audioData.indexOf(',');
-                        if (commaIndex !== -1) {
-                            cleanBase64 = audioData.substring(commaIndex + 1);
-                            log('Extracted base64 data from data URL');
-                        }
+                    // Convert base64 to a blob
+                    const binaryString = atob(audioData);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
                     }
                     
-                    // Variables to store the processed binary data
-                    let bytes = null;
-                    let headerHex = '';
-                    
-                    try {
-                        // Convert base64 to a blob
-                        const binaryString = atob(cleanBase64);
-                        log(`Converted binary string length: ${binaryString.length} bytes`);
-                        
-                        bytes = new Uint8Array(binaryString.length);
-                        for (let i = 0; i < binaryString.length; i++) {
-                            bytes[i] = binaryString.charCodeAt(i);
-                        }
-                        
-                        // Check header bytes to determine format (MP3 starts with ID3 or 0xFF 0xFB)
-                        headerHex = Array.from(bytes.slice(0, 4))
-                            .map(b => b.toString(16).padStart(2, '0'))
-                            .join(' ');
-                        log(`Audio data header: ${headerHex}`);
-                    } catch (error) {
-                        log(`WARNING: Failed to decode base64 data: ${error.message}`);
-                        throw new Error(`Failed to decode audio data: ${error.message}`);
-                    }
-                    
-                    // Make sure we got valid binary data
-                    if (!bytes || bytes.length === 0) {
-                        throw new Error('Failed to create valid binary data from base64');
-                    }
-                    
-                    // Determine MIME type based on header
-                    let mimeType = 'audio/mp3'; // Default assumption
-                    if (headerHex.startsWith('49 44 33')) { // ID3
-                        mimeType = 'audio/mp3';
-                        log('Detected MP3 audio with ID3 tag');
-                    } else if (headerHex.startsWith('ff fb')) {
-                        mimeType = 'audio/mp3';
-                        log('Detected MP3 audio without ID3 tag');
-                    } else if (headerHex.startsWith('52 49 46 46')) { // RIFF
-                        mimeType = 'audio/wav';
-                        log('Detected WAV audio');
-                    } else {
-                        log(`Unknown audio format with header: ${headerHex}`);
-                    }
-                    
-                    // Create blob with detected MIME type
-                    const blob = new Blob([bytes.buffer], { type: mimeType });
-                    log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
-                    
+                    // Create blob and URL
+                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); // Assume MP3 from OpenAI
                     const audioURL = URL.createObjectURL(blob);
                     
                     // Cache the audio data
@@ -1551,44 +1272,29 @@
                     // Set up audio element and play button
                     audio.src = audioURL;
                     playButton.disabled = false;
+                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
                     
-                    // Update button to show which TTS service is being used
-                    playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
-                    
-                    // Define handler for audio playback
-                    const playAudio = () => {
-                        log(`Playing server-generated audio (${ttsServiceType} TTS)`);
-                        audio.play().catch(err => {
-                            log('Error playing audio: ' + err.message);
-                            showError('Audio playback failed: ' + err.message);
-                        });
+                    // Set up click handler for play button
+                    playButton.onclick = () => {
+                        log('Playing server-generated audio');
+                        audio.play();
                         
                         // Visual feedback during playback
                         playButton.style.backgroundColor = '#e74c3c';
                         playButton.innerHTML = '<span class="play-icon">🔊</span> Playing...';
+                        
+                        // Reset button when done
+                        audio.onended = () => {
+                            playButton.style.backgroundColor = '';
+                            playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
+                        };
                     };
                     
-                    // Set up click handler for play button
-                    // Store a reference to the current TTS service type so it remains consistent
-                    playButton.onclick = playAudio;
+                    showSuccess('Server-generated audio ready to play');
                     
-                    // Reset button when audio ends - preserve the TTS service information
-                    audio.onended = () => {
-                        playButton.style.backgroundColor = '';
-                        playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
-                    };
-                    
-                    // Auto-play for OpenAI TTS when that service is selected
-                    if (ttsServiceType === 'openai') {
-                        log('Auto-playing OpenAI TTS audio');
-                        // Slight delay to make sure audio is loaded
-                        setTimeout(playAudio, 300);
-                        showSuccess('Playing OpenAI translation audio');
-                    } else {
-                        showSuccess('Server-generated audio ready to play');
-                    }
-                    
-                    // Audio comparison section removed
+                    // Show the comparison section now that we have some audio
+                    comparisonSection.style.display = 'block';
+                    updateAudioComparison();
                 } catch (error) {
                     log('Error processing audio data: ' + error.message);
                     // Fall back to browser speech synthesis
@@ -1596,245 +1302,10 @@
                 }
             } else if (useClientSpeech) {
                 // Explicitly instructed to use client speech synthesis
-                log('Server explicitly requested client-side speech synthesis');
-                
-                // Browser speech synthesis should always auto-play for student interface
-                log('Auto-playing browser speech synthesis for translation');
-                
-                // Create and play speech immediately using Web Speech API
-                if ('speechSynthesis' in window) {
-                    // In some browsers, speech synthesis won't work unless it's triggered by user interaction
-                    // We'll still try to auto-play, but also set up the play button for manual playback
-                    const utterance = new SpeechSynthesisUtterance(text);
-                    
-                    // Set language code, mapping short codes to full BCP 47 language tags if needed
-                    const langCodeMap = {
-                        'es': 'es-ES',
-                        'fr': 'fr-FR',
-                        'de': 'de-DE',
-                        'it': 'it-IT',
-                        'zh': 'zh-CN',
-                        'ja': 'ja-JP',
-                        'ru': 'ru-RU',
-                        'ar': 'ar-SA',
-                        'pt': 'pt-BR',
-                        'ko': 'ko-KR',
-                        'en': 'en-US'
-                    };
-                    
-                    // Map short language code to full code, or use as is if already in right format
-                    utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
-                    log(`Auto-playing speech in language ${utterance.lang}`);
-                    
-                    // Apply speech parameters if available
-                    if (message.speechParams && message.speechParams.speed) {
-                        utterance.rate = message.speechParams.speed;
-                    }
-                    
-                    // Automatically play the speech
-                    window.speechSynthesis.cancel(); // Cancel any ongoing speech
-                    
-                    // Add event listeners to better debug speech synthesis issues
-                    utterance.onstart = () => log('Speech synthesis started');
-                    utterance.onend = () => log('Speech synthesis completed');
-                    utterance.onerror = (e) => log('Speech synthesis error: ' + e.error);
-                    
-                    // Try auto-playing
-                    window.speechSynthesis.speak(utterance);
-                    showSuccess('Auto-playing translation with Browser TTS');
-                    
-                    // Also set up the play button for manual playback
-                    playButton.disabled = false;
-                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Speech Again';
-                    playButton.onclick = () => {
-                        window.speechSynthesis.cancel();
-                        window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-                    };
-                } else {
-                    // Fall back to normal generation if Speech API is not available
-                    log('Speech API not available for auto-play, falling back to normal behavior');
-                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
-                }
-            } else if (ttsServiceType === 'openai' && !audioData) {
-                // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
-                log('OpenAI TTS selected but no audio data received - trying to request it from server');
-                TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
+                generateSpeechFromText(text, targetLanguage, ttsServiceType);
             } else {
-                // We don't have audio data and no explicit instruction to use client speech
-                if (ttsServiceType === 'browser') {
-                    // For browser TTS service, use the browser speech synthesis
-                    log('🔊 BROWSER TTS: Using enhanced browser speech synthesis');
-                    
-                    // First try to initialize the speech synthesis API if it hasn't been initialized yet
-                    if (!speechSynthesisInitialized) {
-                        initializeSpeechSynthesis();
-                    }
-                    
-                    // Check if we've been granted audio permission
-                    const hasPermission = window.browserTTSPermissionGranted === true;
-                    log(`🔊 BROWSER TTS: Audio permission status: ${hasPermission ? 'Granted ✓' : 'Not yet granted ✗'}`);
-                    
-                    // If we don't have permission yet, show a notice
-                    if (!hasPermission) {
-                        showError('Please click anywhere on the page to enable audio playback');
-                        // Make sure the permission banner is visible
-                        const banner = document.getElementById('permission-banner');
-                        if (banner) banner.style.display = 'block';
-                    }
-                    
-                    // Create a flag to track if the direct speech synthesis approach works
-                    let directSpeechFailed = false;
-                    
-                    // Create and play speech immediately using Web Speech API
-                    if ('speechSynthesis' in window) {
-                        log('✅ Browser support check: speechSynthesis API is available');
-                        
-                        try {
-                            // Create a new utterance with the translated text
-                            const utterance = new SpeechSynthesisUtterance(text);
-                            
-                            // Set language code, mapping short codes to full BCP 47 language tags if needed
-                            const langCodeMap = {
-                                'es': 'es-ES',
-                                'fr': 'fr-FR',
-                                'de': 'de-DE',
-                                'it': 'it-IT',
-                                'zh': 'zh-CN',
-                                'ja': 'ja-JP',
-                                'ru': 'ru-RU',
-                                'ar': 'ar-SA',
-                                'pt': 'pt-BR',
-                                'ko': 'ko-KR',
-                                'en': 'en-US'
-                            };
-                            
-                            // Map short language code to full code, or use as is if already in right format
-                            utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
-                            log(`🔤 Language set to: ${utterance.lang}`);
-                            
-                            // IMPORTANT: Store the audio conversion for later playback using audio element
-                            // This is a fallback in case the direct speech synthesis doesn't work
-                            createAndCacheBrowserSpeechAudio(text, utterance.lang).then(audioUrl => {
-                                if (directSpeechFailed) {
-                                    log('🔄 Using audio element fallback for browser speech synthesis');
-                                    
-                                    // Check if this is a data URL (the simple fallback)
-                                    if (audioUrl.startsWith('data:text/html')) {
-                                        // Create a hidden iframe to play the speech
-                                        const speechFrame = document.createElement('iframe');
-                                        speechFrame.style.display = 'none';
-                                        speechFrame.src = audioUrl;
-                                        document.body.appendChild(speechFrame);
-                                        
-                                        // Remove the iframe after a reasonable time
-                                        setTimeout(() => {
-                                            try {
-                                                document.body.removeChild(speechFrame);
-                                            } catch (e) {
-                                                // Ignore errors
-                                            }
-                                        }, 10000);
-                                        
-                                        log('🔄 Using iframe fallback for speech synthesis');
-                                    } else {
-                                        // Use regular audio element for advanced fallback
-                                        const audioPlayer = document.getElementById('audio-player');
-                                        audioPlayer.src = audioUrl;
-                                        audioPlayer.play().catch(error => {
-                                            log('🔄 Audio element fallback also failed: ' + error.message);
-                                        });
-                                    }
-                                }
-                            });
-                            
-                            // Add event listeners for detailed debugging
-                            utterance.onstart = () => {
-                                log('🎙️ BROWSER TTS: Speech synthesis STARTED');
-                                // Update UI to show speaking state
-                                playButton.style.backgroundColor = '#e74c3c';
-                                playButton.innerHTML = '<span class="play-icon">🔊</span> Speaking...';
-                            };
-                            
-                            utterance.onend = () => {
-                                log('✅ BROWSER TTS: Speech synthesis COMPLETED');
-                                // Reset UI
-                                playButton.style.backgroundColor = '';
-                                playButton.innerHTML = '<span class="play-icon">▶</span> Play Again';
-                            };
-                            
-                            utterance.onerror = (e) => {
-                                log(`❌ BROWSER TTS ERROR: ${e.error || 'Unknown error'}`);
-                                directSpeechFailed = true;
-                                playButton.style.backgroundColor = '';
-                                playButton.innerHTML = '<span class="play-icon">▶</span> Try Again';
-                            };
-                            
-                            // Make sure any speech is canceled
-                            window.speechSynthesis.cancel();
-                            
-                            // Force resume the synthesis (workaround for Chrome issue)
-                            window.speechSynthesis.resume();
-                            
-                            // Play the speech
-                            log('▶️ BROWSER TTS: Speaking now...');
-                            window.speechSynthesis.speak(utterance);
-                            
-                            // Show success message
-                            showSuccess('Auto-playing translation with Browser TTS');
-                            
-                            // Store in cache that we used browser speech
-                            audioCache.lastTranslation.audios['browser'] = {
-                                text: text,
-                                language: utterance.lang,
-                                type: 'browser'
-                            };
-                            
-                            // Set a timeout to check if speech started
-                            setTimeout(() => {
-                                // If speech synthesis is paused, force resume it
-                                if (window.speechSynthesis && window.speechSynthesis.paused) {
-                                    window.speechSynthesis.resume();
-                                    log('🔄 Detected paused speech synthesis, resuming it');
-                                }
-                            }, 500);
-                        } catch (speechError) {
-                            log(`❌ FATAL ERROR initializing speech: ${speechError.message}`);
-                            showError(`Failed to initialize speech: ${speechError.message}`);
-                            directSpeechFailed = true;
-                        }
-                        
-                        // Also set up manual play button
-                        playButton.disabled = false;
-                        playButton.innerHTML = '<span class="play-icon">▶</span> Play Speech Again';
-                        playButton.onclick = () => {
-                            window.speechSynthesis.cancel();
-                            window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
-                        };
-                    } else {
-                        // If Web Speech API is not available
-                        generateSpeechFromText(text, targetLanguage, ttsServiceType);
-                    }
-                } else if (ttsServiceType === 'openai') {
-                    // For OpenAI TTS service with no audio, try to request from server first
-                    log('OpenAI TTS service selected but no audio available - requesting from server');
-                    
-                    // Set up a fallback just in case
-                    playButton.disabled = false;
-                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation (OpenAI)';
-                    
-                    // When clicked, try to get OpenAI audio first
-                    playButton.onclick = () => {
-                        log('Requesting OpenAI TTS audio from server for play button');
-                        TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
-                    };
-                    
-                    // Also try to request it immediately
-                    TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
-                } else {
-                    // For any other TTS service, provide a consistent fallback
-                    log('No audio data available for ' + ttsServiceType + ' service, using consistent fallback');
-                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
-                }
+                // Default to browser speech synthesis
+                generateSpeechFromText(text, targetLanguage, ttsServiceType);
             }
         }
         
@@ -1997,19 +1468,9 @@
         }
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
-        function generateSpeechFromText(text, languageCode, ttsServiceType = 'browser') {
+        function generateSpeechFromText(text, languageCode) {
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
-            
-            // Log the TTS service type being used
-            log(`Generating speech with service type: ${ttsServiceType}`);
-            
-            // If OpenAI TTS was selected but we're still using browser speech,
-            // this means there was an issue with the server-generated audio
-            if (ttsServiceType === 'openai') {
-                log('WARNING: Fallback to browser speech despite OpenAI TTS selection');
-                showWarning('Using browser speech as fallback (server audio unavailable)');
-            }
             
             // Disable button during processing
             playButton.disabled = true;
@@ -2332,7 +1793,49 @@
                     openaiSizeAvg > 0 ? `${openaiSizeAvg.toFixed(1)}KB` : '-';
             }
             
-            // Audio comparison UI method removed
+            /**
+             * Update the audio comparison UI
+             */
+            static updateComparisonUI() {
+                const comparisonContainer = document.getElementById('comparison-options');
+                if (!comparisonContainer) return;
+                
+                if (!window.lastTranslationData || !window.lastTranslationData.text) {
+                    comparisonContainer.innerHTML = '<p>No translation available for comparison</p>';
+                    return;
+                }
+                
+                const text = window.lastTranslationData.text;
+                const languageCode = window.lastTranslationData.languageCode;
+                
+                // Create comparison UI
+                let html = `
+                    <div style="border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
+                        <p><strong>Text:</strong> "${text}"</p>
+                        <p><strong>Language:</strong> ${getLanguageName(languageCode?.split('-')[0] || 'en')}</p>
+                    </div>
+                `;
+                
+                // Add buttons for each service
+                html += `
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <button onclick="TTSServiceManager.playWithService('browser')" class="comparison-btn" style="background-color: #3498db;">
+                            <span>🔊</span> Browser Speech
+                        </button>
+                        <button onclick="TTSServiceManager.playWithService('openai')" class="comparison-btn" style="background-color: #6366f1;">
+                            <span>🔊</span> OpenAI TTS
+                        </button>
+                        <button onclick="TTSServiceManager.playWithService('silent')" class="comparison-btn" style="background-color: #95a5a6;">
+                            <span>🔇</span> Silent Mode
+                        </button>
+                    </div>
+                `;
+                
+                comparisonContainer.innerHTML = html;
+                
+                // Also ensure metrics UI is updated
+                this.updateMetricsUI();
+            }
         }
         
         /**
@@ -2342,92 +1845,32 @@
          */
         class AudioPlayer {
             /**
-             * Play audio from base64 encoded data with improved error handling
+             * Play audio from base64 encoded data
              * 
              * @param {string} base64Data - Base64 encoded audio data
-             * @returns {Promise<boolean>} - Promise that resolves to true if playback started successfully
              */
-            static async playFromBase64(base64Data) {
+            static playFromBase64(base64Data) {
                 try {
-                    log(`Playing audio from base64, data length: ${base64Data.length} chars`);
-                    log(`First 20 chars of base64: ${base64Data.substring(0, 20)}...`);
-                    
                     // Convert base64 to blob for playback
                     const binaryString = atob(base64Data);
-                    log(`Converted to binary string of length: ${binaryString.length}`);
-                    
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
                     
-                    // Check header bytes to determine format
-                    const headerHex = Array.from(bytes.slice(0, 4))
-                        .map(b => b.toString(16).padStart(2, '0'))
-                        .join(' ');
-                    log(`Audio data header: ${headerHex}`);
-                    
-                    // Determine MIME type based on header
-                    let mimeType = 'audio/mp3'; // Default assumption
-                    
-                    if (headerHex.startsWith('49 44 33')) { // ID3
-                        mimeType = 'audio/mp3';
-                        log('Detected MP3 audio with ID3 tag');
-                    } else if (headerHex.startsWith('ff fb')) {
-                        mimeType = 'audio/mp3';
-                        log('Detected MP3 audio without ID3 tag');
-                    } else if (headerHex.startsWith('52 49 46 46')) { // RIFF
-                        mimeType = 'audio/wav';
-                        log('Detected WAV audio');
-                    } else {
-                        log(`Unknown audio format with header: ${headerHex}`);
-                    }
-                    
-                    // Create blob with detected MIME type
-                    const blob = new Blob([bytes.buffer], { type: mimeType });
-                    log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
-                    
+                    // Create blob and URL
+                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); 
                     const audioURL = URL.createObjectURL(blob);
                     
-                    // Get the audio player
-                    const audioPlayer = document.getElementById('audio-player');
-                    
-                    // Set up promise to track audio loading status
-                    const loadPromise = new Promise((resolve, reject) => {
-                        // Handle successful loading
-                        audioPlayer.onloadeddata = () => {
-                            log('Audio loaded successfully');
-                            resolve(true);
-                        };
-                        
-                        // Handle errors
-                        audioPlayer.onerror = (e) => {
-                            const errorMessage = `Audio error: ${audioPlayer.error ? audioPlayer.error.code : 'unknown'}`;
-                            log(errorMessage);
-                            reject(new Error(errorMessage));
-                        };
-                    });
-                    
-                    // Set source and start loading
-                    audioPlayer.src = audioURL;
-                    
-                    // Wait for loading to complete with timeout
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Audio loading timed out')), 5000);
-                    });
-                    
-                    await Promise.race([loadPromise, timeoutPromise]);
-                    
                     // Play the audio
-                    await audioPlayer.play();
-                    log('Audio playback started');
+                    const audioPlayer = document.getElementById('audio-player');
+                    audioPlayer.src = audioURL;
+                    audioPlayer.play();
                     
                     showSuccess('Playing audio');
-                    return true;
                 } catch (error) {
                     log(`Error playing audio: ${error.message}`);
-                    showError(`Failed to play audio: ${error.message}`);
-                    return false;
+                    showError('Failed to play audio');
                 }
             }
         }
@@ -2437,11 +1880,13 @@
             TTSServiceManager.playWithService(ttsService);
         }
         
-        async function playAudio(base64Data) {
-            await AudioPlayer.playFromBase64(base64Data);
+        function playAudio(base64Data) {
+            AudioPlayer.playFromBase64(base64Data);
         }
         
-        // Audio comparison function removed
+        function updateAudioComparison() {
+            TTSServiceManager.updateComparisonUI();
+        }
         
         function addMessageToUI(message) {
             const messagesContainer = document.getElementById('messages');
@@ -2506,7 +1951,9 @@
             const connectBtn = document.getElementById('connect-btn');
             const disconnectBtn = document.getElementById('disconnect-btn');
             const languageSelect = document.getElementById('language-select');
+            const applyTtsSettings = document.getElementById('apply-tts-settings');
             const currentTtsService = document.getElementById('current-tts-service');
+            const refreshComparisonBtn = document.getElementById('refresh-comparison');
             
             // Add CSS for unsupported languages
             const style = document.createElement('style');
@@ -2528,66 +1975,67 @@
             `;
             document.head.appendChild(style);
             
-            // TTS service is now controlled by the teacher - initialize with default
-            const defaultTtsService = 'browser'; // Default value until teacher's preference received
+            // Setup TTS service selection radio buttons
+            document.querySelectorAll('input[name="tts-service"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const ttsService = this.value;
+                    log(`TTS service changed to: ${ttsService}`);
+                    
+                    // Update language dropdown based on supported languages
+                    if (window.LanguageSupport) {
+                        window.LanguageSupport.updateDropdown(ttsService);
+                        window.LanguageSupport.updateButtons(ttsService);
+                        
+                        // Update expanded list if visible
+                        if (document.getElementById('expanded-language-list') && 
+                            document.getElementById('language-modal').style.display !== 'none') {
+                            window.LanguageSupport.updateExpandedList(ttsService);
+                        }
+                    }
+                });
+            });
             
-            // Initialize language support with default TTS service
+            // Initialize language dropdown for current TTS service
+            const initialTtsService = document.querySelector('input[name="tts-service"]:checked').value;
             if (window.LanguageSupport) {
-                window.LanguageSupport.updateDropdown(defaultTtsService);
-                window.LanguageSupport.updateButtons(defaultTtsService);
+                window.LanguageSupport.updateDropdown(initialTtsService);
+                window.LanguageSupport.updateButtons(initialTtsService);
             }
             
-            // TTS service play example buttons removed - comparison feature no longer needed
-            
-            // Audio comparison functionality removed
-            
-            // Connect event listeners to WebSocket functions
-            connectBtn.addEventListener('click', function(event) {
-                // Prevent default action if any
-                event.preventDefault();
-                
-                // Log the click for debugging purposes
-                log('Connect button clicked');
-                
-                // Visually indicate button press
-                this.classList.add('clicked');
-                
-                // Update status immediately to show we're trying to connect
-                document.getElementById('connection-status').textContent = 'Connecting...';
-                
-                // Disable the button while connecting
-                this.disabled = true;
-                
-                // Call the WebSocket connection function
-                connectWebSocket();
-                
-                // Remove button highlight after a short delay
-                setTimeout(() => {
-                    this.classList.remove('clicked');
-                }, 300);
+            // Setup TTS service play demo buttons
+            document.querySelectorAll('.play-demo-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const ttsService = this.getAttribute('data-service');
+                    log(`Play demo button clicked for TTS service: ${ttsService}`);
+                    
+                    // Select the radio button for this service
+                    const radioButton = document.querySelector(`input[name="tts-service"][value="${ttsService}"]`);
+                    radioButton.checked = true;
+                    
+                    // Trigger the change event manually to update language support
+                    const changeEvent = new Event('change');
+                    radioButton.dispatchEvent(changeEvent);
+                    
+                    // Play the current translation with this TTS service
+                    playWithTTSService(ttsService);
+                });
             });
             
-            disconnectBtn.addEventListener('click', function(event) {
-                // Prevent default action if any
-                event.preventDefault();
-                
-                // Log the click for debugging purposes
-                log('Disconnect button clicked');
-                
-                // Visually indicate button press
-                this.classList.add('clicked');
-                
-                // Disable the button while disconnecting
-                this.disabled = true;
-                
-                // Call the WebSocket disconnection function
-                disconnectWebSocket();
-                
-                // Remove button highlight after a short delay
-                setTimeout(() => {
-                    this.classList.remove('clicked');
-                }, 300);
-            });
+            // Set up audio comparison handling
+            window.audioCache = window.audioCache || {};
+            window.lastTranslationData = null;
+            
+            // Setup refresh comparison button
+            if (refreshComparisonBtn) {
+                refreshComparisonBtn.addEventListener('click', function() {
+                    log('Refreshing audio comparison panel');
+                    updateAudioComparison();
+                    document.getElementById('audio-comparison').style.display = 'block';
+                });
+            }
+            
+            connectBtn.addEventListener('click', connectWebSocket);
+            disconnectBtn.addEventListener('click', disconnectWebSocket);
             
             languageSelect.addEventListener('change', function() {
                 selectedLanguage = this.value;
@@ -2596,21 +2044,65 @@
                 }
             });
             
-            // No TTS service selection button handling needed anymore - teacher controls this
+            // TTS service selection button
+            applyTtsSettings.addEventListener('click', function() {
+                // Get the selected radio button value
+                const selectedTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                log(`Applying TTS service: ${selectedTtsService}`);
+                
+                // Update current TTS service display
+                document.getElementById('current-tts-service').textContent = getTtsServiceName(selectedTtsService);
+                
+                // Add settings confirmation message
+                const confirmationEl = document.createElement('div');
+                confirmationEl.className = 'settings-confirmation success-message';
+                confirmationEl.textContent = 'TTS settings updated successfully';
+                
+                // Add it to the page
+                const container = document.getElementById('success-container');
+                container.appendChild(confirmationEl);
+                
+                // Remove after 3 seconds
+                setTimeout(() => {
+                    if (confirmationEl.parentNode) {
+                        confirmationEl.parentNode.removeChild(confirmationEl);
+                    }
+                }, 3000);
+                
+                // Update TTS status indicators
+                document.querySelectorAll('.tts-status').forEach(el => {
+                    el.classList.remove('browser', 'openai', 'silent');
+                    el.classList.add(selectedTtsService);
+                });
+                
+                if (isConnected) {
+                    // Re-register with the new TTS service setting
+                    const registerMessage = {
+                        type: 'register',
+                        role: 'student',
+                        languageCode: selectedLanguage,
+                        settings: {
+                            ttsServiceType: selectedTtsService
+                        }
+                    };
+                    
+                    socket.send(JSON.stringify(registerMessage));
+                    log(`Updated TTS service to ${selectedTtsService}`);
+                } else {
+                    showError('Connect to classroom first to apply these settings');
+                }
+            });
             
             // Quick language buttons
             document.querySelectorAll('.language-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const lang = this.getAttribute('data-lang');
-                    
-                    // Get the current teacher-controlled TTS service from the display span
-                    const currentServiceName = document.getElementById('current-tts-service').textContent;
-                    // Convert display name back to service ID using the helper function
-                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
+                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
                     
                     // Check if this language is supported by the current TTS service
                     if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
-                        showError(`${this.textContent} is not supported by the current TTS service (${currentServiceName}). Please ask the teacher to change the TTS service.`);
+                        showError(`${this.textContent} is not supported by the current TTS service (${getTtsServiceName(currentTtsService)}). 
+                                  Either change the TTS service or select a different language.`);
                         return;
                     }
                     
@@ -2639,10 +2131,7 @@
             if (showMoreBtn && languageModal) {
                 // Initialize the expanded language list when "More Languages" is clicked
                 showMoreBtn.addEventListener('click', function() {
-                    // Get the current teacher-controlled TTS service from the display span
-                    const currentServiceName = document.getElementById('current-tts-service').textContent;
-                    // Convert display name back to service ID using the helper function
-                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
+                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
                     
                     // Use the LanguageSupport module to update the expanded list
                     if (window.LanguageSupport) {
