@@ -20,7 +20,8 @@ import {
   CodeSmellsMetrics,
   DuplicationMetrics,
   DependenciesMetrics,
-  TestResultsMetrics
+  TestResultsMetrics,
+  CodeQualityMetrics
 } from './metrics';
 
 export const apiRoutes = Router();
@@ -215,6 +216,23 @@ apiRoutes.get('/metrics/dependencies', async (req: Request, res: Response) => {
 });
 
 /**
+ * Get code quality metrics for TextToSpeechService refactoring
+ * Returns detailed metrics about the refactoring effort
+ */
+apiRoutes.get('/metrics/code-quality', async (req: Request, res: Response) => {
+  try {
+    const metrics = await getAllMetrics();
+    res.json(metrics.codeQuality);
+  } catch (error) {
+    console.error('Error fetching code quality metrics:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve code quality metrics',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
  * Get test results metrics
  * Returns test results metrics for the project
  */
@@ -246,23 +264,6 @@ apiRoutes.get('/metrics/ci-cd', async (req: Request, res: Response) => {
     console.error('Error fetching CI/CD metrics:', error);
     res.status(500).json({ 
       error: 'Failed to retrieve CI/CD metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
-
-/**
- * Get CI/CD workflow metrics
- * Returns GitHub Actions workflow metrics
- */
-apiRoutes.get('/metrics/ci-cd', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.testResults.cicd);
-  } catch (error) {
-    console.error('Error fetching CI/CD workflow metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve CI/CD workflow metrics',
       message: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
