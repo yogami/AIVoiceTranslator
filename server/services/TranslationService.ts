@@ -176,9 +176,9 @@ async function translateText(text: string, sourceLanguage: string, targetLanguag
  */
 async function textToSpeech(text: string, languageCode: string): Promise<Buffer> {
   try {
-    // Use the OpenAITextToSpeechService to generate speech
-    // No need for factory in this implementation
-    const ttsService = new OpenAITextToSpeechService();
+    // Use the TextToSpeechFactory to get a properly configured TTS service
+    const ttsFactory = TextToSpeechFactory.getInstance();
+    const ttsService = ttsFactory.getService('openai');
     return await ttsService.synthesizeSpeech({
       text: text,
       languageCode: languageCode,
