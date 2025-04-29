@@ -3,16 +3,14 @@
  */
 import { describe, it, expect, beforeEach, jest, afterEach } from '@jest/globals';
 import { WebSocket } from 'ws';
-import { processStreamingAudio } from '../../server/openai-streaming';
-import { sessionManager } from '../../server/openai-streaming';
-import { WebSocketCommunicator } from '../../server/openai-streaming';
+import { processStreamingAudio, sessionManager, WebSocketCommunicator } from '../../server/openai-streaming';
 
 // Mock dependencies
 jest.mock('ws');
 jest.mock('../../server/openai-streaming', () => {
-  const originalModule = jest.requireActual('../../server/openai-streaming');
-  return {
-    ...originalModule,
+  // Explicitly return our mocked implementations
+  return {  
+    processStreamingAudio: jest.fn(),
     sessionManager: {
       getSession: jest.fn(),
       createSession: jest.fn(),
