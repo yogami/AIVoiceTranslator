@@ -1297,7 +1297,24 @@
                         };
                     };
                     
-                    showSuccess('Server-generated audio ready to play');
+                    // Auto-play for OpenAI TTS when that service is selected
+                    if (ttsServiceType === 'openai') {
+                        log('Auto-playing OpenAI TTS audio');
+                        // Slight delay to make sure audio is loaded
+                        setTimeout(() => {
+                            audio.play().catch(err => {
+                                log('Error auto-playing OpenAI audio: ' + err.message);
+                                showError('Auto-play failed: ' + err.message);
+                            });
+                            
+                            // Visual feedback during playback
+                            playButton.style.backgroundColor = '#e74c3c';
+                            playButton.innerHTML = '<span class="play-icon">🔊</span> Playing OpenAI audio...';
+                        }, 300);
+                        showSuccess('Playing OpenAI translation audio');
+                    } else {
+                        showSuccess('Server-generated audio ready to play');
+                    }
                     
                     // Show the comparison section now that we have some audio
                     comparisonSection.style.display = 'block';
