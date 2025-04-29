@@ -5,9 +5,10 @@
  * at the unit level following the testing pyramid approach.
  */
 
-const assert = require('assert');
-const { WebSocket, Server } = require('ws');
-const http = require('http');
+import assert from 'assert';
+import { WebSocket, Server } from 'ws';
+import http from 'http';
+import { describe, it, before, after } from 'mocha';
 
 // Mock browser globals
 global.WebSocket = WebSocket;
