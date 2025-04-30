@@ -133,7 +133,7 @@ export class BrowserSpeechSynthesisService implements ITextToSpeechService {
       languageCode: options.languageCode,
       preserveEmotions: options.preserveEmotions,
       speed: options.speed || 1.0,
-      autoPlay: true // Enable automatic playback to match OpenAI behavior
+      autoPlay: false // Disable automatic playback to prevent auto-playing issues
     });
     
     // Return the marker as a buffer
