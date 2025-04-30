@@ -186,7 +186,7 @@ async function textToSpeech(text: string, languageCode: string): Promise<Buffer>
     return await ttsService.synthesizeSpeech({
       text: text,
       languageCode: languageCode,
-      voice: 'default', // Allow the service to pick the appropriate voice
+      voice: 'nova', // Use nova as the default voice to avoid OpenAI API errors
       speed: 1.0,
       preserveEmotions: true
     });
