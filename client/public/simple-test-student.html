@@ -325,8 +325,21 @@
         
         // Register role and language
         function register(newRole, newLanguage) {
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-                log('Cannot register - not connected', 'error');
+            if (!socket) {
+                log('Cannot register - socket not initialized', 'error');
+                return;
+            }
+            
+            if (socket.readyState !== WebSocket.OPEN) {
+                log('Socket not open yet, queuing registration', 'warning');
+                // Wait for the socket to be open before registering
+                setTimeout(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        register(newRole, newLanguage);
+                    } else {
+                        log('Socket still not ready, will retry again', 'warning');
+                    }
+                }, 500);
                 return;
             }
             
@@ -345,8 +358,13 @@
                 languageCode: language
             };
             
-            socket.send(JSON.stringify(message));
-            log(`Registered as ${role} with language ${language}`);
+            try {
+                socket.send(JSON.stringify(message));
+                log(`Registered as ${role} with language ${language}`);
+            } catch (error) {
+                log(`Error sending registration: ${error.message}`, 'error');
+                console.error('Registration error:', error);
+            }
         }
         
         // Add a translation to the list
