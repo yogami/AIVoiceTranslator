@@ -861,7 +861,12 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
     try {
       console.log(`Synthesizing speech for text (${options.text.length} chars) in ${options.languageCode}`);
       
+      // Get a voice for this language, ensuring it's a valid OpenAI voice
       let voice = options.voice || this.selectVoice(options.languageCode);
+      // Make sure we don't use 'default' as a voice value
+      if (voice === 'default') {
+        voice = 'nova'; // Default to 'nova' if no specific voice is set
+      }
       let speed = options.speed || 1.0;
       let input = options.text;
       
@@ -896,9 +901,19 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
       console.log(`Using voice: ${voice}, speed: ${speed}`);
       
       try {
+        // Ensure we're using a valid OpenAI voice name
+        // Valid voices: 'nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'
+        // Fallback to 'nova' if the voice is invalid or set to 'default'
+        const validVoices = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'];
+        const safeVoice = validVoices.includes(voice) ? voice : 'nova';
+        
+        if (safeVoice !== voice) {
+          console.log(`Voice '${voice}' is not valid for OpenAI TTS API, using '${safeVoice}' instead`);
+        }
+        
         const response = await this.openai.audio.speech.create({
           model: "tts-1", // Basic model, use tts-1-hd for higher quality
-          voice: voice,
+          voice: safeVoice,
           input: input,
           speed: speed,
           response_format: "mp3",
