@@ -593,21 +593,30 @@ export class TTSErrorHandler implements IErrorHandler {
  * Handles text-to-speech conversion using OpenAI's TTS API
  */
 export class OpenAITextToSpeechService implements ITextToSpeechService {
-  private readonly apiProvider: ITTSApiProvider;
+  private readonly openai: OpenAI;
   private readonly cacheManager: ICacheManager;
   private readonly emotionProcessor: IEmotionProcessor;
   private readonly errorHandler: IErrorHandler;
   
   constructor(
-    apiProvider: ITTSApiProvider,
-    cacheManager: ICacheManager,
-    emotionProcessor: IEmotionProcessor,
-    errorHandler: IErrorHandler
+    openai: OpenAI,
+    cacheManager?: ICacheManager,
+    emotionProcessor?: IEmotionProcessor,
+    errorHandler?: IErrorHandler
   ) {
-    this.apiProvider = apiProvider;
-    this.cacheManager = cacheManager;
-    this.emotionProcessor = emotionProcessor;
-    this.errorHandler = errorHandler;
+    this.openai = openai;
+    // Use simple implementations when not provided
+    this.cacheManager = cacheManager || {
+      getCachedItem: async (_key: string) => null,
+      setCachedItem: async (_key: string, _data: any) => {}
+    };
+    this.emotionProcessor = emotionProcessor || {
+      detectEmotions: (text: string) => this.detectEmotions(text),
+      formatForEmotion: (text: string, emotion: string) => this.formatInputForEmotion(text, emotion)
+    };
+    this.errorHandler = errorHandler || {
+      handleError: (error: Error) => { console.error('TTS Error:', error); throw error; }
+    };
   }
   
   /**
