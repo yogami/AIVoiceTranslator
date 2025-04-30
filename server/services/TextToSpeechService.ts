@@ -887,7 +887,7 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
       console.log(`Using voice: ${voice}, speed: ${speed}`);
       
       try {
-        const mp3 = await this.openai.audio.speech.create({
+        const response = await this.openai.audio.speech.create({
           model: "tts-1", // Basic model, use tts-1-hd for higher quality
           voice: voice,
           input: input,
@@ -896,11 +896,20 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
         });
         
         // Get the audio as a buffer
-        if (mp3 && mp3.arrayBuffer) {
-          const buffer = Buffer.from(await mp3.arrayBuffer());
-          return buffer;
-        } else {
-          throw new Error('Invalid response from OpenAI speech API');
+        try {
+          if (response && response.arrayBuffer) {
+            const buffer = Buffer.from(await response.arrayBuffer());
+            return buffer;
+          } else {
+            console.error('Response structure:', JSON.stringify({
+              type: typeof response,
+              hasArrayBuffer: !!(response && typeof response.arrayBuffer === 'function')
+            }));
+            throw new Error('Invalid response from OpenAI speech API - missing arrayBuffer method');
+          }
+        } catch (bufferError) {
+          console.error('Error processing response buffer:', bufferError);
+          throw bufferError;
         }
       } catch (apiError) {
         console.error('API error when creating speech:', apiError);
