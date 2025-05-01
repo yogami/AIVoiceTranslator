@@ -108,7 +108,8 @@ async function startServer() {
   });
   
   // Start server
-  const port = process.env.PORT || 5000;
+  // Try alternative port 8080 if 5000 is not available
+  const port = process.env.PORT || 8080;
   httpServer.listen(port, () => {
     console.log(`${new Date().toLocaleTimeString()} [express] serving on port ${port}`);
   });
