@@ -1,0 +1,500 @@
+                            if (message.type === 'translation') {
+                                this.notifyListeners('translation', message);
+                            }
+                        } catch (e) {
+                            this.notifyListeners('error', `Error parsing message: ${e.message}`);
+                        }
+                    };
+                    
+                    this.ws.onclose = (event) => {
+                        this.connected = false;
+                        this.notifyListeners('status', `Connection closed: ${event.code} ${event.reason || 'No reason provided'}`);
+                        this.notifyListeners('close', event);
+                        this.sessionId = null;
+                    };
+                    
+                    this.ws.onerror = (error) => {
+                        this.notifyListeners('error', 'WebSocket error');
+                        this.notifyListeners('error', error);
+                    };
+                } catch (error) {
+                    this.notifyListeners('error', `Failed to create WebSocket: ${error.message}`);
+                }
+            }
+            
+            disconnect() {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.notifyListeners('status', 'Not connected');
+                    return;
+                }
+                
+                this.ws.close(1000, 'User disconnected');
+            }
+            
+            register(role, language) {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.notifyListeners('status', 'Cannot register - not connected');
+                    return;
+                }
+                
+                this.role = role;
+                this.language = language;
+                
+                const message = {
+                    type: 'register',
+                    role: role,
+                    languageCode: language,
+                    settings: {
+                        ttsServiceType: this.ttsServiceType
+                    }
+                };
+                
+                this.send(message);
+                this.notifyListeners('status', `Registered as ${role} with language ${language} and TTS service ${this.ttsServiceType}`);
+            }
+            
+            sendTranscription(text) {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.notifyListeners('error', 'Cannot send transcription - not connected');
+                    return false;
+                }
+                
+                if (this.role !== 'teacher') {
+                    this.notifyListeners('error', 'Only teachers can send transcriptions');
+                    return false;
+                }
+                
+                const message = {
+                    type: 'transcription',
+                    text: text
+                };
+                
+                this.send(message);
+                this.notifyListeners('status', `Sent transcription: ${text}`);
+                return true;
+            }
+            
+            send(message) {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.notifyListeners('error', 'Cannot send message - not connected');
+                    return false;
+                }
+                
+                try {
+                    this.ws.send(JSON.stringify(message));
+                    return true;
+                } catch (error) {
+                    this.notifyListeners('error', `Error sending message: ${error.message}`);
+                    return false;
+                }
+            }
+            
+            addEventListener(type, callback) {
+                if (!this.eventListeners[type]) {
+                    this.eventListeners[type] = [];
+                }
+                this.eventListeners[type].push(callback);
+            }
+            
+            removeEventListener(type, callback) {
+                if (!this.eventListeners[type]) return;
+                this.eventListeners[type] = this.eventListeners[type].filter(cb => cb !== callback);
+            }
+            
+            notifyListeners(type, data) {
+                if (!this.eventListeners[type]) return;
+                this.eventListeners[type].forEach(callback => {
+                    try {
+                        callback(data);
+                    } catch (error) {
+                        console.error(`Error in ${type} listener:`, error);
+                    }
+                });
+            }
+            
+            isConnected() {
+                return this.connected;
+            }
+            
+            getSessionId() {
+                return this.sessionId;
+            }
+            
+            getRole() {
+                return this.role;
+            }
+            
+            getLanguage() {
+                return this.language;
+            }
+            
+            getTtsServiceType() {
+                return this.ttsServiceType;
+            }
+            
+            setTtsServiceType(ttsServiceType) {
+                this.ttsServiceType = ttsServiceType;
+                
+                // If connected, send settings update
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const message = {
+                        type: 'settings',
+                        ttsServiceType: ttsServiceType
+                    };
+                    
+                    this.send(message);
+                    this.notifyListeners('status', `Updated TTS service to: ${ttsServiceType}`);
+                    return true;
+                }
+                
+                return false;
+            }
+        }
+        
+        // Utility Functions
+        function setStatus(element, status) {
+            element.className = `status ${status}`;
+            element.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+        
+        function addLog(element, message, type = 'info') {
+            const logItem = document.createElement('div');
+            logItem.className = `log-item ${type ? 'log-' + type : ''}`;
+            logItem.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            element.appendChild(logItem);
+            element.scrollTop = element.scrollHeight;
+        }
+        
+        function getLanguageName(code) {
+            const languages = {
+                'en-US': 'English',
+                'es-ES': 'Spanish',
+                'fr-FR': 'French',
+                'de-DE': 'German'
+            };
+            
+            return languages[code] || code;
+        }
+        
+        function updateSystemCheck(id, status, message) {
+            const statusElement = document.getElementById(id);
+            const messageElement = document.getElementById(id + '-message');
+            
+            statusElement.className = `check-status ${status}`;
+            messageElement.textContent = message;
+        }
+        
+        function addTranslation(element, translation) {
+            // Clear initial message if this is the first translation
+            if (element.querySelector('div[style*="text-align: center"]')) {
+                element.innerHTML = '';
+            }
+            
+            const translationItem = document.createElement('div');
+            translationItem.className = 'translation-card';
+            
+            const sourceEl = document.createElement('div');
+            sourceEl.className = 'translation-source';
+            
+            const fromLang = getLanguageName(translation.originalLanguage || 'en-US');
+            const toLang = getLanguageName(translation.translatedLanguage || 'es-ES');
+            
+            sourceEl.textContent = `${new Date().toLocaleTimeString()} · ${fromLang} → ${toLang}`;
+            
+            const textEl = document.createElement('div');
+            textEl.className = 'translation-text';
+            textEl.textContent = translation.text || '';
+            
+            translationItem.appendChild(sourceEl);
+            translationItem.appendChild(textEl);
+            
+            element.appendChild(translationItem);
+            element.scrollTop = element.scrollHeight;
+        }
+        
+        // Tab Switching
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    
+                    // Update tab active state
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Update tab content visibility
+                    tabContents.forEach(content => {
+                        if (content.id === `${tabId}-tab`) {
+                            content.classList.add('active');
+                        } else {
+                            content.classList.remove('active');
+                        }
+                    });
+                });
+            });
+        }
+        
+        // Teacher Interface
+        function setupTeacherInterface() {
+            const statusEl = document.getElementById('teacher-status');
+            const sessionIdEl = document.getElementById('teacher-session-id');
+            const languageEl = document.getElementById('teacher-language');
+            const connectBtn = document.getElementById('teacher-connect-btn');
+            const disconnectBtn = document.getElementById('teacher-disconnect-btn');
+            const enBtn = document.getElementById('teacher-en-btn');
+            const esBtn = document.getElementById('teacher-es-btn');
+            const frBtn = document.getElementById('teacher-fr-btn');
+            const deBtn = document.getElementById('teacher-de-btn');
+            const ttsBrowserBtn = document.getElementById('teacher-tts-browser-btn');
+            const ttsOpenaiBtn = document.getElementById('teacher-tts-openai-btn');
+            const ttsSilentBtn = document.getElementById('teacher-tts-silent-btn');
+            const currentTtsServiceEl = document.getElementById('current-tts-service');
+            const messageInput = document.getElementById('teacher-message');
+            const sendBtn = document.getElementById('teacher-send-btn');
+            const logsEl = document.getElementById('teacher-logs');
+            
+            const client = new WebSocketClient('teacher', 'en-US', 'browser');
+            
+            connectBtn.addEventListener('click', () => {
+                client.connect();
+            });
+            
+            disconnectBtn.addEventListener('click', () => {
+                client.disconnect();
+            });
+            
+            sendBtn.addEventListener('click', () => {
+                const text = messageInput.value.trim();
+                if (text) {
+                    if (client.sendTranscription(text)) {
+                        addLog(logsEl, `Sent transcription: ${text}`, 'success');
+                        messageInput.value = '';
+                    }
+                } else {
+                    addLog(logsEl, 'Cannot send empty message', 'error');
+                }
+            });
+            
+            enBtn.addEventListener('click', () => {
+                enBtn.classList.add('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'en-US');
+                languageEl.textContent = 'en-US';
+            });
+            
+            esBtn.addEventListener('click', () => {
+                esBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'es-ES');
+                languageEl.textContent = 'es-ES';
+            });
+            
+            frBtn.addEventListener('click', () => {
+                frBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'fr-FR');
+                languageEl.textContent = 'fr-FR';
+            });
+            
+            deBtn.addEventListener('click', () => {
+                deBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                client.register('teacher', 'de-DE');
+                languageEl.textContent = 'de-DE';
+            });
+            
+            // TTS Service selection
+            ttsBrowserBtn.addEventListener('click', () => {
+                ttsBrowserBtn.classList.add('active');
+                ttsOpenaiBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('browser');
+                currentTtsServiceEl.textContent = 'browser';
+            });
+            
+            ttsOpenaiBtn.addEventListener('click', () => {
+                ttsOpenaiBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('openai');
+                currentTtsServiceEl.textContent = 'openai';
+            });
+            
+            ttsSilentBtn.addEventListener('click', () => {
+                ttsSilentBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsOpenaiBtn.classList.remove('active');
+                client.setTtsServiceType('silent');
+                currentTtsServiceEl.textContent = 'silent';
+            });
+            
+            client.addEventListener('status', (status) => {
+                if (typeof status === 'string') {
+                    addLog(logsEl, status);
+                    
+                    if (status.startsWith('Connected')) {
+                        setStatus(statusEl, 'connected');
+                        connectBtn.disabled = true;
+                        disconnectBtn.disabled = false;
+                        sendBtn.disabled = false;
+                        updateSystemCheck('ws-server', 'success', 'WebSocket server is online and accepting connections');
+                    } else if (status.startsWith('Connecting')) {
+                        setStatus(statusEl, 'connecting');
+                        connectBtn.disabled = true;
+                        disconnectBtn.disabled = true;
+                        sendBtn.disabled = true;
+                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
+                        setStatus(statusEl, 'disconnected');
+                        connectBtn.disabled = false;
+                        disconnectBtn.disabled = true;
+                        sendBtn.disabled = true;
+                    } else if (status.startsWith('Session ID')) {
+                        const sessionId = status.split(': ')[1];
+                        sessionIdEl.textContent = sessionId;
+                        updateSystemCheck('ws-protocol', 'success', 'Protocol implementation is working correctly');
+                    }
+                }
+            });
+            
+            client.addEventListener('message', (message) => {
+                if (message && message.type) {
+                    addLog(logsEl, `Received ${message.type} message: ${JSON.stringify(message)}`, 'success');
+                    
+                    if (message.type === 'connection') {
+                        // Server connection successful
+                    }
+                }
+            });
+            
+            client.addEventListener('error', (error) => {
+                addLog(logsEl, typeof error === 'string' ? error : 'WebSocket error', 'error');
+                updateSystemCheck('ws-server', 'error', 'Failed to connect to WebSocket server');
+            });
+            
+            addLog(logsEl, 'Teacher interface initialized. Click "Connect" to start.');
+            
+            return client;
+        }
+        
+        // Student Interface
+        function setupStudentInterface() {
+            const statusEl = document.getElementById('student-status');
+            const sessionIdEl = document.getElementById('student-session-id');
+            const languageEl = document.getElementById('student-language');
+            const connectBtn = document.getElementById('student-connect-btn');
+            const disconnectBtn = document.getElementById('student-disconnect-btn');
+            const enBtn = document.getElementById('student-en-btn');
+            const esBtn = document.getElementById('student-es-btn');
+            const frBtn = document.getElementById('student-fr-btn');
+            const deBtn = document.getElementById('student-de-btn');
+            const translationsEl = document.getElementById('student-translations');
+            const logsEl = document.getElementById('student-logs');
+            const ttsServiceEl = document.getElementById('student-tts-service'); // New element for displaying teacher's TTS service
+            
+            const client = new WebSocketClient('student', 'es-ES');
+            
+            connectBtn.addEventListener('click', () => {
+                client.connect();
+            });
+            
+            disconnectBtn.addEventListener('click', () => {
+                client.disconnect();
+            });
+            
+            enBtn.addEventListener('click', () => {
+                enBtn.classList.add('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'en-US');
+                languageEl.textContent = 'en-US';
+            });
+            
+            esBtn.addEventListener('click', () => {
+                esBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'es-ES');
+                languageEl.textContent = 'es-ES';
+            });
+            
+            frBtn.addEventListener('click', () => {
+                frBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'fr-FR');
+                languageEl.textContent = 'fr-FR';
+            });
+            
+            deBtn.addEventListener('click', () => {
+                deBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                client.register('student', 'de-DE');
+                languageEl.textContent = 'de-DE';
+            });
+            
+            client.addEventListener('status', (status) => {
+                if (typeof status === 'string') {
+                    addLog(logsEl, status);
+                    
+                    if (status.startsWith('Connected')) {
+                        setStatus(statusEl, 'connected');
+                        connectBtn.disabled = true;
+                        disconnectBtn.disabled = false;
+                    } else if (status.startsWith('Connecting')) {
+                        setStatus(statusEl, 'connecting');
+                        connectBtn.disabled = true;
+                        disconnectBtn.disabled = true;
+                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
+                        setStatus(statusEl, 'disconnected');
+                        connectBtn.disabled = false;
+                        disconnectBtn.disabled = true;
+                    } else if (status.startsWith('Session ID')) {
+                        const sessionId = status.split(': ')[1];
+                        sessionIdEl.textContent = sessionId;
+                    }
+                }
+            });
+            
+            client.addEventListener('message', (message) => {
+                if (message && message.type) {
+                    addLog(logsEl, `Received ${message.type} message: ${JSON.stringify(message)}`, 'success');
+                    
+                    // Check for TTS service updates from the server
+                    if (message.type === 'tts-update' && message.ttsServiceType) {
+                        ttsServiceEl.textContent = message.ttsServiceType;
+                        addLog(logsEl, `Teacher changed TTS service to: ${message.ttsServiceType}`, 'info');
+                    }
+                    // Also check for registration confirmation that includes TTS settings
+                    else if (message.type === 'register-confirm' && message.settings && message.settings.ttsServiceType) {
+                        ttsServiceEl.textContent = message.settings.ttsServiceType;
+                        addLog(logsEl, `Current TTS service is: ${message.settings.ttsServiceType}`, 'info');
+                    }
+                }
+            });
+            
+            client.addEventListener('translation', (translation) => {
+                addLog(logsEl, `Received translation: ${translation.text}`, 'success');
+                addTranslation(translationsEl, translation);
+                updateSystemCheck('ws-translations', 'success', 'Translation system is working properly');
+            });
+            
+            client.addEventListener('error', (error) => {
+                addLog(logsEl, typeof error === 'string' ? error : 'WebSocket error', 'error');
+            });
+            
