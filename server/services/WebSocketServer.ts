@@ -648,16 +648,38 @@ export class WebSocketServer {
   }
 
   /**
-   * Handle ping message
+   * Handle ping message for latency measurement
    */
   private handlePingMessage(ws: WebSocketClient, message: any): void {
-    // Respond with pong message
-    const response = {
-      type: 'pong',
-      timestamp: message.timestamp
-    };
-    
-    ws.send(JSON.stringify(response));
+    try {
+      // Get client information
+      const role = this.roles.get(ws) || 'unknown';
+      const language = this.languages.get(ws) || 'unknown';
+      const sessionId = this.sessionIds.get(ws) || 'unknown';
+      
+      // Calculate server processing time
+      const serverReceiveTime = Date.now();
+      
+      // Log ping request for diagnostics
+      console.log(`Received ping request from ${role} (${sessionId}), timestamp: ${message.timestamp}`);
+      
+      // Respond with pong message
+      const response = {
+        type: 'pong',
+        timestamp: message.timestamp,
+        serverReceiveTime: serverReceiveTime,
+        serverSendTime: Date.now(),
+        clientInfo: {
+          role,
+          language,
+          sessionId
+        }
+      };
+      
+      ws.send(JSON.stringify(response));
+    } catch (error) {
+      console.error('Error handling ping message:', error);
+    }
   }
   
   /**
