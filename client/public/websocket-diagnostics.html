@@ -270,31 +270,23 @@
             </div>
             
             <div class="card" style="border: 2px solid #3498db; box-shadow: 0 4px 8px rgba(52, 152, 219, 0.2);">
-                <div class="card-title" style="background-color: #3498db; color: white;">TTS Service Selection (Teacher Control)</div>
+                <div class="card-title" style="background-color: #3498db; color: white;">TTS Service Information</div>
                 <div>
                     <div style="margin-bottom: 10px; font-weight: bold;">
-                        Select Text-to-Speech Service for All Students:
+                        Using OpenAI Text-to-Speech Service:
                         <div style="font-size: 0.9em; font-weight: normal; color: #555; margin-top: 4px;">
-                            Your selection will be applied to all connected students automatically
+                            This application uses OpenAI TTS for all student translations
                         </div>
                     </div>
                     <div class="language-buttons tts-buttons">
-                        <button id="teacher-tts-browser-btn" class="active" style="position: relative;">
-                            Browser
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Fast, built-in</span>
-                        </button>
-                        <button id="teacher-tts-openai-btn" style="position: relative;">
-                            OpenAI
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality</span>
-                        </button>
-                        <button id="teacher-tts-silent-btn" style="position: relative;">
-                            Silent
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Text only, no audio</span>
+                        <button id="teacher-tts-openai-btn" class="active" style="position: relative; width: 100%;">
+                            OpenAI TTS
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality voices</span>
                         </button>
                     </div>
                     <div class="status-message" style="margin-top: 12px; background-color: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 4px solid #3498db;">
                         <span>Active TTS Service for All Students: </span>
-                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px;">browser</span>
+                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px; background-color: #3498db; color: white;">openai</span>
                     </div>
                 </div>
             </div>
@@ -747,15 +739,13 @@
             const esBtn = document.getElementById('teacher-es-btn');
             const frBtn = document.getElementById('teacher-fr-btn');
             const deBtn = document.getElementById('teacher-de-btn');
-            const ttsBrowserBtn = document.getElementById('teacher-tts-browser-btn');
             const ttsOpenaiBtn = document.getElementById('teacher-tts-openai-btn');
-            const ttsSilentBtn = document.getElementById('teacher-tts-silent-btn');
             const currentTtsServiceEl = document.getElementById('current-tts-service');
             const messageInput = document.getElementById('teacher-message');
             const sendBtn = document.getElementById('teacher-send-btn');
             const logsEl = document.getElementById('teacher-logs');
             
-            const client = new WebSocketClient('teacher', 'en-US', 'browser');
+            const client = new WebSocketClient('teacher', 'en-US', 'openai');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -813,29 +803,12 @@
                 languageEl.textContent = 'de-DE';
             });
             
-            // TTS Service selection
-            ttsBrowserBtn.addEventListener('click', () => {
-                ttsBrowserBtn.classList.add('active');
-                ttsOpenaiBtn.classList.remove('active');
-                ttsSilentBtn.classList.remove('active');
-                client.setTtsServiceType('browser');
-                currentTtsServiceEl.textContent = 'browser';
-            });
-            
+            // TTS Service is set to OpenAI only
             ttsOpenaiBtn.addEventListener('click', () => {
+                // Button is already active by default
                 ttsOpenaiBtn.classList.add('active');
-                ttsBrowserBtn.classList.remove('active');
-                ttsSilentBtn.classList.remove('active');
                 client.setTtsServiceType('openai');
                 currentTtsServiceEl.textContent = 'openai';
-            });
-            
-            ttsSilentBtn.addEventListener('click', () => {
-                ttsSilentBtn.classList.add('active');
-                ttsBrowserBtn.classList.remove('active');
-                ttsOpenaiBtn.classList.remove('active');
-                client.setTtsServiceType('silent');
-                currentTtsServiceEl.textContent = 'silent';
             });
             
             client.addEventListener('status', (status) => {
