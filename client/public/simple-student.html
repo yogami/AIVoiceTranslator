@@ -2449,16 +2449,13 @@
                 option.addEventListener('click', function() {
                     const lang = this.getAttribute('data-lang');
                     
-                    // Get the current teacher-controlled TTS service from the display span
+                    // We'll allow any language to be selected regardless of TTS service support
+                    // This shows a warning but doesn't prevent selection
                     const currentServiceName = document.getElementById('current-tts-service').textContent;
-                    // Convert display name back to service ID using the helper function
                     const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
                     
-                    // Check if this language is supported by the current TTS service
                     if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
-                        showError(`${this.textContent} is not supported by the current voice service (${currentServiceName}). 
-                                  Please ask the teacher to change the voice service.`);
-                        return;
+                        showSuccess(`Note: ${this.textContent} might have limited support with the current voice service (${currentServiceName}), but we'll try our best to translate it.`);
                     }
                     
                     // Update dropdown if it exists
@@ -2490,16 +2487,13 @@
                 btn.addEventListener('click', function() {
                     const lang = this.getAttribute('data-lang');
                     
-                    // Get the current teacher-controlled TTS service from the display span
+                    // We'll allow any language to be selected regardless of TTS service support
+                    // This shows a warning but doesn't prevent selection
                     const currentServiceName = document.getElementById('current-tts-service').textContent;
-                    // Convert display name back to service ID using the helper function
                     const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
                     
-                    // Check if this language is supported by the current TTS service
                     if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
-                        showError(`${this.textContent} is not supported by the current TTS service (${currentServiceName}). 
-                                  Please ask the teacher to change the TTS service.`);
-                        return;
+                        showSuccess(`Note: ${this.textContent} might have limited support with the current voice service (${currentServiceName}), but we'll try our best to translate it.`);
                     }
                     
                     // Update selected language
@@ -2570,19 +2564,8 @@
             const simplifiedLanguageSelect = document.getElementById('simplified-language-select');
             
             if (simplifiedLanguageSelect) {
-                // Get current TTS service to check language support
-                const currentServiceName = document.getElementById('current-tts-service').textContent;
-                const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
-                
-                // Disable languages not supported by current TTS service
-                if (window.LanguageSupport) {
-                    Array.from(simplifiedLanguageSelect.options).forEach(option => {
-                        if (option.value && !window.LanguageSupport.isSupported(option.value, currentTtsService)) {
-                            option.disabled = true;
-                            option.text = option.text + ' (Not supported)';
-                        }
-                    });
-                }
+                // We'll allow all languages to be selected, regardless of TTS service support
+                // This ensures users can choose any language they want
                 
                 // When language is selected
                 simplifiedLanguageSelect.addEventListener('change', function() {
