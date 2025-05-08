@@ -1377,22 +1377,38 @@
                     
                     // Set up audio element and play button
                     audio.src = audioURL;
+                    audio.load(); // Make sure to load the audio source
                     playButton.disabled = false;
                     
                     // Update button to show which TTS service is being used
                     playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
                     
-                    // Define handler for audio playback
+                    // Define handler for audio playback with improved error handling
                     const playAudio = () => {
                         log(`Playing server-generated audio (${ttsServiceType} TTS)`);
-                        audio.play().catch(err => {
-                            log('Error playing audio: ' + err.message);
-                            showError('Audio playback failed: ' + err.message);
-                        });
                         
-                        // Visual feedback during playback
+                        // Play button visual feedback first
                         playButton.style.backgroundColor = '#e74c3c';
                         playButton.innerHTML = '<span class="play-icon">🔊</span> Playing...';
+                        
+                        // Use a promise to track playback
+                        const playPromise = audio.play();
+                        
+                        if (playPromise !== undefined) {
+                            playPromise.then(() => {
+                                log('Audio playback started successfully');
+                            }).catch(err => {
+                                log('Error playing audio: ' + err.message);
+                                showError('Audio playback failed: ' + err.message);
+                                
+                                // Reset button on error
+                                playButton.style.backgroundColor = '';
+                                playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
+                                
+                                // Try to reload the audio source
+                                audio.load();
+                            });
+                        }
                     };
                     
                     // Set up click handler for play button
