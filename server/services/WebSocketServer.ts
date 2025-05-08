@@ -411,6 +411,7 @@ export class WebSocketServer {
         ttsServiceType: ttsServiceType, // Include the service type for client reference
         latency: {
           total: totalLatency,
+          serverCompleteTime: currentTime, // Timestamp when server completed processing
           components: {
             translation: latencyTracking.components.translation,
             tts: latencyTracking.components.tts,
