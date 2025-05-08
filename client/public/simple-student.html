@@ -803,65 +803,15 @@
         </div>
         
         <div class="container" style="margin-top: 30px;">
-            <div class="language-heading">Text-to-Speech Information</div>
-            
             <div id="tts-service-info" style="margin-top: 15px;">
                 <div id="active-tts-service-container" style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
-                    <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Teacher-Controlled TTS Service</h3>
+                    <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Current Voice Service</h3>
                     <p style="margin-bottom: 10px;">
-                        <span id="active-tts-service">The Text-to-Speech service is controlled by the teacher.</span> Your current TTS service is:
-                        <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">Browser</span>
+                        Your current voice service is:
+                        <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">OpenAI</span>
                     </p>
                     <p style="margin-bottom: 0; font-size: 0.9rem; color: var(--text-light);">
-                        Only the teacher can change the TTS service. All students will automatically use the same service.
-                    </p>
-                </div>
-                
-                <div class="language-heading">TTS Service Comparison</div>
-                <div id="tts-comparison-section" style="margin: 15px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
-                    <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: var(--primary-light); box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Browser Speech</div>
-                        <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
-                            Uses your browser's built-in speech synthesis. Fast but less natural sounding.
-                        </p>
-                        <div>
-                            <button class="play-example-btn play-demo-btn" data-service="browser" 
-                                    style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: var(--primary-color); color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>▶️</span> Play Example Only
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #eef2ff; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">OpenAI TTS</div>
-                        <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
-                            Advanced neural voice with better emotional tone and natural pauses.
-                        </p>
-                        <div>
-                            <button class="play-example-btn play-demo-btn" data-service="openai" 
-                                    style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #6366f1; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>▶️</span> Play Example Only
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #f8f9fa; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Silent Mode</div>
-                        <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
-                            Text only, no audio playback. Use in quiet environments or for accessibility.
-                        </p>
-                        <div>
-                            <button class="play-example-btn play-demo-btn" data-service="silent" 
-                                    style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #95a5a6; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>🔇</span> Example (No Sound)
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div style="margin-top: 10px; padding: 15px; border-radius: var(--border-radius); background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107;">
-                    <p style="margin: 0; font-size: 0.9rem; color: #856404;">
-                        <strong>Note:</strong> These buttons only play examples of each TTS service for comparison. 
-                        They do not change the active service, which is controlled by the teacher.
+                        Voice settings are managed by the teacher and synchronized for all students.
                     </p>
                 </div>
             </div>
