@@ -967,15 +967,12 @@
         
         <div class="container" style="margin-top: 30px;">
             <div id="tts-service-info" style="margin-top: 15px;">
-                <div id="active-tts-service-container" style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
+                <div id="active-tts-service-container" style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px; display: none;">
                     <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Current Voice Service</h3>
-                    <p style="margin-bottom: 10px;">
-                        Your current voice service is:
-                        <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">OpenAI</span>
-                    </p>
                     <p style="margin-bottom: 0; font-size: 0.9rem; color: var(--text-light);">
                         Voice settings are managed by the teacher and synchronized for all students.
                     </p>
+                    <span id="current-tts-service" style="display: none;">OpenAI</span>
                 </div>
             </div>
         </div>
