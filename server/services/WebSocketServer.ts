@@ -320,16 +320,17 @@ export class WebSocketServer {
           }
         });
         
-        // No need to set environment variable anymore - we'll pass it directly
-        console.log(`Using teacher's TTS service '${teacherTtsServiceType}' for language '${targetLanguage}'`);
+        // Always use OpenAI TTS service for best quality
+        const ttsServiceToUse = 'openai';
+        console.log(`Using OpenAI TTS service for language '${targetLanguage}' (overriding teacher's selection)`);
         
-        // Perform the translation with the selected TTS service
+        // Perform the translation with OpenAI TTS service
         const result = await speechTranslationService.translateSpeech(
           Buffer.from(''), // Empty buffer as we already have the text
           teacherLanguage,
           targetLanguage,
           message.text, // Use the pre-transcribed text
-          { ttsServiceType: teacherTtsServiceType } // Pass TTS service type as object
+          { ttsServiceType: ttsServiceToUse } // Force OpenAI TTS service
         );
         
         // Store the full result object for this language
@@ -355,16 +356,8 @@ export class WebSocketServer {
       
       const translatedText = translations[studentLanguage] || message.text;
       
-      // Get the teacher's preferred TTS service type (same as used for generation)
-      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
-      this.connections.forEach(teacherClient => {
-        if (this.roles.get(teacherClient) === 'teacher' &&
-            this.clientSettings.get(teacherClient)?.ttsServiceType) {
-          teacherTtsServiceType = this.clientSettings.get(teacherClient)?.ttsServiceType;
-        }
-      });
-      // Use teacher's preference instead of individual student settings
-      const ttsServiceType = teacherTtsServiceType;
+      // Always use OpenAI TTS service - ignore any other settings
+      const ttsServiceType = 'openai';
       
       // Create translation message with audio data support
       const translationMessage: any = {
@@ -469,10 +462,11 @@ export class WebSocketServer {
   private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
     const role = this.roles.get(ws);
     const languageCode = message.languageCode || this.languages.get(ws);
-    const ttsService = message.ttsService || 'openai';
+    // Always force OpenAI TTS service regardless of what was requested
+    const ttsService = 'openai';
     const text = message.text;
     
-    console.log(`Received TTS request from ${role} for service ${ttsService} in language ${languageCode}`);
+    console.log(`Received TTS request from ${role} (forcing OpenAI TTS service) in language ${languageCode}`);
     
     if (!this.validateTTSRequest(text, languageCode)) {
       return;
