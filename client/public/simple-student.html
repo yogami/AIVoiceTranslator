@@ -613,6 +613,36 @@
             border-bottom: none;
         }
         
+        .latency-info {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 5px;
+            background-color: #f7f7f7;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        
+        .latency-component {
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        .latency-component span.value {
+            font-weight: bold;
+        }
+        
+        .latency-critical {
+            color: #e74c3c;
+        }
+        
+        .latency-warning {
+            color: #f39c12;
+        }
+        
+        .latency-good {
+            color: #2ecc71;
+        }
+        
         .error-message {
             background-color: rgba(231, 76, 60, 0.1);
             color: #c0392b;
@@ -953,7 +983,7 @@
         <!-- Audio comparison section removed to focus on core functionality -->
         
         <div class="container" style="margin-top: 30px;">
-            <div class="language-heading">Connection Messages</div>
+            <div class="language-heading">Latency Metrics</div>
             <div id="messages" class="messages"></div>
         </div>
     </div>
@@ -2213,6 +2243,57 @@
                 
                 if (message.originalText && message.originalText !== message.text) {
                     messageElement.innerHTML += `<div style="font-size:0.8em; color:#777;">Original: "${message.originalText}"</div>`;
+                }
+                
+                // Add latency metrics if available
+                if (message.latency) {
+                    const latencyInfo = document.createElement('div');
+                    latencyInfo.className = 'latency-info';
+                    
+                    // Total latency
+                    const totalLatency = message.latency.total || 0;
+                    let totalLatencyClass = 'latency-good';
+                    if (totalLatency > 2000) {
+                        totalLatencyClass = 'latency-critical';
+                    } else if (totalLatency > 1000) {
+                        totalLatencyClass = 'latency-warning';
+                    }
+                    
+                    let latencyHTML = `<div class="latency-component ${totalLatencyClass}">
+                        Total: <span class="value">${totalLatency}ms</span>
+                    </div>`;
+                    
+                    // Component latencies if available
+                    if (message.latency.components) {
+                        const components = message.latency.components;
+                        
+                        if (components.translation) {
+                            latencyHTML += `<div class="latency-component">
+                                Translation: <span class="value">${components.translation}ms</span>
+                            </div>`;
+                        }
+                        
+                        if (components.tts) {
+                            latencyHTML += `<div class="latency-component">
+                                TTS: <span class="value">${components.tts}ms</span>
+                            </div>`;
+                        }
+                        
+                        if (components.processing) {
+                            latencyHTML += `<div class="latency-component">
+                                Processing: <span class="value">${components.processing}ms</span>
+                            </div>`;
+                        }
+                        
+                        if (components.network) {
+                            latencyHTML += `<div class="latency-component">
+                                Network: <span class="value">${components.network}ms</span>
+                            </div>`;
+                        }
+                    }
+                    
+                    latencyInfo.innerHTML = latencyHTML;
+                    messageElement.appendChild(latencyInfo);
                 }
             } else if (message.type === 'tts_response') {
                 // Don't display TTS responses in the messages list
