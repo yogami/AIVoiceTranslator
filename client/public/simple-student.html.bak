@@ -360,6 +360,7 @@
             justify-content: center;
         }
         
+        /* Debug log related CSS removed as requested */
         
         /* Modal styling */
         .language-modal {
@@ -960,12 +961,14 @@
         </div>
     </div>
     
+    <!-- Debug log removed as requested -->
     <div id="log" style="display: none;"></div>
     
     <!-- Language support module -->
     <script src="/js/language-support.js"></script>
     
     <script>
+        // Debug logging
         function log(message) {
             const logContainer = document.getElementById('log');
             const timestamp = new Date().toLocaleTimeString();
