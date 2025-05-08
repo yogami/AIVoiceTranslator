@@ -228,10 +228,11 @@
     </div>
 
     <div class="tabs">
-        <div class="tab active" data-tab="both">Monitoring View</div>
+        <div class="tab active" data-tab="teacher">Teacher View</div>
+        <div class="tab" data-tab="both">Monitoring View</div>
     </div>
 
-    <div id="teacher-tab" class="tab-content">
+    <div id="teacher-tab" class="tab-content active">
         <h1>Teacher Interface</h1>
         <div class="grid">
             <div class="card">
@@ -277,22 +278,14 @@
                         </div>
                     </div>
                     <div class="language-buttons tts-buttons">
-                        <button id="teacher-tts-browser-btn" class="active" style="position: relative;">
-                            Browser
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Fast, built-in</span>
-                        </button>
-                        <button id="teacher-tts-openai-btn" style="position: relative;">
+                        <button id="teacher-tts-openai-btn" class="active" style="position: relative; width: 100%;">
                             OpenAI
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality</span>
-                        </button>
-                        <button id="teacher-tts-silent-btn" style="position: relative;">
-                            Silent
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Text only, no audio</span>
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality voices</span>
                         </button>
                     </div>
                     <div class="status-message" style="margin-top: 12px; background-color: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 4px solid #3498db;">
                         <span>Active TTS Service for All Students: </span>
-                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px;">browser</span>
+                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px;">openai</span>
                     </div>
                 </div>
             </div>
@@ -376,7 +369,7 @@
         </div>
     </div>
 
-    <div id="both-tab" class="tab-content active">
+    <div id="both-tab" class="tab-content">
         <h1>Monitoring View</h1>
         <div class="grid">
             <div class="card">
