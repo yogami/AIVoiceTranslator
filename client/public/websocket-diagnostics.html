@@ -116,6 +116,36 @@
             background-color: #4CAF50;
             color: white;
         }
+        .badge.student {
+            background-color: #2196F3;
+            color: white;
+        }
+        .language-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .language-buttons button {
+            flex: 1;
+        }
+        .language-buttons button.active {
+            background-color: #333;
+        }
+        .translation-card {
+            border-left: 4px solid #2196F3;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #e3f2fd;
+            border-radius: 4px;
+        }
+        .translation-source {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .translation-text {
+            font-size: 16px;
+        }
         .system-check {
             padding: 15px;
             background-color: #f5f5f5;
@@ -149,13 +179,31 @@
         .check-status.pending {
             background-color: #9e9e9e;
         }
+        .tabs {
+            display: flex;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            border-bottom: 2px solid #4CAF50;
+            font-weight: bold;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
-    <h1>WebSocket Diagnostics & Configuration</h1>
-    
     <div class="system-check">
-        <h2>WebSocket Connection Status</h2>
+        <h2>WebSocket Connection Diagnostics</h2>
         <div class="check-item">
             <div id="ws-server-status" class="check-status pending"></div>
             <div>
@@ -179,55 +227,228 @@
         </div>
     </div>
 
-    <div class="grid">
-        <div class="card">
-            <div class="card-title">Connection Status</div>
-            <div id="connection-status" class="status disconnected">Disconnected</div>
-            <div>
-                <span>Session ID:</span>
-                <span id="session-id">None</span>
+    <div class="tabs">
+        <div class="tab active" data-tab="teacher">Teacher View</div>
+        <div class="tab" data-tab="student">Student View</div>
+        <div class="tab" data-tab="both">Monitoring View</div>
+    </div>
+
+    <div id="teacher-tab" class="tab-content active">
+        <h1>Teacher Interface</h1>
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">Connection</div>
+                <div id="teacher-status" class="status disconnected">Disconnected</div>
+                <div>
+                    <span>Session ID:</span>
+                    <span id="teacher-session-id">None</span>
+                </div>
+                <div>
+                    <span>Role: <span class="badge teacher">teacher</span></span>
+                </div>
+                <div>
+                    <span>Language:</span>
+                    <span id="teacher-language" class="badge">en-US</span>
+                </div>
+                <div style="margin-top: 16px;">
+                    <button id="teacher-connect-btn">Connect</button>
+                    <button id="teacher-disconnect-btn" class="disconnect" disabled>Disconnect</button>
+                </div>
             </div>
-            <div>
-                <span>Role: <span class="badge teacher">diagnostic</span></span>
+            
+            <div class="card">
+                <div class="card-title">Language Selection</div>
+                <div>
+                    <div>Speaking Language:</div>
+                    <div class="language-buttons">
+                        <button id="teacher-en-btn" class="active">English</button>
+                        <button id="teacher-es-btn">Spanish</button>
+                        <button id="teacher-fr-btn">French</button>
+                        <button id="teacher-de-btn">German</button>
+                    </div>
+                </div>
             </div>
-            <div style="margin-top: 16px;">
-                <button id="connect-btn">Connect</button>
-                <button id="disconnect-btn" class="disconnect" disabled>Disconnect</button>
+            
+            <div class="card" style="border: 2px solid #3498db; box-shadow: 0 4px 8px rgba(52, 152, 219, 0.2);">
+                <div class="card-title" style="background-color: #3498db; color: white;">TTS Service Selection (Teacher Control)</div>
+                <div>
+                    <div style="margin-bottom: 10px; font-weight: bold;">
+                        Select Text-to-Speech Service for All Students:
+                        <div style="font-size: 0.9em; font-weight: normal; color: #555; margin-top: 4px;">
+                            Your selection will be applied to all connected students automatically
+                        </div>
+                    </div>
+                    <div class="language-buttons tts-buttons">
+                        <button id="teacher-tts-browser-btn" class="active" style="position: relative;">
+                            Browser
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Fast, built-in</span>
+                        </button>
+                        <button id="teacher-tts-openai-btn" style="position: relative;">
+                            OpenAI
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality</span>
+                        </button>
+                        <button id="teacher-tts-silent-btn" style="position: relative;">
+                            Silent
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Text only, no audio</span>
+                        </button>
+                    </div>
+                    <div class="status-message" style="margin-top: 12px; background-color: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 4px solid #3498db;">
+                        <span>Active TTS Service for All Students: </span>
+                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px;">browser</span>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="card" style="border: 2px solid #3498db; box-shadow: 0 4px 8px rgba(52, 152, 219, 0.2);">
-            <div class="card-title" style="background-color: #3498db; color: white;">TTS Service Configuration</div>
-            <div>
-                <div style="margin-bottom: 10px; font-weight: bold;">
-                    OpenAI Text-to-Speech Service:
-                    <div style="font-size: 0.9em; font-weight: normal; color: #555; margin-top: 4px;">
-                        This application is configured to use OpenAI's high-quality TTS service
+        <div class="card">
+            <div class="card-title">Send Transcription</div>
+            <textarea id="teacher-message" rows="4" placeholder="Type a message to send as transcription..."></textarea>
+            <button id="teacher-send-btn" disabled>Send Transcription</button>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">Debug Logs</div>
+            <div id="teacher-logs" class="logs"></div>
+        </div>
+    </div>
+
+    <div id="student-tab" class="tab-content">
+        <h1>Student Interface</h1>
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">Connection</div>
+                <div id="student-status" class="status disconnected">Disconnected</div>
+                <div>
+                    <span>Session ID:</span>
+                    <span id="student-session-id">None</span>
+                </div>
+                <div>
+                    <span>Role: <span class="badge student">student</span></span>
+                </div>
+                <div>
+                    <span>Language:</span>
+                    <span id="student-language" class="badge">es-ES</span>
+                </div>
+                <div style="margin-top: 16px;">
+                    <button id="student-connect-btn">Connect</button>
+                    <button id="student-disconnect-btn" class="disconnect" disabled>Disconnect</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">Language Selection</div>
+                <div>
+                    <div>Preferred Language:</div>
+                    <div class="language-buttons">
+                        <button id="student-en-btn">English</button>
+                        <button id="student-es-btn" class="active">Spanish</button>
+                        <button id="student-fr-btn">French</button>
+                        <button id="student-de-btn">German</button>
                     </div>
                 </div>
-                <div style="margin-top: 12px; background-color: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 4px solid #3498db;">
-                    <span>Active TTS Service: </span>
-                    <span id="tts-service" class="badge" style="font-size: 1em; padding: 4px 8px; background-color: #3498db; color: white;">openai</span>
+            </div>
+            
+            <div class="card" style="background-color: #f8f9fa; border-left: 4px solid #3498db;">
+                <div class="card-title" style="color: #3498db;">TTS Service (Teacher Controlled)</div>
+                <div>
+                    <div style="font-size: 0.9em; color: #555; margin-bottom: 12px;">
+                        The teacher controls the Text-to-Speech service selection for all students. 
+                        You cannot change this setting.
+                    </div>
+                    <div style="display: flex; align-items: center; background-color: rgba(52, 152, 219, 0.1); padding: 10px; border-radius: 4px;">
+                        <span>Current Teacher-Selected TTS: </span>
+                        <span id="student-tts-service" class="badge" style="margin-left: 10px; background-color: #3498db; color: white; padding: 5px 10px; border-radius: 20px;">Loading...</span>
+                    </div>
                 </div>
             </div>
         </div>
+        
+        <div class="card">
+            <div class="card-title">Received Translations</div>
+            <div id="student-translations" class="logs">
+                <div style="text-align: center; color: #666; padding: 20px;">
+                    No translations received yet. Connect as a student and wait for the teacher to send a message.
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">Debug Logs</div>
+            <div id="student-logs" class="logs"></div>
+        </div>
     </div>
-    
-    <div class="card">
-        <div class="card-title">Test Message</div>
-        <textarea id="message" rows="4" placeholder="Type a test message to send through the WebSocket connection..."></textarea>
-        <button id="send-btn" disabled>Send Message</button>
-    </div>
-    
-    <div class="card">
-        <div class="card-title">WebSocket Logs</div>
-        <div id="logs" class="logs"></div>
+
+    <div id="both-tab" class="tab-content">
+        <h1>Monitoring View</h1>
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">Teacher Connection</div>
+                <div id="monitor-teacher-status" class="status disconnected">Disconnected</div>
+                <div>
+                    <span>Session ID:</span>
+                    <span id="monitor-teacher-session-id">None</span>
+                </div>
+                <div>
+                    <span>Role: <span class="badge teacher">teacher</span></span>
+                </div>
+                <div>
+                    <span>Language:</span>
+                    <span id="monitor-teacher-language" class="badge">en-US</span>
+                </div>
+                <div style="margin-top: 16px;">
+                    <button id="monitor-teacher-connect-btn">Connect Teacher</button>
+                    <button id="monitor-teacher-disconnect-btn" class="disconnect" disabled>Disconnect</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">Student Connection</div>
+                <div id="monitor-student-status" class="status disconnected">Disconnected</div>
+                <div>
+                    <span>Session ID:</span>
+                    <span id="monitor-student-session-id">None</span>
+                </div>
+                <div>
+                    <span>Role: <span class="badge student">student</span></span>
+                </div>
+                <div>
+                    <span>Language:</span>
+                    <span id="monitor-student-language" class="badge">es-ES</span>
+                </div>
+                <div style="margin-top: 16px;">
+                    <button id="monitor-student-connect-btn">Connect Student</button>
+                    <button id="monitor-student-disconnect-btn" class="disconnect" disabled>Disconnect</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">Test Message</div>
+                <textarea id="monitor-message" rows="3" placeholder="Type a test message..."></textarea>
+                <button id="monitor-send-btn" disabled>Send as Teacher</button>
+            </div>
+            
+            <div class="card">
+                <div class="card-title">Translation Results</div>
+                <div id="monitor-translations" class="logs">
+                    <div style="text-align: center; color: #666; padding: 20px;">
+                        Connect both teacher and student, then send a test message.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">System Logs</div>
+            <div id="monitor-logs" class="logs"></div>
+        </div>
     </div>
 
     <script>
         // WebSocket Client Class
         class WebSocketClient {
-            constructor(role = 'diagnostic', language = 'en-US', ttsServiceType = 'openai') {
+            constructor(role = 'teacher', language = 'en-US', ttsServiceType = 'browser') {
                 this.ws = null;
                 this.sessionId = null;
                 this.role = role;
@@ -398,6 +619,18 @@
                 return this.sessionId;
             }
             
+            getRole() {
+                return this.role;
+            }
+            
+            getLanguage() {
+                return this.language;
+            }
+            
+            getTtsServiceType() {
+                return this.ttsServiceType;
+            }
+            
             setTtsServiceType(ttsServiceType) {
                 this.ttsServiceType = ttsServiceType;
                 
@@ -431,29 +664,98 @@
             element.scrollTop = element.scrollHeight;
         }
         
-        function updateSystemCheck(id, status, message) {
-            const statusElement = document.getElementById(id + '-status');
-            const messageElement = document.getElementById(id + '-message');
+        function getLanguageName(code) {
+            const languages = {
+                'en-US': 'English',
+                'es-ES': 'Spanish',
+                'fr-FR': 'French',
+                'de-DE': 'German'
+            };
             
-            if (statusElement && messageElement) {
-                statusElement.className = `check-status ${status}`;
-                messageElement.textContent = message;
-            }
+            return languages[code] || code;
         }
         
-        // Diagnostics Interface Setup
-        function setupDiagnosticsInterface() {
-            const statusEl = document.getElementById('connection-status');
-            const sessionIdEl = document.getElementById('session-id');
-            const connectBtn = document.getElementById('connect-btn');
-            const disconnectBtn = document.getElementById('disconnect-btn');
-            const messageInput = document.getElementById('message');
-            const sendBtn = document.getElementById('send-btn');
-            const logsEl = document.getElementById('logs');
-            const ttsServiceEl = document.getElementById('tts-service');
+        function updateSystemCheck(id, status, message) {
+            const statusElement = document.getElementById(id);
+            const messageElement = document.getElementById(id + '-message');
             
-            // Initialize with diagnostic role and OpenAI TTS
-            const client = new WebSocketClient('diagnostic', 'en-US', 'openai');
+            statusElement.className = `check-status ${status}`;
+            messageElement.textContent = message;
+        }
+        
+        function addTranslation(element, translation) {
+            // Clear initial message if this is the first translation
+            if (element.querySelector('div[style*="text-align: center"]')) {
+                element.innerHTML = '';
+            }
+            
+            const translationItem = document.createElement('div');
+            translationItem.className = 'translation-card';
+            
+            const sourceEl = document.createElement('div');
+            sourceEl.className = 'translation-source';
+            
+            const fromLang = getLanguageName(translation.originalLanguage || 'en-US');
+            const toLang = getLanguageName(translation.translatedLanguage || 'es-ES');
+            
+            sourceEl.textContent = `${new Date().toLocaleTimeString()} · ${fromLang} → ${toLang}`;
+            
+            const textEl = document.createElement('div');
+            textEl.className = 'translation-text';
+            textEl.textContent = translation.text || '';
+            
+            translationItem.appendChild(sourceEl);
+            translationItem.appendChild(textEl);
+            
+            element.appendChild(translationItem);
+            element.scrollTop = element.scrollHeight;
+        }
+        
+        // Tab Switching
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const tabId = tab.getAttribute('data-tab');
+                    
+                    // Update tab active state
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Update tab content visibility
+                    tabContents.forEach(content => {
+                        if (content.id === `${tabId}-tab`) {
+                            content.classList.add('active');
+                        } else {
+                            content.classList.remove('active');
+                        }
+                    });
+                });
+            });
+        }
+        
+        // Teacher Interface
+        function setupTeacherInterface() {
+            const statusEl = document.getElementById('teacher-status');
+            const sessionIdEl = document.getElementById('teacher-session-id');
+            const languageEl = document.getElementById('teacher-language');
+            const connectBtn = document.getElementById('teacher-connect-btn');
+            const disconnectBtn = document.getElementById('teacher-disconnect-btn');
+            const enBtn = document.getElementById('teacher-en-btn');
+            const esBtn = document.getElementById('teacher-es-btn');
+            const frBtn = document.getElementById('teacher-fr-btn');
+            const deBtn = document.getElementById('teacher-de-btn');
+            const ttsBrowserBtn = document.getElementById('teacher-tts-browser-btn');
+            const ttsOpenaiBtn = document.getElementById('teacher-tts-openai-btn');
+            const ttsSilentBtn = document.getElementById('teacher-tts-silent-btn');
+            const currentTtsServiceEl = document.getElementById('current-tts-service');
+            const messageInput = document.getElementById('teacher-message');
+            const sendBtn = document.getElementById('teacher-send-btn');
+            const logsEl = document.getElementById('teacher-logs');
+            
+            const client = new WebSocketClient('teacher', 'en-US', 'browser');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -466,20 +768,74 @@
             sendBtn.addEventListener('click', () => {
                 const text = messageInput.value.trim();
                 if (text) {
-                    // Create a generic message to send for testing
-                    const message = {
-                        type: 'test',
-                        text: text,
-                        timestamp: Date.now()
-                    };
-                    
-                    if (client.send(message)) {
-                        addLog(logsEl, `Sent test message: ${text}`, 'success');
+                    if (client.sendTranscription(text)) {
+                        addLog(logsEl, `Sent transcription: ${text}`, 'success');
                         messageInput.value = '';
                     }
                 } else {
                     addLog(logsEl, 'Cannot send empty message', 'error');
                 }
+            });
+            
+            enBtn.addEventListener('click', () => {
+                enBtn.classList.add('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'en-US');
+                languageEl.textContent = 'en-US';
+            });
+            
+            esBtn.addEventListener('click', () => {
+                esBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'es-ES');
+                languageEl.textContent = 'es-ES';
+            });
+            
+            frBtn.addEventListener('click', () => {
+                frBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'fr-FR');
+                languageEl.textContent = 'fr-FR';
+            });
+            
+            deBtn.addEventListener('click', () => {
+                deBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                client.register('teacher', 'de-DE');
+                languageEl.textContent = 'de-DE';
+            });
+            
+            // TTS Service selection
+            ttsBrowserBtn.addEventListener('click', () => {
+                ttsBrowserBtn.classList.add('active');
+                ttsOpenaiBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('browser');
+                currentTtsServiceEl.textContent = 'browser';
+            });
+            
+            ttsOpenaiBtn.addEventListener('click', () => {
+                ttsOpenaiBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('openai');
+                currentTtsServiceEl.textContent = 'openai';
+            });
+            
+            ttsSilentBtn.addEventListener('click', () => {
+                ttsSilentBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsOpenaiBtn.classList.remove('active');
+                client.setTtsServiceType('silent');
+                currentTtsServiceEl.textContent = 'silent';
             });
             
             client.addEventListener('status', (status) => {
@@ -506,8 +862,6 @@
                         const sessionId = status.split(': ')[1];
                         sessionIdEl.textContent = sessionId;
                         updateSystemCheck('ws-protocol', 'success', 'Protocol implementation is working correctly');
-                    } else if (status.includes('TTS service')) {
-                        updateSystemCheck('ws-translations', 'success', 'TTS service configuration is working properly');
                     }
                 }
             });
@@ -516,10 +870,8 @@
                 if (message && message.type) {
                     addLog(logsEl, `Received ${message.type} message: ${JSON.stringify(message)}`, 'success');
                     
-                    // Check for TTS service info in messages
-                    if ((message.type === 'tts-update' || message.type === 'register-confirm') && 
-                        message.settings && message.settings.ttsServiceType) {
-                        ttsServiceEl.textContent = message.settings.ttsServiceType;
+                    if (message.type === 'connection') {
+                        // Server connection successful
                     }
                 }
             });
@@ -529,19 +881,279 @@
                 updateSystemCheck('ws-server', 'error', 'Failed to connect to WebSocket server');
             });
             
-            addLog(logsEl, 'WebSocket diagnostics interface initialized. Click "Connect" to start.');
+            addLog(logsEl, 'Teacher interface initialized. Click "Connect" to start.');
             
             return client;
         }
         
-        // Initialize the Interface
-        function init() {
-            const client = setupDiagnosticsInterface();
+        // Student Interface
+        function setupStudentInterface() {
+            const statusEl = document.getElementById('student-status');
+            const sessionIdEl = document.getElementById('student-session-id');
+            const languageEl = document.getElementById('student-language');
+            const connectBtn = document.getElementById('student-connect-btn');
+            const disconnectBtn = document.getElementById('student-disconnect-btn');
+            const enBtn = document.getElementById('student-en-btn');
+            const esBtn = document.getElementById('student-es-btn');
+            const frBtn = document.getElementById('student-fr-btn');
+            const deBtn = document.getElementById('student-de-btn');
+            const translationsEl = document.getElementById('student-translations');
+            const logsEl = document.getElementById('student-logs');
+            const ttsServiceEl = document.getElementById('student-tts-service'); // New element for displaying teacher's TTS service
             
-            // Perform initial system checks
+            const client = new WebSocketClient('student', 'es-ES');
+            
+            connectBtn.addEventListener('click', () => {
+                client.connect();
+            });
+            
+            disconnectBtn.addEventListener('click', () => {
+                client.disconnect();
+            });
+            
+            enBtn.addEventListener('click', () => {
+                enBtn.classList.add('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'en-US');
+                languageEl.textContent = 'en-US';
+            });
+            
+            esBtn.addEventListener('click', () => {
+                esBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'es-ES');
+                languageEl.textContent = 'es-ES';
+            });
+            
+            frBtn.addEventListener('click', () => {
+                frBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'fr-FR');
+                languageEl.textContent = 'fr-FR';
+            });
+            
+            deBtn.addEventListener('click', () => {
+                deBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                client.register('student', 'de-DE');
+                languageEl.textContent = 'de-DE';
+            });
+            
+            client.addEventListener('status', (status) => {
+                if (typeof status === 'string') {
+                    addLog(logsEl, status);
+                    
+                    if (status.startsWith('Connected')) {
+                        setStatus(statusEl, 'connected');
+                        connectBtn.disabled = true;
+                        disconnectBtn.disabled = false;
+                    } else if (status.startsWith('Connecting')) {
+                        setStatus(statusEl, 'connecting');
+                        connectBtn.disabled = true;
+                        disconnectBtn.disabled = true;
+                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
+                        setStatus(statusEl, 'disconnected');
+                        connectBtn.disabled = false;
+                        disconnectBtn.disabled = true;
+                    } else if (status.startsWith('Session ID')) {
+                        const sessionId = status.split(': ')[1];
+                        sessionIdEl.textContent = sessionId;
+                    }
+                }
+            });
+            
+            client.addEventListener('message', (message) => {
+                if (message && message.type) {
+                    addLog(logsEl, `Received ${message.type} message: ${JSON.stringify(message)}`, 'success');
+                    
+                    // Check for TTS service updates from the server
+                    if (message.type === 'tts-update' && message.ttsServiceType) {
+                        ttsServiceEl.textContent = message.ttsServiceType;
+                        addLog(logsEl, `Teacher changed TTS service to: ${message.ttsServiceType}`, 'info');
+                    }
+                    // Also check for registration confirmation that includes TTS settings
+                    else if (message.type === 'register-confirm' && message.settings && message.settings.ttsServiceType) {
+                        ttsServiceEl.textContent = message.settings.ttsServiceType;
+                        addLog(logsEl, `Current TTS service is: ${message.settings.ttsServiceType}`, 'info');
+                    }
+                }
+            });
+            
+            client.addEventListener('translation', (translation) => {
+                addLog(logsEl, `Received translation: ${translation.text}`, 'success');
+                addTranslation(translationsEl, translation);
+                updateSystemCheck('ws-translations', 'success', 'Translation system is working properly');
+            });
+            
+            client.addEventListener('error', (error) => {
+                addLog(logsEl, typeof error === 'string' ? error : 'WebSocket error', 'error');
+            });
+            
+            addLog(logsEl, 'Student interface initialized. Click "Connect" to start.');
+            
+            return client;
+        }
+        
+        // Monitor Interface
+        function setupMonitorInterface() {
+            const teacherStatusEl = document.getElementById('monitor-teacher-status');
+            const teacherSessionIdEl = document.getElementById('monitor-teacher-session-id');
+            const teacherLanguageEl = document.getElementById('monitor-teacher-language');
+            const teacherConnectBtn = document.getElementById('monitor-teacher-connect-btn');
+            const teacherDisconnectBtn = document.getElementById('monitor-teacher-disconnect-btn');
+            
+            const studentStatusEl = document.getElementById('monitor-student-status');
+            const studentSessionIdEl = document.getElementById('monitor-student-session-id');
+            const studentLanguageEl = document.getElementById('monitor-student-language');
+            const studentConnectBtn = document.getElementById('monitor-student-connect-btn');
+            const studentDisconnectBtn = document.getElementById('monitor-student-disconnect-btn');
+            
+            const messageInput = document.getElementById('monitor-message');
+            const sendBtn = document.getElementById('monitor-send-btn');
+            const translationsEl = document.getElementById('monitor-translations');
+            const logsEl = document.getElementById('monitor-logs');
+            
+            const teacherClient = new WebSocketClient('teacher', 'en-US');
+            const studentClient = new WebSocketClient('student', 'es-ES');
+            
+            teacherConnectBtn.addEventListener('click', () => {
+                teacherClient.connect();
+            });
+            
+            teacherDisconnectBtn.addEventListener('click', () => {
+                teacherClient.disconnect();
+            });
+            
+            studentConnectBtn.addEventListener('click', () => {
+                studentClient.connect();
+            });
+            
+            studentDisconnectBtn.addEventListener('click', () => {
+                studentClient.disconnect();
+            });
+            
+            sendBtn.addEventListener('click', () => {
+                const text = messageInput.value.trim();
+                if (text && teacherClient.isConnected()) {
+                    if (teacherClient.sendTranscription(text)) {
+                        addLog(logsEl, `Sent transcription as teacher: ${text}`, 'success');
+                        messageInput.value = '';
+                    }
+                } else {
+                    if (!text) {
+                        addLog(logsEl, 'Cannot send empty message', 'error');
+                    } else {
+                        addLog(logsEl, 'Teacher not connected', 'error');
+                    }
+                }
+            });
+            
+            teacherClient.addEventListener('status', (status) => {
+                if (typeof status === 'string') {
+                    addLog(logsEl, `Teacher: ${status}`);
+                    
+                    if (status.startsWith('Connected')) {
+                        setStatus(teacherStatusEl, 'connected');
+                        teacherConnectBtn.disabled = true;
+                        teacherDisconnectBtn.disabled = false;
+                        
+                        // Enable send button if both are connected
+                        sendBtn.disabled = !(teacherClient.isConnected() && studentClient.isConnected());
+                    } else if (status.startsWith('Connecting')) {
+                        setStatus(teacherStatusEl, 'connecting');
+                        teacherConnectBtn.disabled = true;
+                        teacherDisconnectBtn.disabled = true;
+                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
+                        setStatus(teacherStatusEl, 'disconnected');
+                        teacherConnectBtn.disabled = false;
+                        teacherDisconnectBtn.disabled = true;
+                        sendBtn.disabled = true;
+                    } else if (status.startsWith('Session ID')) {
+                        const sessionId = status.split(': ')[1];
+                        teacherSessionIdEl.textContent = sessionId;
+                    }
+                }
+            });
+            
+            studentClient.addEventListener('status', (status) => {
+                if (typeof status === 'string') {
+                    addLog(logsEl, `Student: ${status}`);
+                    
+                    if (status.startsWith('Connected')) {
+                        setStatus(studentStatusEl, 'connected');
+                        studentConnectBtn.disabled = true;
+                        studentDisconnectBtn.disabled = false;
+                        
+                        // Enable send button if both are connected
+                        sendBtn.disabled = !(teacherClient.isConnected() && studentClient.isConnected());
+                    } else if (status.startsWith('Connecting')) {
+                        setStatus(studentStatusEl, 'connecting');
+                        studentConnectBtn.disabled = true;
+                        studentDisconnectBtn.disabled = true;
+                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
+                        setStatus(studentStatusEl, 'disconnected');
+                        studentConnectBtn.disabled = false;
+                        studentDisconnectBtn.disabled = true;
+                        sendBtn.disabled = true;
+                    } else if (status.startsWith('Session ID')) {
+                        const sessionId = status.split(': ')[1];
+                        studentSessionIdEl.textContent = sessionId;
+                    }
+                }
+            });
+            
+            teacherClient.addEventListener('message', (message) => {
+                if (message && message.type) {
+                    addLog(logsEl, `Teacher received ${message.type} message: ${JSON.stringify(message)}`, 'success');
+                }
+            });
+            
+            studentClient.addEventListener('message', (message) => {
+                if (message && message.type) {
+                    addLog(logsEl, `Student received ${message.type} message: ${JSON.stringify(message)}`, 'success');
+                }
+            });
+            
+            studentClient.addEventListener('translation', (translation) => {
+                addLog(logsEl, `Student received translation: ${translation.text}`, 'success');
+                addTranslation(translationsEl, translation);
+                updateSystemCheck('ws-translations', 'success', 'Translation system is working properly');
+            });
+            
+            teacherClient.addEventListener('error', (error) => {
+                addLog(logsEl, `Teacher error: ${typeof error === 'string' ? error : 'WebSocket error'}`, 'error');
+            });
+            
+            studentClient.addEventListener('error', (error) => {
+                addLog(logsEl, `Student error: ${typeof error === 'string' ? error : 'WebSocket error'}`, 'error');
+            });
+            
+            addLog(logsEl, 'Monitor interface initialized. Connect both teacher and student to begin testing.');
+            
+            return { teacherClient, studentClient };
+        }
+        
+        // Main Initialization
+        function init() {
+            setupTabs();
+            const teacherClient = setupTeacherInterface();
+            const studentClient = setupStudentInterface();
+            const monitorClients = setupMonitorInterface();
+            
+            // Set initial system check status
             updateSystemCheck('ws-server', 'pending', 'Checking WebSocket server status...');
             updateSystemCheck('ws-protocol', 'pending', 'Waiting for connection to verify protocol...');
-            updateSystemCheck('ws-translations', 'pending', 'Waiting for connection to verify TTS service...');
+            updateSystemCheck('ws-translations', 'pending', 'Waiting for teacher and student to connect...');
+            
+            // Perform additional diagnostics as needed
         }
         
         // Initialize when the page is loaded
