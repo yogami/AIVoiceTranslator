@@ -259,6 +259,18 @@ export class WebSocketServer {
   private async handleTranscriptionMessage(ws: WebSocketClient, message: any): Promise<void> {
     console.log('Received transcription from', this.roles.get(ws), ':', message.text);
     
+    // Start tracking latency when transcription is received
+    const startTime = Date.now();
+    const latencyTracking = {
+      start: startTime,
+      components: {
+        preparation: 0,
+        translation: 0,
+        tts: 0,
+        processing: 0
+      }
+    };
+    
     const role = this.roles.get(ws);
     const sessionId = this.sessionIds.get(ws);
     
@@ -324,6 +336,9 @@ export class WebSocketServer {
         const ttsServiceToUse = 'openai';
         console.log(`Using OpenAI TTS service for language '${targetLanguage}' (overriding teacher's selection)`);
         
+        // Measure translation and TTS latency
+        const translationStartTime = Date.now();
+        
         // Perform the translation with OpenAI TTS service
         const result = await speechTranslationService.translateSpeech(
           Buffer.from(''), // Empty buffer as we already have the text
@@ -331,6 +346,25 @@ export class WebSocketServer {
           targetLanguage,
           message.text, // Use the pre-transcribed text
           { ttsServiceType: ttsServiceToUse } // Force OpenAI TTS service
+        );
+        
+        // Record the translation/TTS latency
+        const translationEndTime = Date.now();
+        const elapsedTime = translationEndTime - translationStartTime;
+        
+        // Since this includes both translation and TTS, we'll estimate the split
+        // TTS typically takes about 70% of the time
+        const ttsTime = Math.round(elapsedTime * 0.7);
+        const translationTime = elapsedTime - ttsTime;
+        
+        latencyTracking.components.translation = Math.max(
+          latencyTracking.components.translation,
+          translationTime
+        );
+        
+        latencyTracking.components.tts = Math.max(
+          latencyTracking.components.tts,
+          ttsTime
         );
         
         // Store the full result object for this language
@@ -349,6 +383,10 @@ export class WebSocketServer {
       }
     }
     
+    // Calculate processing latency before sending translations
+    const processingEndTime = Date.now();
+    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
+    
     // Send translations to students
     studentConnections.forEach(client => {
       const studentLanguage = this.languages.get(client);
@@ -359,14 +397,27 @@ export class WebSocketServer {
       // Always use OpenAI TTS service - ignore any other settings
       const ttsServiceType = 'openai';
       
-      // Create translation message with audio data support
+      // Calculate total latency up to this point
+      const currentTime = Date.now();
+      const totalLatency = currentTime - startTime;
+      
+      // Create translation message with audio data support and latency metrics
       const translationMessage: any = {
         type: 'translation',
         text: translatedText,
         originalText: message.text,
         sourceLanguage: teacherLanguage,
         targetLanguage: studentLanguage,
-        ttsServiceType: ttsServiceType // Include the service type for client reference
+        ttsServiceType: ttsServiceType, // Include the service type for client reference
+        latency: {
+          total: totalLatency,
+          components: {
+            translation: latencyTracking.components.translation,
+            tts: latencyTracking.components.tts,
+            processing: latencyTracking.components.processing,
+            network: 0 // Will be calculated on client side
+          }
+        }
       };
       
       // If we have a translation result with audio buffer, include it
