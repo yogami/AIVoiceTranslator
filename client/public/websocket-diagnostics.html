@@ -231,7 +231,17 @@
                 <strong>Connection Latency:</strong>
                 <span id="ws-latency-message">Not measured yet</span>
                 <span id="ws-latency-value" style="margin-left: 10px; font-weight: bold;"></span>
+                <div id="ws-latency-detail" style="font-size: 0.85em; margin-top: 4px; color: #666;"></div>
             </div>
+        </div>
+        <div class="latency-chart-container" style="margin-top: 15px; padding: 10px; border: 1px solid #e0e0e0; border-radius: 4px; background-color: #f9f9f9;">
+            <h3 style="margin-top: 0; margin-bottom: 10px; font-size: 14px; color: #555;">Latency History</h3>
+            <div id="latency-chart" style="height: 150px; width: 100%; position: relative;">
+                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; color: #999; font-style: italic;">
+                    Connect to see latency history
+                </div>
+            </div>
+            <div id="chart-data" style="font-family: monospace; font-size: 12px; margin-top: 10px; white-space: pre; overflow: auto; max-height: 80px;"></div>
         </div>
     </div>
 
@@ -809,10 +819,192 @@
             // Update chart if it exists
             const latencyChart = document.getElementById('latency-chart');
             if (latencyChart) {
-                // In a real implementation, we would update the chart here
-                // using a charting library like Chart.js
+                // Clear any "connect to see" message
+                latencyChart.innerHTML = '';
                 
-                // For now, we'll just update a simple text representation
+                // Create a simple ASCII visualization
+                const maxHeight = 120;
+                const width = latencyChartData.labels.length * 30;
+                
+                // Find the maximum value for scaling
+                const allValues = [...latencyChartData.totalLatency];
+                const maxValue = Math.max(...allValues, 500); // Minimum scale of 500ms
+                
+                // Create the visualization container
+                const visualization = document.createElement('div');
+                visualization.style.display = 'flex';
+                visualization.style.alignItems = 'flex-end';
+                visualization.style.height = '120px';
+                visualization.style.width = '100%';
+                visualization.style.overflowX = 'auto';
+                visualization.style.paddingBottom = '5px';
+                visualization.style.borderBottom = '1px solid #ddd';
+                
+                // Create the background grid
+                const gridContainer = document.createElement('div');
+                gridContainer.style.position = 'absolute';
+                gridContainer.style.top = '0';
+                gridContainer.style.left = '0';
+                gridContainer.style.right = '0';
+                gridContainer.style.height = '120px';
+                gridContainer.style.zIndex = '1';
+                gridContainer.style.borderTop = '1px dashed #eee';
+                gridContainer.style.borderBottom = '1px solid #ddd';
+                
+                // Add grid lines
+                for (let i = 1; i < 4; i++) {
+                    const gridLine = document.createElement('div');
+                    gridLine.style.position = 'absolute';
+                    gridLine.style.left = '0';
+                    gridLine.style.right = '0';
+                    gridLine.style.top = `${i * 30}px`;
+                    gridLine.style.borderBottom = '1px dashed #eee';
+                    gridLine.style.height = '1px';
+                    
+                    // Add label
+                    const label = document.createElement('span');
+                    label.style.position = 'absolute';
+                    label.style.right = '0';
+                    label.style.top = '-9px';
+                    label.style.fontSize = '9px';
+                    label.style.color = '#999';
+                    label.textContent = `${Math.round(maxValue * (1 - i/4))}ms`;
+                    
+                    gridLine.appendChild(label);
+                    gridContainer.appendChild(gridLine);
+                }
+                
+                // Add baseline 
+                const baseline = document.createElement('div');
+                baseline.style.position = 'absolute';
+                baseline.style.left = '0';
+                baseline.style.right = '0';
+                baseline.style.bottom = '0';
+                baseline.style.borderBottom = '1px solid #ddd';
+                baseline.style.height = '1px';
+                
+                // Add baseline label
+                const baselineLabel = document.createElement('span');
+                baselineLabel.style.position = 'absolute';
+                baselineLabel.style.right = '0';
+                baselineLabel.style.bottom = '-9px';
+                baselineLabel.style.fontSize = '9px';
+                baselineLabel.style.color = '#999';
+                baselineLabel.textContent = '0ms';
+                
+                baseline.appendChild(baselineLabel);
+                gridContainer.appendChild(baseline);
+                
+                // Add container for bars
+                const barsContainer = document.createElement('div');
+                barsContainer.style.display = 'flex';
+                barsContainer.style.alignItems = 'flex-end';
+                barsContainer.style.height = '100%';
+                barsContainer.style.position = 'relative';
+                barsContainer.style.zIndex = '2';
+                barsContainer.style.minWidth = '100%';
+                
+                // Create bars for each data point
+                latencyChartData.labels.forEach((label, index) => {
+                    const total = latencyChartData.totalLatency[index];
+                    const network = latencyChartData.networkLatency[index];
+                    const server = latencyChartData.serverLatency[index];
+                    
+                    // Scale heights
+                    const totalHeight = Math.min(100, (total / maxValue) * 100);
+                    const networkHeight = Math.min(100, (network / maxValue) * 100);
+                    const serverHeight = Math.min(100, (server / maxValue) * 100);
+                    
+                    // Create column container
+                    const column = document.createElement('div');
+                    column.style.display = 'flex';
+                    column.style.flexDirection = 'column';
+                    column.style.alignItems = 'center';
+                    column.style.width = '30px';
+                    column.style.marginRight = '4px';
+                    
+                    // Network latency bar
+                    const networkBar = document.createElement('div');
+                    networkBar.style.width = '16px';
+                    networkBar.style.height = `${networkHeight}%`;
+                    networkBar.style.backgroundColor = 'rgba(52, 152, 219, 0.6)';
+                    networkBar.style.borderTopLeftRadius = '2px';
+                    networkBar.style.borderTopRightRadius = '2px';
+                    networkBar.style.position = 'relative';
+                    networkBar.title = `Network: ${network}ms`;
+                    
+                    // Server latency bar
+                    const serverBar = document.createElement('div');
+                    serverBar.style.width = '16px';
+                    serverBar.style.height = `${serverHeight}%`;
+                    serverBar.style.backgroundColor = 'rgba(46, 204, 113, 0.6)';
+                    serverBar.style.position = 'relative';
+                    serverBar.title = `Server: ${server}ms`;
+                    
+                    // Label
+                    const timeEl = document.createElement('div');
+                    timeEl.style.fontSize = '9px';
+                    timeEl.style.marginTop = '4px';
+                    timeEl.style.color = '#666';
+                    timeEl.style.transform = 'rotate(45deg)';
+                    timeEl.style.transformOrigin = 'left top';
+                    timeEl.style.whiteSpace = 'nowrap';
+                    timeEl.textContent = label;
+                    
+                    // Add bars to column
+                    column.appendChild(networkBar);
+                    column.appendChild(serverBar);
+                    column.appendChild(timeEl);
+                    
+                    // Add column to container
+                    barsContainer.appendChild(column);
+                });
+                
+                // Add all elements to the chart
+                visualization.appendChild(gridContainer);
+                visualization.appendChild(barsContainer);
+                latencyChart.appendChild(visualization);
+                
+                // Add legend
+                const legend = document.createElement('div');
+                legend.style.display = 'flex';
+                legend.style.justifyContent = 'center';
+                legend.style.marginTop = '10px';
+                legend.style.fontSize = '11px';
+                
+                const networkLegend = document.createElement('div');
+                networkLegend.style.display = 'flex';
+                networkLegend.style.alignItems = 'center';
+                networkLegend.style.marginRight = '15px';
+                
+                const networkColor = document.createElement('div');
+                networkColor.style.width = '12px';
+                networkColor.style.height = '12px';
+                networkColor.style.backgroundColor = 'rgba(52, 152, 219, 0.6)';
+                networkColor.style.marginRight = '5px';
+                
+                networkLegend.appendChild(networkColor);
+                networkLegend.appendChild(document.createTextNode('Network'));
+                
+                const serverLegend = document.createElement('div');
+                serverLegend.style.display = 'flex';
+                serverLegend.style.alignItems = 'center';
+                
+                const serverColor = document.createElement('div');
+                serverColor.style.width = '12px';
+                serverColor.style.height = '12px';
+                serverColor.style.backgroundColor = 'rgba(46, 204, 113, 0.6)';
+                serverColor.style.marginRight = '5px';
+                
+                serverLegend.appendChild(serverColor);
+                serverLegend.appendChild(document.createTextNode('Server'));
+                
+                legend.appendChild(networkLegend);
+                legend.appendChild(serverLegend);
+                
+                latencyChart.appendChild(legend);
+                
+                // Update the text data display as well
                 const chartDataEl = document.getElementById('chart-data');
                 if (chartDataEl) {
                     chartDataEl.textContent = JSON.stringify({
