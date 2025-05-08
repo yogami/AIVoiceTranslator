@@ -277,8 +277,7 @@
                     'error': [],
                     'message': [],
                     'status': [],
-                    'translation': [],
-                    'latency': []
+                    'translation': []
                 };
             }
             
@@ -303,8 +302,7 @@
                         this.notifyListeners('open');
                         this.register(this.role, this.language);
                         
-                        // Start measuring latency
-                        this.startLatencyMeasurement();
+                        // Connection established
                     };
                     
                     this.ws.onmessage = (event) => {
@@ -347,8 +345,7 @@
                     return;
                 }
                 
-                // Stop latency measurement
-                this.stopLatencyMeasurement();
+                // Disconnect initiated
                 
                 this.ws.close(1000, 'User disconnected');
             }
@@ -504,13 +501,7 @@
             return languages[code] || code;
         }
         
-        function updateSystemCheck(id, status, message) {
-            const statusElement = document.getElementById(id);
-            const messageElement = document.getElementById(id + '-message');
-            
-            statusElement.className = `check-status ${status}`;
-            messageElement.textContent = message;
-        }
+        // System check function removed as requested
         
         function addTranslation(element, translation) {
             // Clear initial message if this is the first translation
@@ -651,7 +642,7 @@
                 // Connection error logged
             });
             
-            // Latency monitoring removed as requested
+            // No monitoring needed for this simplified interface
             
             addLog(logsEl, 'Teacher interface initialized. Click "Connect" to start.');
             
