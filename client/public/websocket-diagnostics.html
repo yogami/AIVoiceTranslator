@@ -271,9 +271,6 @@
                 this.language = language;
                 this.ttsServiceType = 'openai'; // Always use OpenAI TTS
                 this.connected = false;
-                this.latencyMs = null;
-                this.latencyTimer = null;
-                this.pingInterval = null;
                 this.eventListeners = {
                     'open': [],
                     'close': [],
@@ -475,107 +472,7 @@
                 return false;
             }
             
-            // Start measuring latency
-            startLatencyMeasurement() {
-                if (this.pingInterval) {
-                    clearInterval(this.pingInterval);
-                }
-                
-                // Measure latency every 5 seconds
-                this.pingInterval = setInterval(() => {
-                    this.measureLatency();
-                }, 5000);
-                
-                // Do an initial measurement immediately
-                this.measureLatency();
-            }
-            
-            // Stop measuring latency
-            stopLatencyMeasurement() {
-                if (this.pingInterval) {
-                    clearInterval(this.pingInterval);
-                    this.pingInterval = null;
-                }
-                
-                if (this.latencyTimer) {
-                    clearTimeout(this.latencyTimer);
-                    this.latencyTimer = null;
-                }
-                
-                this.latencyMs = null;
-                this.notifyListeners('latency', null);
-            }
-            
-            // Measure the current latency
-            measureLatency() {
-                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-                    this.stopLatencyMeasurement();
-                    return;
-                }
-                
-                // Cancel any existing timer
-                if (this.latencyTimer) {
-                    clearTimeout(this.latencyTimer);
-                }
-                
-                const startTime = Date.now();
-                
-                // Send a ping message
-                const pingMessage = {
-                    type: 'ping',
-                    timestamp: startTime
-                };
-                
-                this.send(pingMessage);
-                
-                // Add a special message handler for this ping
-                const messageHandler = (message) => {
-                    if (message.type === 'pong' && message.timestamp === startTime) {
-                        const endTime = Date.now();
-                        const latency = endTime - startTime;
-                        
-                        // Calculate server processing time if available
-                        let serverProcessingTime = 0;
-                        if (message.serverReceiveTime && message.serverSendTime) {
-                            serverProcessingTime = message.serverSendTime - message.serverReceiveTime;
-                        }
-                        
-                        // Store detailed latency information
-                        this.latencyMs = latency;
-                        this.latencyDetails = {
-                            totalMs: latency,
-                            serverProcessingMs: serverProcessingTime,
-                            networkLatencyMs: latency - serverProcessingTime,
-                            clientInfo: message.clientInfo || {},
-                            timestamp: new Date().toISOString()
-                        };
-                        
-                        // Notify listeners with basic latency value for backward compatibility
-                        this.notifyListeners('latency', latency);
-                        
-                        // Also notify with detailed information
-                        this.notifyListeners('latency-details', this.latencyDetails);
-                        
-                        // Remove this one-time handler
-                        this.removeEventListener('message', messageHandler);
-                        
-                        // Clear the timeout
-                        if (this.latencyTimer) {
-                            clearTimeout(this.latencyTimer);
-                            this.latencyTimer = null;
-                        }
-                    }
-                };
-                
-                this.addEventListener('message', messageHandler);
-                
-                // Set a timeout to detect when ping fails
-                this.latencyTimer = setTimeout(() => {
-                    this.removeEventListener('message', messageHandler);
-                    this.notifyListeners('latency', 'timeout');
-                    this.latencyTimer = null;
-                }, 3000); // 3 second timeout
-            }
+            // Latency measurement methods removed as requested
         }
         
         // Utility Functions
