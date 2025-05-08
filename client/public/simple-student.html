@@ -822,125 +822,127 @@
             <button id="disconnect-btn" disabled>Disconnect</button>
         </div>
         
+        <div class="container" style="margin-top: 20px;">
+            <div class="language-heading">Translated Speech</div>
+            <div id="translation-box" class="translation-box">
+                <p>Connect and select a language to receive translated speech from the teacher.</p>
+            </div>
+            
+            <div class="audio-controls">
+                <audio id="audio-player" controls style="display: none;"></audio>
+                <button id="play-button" disabled>
+                    <span class="play-icon">▶</span> Play Translation
+                </button>
+            </div>
+        </div>
+        
         <div>
             <div class="language-heading">Select Your Language</div>
-            <div class="language-categories">
-                <div class="language-category">
-                    <div class="category-header" data-category="european">
-                        <span>European Languages</span>
-                        <span class="chevron">▼</span>
-                    </div>
-                    <div class="category-content" id="european-languages">
-                        <div class="language-option" data-lang="en">English</div>
-                        <div class="language-option" data-lang="es">Spanish</div>
-                        <div class="language-option" data-lang="fr">French</div>
-                        <div class="language-option" data-lang="de">German</div>
-                        <div class="language-option" data-lang="it">Italian</div>
-                        <div class="language-option" data-lang="pt">Portuguese (EU)</div>
-                        <div class="language-option" data-lang="pt-BR">Portuguese (Brazil)</div>
-                        <div class="language-option" data-lang="nl">Dutch</div>
-                        <div class="language-option" data-lang="ru">Russian</div>
-                        <div class="language-option" data-lang="pl">Polish</div>
-                        <div class="language-option" data-lang="sv">Swedish</div>
-                        <div class="language-option" data-lang="cs">Czech</div>
-                        <div class="language-option" data-lang="da">Danish</div>
-                        <div class="language-option" data-lang="fi">Finnish</div>
-                        <div class="language-option" data-lang="el">Greek</div>
-                        <div class="language-option" data-lang="hu">Hungarian</div>
-                        <div class="language-option" data-lang="ro">Romanian</div>
-                        <div class="language-option" data-lang="no">Norwegian</div>
-                    </div>
+            <div class="dropdown-language-selection">
+                <div class="dropdown-menu">
+                    <select id="language-category-select" class="language-dropdown">
+                        <option value="" disabled selected>Choose a region...</option>
+                        <option value="european">European Languages</option>
+                        <option value="asian">Asian Languages</option>
+                        <option value="middle-east">Middle Eastern & African</option>
+                        <option value="americas">Americas</option>
+                        <option value="europe-variant">European Variants</option>
+                    </select>
+                    
+                    <select id="language-specific-select" class="language-dropdown">
+                        <option value="" disabled selected>Choose a language...</option>
+                        <!-- Will be populated based on category selection -->
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Hidden language categories data -->
+            <div class="hidden-language-data" style="display: none;">
+                <div id="european-data">
+                    <option value="en">English</option>
+                    <option value="es">Spanish</option>
+                    <option value="fr">French</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese (EU)</option>
+                    <option value="nl">Dutch</option>
+                    <option value="ru">Russian</option>
+                    <option value="pl">Polish</option>
+                    <option value="sv">Swedish</option>
+                    <option value="cs">Czech</option>
+                    <option value="da">Danish</option>
+                    <option value="fi">Finnish</option>
+                    <option value="el">Greek</option>
+                    <option value="hu">Hungarian</option>
+                    <option value="ro">Romanian</option>
+                    <option value="no">Norwegian</option>
                 </div>
                 
-                <div class="language-category">
-                    <div class="category-header" data-category="asian">
-                        <span>Asian Languages</span>
-                        <span class="chevron">▼</span>
-                    </div>
-                    <div class="category-content" id="asian-languages">
-                        <div class="language-option" data-lang="zh">Chinese (Simplified)</div>
-                        <div class="language-option" data-lang="zh-TW">Chinese (Traditional)</div>
-                        <div class="language-option" data-lang="ja">Japanese</div>
-                        <div class="language-option" data-lang="ko">Korean</div>
-                        <div class="language-option" data-lang="hi">Hindi</div>
-                        <div class="language-option" data-lang="bn">Bengali</div>
-                        <div class="language-option" data-lang="ur">Urdu</div>
-                        <div class="language-option" data-lang="te">Telugu</div>
-                        <div class="language-option" data-lang="mr">Marathi</div>
-                        <div class="language-option" data-lang="ta">Tamil</div>
-                        <div class="language-option" data-lang="gu">Gujarati</div>
-                        <div class="language-option" data-lang="kn">Kannada</div>
-                        <div class="language-option" data-lang="ml">Malayalam</div>
-                        <div class="language-option" data-lang="pa">Punjabi</div>
-                        <div class="language-option" data-lang="th">Thai</div>
-                        <div class="language-option" data-lang="vi">Vietnamese</div>
-                        <div class="language-option" data-lang="id">Indonesian</div>
-                        <div class="language-option" data-lang="ms">Malay</div>
-                        <div class="language-option" data-lang="jv">Javanese</div>
-                        <div class="language-option" data-lang="tl">Filipino</div>
-                        <div class="language-option" data-lang="km">Khmer</div>
-                        <div class="language-option" data-lang="my">Burmese</div>
-                        <div class="language-option" data-lang="lo">Lao</div>
-                        <div class="language-option" data-lang="fa">Persian</div>
-                        <div class="language-option" data-lang="ne">Nepali</div>
-                        <div class="language-option" data-lang="si">Sinhala</div>
-                        <div class="language-option" data-lang="mn">Mongolian</div>
-                    </div>
+                <div id="asian-data">
+                    <option value="zh">Chinese (Simplified)</option>
+                    <option value="zh-TW">Chinese (Traditional)</option>
+                    <option value="ja">Japanese</option>
+                    <option value="ko">Korean</option>
+                    <option value="hi">Hindi</option>
+                    <option value="bn">Bengali</option>
+                    <option value="ur">Urdu</option>
+                    <option value="te">Telugu</option>
+                    <option value="mr">Marathi</option>
+                    <option value="ta">Tamil</option>
+                    <option value="gu">Gujarati</option>
+                    <option value="kn">Kannada</option>
+                    <option value="ml">Malayalam</option>
+                    <option value="pa">Punjabi</option>
+                    <option value="th">Thai</option>
+                    <option value="vi">Vietnamese</option>
+                    <option value="id">Indonesian</option>
+                    <option value="ms">Malay</option>
+                    <option value="jv">Javanese</option>
+                    <option value="tl">Filipino</option>
+                    <option value="km">Khmer</option>
+                    <option value="my">Burmese</option>
+                    <option value="lo">Lao</option>
+                    <option value="fa">Persian</option>
+                    <option value="ne">Nepali</option>
+                    <option value="si">Sinhala</option>
+                    <option value="mn">Mongolian</option>
                 </div>
                 
-                <div class="language-category">
-                    <div class="category-header" data-category="middle-east">
-                        <span>Middle Eastern & African</span>
-                        <span class="chevron">▼</span>
-                    </div>
-                    <div class="category-content" id="middle-east-languages">
-                        <div class="language-option" data-lang="ar">Arabic</div>
-                        <div class="language-option" data-lang="ar-XA">Arabic (Multiple Regions)</div>
-                        <div class="language-option" data-lang="he">Hebrew</div>
-                        <div class="language-option" data-lang="tr">Turkish</div>
-                        <div class="language-option" data-lang="am">Amharic</div>
-                        <div class="language-option" data-lang="ha">Hausa</div>
-                        <div class="language-option" data-lang="sw">Swahili</div>
-                        <div class="language-option" data-lang="so">Somali</div>
-                        <div class="language-option" data-lang="yo">Yoruba</div>
-                        <div class="language-option" data-lang="zu">Zulu</div>
-                        <div class="language-option" data-lang="ig">Igbo</div>
-                        <div class="language-option" data-lang="af">Afrikaans</div>
-                    </div>
+                <div id="middle-east-data">
+                    <option value="ar">Arabic</option>
+                    <option value="ar-XA">Arabic (Multiple Regions)</option>
+                    <option value="he">Hebrew</option>
+                    <option value="tr">Turkish</option>
+                    <option value="am">Amharic</option>
+                    <option value="ha">Hausa</option>
+                    <option value="sw">Swahili</option>
+                    <option value="so">Somali</option>
+                    <option value="yo">Yoruba</option>
+                    <option value="zu">Zulu</option>
+                    <option value="ig">Igbo</option>
+                    <option value="af">Afrikaans</option>
                 </div>
                 
-                <div class="language-category">
-                    <div class="category-header" data-category="americas">
-                        <span>Americas</span>
-                        <span class="chevron">▼</span>
-                    </div>
-                    <div class="category-content" id="americas-languages">
-                        <div class="language-option" data-lang="pt-BR">Portuguese (Brazil)</div>
-                        <div class="language-option" data-lang="es-MX">Spanish (Mexico)</div>
-                        <div class="language-option" data-lang="es-419">Spanish (Latin America)</div>
-                        <div class="language-option" data-lang="fr-CA">French (Canada)</div>
-                        <div class="language-option" data-lang="en-CA">English (Canada)</div>
-                        <div class="language-option" data-lang="en-US">English (United States)</div>
-                        <div class="language-option" data-lang="qu">Quechua</div>
-                        <div class="language-option" data-lang="ay">Aymara</div>
-                        <div class="language-option" data-lang="gn">Guarani</div>
-                        <div class="language-option" data-lang="ht">Haitian Creole</div>
-                    </div>
+                <div id="americas-data">
+                    <option value="pt-BR">Portuguese (Brazil)</option>
+                    <option value="es-MX">Spanish (Mexico)</option>
+                    <option value="es-419">Spanish (Latin America)</option>
+                    <option value="fr-CA">French (Canada)</option>
+                    <option value="en-CA">English (Canada)</option>
+                    <option value="en-US">English (United States)</option>
+                    <option value="qu">Quechua</option>
+                    <option value="ay">Aymara</option>
+                    <option value="gn">Guarani</option>
+                    <option value="ht">Haitian Creole</option>
                 </div>
                 
-                <div class="language-category">
-                    <div class="category-header" data-category="europe-variant">
-                        <span>European Variants</span>
-                        <span class="chevron">▼</span>
-                    </div>
-                    <div class="category-content" id="europe-variant-languages">
-                        <div class="language-option" data-lang="en-GB">English (UK)</div>
-                        <div class="language-option" data-lang="pt-PT">Portuguese (Portugal)</div>
-                        <div class="language-option" data-lang="es-ES">Spanish (Spain)</div>
-                        <div class="language-option" data-lang="fr-FR">French (France)</div>
-                        <div class="language-option" data-lang="de-DE">German (Germany)</div>
-                        <div class="language-option" data-lang="it-IT">Italian (Italy)</div>
-                    </div>
+                <div id="europe-variant-data">
+                    <option value="en-GB">English (UK)</option>
+                    <option value="pt-PT">Portuguese (Portugal)</option>
+                    <option value="es-ES">Spanish (Spain)</option>
+                    <option value="fr-FR">French (France)</option>
+                    <option value="de-DE">German (Germany)</option>
+                    <option value="it-IT">Italian (Italy)</option>
                 </div>
             </div>
         </div>
@@ -973,20 +975,6 @@
                         Voice settings are managed by the teacher and synchronized for all students.
                     </p>
                 </div>
-            </div>
-        </div>
-        
-        <div class="container" style="margin-top: 30px;">
-            <div class="language-heading">Translated Speech</div>
-            <div id="translation-box" class="translation-box">
-                <p>Connect and select a language to receive translated speech from the teacher.</p>
-            </div>
-            
-            <div class="audio-controls">
-                <audio id="audio-player" controls style="display: none;"></audio>
-                <button id="play-button" disabled>
-                    <span class="play-icon">▶</span> Play Translation
-                </button>
             </div>
         </div>
         
@@ -2271,6 +2259,46 @@
                     font-style: italic;
                 }
                 
+                /* Dropdown Language Selection */
+                .dropdown-language-selection {
+                    margin: 20px 0;
+                    max-width: 800px;
+                }
+                
+                .dropdown-menu {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                    margin-bottom: 20px;
+                }
+                
+                .language-dropdown {
+                    flex: 1;
+                    min-width: 200px;
+                    padding: 12px 15px;
+                    font-size: 1rem;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 6px;
+                    background-color: white;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    appearance: none;
+                    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+                    background-repeat: no-repeat;
+                    background-position: right 15px center;
+                    background-size: 15px;
+                }
+                
+                .language-dropdown:hover, .language-dropdown:focus {
+                    border-color: var(--primary-color);
+                    outline: none;
+                    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+                }
+                
+                .hidden-language-data {
+                    display: none;
+                }
+                
                 /* Language Category UI Styles */
                 .language-categories {
                     display: flex;
@@ -2555,6 +2583,68 @@
             // Initialize by showing the selected language
             if (selectedLanguage) {
                 updateSelectedLanguageInUI(selectedLanguage);
+            }
+            
+            // Set up dropdown language selection
+            const categorySelect = document.getElementById('language-category-select');
+            const languageSpecificSelect = document.getElementById('language-specific-select');
+            
+            if (categorySelect && languageSpecificSelect) {
+                // When category changes, update language options
+                categorySelect.addEventListener('change', function() {
+                    const selectedCategory = this.value;
+                    
+                    // Clear current language options
+                    languageSpecificSelect.innerHTML = '<option value="" disabled selected>Choose a language...</option>';
+                    
+                    // Get languages from hidden data
+                    const languageData = document.getElementById(`${selectedCategory}-data`);
+                    if (languageData) {
+                        // Clone the options from data section and add to dropdown
+                        const options = languageData.innerHTML;
+                        languageSpecificSelect.innerHTML += options;
+                    }
+                    
+                    // Get current TTS service to check language support
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
+                    
+                    // Disable languages not supported by current TTS service
+                    if (window.LanguageSupport) {
+                        Array.from(languageSpecificSelect.options).forEach(option => {
+                            if (option.value && !window.LanguageSupport.isSupported(option.value, currentTtsService)) {
+                                option.disabled = true;
+                                option.text = option.text + ' (Not supported)';
+                            }
+                        });
+                    }
+                });
+                
+                // When specific language is selected
+                languageSpecificSelect.addEventListener('change', function() {
+                    const lang = this.value;
+                    if (!lang) return;
+                    
+                    // Update selected language
+                    selectedLanguage = lang;
+                    
+                    // Update the main language dropdown if it exists
+                    if (languageSelect) {
+                        const option = Array.from(languageSelect.options).find(opt => opt.value === lang);
+                        if (option) {
+                            languageSelect.value = lang;
+                        }
+                    }
+                    
+                    // Register with new language if connected
+                    if (isConnected) {
+                        registerAsStudent(lang);
+                        showSuccess(`Language changed to ${this.options[this.selectedIndex].text}`);
+                    }
+                    
+                    // Update UI
+                    updateSelectedLanguageInUI(lang);
+                });
             }
             
             log('Student page initialized with categorized language options');
