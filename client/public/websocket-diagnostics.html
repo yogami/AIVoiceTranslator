@@ -146,69 +146,14 @@
         .translation-text {
             font-size: 16px;
         }
-        .system-check {
-            padding: 15px;
-            background-color: #f5f5f5;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .system-check h2 {
-            margin-top: 0;
-        }
-        .check-item {
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-        }
-        .check-status {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            margin-right: 10px;
-            flex-shrink: 0;
-        }
-        .check-status.success {
-            background-color: #4CAF50;
-        }
-        .check-status.warning {
-            background-color: #ff9800;
-        }
-        .check-status.error {
-            background-color: #f44336;
-        }
-        .check-status.pending {
-            background-color: #9e9e9e;
-        }
-        .tabs {
-            display: flex;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-        .tab {
-            padding: 10px 15px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-        }
-        .tab.active {
-            border-bottom: 2px solid #4CAF50;
-            font-weight: bold;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
-        }
+        /* System check styles removed as requested */
+        /* Tab styles removed as they're no longer needed */
     </style>
 </head>
 <body>
     <!-- Latency history and system checks removed as requested -->
 
-    <div class="tabs">
-        <div class="tab active" data-tab="teacher">WebSocket Interface</div>
-    </div>
-
-    <div id="teacher-tab" class="tab-content active">
+    <div>
         <h1>WebSocket Interface</h1>
         <div class="grid">
             <div class="card">
@@ -531,30 +476,7 @@
             element.scrollTop = element.scrollHeight;
         }
         
-        // Tab Switching
-        function setupTabs() {
-            const tabs = document.querySelectorAll('.tab');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const tabId = tab.getAttribute('data-tab');
-                    
-                    // Update tab active state
-                    tabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-                    
-                    // Update tab content visibility
-                    tabContents.forEach(content => {
-                        if (content.id === `${tabId}-tab`) {
-                            content.classList.add('active');
-                        } else {
-                            content.classList.remove('active');
-                        }
-                    });
-                });
-            });
-        }
+        // Tab Switching functionality removed as requested
         
         // Teacher Interface
         function setupTeacherInterface() {
@@ -656,9 +578,8 @@
         
         // Main Initialization
         function init() {
-            setupTabs();
             const teacherClient = setupTeacherInterface();
-            // Initialization complete
+            // Initialization complete with streamlined interface
         }
         
         // Initialize when the page is loaded
