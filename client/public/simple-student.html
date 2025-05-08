@@ -1421,15 +1421,14 @@
                         playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
                     };
                     
-                    // Auto-play for OpenAI TTS when that service is selected
-                    if (ttsServiceType === 'openai') {
-                        log('Auto-playing OpenAI TTS audio');
-                        // Slight delay to make sure audio is loaded
-                        setTimeout(playAudio, 300);
-                        showSuccess('Playing OpenAI translation audio');
-                    } else {
-                        showSuccess('Server-generated audio ready to play');
-                    }
+                    // Auto-play for all TTS services - ensure audio plays automatically for all translations
+                    log('Auto-playing audio regardless of TTS service type');
+                    // Slight delay to make sure audio is loaded
+                    setTimeout(playAudio, 300);
+                    showSuccess('Auto-playing translation audio');
+                    
+                    // Make the play button visible in case auto-play fails
+                    playButton.style.display = 'block';
                     
                     // Show the comparison section now that we have some audio
                     comparisonSection.style.display = 'block';
@@ -1443,16 +1442,14 @@
                 // Explicitly instructed to use client speech synthesis
                 log('Server explicitly requested client-side speech synthesis');
                 
-                // Check if we have speech parameters with autoPlay flag
-                if (message && message.speechParams && message.speechParams.autoPlay === true) {
-                    log('Auto-playing browser speech synthesis due to autoPlay flag');
-                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
-                } else {
-                    // Still configure the play button to use speech synthesis when clicked
-                    log('Browser speech synthesis ready (click play button to hear)');
-                    playButton.disabled = false;
-                    playButton.onclick = () => generateSpeechFromText(text, targetLanguage, ttsServiceType);
-                }
+                // Always auto-play speech regardless of flag status
+                log('Auto-playing browser speech synthesis');
+                generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                
+                // Also make the play button available as a fallback
+                playButton.disabled = false;
+                playButton.style.display = 'block';
+                playButton.onclick = () => generateSpeechFromText(text, targetLanguage, ttsServiceType);
             } else if (ttsServiceType === 'openai' && !audioData) {
                 // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
                 log('OpenAI TTS selected but no audio data received - trying to request it from server');
@@ -1610,8 +1607,27 @@
                     // Map short language code to full code, or use as is if already in right format
                     utterance.lang = langCodeMap[targetLanguage] || targetLanguage;
                     
-                    // Speak the text
-                    speechSynthesis.speak(utterance);
+                    // Make sure any previous speech is stopped
+                    window.speechSynthesis.cancel();
+                    
+                    // Force speech to work around auto-play restrictions
+                    const forceSpeech = () => {
+                        try {
+                            // Speak the text
+                            window.speechSynthesis.speak(utterance);
+                            log('Browser speech synthesis started');
+                            showSuccess('Playing with Browser TTS');
+                        } catch (error) {
+                            log('Error starting speech synthesis: ' + error.message);
+                            showError('Speech synthesis error: ' + error.message);
+                        }
+                    };
+                    
+                    // Try immediate speech
+                    forceSpeech();
+                    
+                    // Also try with a small delay as fallback
+                    setTimeout(forceSpeech, 500);
                     
                     // Cache this for later comparison (empty data/url as we can't capture it)
                     audioCache.lastTranslation.audios['browser'] = {
@@ -1619,8 +1635,6 @@
                         data: null,
                         url: null
                     };
-                    
-                    showSuccess('Playing with Browser TTS');
                 } else {
                     showError('Browser does not support speech synthesis');
                 }
