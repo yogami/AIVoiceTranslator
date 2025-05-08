@@ -726,8 +726,27 @@
                         const endTime = Date.now();
                         const latency = endTime - startTime;
                         
+                        // Calculate server processing time if available
+                        let serverProcessingTime = 0;
+                        if (message.serverReceiveTime && message.serverSendTime) {
+                            serverProcessingTime = message.serverSendTime - message.serverReceiveTime;
+                        }
+                        
+                        // Store detailed latency information
                         this.latencyMs = latency;
+                        this.latencyDetails = {
+                            totalMs: latency,
+                            serverProcessingMs: serverProcessingTime,
+                            networkLatencyMs: latency - serverProcessingTime,
+                            clientInfo: message.clientInfo || {},
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        // Notify listeners with basic latency value for backward compatibility
                         this.notifyListeners('latency', latency);
+                        
+                        // Also notify with detailed information
+                        this.notifyListeners('latency-details', this.latencyDetails);
                         
                         // Remove this one-time handler
                         this.removeEventListener('message', messageHandler);
@@ -755,6 +774,55 @@
         function setStatus(element, status) {
             element.className = `status ${status}`;
             element.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+        
+        // Latency chart data
+        const latencyChartData = {
+            labels: [],
+            totalLatency: [],
+            networkLatency: [],
+            serverLatency: []
+        };
+        
+        // Update latency chart with new data
+        function updateLatencyChart(details) {
+            if (!details || !details.timestamp) return;
+            
+            // Keep only the last 20 data points
+            if (latencyChartData.labels.length >= 20) {
+                latencyChartData.labels.shift();
+                latencyChartData.totalLatency.shift();
+                latencyChartData.networkLatency.shift();
+                latencyChartData.serverLatency.shift();
+            }
+            
+            // Format timestamp
+            const timestamp = new Date(details.timestamp);
+            const timeLabel = timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            // Add new data point
+            latencyChartData.labels.push(timeLabel);
+            latencyChartData.totalLatency.push(details.totalMs);
+            latencyChartData.networkLatency.push(details.networkLatencyMs);
+            latencyChartData.serverLatency.push(details.serverProcessingMs);
+            
+            // Update chart if it exists
+            const latencyChart = document.getElementById('latency-chart');
+            if (latencyChart) {
+                // In a real implementation, we would update the chart here
+                // using a charting library like Chart.js
+                
+                // For now, we'll just update a simple text representation
+                const chartDataEl = document.getElementById('chart-data');
+                if (chartDataEl) {
+                    chartDataEl.textContent = JSON.stringify({
+                        time: timeLabel,
+                        total: details.totalMs,
+                        network: details.networkLatencyMs,
+                        server: details.serverProcessingMs
+                    }, null, 2);
+                }
+            }
         }
         
         function addLog(element, message, type = 'info') {
@@ -987,9 +1055,11 @@
                 if (latency === null) {
                     updateSystemCheck('ws-latency', 'pending', 'Not connected');
                     document.getElementById('ws-latency-value').textContent = '';
+                    document.getElementById('ws-latency-detail').textContent = '';
                 } else if (latency === 'timeout') {
                     updateSystemCheck('ws-latency', 'error', 'Ping timeout - server not responding');
                     document.getElementById('ws-latency-value').textContent = '';
+                    document.getElementById('ws-latency-detail').textContent = '';
                     addLog(logsEl, 'Latency test failed: Timeout', 'error');
                 } else {
                     let status, message;
@@ -1010,6 +1080,24 @@
                     document.getElementById('ws-latency-value').textContent = `${latency}ms`;
                     addLog(logsEl, `Measured latency: ${latency}ms`, 'success');
                 }
+            });
+            
+            // Add detailed latency monitoring
+            client.addEventListener('latency-details', (details) => {
+                if (!details) {
+                    document.getElementById('ws-latency-detail').textContent = '';
+                    return;
+                }
+                
+                // Show detailed breakdown
+                const detailText = `Network: ${details.networkLatencyMs}ms | Server: ${details.serverProcessingMs}ms`;
+                document.getElementById('ws-latency-detail').textContent = detailText;
+                
+                // Log detailed information
+                addLog(logsEl, `Latency details - Total: ${details.totalMs}ms | Network: ${details.networkLatencyMs}ms | Server: ${details.serverProcessingMs}ms`, 'info');
+                
+                // Update history chart if it exists
+                updateLatencyChart(details);
             });
             
             addLog(logsEl, 'Teacher interface initialized. Click "Connect" to start.');
