@@ -225,6 +225,14 @@
                 <span id="ws-translations-message">Checking...</span>
             </div>
         </div>
+        <div class="check-item">
+            <div id="ws-latency-status" class="check-status pending"></div>
+            <div>
+                <strong>Connection Latency:</strong>
+                <span id="ws-latency-message">Not measured yet</span>
+                <span id="ws-latency-value" style="margin-left: 10px; font-weight: bold;"></span>
+            </div>
+        </div>
     </div>
 
     <div class="tabs">
@@ -455,13 +463,17 @@
                 this.language = language;
                 this.ttsServiceType = ttsServiceType;
                 this.connected = false;
+                this.latencyMs = null;
+                this.latencyTimer = null;
+                this.pingInterval = null;
                 this.eventListeners = {
                     'open': [],
                     'close': [],
                     'error': [],
                     'message': [],
                     'status': [],
-                    'translation': []
+                    'translation': [],
+                    'latency': []
                 };
             }
             
@@ -485,6 +497,9 @@
                         this.notifyListeners('status', 'Connected');
                         this.notifyListeners('open');
                         this.register(this.role, this.language);
+                        
+                        // Start measuring latency
+                        this.startLatencyMeasurement();
                     };
                     
                     this.ws.onmessage = (event) => {
@@ -526,6 +541,9 @@
                     this.notifyListeners('status', 'Not connected');
                     return;
                 }
+                
+                // Stop latency measurement
+                this.stopLatencyMeasurement();
                 
                 this.ws.close(1000, 'User disconnected');
             }
@@ -647,6 +665,89 @@
                 }
                 
                 return false;
+            }
+            
+            // Start measuring latency
+            startLatencyMeasurement() {
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                }
+                
+                // Measure latency every 5 seconds
+                this.pingInterval = setInterval(() => {
+                    this.measureLatency();
+                }, 5000);
+                
+                // Do an initial measurement immediately
+                this.measureLatency();
+            }
+            
+            // Stop measuring latency
+            stopLatencyMeasurement() {
+                if (this.pingInterval) {
+                    clearInterval(this.pingInterval);
+                    this.pingInterval = null;
+                }
+                
+                if (this.latencyTimer) {
+                    clearTimeout(this.latencyTimer);
+                    this.latencyTimer = null;
+                }
+                
+                this.latencyMs = null;
+                this.notifyListeners('latency', null);
+            }
+            
+            // Measure the current latency
+            measureLatency() {
+                if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+                    this.stopLatencyMeasurement();
+                    return;
+                }
+                
+                // Cancel any existing timer
+                if (this.latencyTimer) {
+                    clearTimeout(this.latencyTimer);
+                }
+                
+                const startTime = Date.now();
+                
+                // Send a ping message
+                const pingMessage = {
+                    type: 'ping',
+                    timestamp: startTime
+                };
+                
+                this.send(pingMessage);
+                
+                // Add a special message handler for this ping
+                const messageHandler = (message) => {
+                    if (message.type === 'pong' && message.timestamp === startTime) {
+                        const endTime = Date.now();
+                        const latency = endTime - startTime;
+                        
+                        this.latencyMs = latency;
+                        this.notifyListeners('latency', latency);
+                        
+                        // Remove this one-time handler
+                        this.removeEventListener('message', messageHandler);
+                        
+                        // Clear the timeout
+                        if (this.latencyTimer) {
+                            clearTimeout(this.latencyTimer);
+                            this.latencyTimer = null;
+                        }
+                    }
+                };
+                
+                this.addEventListener('message', messageHandler);
+                
+                // Set a timeout to detect when ping fails
+                this.latencyTimer = setTimeout(() => {
+                    this.removeEventListener('message', messageHandler);
+                    this.notifyListeners('latency', 'timeout');
+                    this.latencyTimer = null;
+                }, 3000); // 3 second timeout
             }
         }
         
@@ -879,6 +980,36 @@
             client.addEventListener('error', (error) => {
                 addLog(logsEl, typeof error === 'string' ? error : 'WebSocket error', 'error');
                 updateSystemCheck('ws-server', 'error', 'Failed to connect to WebSocket server');
+            });
+            
+            // Add latency monitoring
+            client.addEventListener('latency', (latency) => {
+                if (latency === null) {
+                    updateSystemCheck('ws-latency', 'pending', 'Not connected');
+                    document.getElementById('ws-latency-value').textContent = '';
+                } else if (latency === 'timeout') {
+                    updateSystemCheck('ws-latency', 'error', 'Ping timeout - server not responding');
+                    document.getElementById('ws-latency-value').textContent = '';
+                    addLog(logsEl, 'Latency test failed: Timeout', 'error');
+                } else {
+                    let status, message;
+                    if (latency < 100) {
+                        status = 'success';
+                        message = 'Excellent';
+                    } else if (latency < 300) {
+                        status = 'success';
+                        message = 'Good';
+                    } else if (latency < 1000) {
+                        status = 'warning';
+                        message = 'Fair';
+                    } else {
+                        status = 'error';
+                        message = 'Poor';
+                    }
+                    updateSystemCheck('ws-latency', status, `${message} connection`);
+                    document.getElementById('ws-latency-value').textContent = `${latency}ms`;
+                    addLog(logsEl, `Measured latency: ${latency}ms`, 'success');
+                }
             });
             
             addLog(logsEl, 'Teacher interface initialized. Click "Connect" to start.');
