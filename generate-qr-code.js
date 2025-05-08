@@ -12,7 +12,8 @@ console.log('Generating QR code for URL:', studentUrl);
 QRCode.toDataURL(studentUrl, {
   errorCorrectionLevel: 'H',
   margin: 1,
-  width: 400,
+  width: 200,  // Reduced size
+  scale: 4,    // Smaller scale
   color: {
     dark: '#000000',
     light: '#ffffff'
