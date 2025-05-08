@@ -246,13 +246,13 @@
     </div>
 
     <div class="tabs">
-        <div class="tab active" data-tab="teacher">Teacher View</div>
+        <div class="tab active" data-tab="teacher">WebSocket Interface</div>
         <div class="tab" data-tab="student">Student View</div>
         <div class="tab" data-tab="both">Monitoring View</div>
     </div>
 
     <div id="teacher-tab" class="tab-content active">
-        <h1>Teacher Interface</h1>
+        <h1>WebSocket Interface</h1>
         <div class="grid">
             <div class="card">
                 <div class="card-title">Connection</div>
@@ -271,19 +271,6 @@
                 <div style="margin-top: 16px;">
                     <button id="teacher-connect-btn">Connect</button>
                     <button id="teacher-disconnect-btn" class="disconnect" disabled>Disconnect</button>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-title">Language Selection</div>
-                <div>
-                    <div>Speaking Language:</div>
-                    <div class="language-buttons">
-                        <button id="teacher-en-btn" class="active">English</button>
-                        <button id="teacher-es-btn">Spanish</button>
-                        <button id="teacher-fr-btn">French</button>
-                        <button id="teacher-de-btn">German</button>
-                    </div>
                 </div>
             </div>
             
@@ -1087,10 +1074,7 @@
             const languageEl = document.getElementById('teacher-language');
             const connectBtn = document.getElementById('teacher-connect-btn');
             const disconnectBtn = document.getElementById('teacher-disconnect-btn');
-            const enBtn = document.getElementById('teacher-en-btn');
-            const esBtn = document.getElementById('teacher-es-btn');
-            const frBtn = document.getElementById('teacher-fr-btn');
-            const deBtn = document.getElementById('teacher-de-btn');
+            // No language buttons - fixed to English
             // Only using OpenAI TTS service now
             const messageInput = document.getElementById('teacher-message');
             const sendBtn = document.getElementById('teacher-send-btn');
@@ -1118,41 +1102,7 @@
                 }
             });
             
-            enBtn.addEventListener('click', () => {
-                enBtn.classList.add('active');
-                esBtn.classList.remove('active');
-                frBtn.classList.remove('active');
-                deBtn.classList.remove('active');
-                client.register('teacher', 'en-US');
-                languageEl.textContent = 'en-US';
-            });
-            
-            esBtn.addEventListener('click', () => {
-                esBtn.classList.add('active');
-                enBtn.classList.remove('active');
-                frBtn.classList.remove('active');
-                deBtn.classList.remove('active');
-                client.register('teacher', 'es-ES');
-                languageEl.textContent = 'es-ES';
-            });
-            
-            frBtn.addEventListener('click', () => {
-                frBtn.classList.add('active');
-                enBtn.classList.remove('active');
-                esBtn.classList.remove('active');
-                deBtn.classList.remove('active');
-                client.register('teacher', 'fr-FR');
-                languageEl.textContent = 'fr-FR';
-            });
-            
-            deBtn.addEventListener('click', () => {
-                deBtn.classList.add('active');
-                enBtn.classList.remove('active');
-                esBtn.classList.remove('active');
-                frBtn.classList.remove('active');
-                client.register('teacher', 'de-DE');
-                languageEl.textContent = 'de-DE';
-            });
+            // Language is fixed to English (en-US) for this interface
             
             // Always use OpenAI TTS service
             client.setTtsServiceType = function(type) {
