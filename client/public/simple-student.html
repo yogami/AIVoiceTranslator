@@ -2150,6 +2150,33 @@
             if (activeBtn) {
                 activeBtn.classList.add('active');
             }
+            
+            // Also update the categorized language UI
+            updateSelectedLanguageInUI(languageCode);
+        }
+        
+        // Update the selected language in the categorized UI
+        function updateSelectedLanguageInUI(languageCode) {
+            // Remove selected class from all options
+            document.querySelectorAll('.language-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            
+            // Add selected class to the chosen language
+            const selectedOption = document.querySelector(`.language-option[data-lang="${languageCode}"]`);
+            if (selectedOption) {
+                selectedOption.classList.add('selected');
+                
+                // Make sure the parent category is expanded
+                const parentContent = selectedOption.closest('.category-content');
+                if (parentContent) {
+                    parentContent.style.display = 'grid';
+                    const parentHeader = parentContent.previousElementSibling;
+                    if (parentHeader) {
+                        parentHeader.classList.remove('collapsed');
+                    }
+                }
+            }
         }
         
         function getLanguageName(code) {
@@ -2177,7 +2204,7 @@
             const currentTtsService = document.getElementById('current-tts-service');
             const refreshComparisonBtn = document.getElementById('refresh-comparison');
             
-            // Add CSS for unsupported languages
+            // Add CSS for language categories and unsupported languages
             const style = document.createElement('style');
             style.textContent = `
                 .language-btn.unsupported {
@@ -2193,6 +2220,89 @@
                 option:disabled {
                     color: #999;
                     font-style: italic;
+                }
+                
+                /* Language Category UI Styles */
+                .language-categories {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                    margin: 20px 0;
+                    max-width: 800px;
+                }
+                
+                .category {
+                    border: 1px solid #e0e0e0;
+                    border-radius: 6px;
+                    overflow: hidden;
+                }
+                
+                .category-header {
+                    padding: 12px 15px;
+                    background-color: #f5f8ff;
+                    font-weight: bold;
+                    cursor: pointer;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    transition: background-color 0.2s;
+                }
+                
+                .category-header:hover {
+                    background-color: #e8f0ff;
+                }
+                
+                .category-header::after {
+                    content: '▼';
+                    font-size: 12px;
+                    transition: transform 0.3s;
+                }
+                
+                .category-header.collapsed::after {
+                    transform: rotate(-90deg);
+                }
+                
+                .category-content {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                    gap: 10px;
+                    padding: 15px;
+                    background-color: #fafafa;
+                }
+                
+                .language-option {
+                    padding: 8px 12px;
+                    background-color: white;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-align: center;
+                }
+                
+                .language-option:hover {
+                    background-color: #f0f7ff;
+                    border-color: #c0d6ff;
+                }
+                
+                .language-option.selected {
+                    background-color: #e0edff;
+                    border-color: #7aa8ff;
+                    font-weight: bold;
+                }
+                
+                .language-option.unsupported {
+                    opacity: 0.6;
+                    background-color: #f8f8f8;
+                    border-color: #ddd;
+                    cursor: not-allowed;
+                    text-decoration: line-through;
+                }
+                
+                @media (max-width: 600px) {
+                    .category-content {
+                        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+                    }
                 }
             `;
             document.head.appendChild(style);
@@ -2250,6 +2360,69 @@
                 if (isConnected) {
                     registerAsStudent(selectedLanguage);
                 }
+                
+                // Update UI to reflect selected language in language categories
+                updateSelectedLanguageInUI(selectedLanguage);
+            });
+            
+            // Set up category headers to expand/collapse
+            document.querySelectorAll('.category-header').forEach(header => {
+                header.addEventListener('click', function(event) {
+                    // Prevent click from propagating to language options
+                    event.stopPropagation();
+                    
+                    const categoryId = this.getAttribute('data-category');
+                    const content = this.nextElementSibling;
+                    
+                    // Toggle the collapsed class
+                    this.classList.toggle('collapsed');
+                    
+                    // Toggle visibility
+                    if (content.style.display === 'none') {
+                        content.style.display = 'grid';
+                    } else {
+                        content.style.display = 'none';
+                    }
+                });
+            });
+            
+            // Language options click handler
+            document.querySelectorAll('.language-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    const lang = this.getAttribute('data-lang');
+                    
+                    // Get the current teacher-controlled TTS service from the display span
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    // Convert display name back to service ID using the helper function
+                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
+                    
+                    // Check if this language is supported by the current TTS service
+                    if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
+                        showError(`${this.textContent} is not supported by the current voice service (${currentServiceName}). 
+                                  Please ask the teacher to change the voice service.`);
+                        return;
+                    }
+                    
+                    // Update dropdown if it exists
+                    if (languageSelect) {
+                        const option = Array.from(languageSelect.options).find(opt => opt.value === lang);
+                        if (option) {
+                            languageSelect.value = lang;
+                        }
+                    }
+                    
+                    // Update the selected language
+                    selectedLanguage = lang;
+                    
+                    // Register with new language
+                    if (isConnected) {
+                        registerAsStudent(lang);
+                        showSuccess(`Language changed to ${this.textContent}`);
+                    }
+                    
+                    // Update UI to show selected language
+                    updateSelectedLanguageInUI(lang);
+                });
             });
             
             // No TTS service selection button handling needed anymore - teacher controls this
