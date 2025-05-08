@@ -2271,11 +2271,6 @@
                     
                     // Determine latency class based on total latency
                     if (totalLatency > 2000) {
-                        totalLatencyClass = 'latency-bad';
-                    } else if (totalLatency > 1000) {
-                        totalLatencyClass = 'latency-warning';
-                    }
-                    if (totalLatency > 2000) {
                         totalLatencyClass = 'latency-critical';
                     } else if (totalLatency > 1000) {
                         totalLatencyClass = 'latency-warning';
@@ -2406,9 +2401,72 @@
             const currentTtsService = document.getElementById('current-tts-service');
             const refreshComparisonBtn = document.getElementById('refresh-comparison');
             
-            // Add CSS for language categories and unsupported languages
+            // Add CSS for language categories, unsupported languages, and latency metrics
             const style = document.createElement('style');
             style.textContent = `
+                /* Latency Metrics Styles */
+                .latency-info {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 10px;
+                    margin-top: 10px;
+                    padding: 10px;
+                    background-color: #f8f9fa;
+                    border-radius: 6px;
+                    font-size: 0.85em;
+                    border: 1px solid rgba(0,0,0,0.05);
+                }
+                
+                .latency-component {
+                    padding: 5px 10px;
+                    border-radius: 4px;
+                    background-color: #eee;
+                    color: #333;
+                    display: inline-flex;
+                    align-items: center;
+                }
+                
+                .latency-component .value {
+                    font-weight: bold;
+                    margin-left: 5px;
+                }
+                
+                .latency-good {
+                    background-color: #e3fcef;
+                    color: #0c6b39;
+                    border-left: 3px solid #0c6b39;
+                }
+                
+                .latency-warning {
+                    background-color: #fff8e6;
+                    color: #975e00;
+                    border-left: 3px solid #f39c12;
+                }
+                
+                .latency-critical {
+                    background-color: #feeaeb;
+                    color: #b71c1c;
+                    border-left: 3px solid #e74c3c;
+                }
+                
+                .message {
+                    padding: 12px;
+                    margin-bottom: 10px;
+                    border-radius: 8px;
+                    background-color: white;
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+                    border: 1px solid rgba(0,0,0,0.05);
+                }
+                
+                .messages {
+                    max-height: 400px;
+                    overflow-y: auto;
+                    padding: 10px;
+                    background-color: #f8f9fa;
+                    border-radius: 8px;
+                    border: 1px solid rgba(0,0,0,0.05);
+                }
+                
                 .language-btn.unsupported {
                     opacity: 0.6;
                     background-color: #f8f8f8;
