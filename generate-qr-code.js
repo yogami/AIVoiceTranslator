@@ -4,7 +4,7 @@ import fs from 'fs';
 
 // Get the Replit URL from the current workspace browser URL
 const url = 'https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev';
-const studentUrl = `${url}/client/public/simple-student.html`;
+const studentUrl = `${url}/public/simple-student.html`;
 
 console.log('Generating QR code for URL:', studentUrl);
 
