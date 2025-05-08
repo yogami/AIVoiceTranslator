@@ -1086,6 +1086,9 @@
                     
                     // Handle translation message
                     if (message.type === 'translation') {
+                        // Record reception time to calculate network latency
+                        const clientReceiveTime = Date.now();
+                        
                         // Check if this is audio data from a server TTS service
                         const hasAudioData = message.audioData && message.audioData.length > 0;
                         const useClientSpeech = message.useClientSpeech === true;
@@ -1095,6 +1098,18 @@
                         
                         // Update the displayed TTS service type (teacher's preference)
                         document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsServiceType);
+                        
+                        // Calculate and add network latency if latency data is included
+                        if (message.latency) {
+                            // The time it took from server completion to client reception
+                            const networkLatency = Math.max(0, Math.round(clientReceiveTime - (message.latency.serverCompleteTime || clientReceiveTime)));
+                            
+                            // Update the latency metrics
+                            message.latency.components.network = networkLatency;
+                            message.latency.total += networkLatency;
+                            
+                            log(`Translation latency - Total: ${message.latency.total}ms, Components: Translation=${message.latency.components.translation}ms, TTS=${message.latency.components.tts}ms, Processing=${message.latency.components.processing}ms, Network=${networkLatency}ms`);
+                        }
                         
                         // Store this translation data for audio comparison
                         window.lastTranslationData = {
@@ -2253,6 +2268,13 @@
                     // Total latency
                     const totalLatency = message.latency.total || 0;
                     let totalLatencyClass = 'latency-good';
+                    
+                    // Determine latency class based on total latency
+                    if (totalLatency > 2000) {
+                        totalLatencyClass = 'latency-bad';
+                    } else if (totalLatency > 1000) {
+                        totalLatencyClass = 'latency-warning';
+                    }
                     if (totalLatency > 2000) {
                         totalLatencyClass = 'latency-critical';
                     } else if (totalLatency > 1000) {
