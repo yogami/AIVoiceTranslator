@@ -229,7 +229,7 @@
 
     <div class="tabs">
         <div class="tab active" data-tab="teacher">Teacher View</div>
-        <div class="tab" data-tab="both">Monitoring View</div>
+        <div class="tab" data-tab="student">Student View</div>
     </div>
 
     <div id="teacher-tab" class="tab-content active">
@@ -347,72 +347,7 @@
         </div>
     </div>
 
-    <div id="both-tab" class="tab-content">
-        <h1>Monitoring View</h1>
-        <div class="grid">
-            <div class="card">
-                <div class="card-title">Teacher Connection</div>
-                <div id="monitor-teacher-status" class="status disconnected">Disconnected</div>
-                <div>
-                    <span>Session ID:</span>
-                    <span id="monitor-teacher-session-id">None</span>
-                </div>
-                <div>
-                    <span>Role: <span class="badge teacher">teacher</span></span>
-                </div>
-                <div>
-                    <span>Language:</span>
-                    <span id="monitor-teacher-language" class="badge">en-US</span>
-                </div>
-                <div style="margin-top: 16px;">
-                    <button id="monitor-teacher-connect-btn">Connect Teacher</button>
-                    <button id="monitor-teacher-disconnect-btn" class="disconnect" disabled>Disconnect</button>
-                </div>
-            </div>
-            
-            <div class="card">
-                <div class="card-title">Student Connection</div>
-                <div id="monitor-student-status" class="status disconnected">Disconnected</div>
-                <div>
-                    <span>Session ID:</span>
-                    <span id="monitor-student-session-id">None</span>
-                </div>
-                <div>
-                    <span>Role: <span class="badge student">student</span></span>
-                </div>
-                <div>
-                    <span>Language:</span>
-                    <span id="monitor-student-language" class="badge">es-ES</span>
-                </div>
-                <div style="margin-top: 16px;">
-                    <button id="monitor-student-connect-btn">Connect Student</button>
-                    <button id="monitor-student-disconnect-btn" class="disconnect" disabled>Disconnect</button>
-                </div>
-            </div>
-        </div>
-        
-        <div class="grid">
-            <div class="card">
-                <div class="card-title">Test Message</div>
-                <textarea id="monitor-message" rows="3" placeholder="Type a test message..."></textarea>
-                <button id="monitor-send-btn" disabled>Send as Teacher</button>
-            </div>
-            
-            <div class="card">
-                <div class="card-title">Translation Results</div>
-                <div id="monitor-translations" class="logs">
-                    <div style="text-align: center; color: #666; padding: 20px;">
-                        Connect both teacher and student, then send a test message.
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="card">
-            <div class="card-title">System Logs</div>
-            <div id="monitor-logs" class="logs"></div>
-        </div>
-    </div>
+    <!-- Monitoring View has been removed to simplify the interface -->
 
     <script>
         // WebSocket Client Class
@@ -875,151 +810,13 @@
             return client;
         }
         
-        // Monitor Interface
-        function setupMonitorInterface() {
-            const teacherStatusEl = document.getElementById('monitor-teacher-status');
-            const teacherSessionIdEl = document.getElementById('monitor-teacher-session-id');
-            const teacherLanguageEl = document.getElementById('monitor-teacher-language');
-            const teacherConnectBtn = document.getElementById('monitor-teacher-connect-btn');
-            const teacherDisconnectBtn = document.getElementById('monitor-teacher-disconnect-btn');
-            
-            const studentStatusEl = document.getElementById('monitor-student-status');
-            const studentSessionIdEl = document.getElementById('monitor-student-session-id');
-            const studentLanguageEl = document.getElementById('monitor-student-language');
-            const studentConnectBtn = document.getElementById('monitor-student-connect-btn');
-            const studentDisconnectBtn = document.getElementById('monitor-student-disconnect-btn');
-            
-            const messageInput = document.getElementById('monitor-message');
-            const sendBtn = document.getElementById('monitor-send-btn');
-            const translationsEl = document.getElementById('monitor-translations');
-            const logsEl = document.getElementById('monitor-logs');
-            
-            const teacherClient = new WebSocketClient('teacher', 'en-US', 'openai');
-            const studentClient = new WebSocketClient('student', 'es-ES', 'openai');
-            
-            teacherConnectBtn.addEventListener('click', () => {
-                teacherClient.connect();
-            });
-            
-            teacherDisconnectBtn.addEventListener('click', () => {
-                teacherClient.disconnect();
-            });
-            
-            studentConnectBtn.addEventListener('click', () => {
-                studentClient.connect();
-            });
-            
-            studentDisconnectBtn.addEventListener('click', () => {
-                studentClient.disconnect();
-            });
-            
-            sendBtn.addEventListener('click', () => {
-                const text = messageInput.value.trim();
-                if (text && teacherClient.isConnected()) {
-                    if (teacherClient.sendTranscription(text)) {
-                        addLog(logsEl, `Sent transcription as teacher: ${text}`, 'success');
-                        messageInput.value = '';
-                    }
-                } else {
-                    if (!text) {
-                        addLog(logsEl, 'Cannot send empty message', 'error');
-                    } else {
-                        addLog(logsEl, 'Teacher not connected', 'error');
-                    }
-                }
-            });
-            
-            teacherClient.addEventListener('status', (status) => {
-                if (typeof status === 'string') {
-                    addLog(logsEl, `Teacher: ${status}`);
-                    
-                    if (status.startsWith('Connected')) {
-                        setStatus(teacherStatusEl, 'connected');
-                        teacherConnectBtn.disabled = true;
-                        teacherDisconnectBtn.disabled = false;
-                        
-                        // Enable send button if both are connected
-                        sendBtn.disabled = !(teacherClient.isConnected() && studentClient.isConnected());
-                    } else if (status.startsWith('Connecting')) {
-                        setStatus(teacherStatusEl, 'connecting');
-                        teacherConnectBtn.disabled = true;
-                        teacherDisconnectBtn.disabled = true;
-                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
-                        setStatus(teacherStatusEl, 'disconnected');
-                        teacherConnectBtn.disabled = false;
-                        teacherDisconnectBtn.disabled = true;
-                        sendBtn.disabled = true;
-                    } else if (status.startsWith('Session ID')) {
-                        const sessionId = status.split(': ')[1];
-                        teacherSessionIdEl.textContent = sessionId;
-                    }
-                }
-            });
-            
-            studentClient.addEventListener('status', (status) => {
-                if (typeof status === 'string') {
-                    addLog(logsEl, `Student: ${status}`);
-                    
-                    if (status.startsWith('Connected')) {
-                        setStatus(studentStatusEl, 'connected');
-                        studentConnectBtn.disabled = true;
-                        studentDisconnectBtn.disabled = false;
-                        
-                        // Enable send button if both are connected
-                        sendBtn.disabled = !(teacherClient.isConnected() && studentClient.isConnected());
-                    } else if (status.startsWith('Connecting')) {
-                        setStatus(studentStatusEl, 'connecting');
-                        studentConnectBtn.disabled = true;
-                        studentDisconnectBtn.disabled = true;
-                    } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
-                        setStatus(studentStatusEl, 'disconnected');
-                        studentConnectBtn.disabled = false;
-                        studentDisconnectBtn.disabled = true;
-                        sendBtn.disabled = true;
-                    } else if (status.startsWith('Session ID')) {
-                        const sessionId = status.split(': ')[1];
-                        studentSessionIdEl.textContent = sessionId;
-                    }
-                }
-            });
-            
-            teacherClient.addEventListener('message', (message) => {
-                if (message && message.type) {
-                    addLog(logsEl, `Teacher received ${message.type} message: ${JSON.stringify(message)}`, 'success');
-                }
-            });
-            
-            studentClient.addEventListener('message', (message) => {
-                if (message && message.type) {
-                    addLog(logsEl, `Student received ${message.type} message: ${JSON.stringify(message)}`, 'success');
-                }
-            });
-            
-            studentClient.addEventListener('translation', (translation) => {
-                addLog(logsEl, `Student received translation: ${translation.text}`, 'success');
-                addTranslation(translationsEl, translation);
-                updateSystemCheck('ws-translations', 'success', 'Translation system is working properly');
-            });
-            
-            teacherClient.addEventListener('error', (error) => {
-                addLog(logsEl, `Teacher error: ${typeof error === 'string' ? error : 'WebSocket error'}`, 'error');
-            });
-            
-            studentClient.addEventListener('error', (error) => {
-                addLog(logsEl, `Student error: ${typeof error === 'string' ? error : 'WebSocket error'}`, 'error');
-            });
-            
-            addLog(logsEl, 'Monitor interface initialized. Connect both teacher and student to begin testing.');
-            
-            return { teacherClient, studentClient };
-        }
+        // Monitor Interface removed to simplify the diagnostics UI
         
         // Main Initialization
         function init() {
             setupTabs();
             const teacherClient = setupTeacherInterface();
             const studentClient = setupStudentInterface();
-            const monitorClients = setupMonitorInterface();
             
             // Set initial system check status
             updateSystemCheck('ws-server', 'pending', 'Checking WebSocket server status...');
