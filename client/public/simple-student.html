@@ -863,9 +863,28 @@
                         <div class="language-option" data-lang="ja">Japanese</div>
                         <div class="language-option" data-lang="ko">Korean</div>
                         <div class="language-option" data-lang="hi">Hindi</div>
+                        <div class="language-option" data-lang="bn">Bengali</div>
+                        <div class="language-option" data-lang="ur">Urdu</div>
+                        <div class="language-option" data-lang="te">Telugu</div>
+                        <div class="language-option" data-lang="mr">Marathi</div>
+                        <div class="language-option" data-lang="ta">Tamil</div>
+                        <div class="language-option" data-lang="gu">Gujarati</div>
+                        <div class="language-option" data-lang="kn">Kannada</div>
+                        <div class="language-option" data-lang="ml">Malayalam</div>
+                        <div class="language-option" data-lang="pa">Punjabi</div>
                         <div class="language-option" data-lang="th">Thai</div>
                         <div class="language-option" data-lang="vi">Vietnamese</div>
                         <div class="language-option" data-lang="id">Indonesian</div>
+                        <div class="language-option" data-lang="ms">Malay</div>
+                        <div class="language-option" data-lang="jv">Javanese</div>
+                        <div class="language-option" data-lang="tl">Filipino</div>
+                        <div class="language-option" data-lang="km">Khmer</div>
+                        <div class="language-option" data-lang="my">Burmese</div>
+                        <div class="language-option" data-lang="lo">Lao</div>
+                        <div class="language-option" data-lang="fa">Persian</div>
+                        <div class="language-option" data-lang="ne">Nepali</div>
+                        <div class="language-option" data-lang="si">Sinhala</div>
+                        <div class="language-option" data-lang="mn">Mongolian</div>
                     </div>
                 </div>
                 
@@ -876,8 +895,17 @@
                     </div>
                     <div class="category-content" id="middle-east-languages">
                         <div class="language-option" data-lang="ar">Arabic</div>
+                        <div class="language-option" data-lang="ar-XA">Arabic (Multiple Regions)</div>
                         <div class="language-option" data-lang="he">Hebrew</div>
                         <div class="language-option" data-lang="tr">Turkish</div>
+                        <div class="language-option" data-lang="am">Amharic</div>
+                        <div class="language-option" data-lang="ha">Hausa</div>
+                        <div class="language-option" data-lang="sw">Swahili</div>
+                        <div class="language-option" data-lang="so">Somali</div>
+                        <div class="language-option" data-lang="yo">Yoruba</div>
+                        <div class="language-option" data-lang="zu">Zulu</div>
+                        <div class="language-option" data-lang="ig">Igbo</div>
+                        <div class="language-option" data-lang="af">Afrikaans</div>
                     </div>
                 </div>
                 
@@ -889,8 +917,29 @@
                     <div class="category-content" id="americas-languages">
                         <div class="language-option" data-lang="pt-BR">Portuguese (Brazil)</div>
                         <div class="language-option" data-lang="es-MX">Spanish (Mexico)</div>
+                        <div class="language-option" data-lang="es-419">Spanish (Latin America)</div>
                         <div class="language-option" data-lang="fr-CA">French (Canada)</div>
                         <div class="language-option" data-lang="en-CA">English (Canada)</div>
+                        <div class="language-option" data-lang="en-US">English (United States)</div>
+                        <div class="language-option" data-lang="qu">Quechua</div>
+                        <div class="language-option" data-lang="ay">Aymara</div>
+                        <div class="language-option" data-lang="gn">Guarani</div>
+                        <div class="language-option" data-lang="ht">Haitian Creole</div>
+                    </div>
+                </div>
+                
+                <div class="language-category">
+                    <div class="category-header" data-category="europe-variant">
+                        <span>European Variants</span>
+                        <span class="chevron">▼</span>
+                    </div>
+                    <div class="category-content" id="europe-variant-languages">
+                        <div class="language-option" data-lang="en-GB">English (UK)</div>
+                        <div class="language-option" data-lang="pt-PT">Portuguese (Portugal)</div>
+                        <div class="language-option" data-lang="es-ES">Spanish (Spain)</div>
+                        <div class="language-option" data-lang="fr-FR">French (France)</div>
+                        <div class="language-option" data-lang="de-DE">German (Germany)</div>
+                        <div class="language-option" data-lang="it-IT">Italian (Italy)</div>
                     </div>
                 </div>
             </div>
@@ -2498,7 +2547,17 @@
                 });
             }
             
-            log('Student page initialized with TTS service options');
+            // Initialize all category contents to be visible
+            document.querySelectorAll('.category-content').forEach(content => {
+                content.style.display = 'grid';
+            });
+            
+            // Initialize by showing the selected language
+            if (selectedLanguage) {
+                updateSelectedLanguageInUI(selectedLanguage);
+            }
+            
+            log('Student page initialized with categorized language options');
         });
     </script>
 </body>
