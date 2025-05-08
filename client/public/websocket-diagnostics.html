@@ -978,58 +978,10 @@
             
             client.addEventListener('error', (error) => {
                 addLog(logsEl, typeof error === 'string' ? error : 'WebSocket error', 'error');
-                updateSystemCheck('ws-server', 'error', 'Failed to connect to WebSocket server');
+                // Connection error logged
             });
             
-            // Add latency monitoring
-            client.addEventListener('latency', (latency) => {
-                if (latency === null) {
-                    updateSystemCheck('ws-latency', 'pending', 'Not connected');
-                    document.getElementById('ws-latency-value').textContent = '';
-                    document.getElementById('ws-latency-detail').textContent = '';
-                } else if (latency === 'timeout') {
-                    updateSystemCheck('ws-latency', 'error', 'Ping timeout - server not responding');
-                    document.getElementById('ws-latency-value').textContent = '';
-                    document.getElementById('ws-latency-detail').textContent = '';
-                    addLog(logsEl, 'Latency test failed: Timeout', 'error');
-                } else {
-                    let status, message;
-                    if (latency < 100) {
-                        status = 'success';
-                        message = 'Excellent';
-                    } else if (latency < 300) {
-                        status = 'success';
-                        message = 'Good';
-                    } else if (latency < 1000) {
-                        status = 'warning';
-                        message = 'Fair';
-                    } else {
-                        status = 'error';
-                        message = 'Poor';
-                    }
-                    updateSystemCheck('ws-latency', status, `${message} connection`);
-                    document.getElementById('ws-latency-value').textContent = `${latency}ms`;
-                    addLog(logsEl, `Measured latency: ${latency}ms`, 'success');
-                }
-            });
-            
-            // Add detailed latency monitoring
-            client.addEventListener('latency-details', (details) => {
-                if (!details) {
-                    document.getElementById('ws-latency-detail').textContent = '';
-                    return;
-                }
-                
-                // Show detailed breakdown
-                const detailText = `Network: ${details.networkLatencyMs}ms | Server: ${details.serverProcessingMs}ms`;
-                document.getElementById('ws-latency-detail').textContent = detailText;
-                
-                // Log detailed information
-                addLog(logsEl, `Latency details - Total: ${details.totalMs}ms | Network: ${details.networkLatencyMs}ms | Server: ${details.serverProcessingMs}ms`, 'info');
-                
-                // Update history chart if it exists
-                updateLatencyChart(details);
-            });
+            // Latency monitoring removed as requested
             
             addLog(logsEl, 'Teacher interface initialized. Click "Connect" to start.');
             
