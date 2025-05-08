@@ -192,11 +192,7 @@
             </div>
         </div>
         
-        <div class="card">
-            <div class="card-title">Send Transcription</div>
-            <textarea id="teacher-message" rows="4" placeholder="Type a message to send as transcription..."></textarea>
-            <button id="teacher-send-btn" disabled>Send Transcription</button>
-        </div>
+        <!-- Send Transcription feature removed as requested -->
         
         <div class="card">
             <div class="card-title">Debug Logs</div>
@@ -487,8 +483,6 @@
             const disconnectBtn = document.getElementById('teacher-disconnect-btn');
             // No language buttons - fixed to English
             // Only using OpenAI TTS service now
-            const messageInput = document.getElementById('teacher-message');
-            const sendBtn = document.getElementById('teacher-send-btn');
             const logsEl = document.getElementById('teacher-logs');
             
             const client = new WebSocketClient('teacher', 'en-US');
@@ -499,18 +493,6 @@
             
             disconnectBtn.addEventListener('click', () => {
                 client.disconnect();
-            });
-            
-            sendBtn.addEventListener('click', () => {
-                const text = messageInput.value.trim();
-                if (text) {
-                    if (client.sendTranscription(text)) {
-                        addLog(logsEl, `Sent transcription: ${text}`, 'success');
-                        messageInput.value = '';
-                    }
-                } else {
-                    addLog(logsEl, 'Cannot send empty message', 'error');
-                }
             });
             
             // Language is fixed to English (en-US) for this interface
@@ -529,18 +511,15 @@
                         setStatus(statusEl, 'connected');
                         connectBtn.disabled = true;
                         disconnectBtn.disabled = false;
-                        sendBtn.disabled = false;
                         // Status update
                     } else if (status.startsWith('Connecting')) {
                         setStatus(statusEl, 'connecting');
                         connectBtn.disabled = true;
                         disconnectBtn.disabled = true;
-                        sendBtn.disabled = true;
                     } else if (status.startsWith('Connection closed') || status.startsWith('Not connected')) {
                         setStatus(statusEl, 'disconnected');
                         connectBtn.disabled = false;
                         disconnectBtn.disabled = true;
-                        sendBtn.disabled = true;
                     } else if (status.startsWith('Session ID')) {
                         const sessionId = status.split(': ')[1];
                         sessionIdEl.textContent = sessionId;
