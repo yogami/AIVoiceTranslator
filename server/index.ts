@@ -7,7 +7,6 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from './services/WebSocketServer';
 import { apiRoutes } from './routes';
-import { memoryService } from './services/MemoryService';
 
 // SOLID: Single Responsibility - CORS middleware has one job
 const configureCorsMiddleware = (app: express.Express): void => {
@@ -44,15 +43,6 @@ async function startServer() {
     console.log('OpenAI Streaming - client initialized successfully');
   }
   
-  // Initialize memory system
-  try {
-    await memoryService.initialize();
-    console.log('Assistant memory system initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize memory system:', error);
-    console.warn('Continuing startup with limited memory functionality');
-  }
-  
   // Create Express app
   const app = express();
   
@@ -71,9 +61,6 @@ async function startServer() {
   // Create WebSocket server
   const wss = new WebSocketServer(httpServer);
   
-  // API routes must be added before any static file routes
-  // because the wildcard catch-all route would intercept API requests
-
   // Serve static files from client/public directory
   app.use(express.static('client/public'));
   
@@ -107,9 +94,13 @@ async function startServer() {
     res.sendFile('index.html', { root: 'client' });
   });
   
+  // Catch-all route for any other routes
+  app.get('*', (req, res) => {
+    res.sendFile('index.html', { root: 'client' });
+  });
+  
   // Start server
-  // Try alternative port 8080 if 5000 is not available
-  const port = process.env.PORT || 8080;
+  const port = process.env.PORT || 5000;
   httpServer.listen(port, () => {
     console.log(`${new Date().toLocaleTimeString()} [express] serving on port ${port}`);
   });

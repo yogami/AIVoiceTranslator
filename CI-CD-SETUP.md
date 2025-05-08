@@ -1,45 +1,110 @@
-# GitHub CI/CD Setup Guide
+# AIVoiceTranslator CI/CD Setup Guide
 
-To properly configure GitHub Actions for the AIVoiceTranslator project, follow these steps:
+This guide provides detailed instructions for setting up the Continuous Integration and Continuous Deployment (CI/CD) pipeline for AIVoiceTranslator using GitHub Actions, triggered directly from Replit.
 
-## 1. Add Required Secrets
+## One-Time Setup Process
 
-Go to your GitHub repository Settings -> Secrets and variables -> Actions -> New repository secret and add the following secrets:
+### 1. Create a GitHub Repository
 
-- `OPENAI_API_KEY`: Your OpenAI API key for the translation services
-- `GITHUB_TOKEN`: This is automatically provided by GitHub Actions
+1. Go to [GitHub](https://github.com/) and sign in (or create an account if needed)
+2. Click on the "+" icon in the top-right corner and select "New repository"
+3. Name your repository (e.g., "AIVoiceTranslator")
+4. Choose "Public" or "Private" visibility (CI/CD minutes are limited for private repos)
+5. Click "Create repository"
 
-## 2. Update Workflow Files (if needed)
+### 2. Initialize Git in Replit and Push Code
 
-If your tests require additional environment variables, modify the workflow files in `.github/workflows/` to include them.
+Run these commands in the Replit Shell tab:
 
-## 3. Trigger CI/CD Pipeline
+```bash
+# Initialize Git (if not already done)
+git init
 
-You can trigger the CI/CD pipeline by:
+# Add remote repository (replace with your GitHub username and repo name)
+git remote add origin https://github.com/YOUR_USERNAME/AIVoiceTranslator.git
 
-- Pushing changes to the main branch
-- Manually triggering workflows from the "Actions" tab in GitHub
+# Add all files
+git add .
 
-## 4. Connect Button Test
+# Make initial commit
+git commit -m "Initial commit"
 
-To specifically test the Connect button functionality:
+# Push to GitHub
+git push -u origin main
+```
 
-1. Go to "Actions" tab in GitHub
-2. Select "Connect Button WebSocket Test" workflow
-3. Click "Run workflow" and select the main branch
-4. Click the green "Run workflow" button
+If prompted, enter your GitHub credentials.
 
-## Common Issues
+### 3. Generate a GitHub Personal Access Token
 
-- **Workflow Failures**: Check that all required secrets are properly set up
-- **Missing Dependencies**: Ensure package.json includes all required dependencies
-- **Environment Configuration**: Verify environment variables are correctly set in workflow files
+1. On GitHub, go to your account settings (click your profile picture → Settings)
+2. Scroll down to "Developer settings" and click on it
+3. Click on "Personal access tokens" → "Tokens (classic)"
+4. Click "Generate new token" → "Generate new token (classic)"
+5. Give your token a name (e.g., "AIVoiceTranslator Replit Integration")
+6. Select the "repo" scope to allow managing repositories
+7. Click "Generate token"
+8. Copy the token that appears (you won't be able to see it again!)
 
-## Verifying Results
+### 4. Add the GitHub Token to Replit Secrets
 
-After workflow runs complete, you can:
+1. In Replit, go to the "Secrets" tool in the left sidebar (lock icon)
+2. Add a new secret:
+   - Key: `GITHUB_TOKEN`
+   - Value: Paste the personal access token you generated
+3. Click "Add Secret"
 
-1. Check the "Actions" tab in GitHub to see workflow results
-2. Download artifacts for detailed logs and test outputs
-3. Only claim issues as fixed after relevant tests pass successfully in CI/CD
+### 5. Update the CI/CD Trigger Script
 
+Edit the `ci-cd-trigger.sh` file to include your GitHub username and repository name:
+
+```bash
+# Find these lines in ci-cd-trigger.sh
+GITHUB_USERNAME="your-username"
+REPO_NAME="AIVoiceTranslator"
+
+# Replace with your actual GitHub username and repository name
+GITHUB_USERNAME="actual-username"
+REPO_NAME="actual-repo-name"
+```
+
+### 6. Make the Script Executable
+
+```bash
+chmod +x ci-cd-trigger.sh
+```
+
+## Running the CI/CD Pipeline
+
+Once you've completed the setup, you can trigger the CI/CD pipeline at any time:
+
+```bash
+./ci-cd-trigger.sh
+```
+
+This will:
+1. Push your latest code changes to GitHub
+2. Trigger the GitHub Actions workflow
+3. Run all tests in a clean environment
+4. Provide a link to view the results
+
+## Viewing Test Results
+
+You can view the results of your CI/CD runs by:
+
+1. Going to your GitHub repository
+2. Clicking on the "Actions" tab
+3. Selecting the most recent workflow run
+
+This will show you detailed logs of all the tests that ran, any errors that occurred, and the overall status of the pipeline.
+
+## Troubleshooting
+
+If you encounter issues:
+
+- **Permission errors**: Make sure your GitHub token has the correct permissions
+- **Push failures**: Check if you need to pull changes first with `git pull origin main`
+- **Workflow not running**: Verify the workflow file is in the correct location (`.github/workflows/ci-cd.yml`)
+- **Webhook errors**: Ensure your repository's name and username are correct in the script
+
+For more help, check the GitHub Actions documentation or open an issue in the repository.

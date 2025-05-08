@@ -1,4 +1,16 @@
 <!DOCTYPE html>
+<!-- 
+    AIVoiceTranslator Student Interface
+    
+    Architecture Note: TTS service selection is now controlled by the teacher.
+    Students can see which TTS service is active but cannot change it.
+    They can play examples of different TTS services for comparison only.
+    
+    The architecture follows these principles:
+    - Centralized control by the teacher for classroom consistency
+    - Read-only display of TTS service selection for students
+    - TTS comparison capabilities for educational purposes
+-->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -791,69 +803,66 @@
         </div>
         
         <div class="container" style="margin-top: 30px;">
-            <div class="language-heading">Text-to-Speech Service Selection</div>
+            <div class="language-heading">Text-to-Speech Information</div>
             
-            <div id="tts-service-selector" class="controls" style="margin-top: 15px;">
-                <div style="margin: 10px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
+            <div id="tts-service-info" style="margin-top: 15px;">
+                <div id="active-tts-service-container" style="background-color: rgba(52, 152, 219, 0.1); border-left: 4px solid var(--primary-color); padding: 20px; border-radius: var(--border-radius); margin-bottom: 20px;">
+                    <h3 style="margin-top: 0; color: var(--primary-color); font-size: 1.1rem;">Teacher-Controlled TTS Service</h3>
+                    <p style="margin-bottom: 10px;">
+                        <span id="active-tts-service">The Text-to-Speech service is controlled by the teacher.</span> Your current TTS service is:
+                        <span id="current-tts-service" style="font-weight: bold; font-size: 1.1rem; color: var(--primary-color); display: inline-block; margin-left: 8px; padding: 3px 12px; background-color: rgba(52, 152, 219, 0.1); border-radius: 20px;">Browser</span>
+                    </p>
+                    <p style="margin-bottom: 0; font-size: 0.9rem; color: var(--text-light);">
+                        Only the teacher can change the TTS service. All students will automatically use the same service.
+                    </p>
+                </div>
+                
+                <div class="language-heading">TTS Service Comparison</div>
+                <div id="tts-comparison-section" style="margin: 15px 0; display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;">
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: var(--primary-light); box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
-                            <input type="radio" name="tts-service" value="browser" checked 
-                                   style="width: 20px; height: 20px; accent-color: var(--primary-color);"> 
-                            <span style="font-weight: bold; font-size: 1.1rem;">Browser Speech</span>
-                        </label>
+                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Browser Speech</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Uses your browser's built-in speech synthesis. Fast but less natural sounding.
                         </p>
                         <div>
-                            <button class="play-demo-btn" data-service="browser" 
+                            <button class="play-example-btn play-demo-btn" data-service="browser" 
                                     style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: var(--primary-color); color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>▶️</span> Play Example
+                                <span>▶️</span> Play Example Only
                             </button>
                         </div>
                     </div>
                     
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #eef2ff; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
-                            <input type="radio" name="tts-service" value="openai" 
-                                   style="width: 20px; height: 20px; accent-color: #6366f1;"> 
-                            <span style="font-weight: bold; font-size: 1.1rem;">OpenAI TTS</span>
-                        </label>
+                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">OpenAI TTS</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Advanced neural voice with better emotional tone and natural pauses.
                         </p>
                         <div>
-                            <button class="play-demo-btn" data-service="openai" 
+                            <button class="play-example-btn play-demo-btn" data-service="openai" 
                                     style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #6366f1; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>▶️</span> Play Example
+                                <span>▶️</span> Play Example Only
                             </button>
                         </div>
                     </div>
                     
                     <div style="flex-basis: 250px; padding: 20px; border-radius: var(--border-radius); background-color: #f8f9fa; box-shadow: var(--shadow); transition: transform 0.3s ease, box-shadow 0.3s ease;">
-                        <label style="display: flex; gap: 12px; align-items: center; margin-bottom: 15px; cursor: pointer;">
-                            <input type="radio" name="tts-service" value="silent" 
-                                   style="width: 20px; height: 20px; accent-color: #95a5a6;"> 
-                            <span style="font-weight: bold; font-size: 1.1rem;">Silent Mode</span>
-                        </label>
+                        <div style="font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">Silent Mode</div>
                         <p style="margin: 0 0 15px 0; font-size: 0.9rem; color: var(--text-light);">
                             Text only, no audio playback. Use in quiet environments or for accessibility.
                         </p>
                         <div>
-                            <button class="play-demo-btn" data-service="silent" 
+                            <button class="play-example-btn play-demo-btn" data-service="silent" 
                                     style="width: 100%; padding: 12px; border-radius: var(--border-radius); background-color: #95a5a6; color: white; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; font-weight: 500; transition: all 0.2s ease;">
-                                <span>🔇</span> Silent Mode
+                                <span>🔇</span> Example (No Sound)
                             </button>
                         </div>
                     </div>
                 </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 25px; background-color: rgba(0,0,0,0.03); padding: 15px; border-radius: var(--border-radius);">
-                    <button id="apply-tts-settings" style="min-width: 150px; background-color: var(--secondary-color); padding: 12px 20px; border: none; border-radius: var(--border-radius); color: white; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
-                        Save Preference
-                    </button>
-                    <div class="tts-status" style="font-size: 0.95rem; color: var(--text-color);">
-                        <span>Current Default: <strong id="current-tts-service">Browser</strong></span>
-                    </div>
+                <div style="margin-top: 10px; padding: 15px; border-radius: var(--border-radius); background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; font-size: 0.9rem; color: #856404;">
+                        <strong>Note:</strong> These buttons only play examples of each TTS service for comparison. 
+                        They do not change the active service, which is controlled by the teacher.
+                    </p>
                 </div>
             </div>
         </div>
@@ -1019,6 +1028,9 @@
                         
                         log(`Received translation with TTS service: ${ttsServiceType}, hasAudio: ${hasAudioData}, useClientSpeech: ${useClientSpeech}`);
                         
+                        // Update the displayed TTS service type (teacher's preference)
+                        document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsServiceType);
+                        
                         // Store this translation data for audio comparison
                         window.lastTranslationData = {
                             text: message.text,
@@ -1139,25 +1151,19 @@
                 return;
             }
             
-            // Get the currently selected TTS service from radio buttons
-            const ttsService = document.querySelector('input[name="tts-service"]:checked').value;
-            
             const message = {
                 type: 'register',
                 role: 'student',
-                languageCode: languageCode,
-                settings: {
-                    ttsServiceType: ttsService
-                }
+                languageCode: languageCode
+                // No TTS service settings - controlled by teacher
             };
             
-            log(`Registering as student with language ${languageCode} and TTS service ${ttsService}`);
+            log(`Registering as student with language ${languageCode}`);
             socket.send(JSON.stringify(message));
-            showSuccess(`Receiving translations in ${getLanguageName(languageCode)} using ${getTtsServiceName(ttsService)}`);
+            showSuccess(`Receiving translations in ${getLanguageName(languageCode)}`);
             
-            // Update UI to show active language and TTS service
+            // Update UI to show active language
             updateActiveLanguage(languageCode);
-            document.getElementById('current-tts-service').textContent = getTtsServiceName(ttsService);
         }
         
         // Get a user-friendly name for the TTS service
@@ -1169,6 +1175,17 @@
             };
             
             return serviceNames[serviceType] || serviceType;
+        }
+        
+        // Convert a display name back to a service type
+        function getTtsServiceTypeFromName(displayName) {
+            let serviceType = 'browser'; // Default fallback
+            if (displayName.includes('OpenAI')) {
+                serviceType = 'openai';
+            } else if (displayName.includes('Silent')) {
+                serviceType = 'silent';
+            }
+            return serviceType;
         }
         
         function updateConnectionUI(connected) {
@@ -1195,13 +1212,6 @@
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
             const comparisonSection = document.getElementById('audio-comparison');
-            
-            // CRITICAL FIX: Ensure that useClientSpeech is ALWAYS true when ttsServiceType is 'browser'
-            // This is the key fix for the browser TTS issue
-            if (ttsServiceType === 'browser') {
-                useClientSpeech = true;
-                console.log('🔧 FIX: Forcing useClientSpeech=true for browser TTS service');
-            }
             
             // Update the cache with this new translation
             audioCache.lastTranslation.text = text;
@@ -1257,15 +1267,69 @@
                 try {
                     log('Received server-generated audio data, preparing for playback');
                     
-                    // Convert base64 to a blob
-                    const binaryString = atob(audioData);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
+                    // Log audio data details before processing
+                    log(`Processing audio data: length=${audioData.length} chars, first 50 chars: ${audioData.substring(0, 50)}...`);
+                    
+                    // Make sure the audioData is actually a base64 string
+                    // Sometimes it might be sent with a data URL prefix, so we need to remove it
+                    let cleanBase64 = audioData;
+                    if (audioData.startsWith('data:')) {
+                        // Extract the base64 part from the data URL
+                        const commaIndex = audioData.indexOf(',');
+                        if (commaIndex !== -1) {
+                            cleanBase64 = audioData.substring(commaIndex + 1);
+                            log('Extracted base64 data from data URL');
+                        }
                     }
                     
-                    // Create blob and URL
-                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); // Assume MP3 from OpenAI
+                    // Variables to store the processed binary data
+                    let bytes = null;
+                    let headerHex = '';
+                    
+                    try {
+                        // Convert base64 to a blob
+                        const binaryString = atob(cleanBase64);
+                        log(`Converted binary string length: ${binaryString.length} bytes`);
+                        
+                        bytes = new Uint8Array(binaryString.length);
+                        for (let i = 0; i < binaryString.length; i++) {
+                            bytes[i] = binaryString.charCodeAt(i);
+                        }
+                        
+                        // Check header bytes to determine format (MP3 starts with ID3 or 0xFF 0xFB)
+                        headerHex = Array.from(bytes.slice(0, 4))
+                            .map(b => b.toString(16).padStart(2, '0'))
+                            .join(' ');
+                        log(`Audio data header: ${headerHex}`);
+                    } catch (error) {
+                        log(`WARNING: Failed to decode base64 data: ${error.message}`);
+                        throw new Error(`Failed to decode audio data: ${error.message}`);
+                    }
+                    
+                    // Make sure we got valid binary data
+                    if (!bytes || bytes.length === 0) {
+                        throw new Error('Failed to create valid binary data from base64');
+                    }
+                    
+                    // Determine MIME type based on header
+                    let mimeType = 'audio/mp3'; // Default assumption
+                    if (headerHex.startsWith('49 44 33')) { // ID3
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio with ID3 tag');
+                    } else if (headerHex.startsWith('ff fb')) {
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio without ID3 tag');
+                    } else if (headerHex.startsWith('52 49 46 46')) { // RIFF
+                        mimeType = 'audio/wav';
+                        log('Detected WAV audio');
+                    } else {
+                        log(`Unknown audio format with header: ${headerHex}`);
+                    }
+                    
+                    // Create blob with detected MIME type
+                    const blob = new Blob([bytes.buffer], { type: mimeType });
+                    log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
+                    
                     const audioURL = URL.createObjectURL(blob);
                     
                     // Cache the audio data
@@ -1279,38 +1343,38 @@
                     // Set up audio element and play button
                     audio.src = audioURL;
                     playButton.disabled = false;
-                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
                     
-                    // Set up click handler for play button
-                    playButton.onclick = () => {
-                        log('Playing server-generated audio');
-                        audio.play();
+                    // Update button to show which TTS service is being used
+                    playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
+                    
+                    // Define handler for audio playback
+                    const playAudio = () => {
+                        log(`Playing server-generated audio (${ttsServiceType} TTS)`);
+                        audio.play().catch(err => {
+                            log('Error playing audio: ' + err.message);
+                            showError('Audio playback failed: ' + err.message);
+                        });
                         
                         // Visual feedback during playback
                         playButton.style.backgroundColor = '#e74c3c';
                         playButton.innerHTML = '<span class="play-icon">🔊</span> Playing...';
-                        
-                        // Reset button when done
-                        audio.onended = () => {
-                            playButton.style.backgroundColor = '';
-                            playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation';
-                        };
+                    };
+                    
+                    // Set up click handler for play button
+                    // Store a reference to the current TTS service type so it remains consistent
+                    playButton.onclick = playAudio;
+                    
+                    // Reset button when audio ends - preserve the TTS service information
+                    audio.onended = () => {
+                        playButton.style.backgroundColor = '';
+                        playButton.innerHTML = `<span class="play-icon">▶</span> Play Translation (${getTtsServiceName(ttsServiceType)})`;
                     };
                     
                     // Auto-play for OpenAI TTS when that service is selected
                     if (ttsServiceType === 'openai') {
                         log('Auto-playing OpenAI TTS audio');
                         // Slight delay to make sure audio is loaded
-                        setTimeout(() => {
-                            audio.play().catch(err => {
-                                log('Error auto-playing OpenAI audio: ' + err.message);
-                                showError('Auto-play failed: ' + err.message);
-                            });
-                            
-                            // Visual feedback during playback
-                            playButton.style.backgroundColor = '#e74c3c';
-                            playButton.innerHTML = '<span class="play-icon">🔊</span> Playing OpenAI audio...';
-                        }, 300);
+                        setTimeout(playAudio, 300);
                         showSuccess('Playing OpenAI translation audio');
                     } else {
                         showSuccess('Server-generated audio ready to play');
@@ -1326,10 +1390,49 @@
                 }
             } else if (useClientSpeech) {
                 // Explicitly instructed to use client speech synthesis
-                generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                log('Server explicitly requested client-side speech synthesis');
+                
+                // Check if we have speech parameters with autoPlay flag
+                if (message && message.speechParams && message.speechParams.autoPlay === true) {
+                    log('Auto-playing browser speech synthesis due to autoPlay flag');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                } else {
+                    // Still configure the play button to use speech synthesis when clicked
+                    log('Browser speech synthesis ready (click play button to hear)');
+                    playButton.disabled = false;
+                    playButton.onclick = () => generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                }
+            } else if (ttsServiceType === 'openai' && !audioData) {
+                // We're supposed to use OpenAI TTS but didn't receive audio data - request it from server
+                log('OpenAI TTS selected but no audio data received - trying to request it from server');
+                TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
             } else {
-                // Default to browser speech synthesis
-                generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                // We don't have audio data and no explicit instruction to use client speech
+                if (ttsServiceType === 'browser') {
+                    // For browser TTS service, use the browser speech synthesis
+                    log('Using browser speech synthesis for browser TTS service');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                } else if (ttsServiceType === 'openai') {
+                    // For OpenAI TTS service with no audio, try to request from server first
+                    log('OpenAI TTS service selected but no audio available - requesting from server');
+                    
+                    // Set up a fallback just in case
+                    playButton.disabled = false;
+                    playButton.innerHTML = '<span class="play-icon">▶</span> Play Translation (OpenAI)';
+                    
+                    // When clicked, try to get OpenAI audio first
+                    playButton.onclick = () => {
+                        log('Requesting OpenAI TTS audio from server for play button');
+                        TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
+                    };
+                    
+                    // Also try to request it immediately
+                    TTSServiceManager.requestServerTTS(text, targetLanguage, 'openai', performance.now());
+                } else {
+                    // For any other TTS service, provide a consistent fallback
+                    log('No audio data available for ' + ttsServiceType + ' service, using consistent fallback');
+                    generateSpeechFromText(text, targetLanguage, ttsServiceType);
+                }
             }
         }
         
@@ -1492,9 +1595,19 @@
         }
         
         // Generate speech from text using browser's Speech Synthesis API (Web Speech API)
-        function generateSpeechFromText(text, languageCode) {
+        function generateSpeechFromText(text, languageCode, ttsServiceType = 'browser') {
             const audio = document.getElementById('audio-player');
             const playButton = document.getElementById('play-button');
+            
+            // Log the TTS service type being used
+            log(`Generating speech with service type: ${ttsServiceType}`);
+            
+            // If OpenAI TTS was selected but we're still using browser speech,
+            // this means there was an issue with the server-generated audio
+            if (ttsServiceType === 'openai') {
+                log('WARNING: Fallback to browser speech despite OpenAI TTS selection');
+                showWarning('Using browser speech as fallback (server audio unavailable)');
+            }
             
             // Disable button during processing
             playButton.disabled = true;
@@ -1869,32 +1982,92 @@
          */
         class AudioPlayer {
             /**
-             * Play audio from base64 encoded data
+             * Play audio from base64 encoded data with improved error handling
              * 
              * @param {string} base64Data - Base64 encoded audio data
+             * @returns {Promise<boolean>} - Promise that resolves to true if playback started successfully
              */
-            static playFromBase64(base64Data) {
+            static async playFromBase64(base64Data) {
                 try {
+                    log(`Playing audio from base64, data length: ${base64Data.length} chars`);
+                    log(`First 20 chars of base64: ${base64Data.substring(0, 20)}...`);
+                    
                     // Convert base64 to blob for playback
                     const binaryString = atob(base64Data);
+                    log(`Converted to binary string of length: ${binaryString.length}`);
+                    
                     const bytes = new Uint8Array(binaryString.length);
                     for (let i = 0; i < binaryString.length; i++) {
                         bytes[i] = binaryString.charCodeAt(i);
                     }
                     
-                    // Create blob and URL
-                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' }); 
+                    // Check header bytes to determine format
+                    const headerHex = Array.from(bytes.slice(0, 4))
+                        .map(b => b.toString(16).padStart(2, '0'))
+                        .join(' ');
+                    log(`Audio data header: ${headerHex}`);
+                    
+                    // Determine MIME type based on header
+                    let mimeType = 'audio/mp3'; // Default assumption
+                    
+                    if (headerHex.startsWith('49 44 33')) { // ID3
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio with ID3 tag');
+                    } else if (headerHex.startsWith('ff fb')) {
+                        mimeType = 'audio/mp3';
+                        log('Detected MP3 audio without ID3 tag');
+                    } else if (headerHex.startsWith('52 49 46 46')) { // RIFF
+                        mimeType = 'audio/wav';
+                        log('Detected WAV audio');
+                    } else {
+                        log(`Unknown audio format with header: ${headerHex}`);
+                    }
+                    
+                    // Create blob with detected MIME type
+                    const blob = new Blob([bytes.buffer], { type: mimeType });
+                    log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
+                    
                     const audioURL = URL.createObjectURL(blob);
                     
-                    // Play the audio
+                    // Get the audio player
                     const audioPlayer = document.getElementById('audio-player');
+                    
+                    // Set up promise to track audio loading status
+                    const loadPromise = new Promise((resolve, reject) => {
+                        // Handle successful loading
+                        audioPlayer.onloadeddata = () => {
+                            log('Audio loaded successfully');
+                            resolve(true);
+                        };
+                        
+                        // Handle errors
+                        audioPlayer.onerror = (e) => {
+                            const errorMessage = `Audio error: ${audioPlayer.error ? audioPlayer.error.code : 'unknown'}`;
+                            log(errorMessage);
+                            reject(new Error(errorMessage));
+                        };
+                    });
+                    
+                    // Set source and start loading
                     audioPlayer.src = audioURL;
-                    audioPlayer.play();
+                    
+                    // Wait for loading to complete with timeout
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('Audio loading timed out')), 5000);
+                    });
+                    
+                    await Promise.race([loadPromise, timeoutPromise]);
+                    
+                    // Play the audio
+                    await audioPlayer.play();
+                    log('Audio playback started');
                     
                     showSuccess('Playing audio');
+                    return true;
                 } catch (error) {
                     log(`Error playing audio: ${error.message}`);
-                    showError('Failed to play audio');
+                    showError(`Failed to play audio: ${error.message}`);
+                    return false;
                 }
             }
         }
@@ -1904,8 +2077,8 @@
             TTSServiceManager.playWithService(ttsService);
         }
         
-        function playAudio(base64Data) {
-            AudioPlayer.playFromBase64(base64Data);
+        async function playAudio(base64Data) {
+            await AudioPlayer.playFromBase64(base64Data);
         }
         
         function updateAudioComparison() {
@@ -1975,7 +2148,6 @@
             const connectBtn = document.getElementById('connect-btn');
             const disconnectBtn = document.getElementById('disconnect-btn');
             const languageSelect = document.getElementById('language-select');
-            const applyTtsSettings = document.getElementById('apply-tts-settings');
             const currentTtsService = document.getElementById('current-tts-service');
             const refreshComparisonBtn = document.getElementById('refresh-comparison');
             
@@ -1999,49 +2171,35 @@
             `;
             document.head.appendChild(style);
             
-            // Setup TTS service selection radio buttons
-            document.querySelectorAll('input[name="tts-service"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    const ttsService = this.value;
-                    log(`TTS service changed to: ${ttsService}`);
-                    
-                    // Update language dropdown based on supported languages
-                    if (window.LanguageSupport) {
-                        window.LanguageSupport.updateDropdown(ttsService);
-                        window.LanguageSupport.updateButtons(ttsService);
-                        
-                        // Update expanded list if visible
-                        if (document.getElementById('expanded-language-list') && 
-                            document.getElementById('language-modal').style.display !== 'none') {
-                            window.LanguageSupport.updateExpandedList(ttsService);
-                        }
-                    }
-                });
-            });
+            // TTS service is now controlled by the teacher - initialize with default
+            const defaultTtsService = 'browser'; // Default value until teacher's preference received
             
-            // Initialize language dropdown for current TTS service
-            const initialTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+            // Initialize language support with default TTS service
             if (window.LanguageSupport) {
-                window.LanguageSupport.updateDropdown(initialTtsService);
-                window.LanguageSupport.updateButtons(initialTtsService);
+                window.LanguageSupport.updateDropdown(defaultTtsService);
+                window.LanguageSupport.updateButtons(defaultTtsService);
             }
             
-            // Setup TTS service play demo buttons
-            document.querySelectorAll('.play-demo-btn').forEach(button => {
+            // Setup TTS service play example buttons (for comparison only)
+            document.querySelectorAll('.play-example-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const ttsService = this.getAttribute('data-service');
-                    log(`Play demo button clicked for TTS service: ${ttsService}`);
+                    log(`Play example button clicked for TTS service: ${ttsService} (comparison only)`);
                     
-                    // Select the radio button for this service
-                    const radioButton = document.querySelector(`input[name="tts-service"][value="${ttsService}"]`);
-                    radioButton.checked = true;
+                    // This is for comparison only - does NOT change the active service
+                    const comparisonOnly = true;
                     
-                    // Trigger the change event manually to update language support
-                    const changeEvent = new Event('change');
-                    radioButton.dispatchEvent(changeEvent);
+                    // Show a message that this is just for comparison
+                    showSuccess(`Playing example with ${getTtsServiceName(ttsService)} (Does not change the active service)`);
                     
-                    // Play the current translation with this TTS service
+                    // Play the current translation with this TTS service for comparison only
                     playWithTTSService(ttsService);
+                    
+                    // Make it extra clear this doesn't change the active service
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    setTimeout(() => {
+                        showSuccess(`Your active TTS service remains: ${currentServiceName} (controlled by teacher)`);
+                    }, 3000);
                 });
             });
             
@@ -2068,65 +2226,22 @@
                 }
             });
             
-            // TTS service selection button
-            applyTtsSettings.addEventListener('click', function() {
-                // Get the selected radio button value
-                const selectedTtsService = document.querySelector('input[name="tts-service"]:checked').value;
-                log(`Applying TTS service: ${selectedTtsService}`);
-                
-                // Update current TTS service display
-                document.getElementById('current-tts-service').textContent = getTtsServiceName(selectedTtsService);
-                
-                // Add settings confirmation message
-                const confirmationEl = document.createElement('div');
-                confirmationEl.className = 'settings-confirmation success-message';
-                confirmationEl.textContent = 'TTS settings updated successfully';
-                
-                // Add it to the page
-                const container = document.getElementById('success-container');
-                container.appendChild(confirmationEl);
-                
-                // Remove after 3 seconds
-                setTimeout(() => {
-                    if (confirmationEl.parentNode) {
-                        confirmationEl.parentNode.removeChild(confirmationEl);
-                    }
-                }, 3000);
-                
-                // Update TTS status indicators
-                document.querySelectorAll('.tts-status').forEach(el => {
-                    el.classList.remove('browser', 'openai', 'silent');
-                    el.classList.add(selectedTtsService);
-                });
-                
-                if (isConnected) {
-                    // Re-register with the new TTS service setting
-                    const registerMessage = {
-                        type: 'register',
-                        role: 'student',
-                        languageCode: selectedLanguage,
-                        settings: {
-                            ttsServiceType: selectedTtsService
-                        }
-                    };
-                    
-                    socket.send(JSON.stringify(registerMessage));
-                    log(`Updated TTS service to ${selectedTtsService}`);
-                } else {
-                    showError('Connect to classroom first to apply these settings');
-                }
-            });
+            // No TTS service selection button handling needed anymore - teacher controls this
             
             // Quick language buttons
             document.querySelectorAll('.language-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const lang = this.getAttribute('data-lang');
-                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                    
+                    // Get the current teacher-controlled TTS service from the display span
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    // Convert display name back to service ID using the helper function
+                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
                     
                     // Check if this language is supported by the current TTS service
                     if (window.LanguageSupport && !window.LanguageSupport.isSupported(lang, currentTtsService)) {
-                        showError(`${this.textContent} is not supported by the current TTS service (${getTtsServiceName(currentTtsService)}). 
-                                  Either change the TTS service or select a different language.`);
+                        showError(`${this.textContent} is not supported by the current TTS service (${currentServiceName}). 
+                                  Please ask the teacher to change the TTS service.`);
                         return;
                     }
                     
@@ -2155,7 +2270,10 @@
             if (showMoreBtn && languageModal) {
                 // Initialize the expanded language list when "More Languages" is clicked
                 showMoreBtn.addEventListener('click', function() {
-                    const currentTtsService = document.querySelector('input[name="tts-service"]:checked').value;
+                    // Get the current teacher-controlled TTS service from the display span
+                    const currentServiceName = document.getElementById('current-tts-service').textContent;
+                    // Convert display name back to service ID using the helper function
+                    const currentTtsService = getTtsServiceTypeFromName(currentServiceName);
                     
                     // Use the LanguageSupport module to update the expanded list
                     if (window.LanguageSupport) {

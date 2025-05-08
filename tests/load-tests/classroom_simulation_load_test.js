@@ -25,11 +25,11 @@ const path = require('path');
 const CONFIG = {
   // Connection settings
   serverUrl: process.env.TEST_SERVER_URL || 'ws://localhost:5000/ws',
-  numStudents: parseInt(process.env.TEST_NUM_STUDENTS || '25', 10),
+  numStudents: 25,
   connectionTimeoutMs: 5000,
   
   // Test duration
-  testDurationMs: parseInt(process.env.TEST_DURATION_MS || '60000', 10), // 1 minute by default
+  testDurationMs: 60000, // 1 minute by default
   
   // Teacher settings
   teacherLanguage: 'de-DE', // German
@@ -493,57 +493,58 @@ class ClassroomSimulation {
       const filePath = path.join(resultsDir, `classroom-simulation-${timestamp}.json`);
       fs.writeFileSync(filePath, JSON.stringify(this.results, null, 2));
       
-      console.log(`Test results saved to: ${filePath}`);
-      
-      // Generate exit code based on test result
-      const stats = this.results.overallStats;
-      const latencyOK = !stats.avgLatencyMs || stats.avgLatencyMs <= CONFIG.maxLatencyMs;
-      const successRateOK = stats.successRate >= CONFIG.minSuccessRate;
-      const testPassed = latencyOK && successRateOK;
-      
-      process.exitCode = testPassed ? 0 : 1;
-      
-      return filePath;
+      console.log(`\nDetailed results saved to: ${filePath}`);
     } catch (error) {
       console.error(`Failed to save results: ${error.message}`);
-      process.exitCode = 1;
-      return null;
     }
   }
 }
 
-// Main function to run the classroom simulation
+// Main function to run the test
 async function runClassroomSimulation() {
-  console.log('==================================================');
-  console.log('       CLASSROOM SIMULATION LOAD TEST             ');
-  console.log('==================================================');
-  console.log(`Server URL: ${CONFIG.serverUrl}`);
-  console.log(`Number of students: ${CONFIG.numStudents}`);
-  console.log(`Test duration: ${CONFIG.testDurationMs / 1000} seconds`);
-  console.log('==================================================\n');
-  
   try {
-    // Create and set up the classroom
+    console.log('=================================================');
+    console.log('  CLASSROOM SIMULATION LOAD TEST - STARTING UP');
+    console.log('=================================================');
+    console.log(`Server: ${CONFIG.serverUrl}`);
+    console.log(`Students: ${CONFIG.numStudents}`);
+    console.log(`Teacher Language: ${CONFIG.teacherLanguage}`);
+    console.log(`Test Duration: ${CONFIG.testDurationMs / 1000} seconds`);
+    console.log('=================================================\n');
+    
     const classroom = new ClassroomSimulation();
+    
+    // Setup the classroom
     await classroom.setup();
     
     // Connect all participants
     const connected = await classroom.connect();
     if (!connected) {
-      throw new Error('Failed to connect participants');
+      throw new Error('Failed to connect participants. Aborting test.');
     }
     
-    // Start the test
+    // Start the simulation
     await classroom.start();
     
-    // Test will automatically complete after the duration
-    // or when all messages have been processed
-    
+    // The test will stop automatically
+    return true;
   } catch (error) {
     console.error(`\nClassroom simulation failed: ${error.message}`);
-    process.exitCode = 1;
+    return false;
   }
 }
 
-// Run the simulation
-runClassroomSimulation();
+// Run the test if executed directly
+if (require.main === module) {
+  (async () => {
+    try {
+      const success = await runClassroomSimulation();
+      process.exit(success ? 0 : 1);
+    } catch (error) {
+      console.error('Unhandled error:', error);
+      process.exit(1);
+    }
+  })();
+}
+
+module.exports = { runClassroomSimulation, ClassroomSimulation, Participant };

@@ -99,34 +99,6 @@ export interface DependenciesMetrics {
   }>;
 }
 
-export interface CodeQualityMetrics {
-  original: {
-    lines: number;
-    size: number;
-  };
-  refactored: {
-    lines: number;
-    size: number;
-    classCount: number;
-    methodCount: number;
-    interfaceCount: number;
-    classes: {
-      [key: string]: number;
-    };
-    smallClassesCount: number;
-    smallClassesPercentage: number;
-  };
-  improvement: {
-    lineReduction: number;
-    lineReductionPercentage: number;
-    sizeReduction: number;
-    sizeReductionPercentage: number;
-  };
-  targetsMet: {
-    smallClasses: boolean;
-  };
-}
-
 export interface TestResultsMetrics {
   unit: {
     total: number;
@@ -184,24 +156,6 @@ export interface TestResultsMetrics {
       description: string;
     }>;
   };
-  loadTest: {
-    total: number;
-    passed: number;
-    failed: number;
-    lastRun: string;
-    maxConcurrentUsers: number;
-    avgLatencyMs: number;
-    successRate: number;
-    tests?: Array<{
-      name: string;
-      status: string;
-      duration: string;
-      description: string;
-      participants: number;
-      avgLatencyMs: number;
-      successRate: number;
-    }>;
-  };
 }
 
 export interface AllMetrics {
@@ -211,7 +165,6 @@ export interface AllMetrics {
   duplication: DuplicationMetrics;
   dependencies: DependenciesMetrics;
   testResults: TestResultsMetrics;
-  codeQuality: CodeQualityMetrics;
 }
 
 // Cache for metrics data
@@ -231,14 +184,13 @@ export async function getAllMetrics(): Promise<AllMetrics> {
   }
 
   // Calculate all metrics (in parallel for performance)
-  const [coverage, complexity, codeSmells, duplication, dependencies, testResults, codeQuality] = await Promise.all([
+  const [coverage, complexity, codeSmells, duplication, dependencies, testResults] = await Promise.all([
     getCoverageMetrics(),
     getComplexityMetrics(),
     getCodeSmellsMetrics(),
     getDuplicationMetrics(),
     getDependenciesMetrics(),
-    getTestResultsMetrics(),
-    getCodeQualityMetrics()
+    getTestResultsMetrics()
   ]);
 
   // Update cache
@@ -248,8 +200,7 @@ export async function getAllMetrics(): Promise<AllMetrics> {
     codeSmells,
     duplication,
     dependencies,
-    testResults,
-    codeQuality
+    testResults
   };
   lastCacheTime = now;
 
@@ -494,57 +445,6 @@ async function getDependenciesMetrics(): Promise<DependenciesMetrics> {
 }
 
 /**
- * Calculate code quality metrics for the TextToSpeechService refactoring
- * @returns Promise<CodeQualityMetrics> The code quality metrics
- */
-async function getCodeQualityMetrics(): Promise<CodeQualityMetrics> {
-  try {
-    // In a real implementation, we would analyze the files to calculate metrics
-    // For now, we'll use our metrics from the refactoring 
-    
-    return {
-      original: {
-        lines: 982,
-        size: 32450
-      },
-      refactored: {
-        lines: 754,
-        size: 24720,
-        classCount: 10,
-        methodCount: 36,
-        interfaceCount: 7,
-        classes: {
-          'BrowserSpeechSynthesisService': 30,
-          'SilentTextToSpeechService': 8,
-          'NodeFileSystem': 39,
-          'TTSCacheManager': 72,
-          'EmotionDetector': 155,
-          'VoiceSelector': 62,
-          'OpenAITTSApiProvider': 27,
-          'TTSErrorHandler': 5,
-          'OpenAITextToSpeechService': 97,
-          'TextToSpeechFactory': 45
-        },
-        smallClassesCount: 8,
-        smallClassesPercentage: 80
-      },
-      improvement: {
-        lineReduction: 228,
-        lineReductionPercentage: 23.2,
-        sizeReduction: 7730,
-        sizeReductionPercentage: 23.8
-      },
-      targetsMet: {
-        smallClasses: true
-      }
-    };
-  } catch (error) {
-    console.error('Error calculating code quality metrics:', error);
-    throw new Error('Failed to calculate code quality metrics');
-  }
-}
-
-/**
  * Fetch GitHub Actions workflow runs
  * @returns Promise with GitHub Actions workflow data
  */
@@ -612,8 +512,8 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
     // Basic test metrics (from test runs or sample data)
     const testMetrics = {
       unit: {
-        total: 47,
-        passed: 45,
+        total: 42,
+        passed: 40,
         failed: 2,
         tests: [
           { 
@@ -645,65 +545,6 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
             status: "failed", 
             duration: "0.28s",
             description: "Should handle API errors gracefully" 
-          },
-          { 
-            name: "TextToSpeechFactory Service Creation", 
-            status: "passed", 
-            duration: "0.12s",
-            description: "Should create the correct TTS service type" 
-          },
-          { 
-            name: "OpenAITextToSpeechService Cache Check", 
-            status: "passed", 
-            duration: "0.22s",
-            description: "Should check cache before generating speech" 
-          },
-          { 
-            name: "OpenAITextToSpeechService Emotion Processing", 
-            status: "passed", 
-            duration: "0.31s",
-            description: "Should process emotions when preserveEmotions is true" 
-          },
-          { 
-            name: "OpenAITextToSpeechService Error Handling", 
-            status: "passed", 
-            duration: "0.16s",
-            description: "Should handle errors gracefully" 
-          },
-          { 
-            name: "SilentTextToSpeechService", 
-            status: "passed", 
-            duration: "0.05s",
-            description: "Should return an empty buffer" 
-          }
-        ]
-      },
-      loadTest: {
-        total: 2,
-        passed: 2,
-        failed: 0,
-        lastRun: new Date().toISOString(),
-        maxConcurrentUsers: 25,
-        avgLatencyMs: 1456,
-        successRate: 0.98,
-        tests: [
-          {
-            name: "Classroom Simulation: 25 Students",
-            status: "passed",
-            duration: "2m 15s",
-            description: "Simulates a classroom with 1 teacher and 25 students in different languages",
-            participants: 26,
-            avgLatencyMs: 1456,
-            successRate: 0.98
-          },
-          {
-            name: "Classroom Simulation: Peak Load",
-            status: "passed",
-            duration: "3m 10s",
-            description: "Peak load test with multiple simultaneous audio streams",
-            participants: 25,
-            avgLatencyMs: 1689,
-            successRate: 0.96
           }
         ]
       },
@@ -842,32 +683,11 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
       }
     }
     
-    // Check for load test workflows in GitHub data
-    let loadTestMetrics = testMetrics.loadTest; // Use the one we defined earlier
-
-    if (githubData && githubData.workflow_runs) {
-      // Look for classroom load test runs
-      const loadTestRuns = githubData.workflow_runs.filter(
-        (run: any) => run.name.toLowerCase().includes('classroom') || 
-                    run.name.toLowerCase().includes('load test')
-      );
-      
-      if (loadTestRuns.length > 0) {
-        const latestLoadTest = loadTestRuns[0];
-        loadTestMetrics.lastRun = latestLoadTest.created_at;
-        
-        // Update status based on latest run
-        loadTestMetrics.passed = latestLoadTest.conclusion === 'success' ? 2 : 1;
-        loadTestMetrics.failed = latestLoadTest.conclusion === 'success' ? 0 : 1;
-      }
-    }
-
     // Combine all test metrics
     return {
       ...testMetrics,
       cicd: cicdMetrics,
-      audio: audioMetrics,
-      loadTest: loadTestMetrics
+      audio: audioMetrics
     };
   } catch (error) {
     console.error('Error calculating test results metrics:', error);
@@ -923,26 +743,6 @@ async function getTestResultsMetrics(): Promise<TestResultsMetrics> {
             status: "passed",
             duration: "5.7s",
             description: "Translated audio maintains acceptable quality levels"
-          }
-        ]
-      },
-      loadTest: {
-        total: 2,
-        passed: 2,
-        failed: 0,
-        lastRun: new Date().toISOString(),
-        maxConcurrentUsers: 25,
-        avgLatencyMs: 1456,
-        successRate: 0.98,
-        tests: [
-          {
-            name: "Classroom Simulation: 25 Students",
-            status: "passed",
-            duration: "2m 15s",
-            description: "Simulates a classroom with 1 teacher and 25 students in different languages",
-            participants: 26,
-            avgLatencyMs: 1456,
-            successRate: 0.98
           }
         ]
       }
