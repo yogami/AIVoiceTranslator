@@ -229,6 +229,7 @@
 
     <div class="tabs">
         <div class="tab active" data-tab="teacher">Teacher View</div>
+        <div class="tab" data-tab="student">Student View</div>
         <div class="tab" data-tab="both">Monitoring View</div>
     </div>
 
@@ -255,7 +256,18 @@
                 </div>
             </div>
             
-
+            <div class="card">
+                <div class="card-title">Language Selection</div>
+                <div>
+                    <div>Speaking Language:</div>
+                    <div class="language-buttons">
+                        <button id="teacher-en-btn" class="active">English</button>
+                        <button id="teacher-es-btn">Spanish</button>
+                        <button id="teacher-fr-btn">French</button>
+                        <button id="teacher-de-btn">German</button>
+                    </div>
+                </div>
+            </div>
             
             <div class="card" style="border: 2px solid #3498db; box-shadow: 0 4px 8px rgba(52, 152, 219, 0.2);">
                 <div class="card-title" style="background-color: #3498db; color: white;">TTS Service Selection (Teacher Control)</div>
@@ -267,14 +279,22 @@
                         </div>
                     </div>
                     <div class="language-buttons tts-buttons">
-                        <button id="teacher-tts-openai-btn" class="active" style="position: relative; width: 100%;">
+                        <button id="teacher-tts-browser-btn" class="active" style="position: relative;">
+                            Browser
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Fast, built-in</span>
+                        </button>
+                        <button id="teacher-tts-openai-btn" style="position: relative;">
                             OpenAI
-                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality voices</span>
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Natural, high quality</span>
+                        </button>
+                        <button id="teacher-tts-silent-btn" style="position: relative;">
+                            Silent
+                            <span style="display: block; font-size: 0.8em; margin-top: 2px;">Text only, no audio</span>
                         </button>
                     </div>
                     <div class="status-message" style="margin-top: 12px; background-color: #f8f9fa; padding: 8px; border-radius: 4px; border-left: 4px solid #3498db;">
                         <span>Active TTS Service for All Students: </span>
-                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px;">openai</span>
+                        <span id="current-tts-service" class="badge" style="font-size: 1em; padding: 4px 8px;">browser</span>
                     </div>
                 </div>
             </div>
@@ -315,7 +335,18 @@
                 </div>
             </div>
             
-
+            <div class="card">
+                <div class="card-title">Language Selection</div>
+                <div>
+                    <div>Preferred Language:</div>
+                    <div class="language-buttons">
+                        <button id="student-en-btn">English</button>
+                        <button id="student-es-btn" class="active">Spanish</button>
+                        <button id="student-fr-btn">French</button>
+                        <button id="student-de-btn">German</button>
+                    </div>
+                </div>
+            </div>
             
             <div class="card" style="background-color: #f8f9fa; border-left: 4px solid #3498db;">
                 <div class="card-title" style="color: #3498db;">TTS Service (Teacher Controlled)</div>
@@ -417,7 +448,7 @@
     <script>
         // WebSocket Client Class
         class WebSocketClient {
-            constructor(role = 'teacher', language = 'en-US', ttsServiceType = 'openai') {
+            constructor(role = 'teacher', language = 'en-US', ttsServiceType = 'browser') {
                 this.ws = null;
                 this.sessionId = null;
                 this.role = role;
@@ -712,13 +743,19 @@
             const languageEl = document.getElementById('teacher-language');
             const connectBtn = document.getElementById('teacher-connect-btn');
             const disconnectBtn = document.getElementById('teacher-disconnect-btn');
+            const enBtn = document.getElementById('teacher-en-btn');
+            const esBtn = document.getElementById('teacher-es-btn');
+            const frBtn = document.getElementById('teacher-fr-btn');
+            const deBtn = document.getElementById('teacher-de-btn');
+            const ttsBrowserBtn = document.getElementById('teacher-tts-browser-btn');
             const ttsOpenaiBtn = document.getElementById('teacher-tts-openai-btn');
+            const ttsSilentBtn = document.getElementById('teacher-tts-silent-btn');
             const currentTtsServiceEl = document.getElementById('current-tts-service');
             const messageInput = document.getElementById('teacher-message');
             const sendBtn = document.getElementById('teacher-send-btn');
             const logsEl = document.getElementById('teacher-logs');
             
-            const client = new WebSocketClient('teacher', 'en-US', 'openai');
+            const client = new WebSocketClient('teacher', 'en-US', 'browser');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -740,13 +777,65 @@
                 }
             });
             
-            // No language buttons anymore - English (en-US) is used by default
+            enBtn.addEventListener('click', () => {
+                enBtn.classList.add('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'en-US');
+                languageEl.textContent = 'en-US';
+            });
             
-            // TTS Service selection - only OpenAI is available now
+            esBtn.addEventListener('click', () => {
+                esBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'es-ES');
+                languageEl.textContent = 'es-ES';
+            });
+            
+            frBtn.addEventListener('click', () => {
+                frBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('teacher', 'fr-FR');
+                languageEl.textContent = 'fr-FR';
+            });
+            
+            deBtn.addEventListener('click', () => {
+                deBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                client.register('teacher', 'de-DE');
+                languageEl.textContent = 'de-DE';
+            });
+            
+            // TTS Service selection
+            ttsBrowserBtn.addEventListener('click', () => {
+                ttsBrowserBtn.classList.add('active');
+                ttsOpenaiBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
+                client.setTtsServiceType('browser');
+                currentTtsServiceEl.textContent = 'browser';
+            });
+            
             ttsOpenaiBtn.addEventListener('click', () => {
-                // Already active, nothing to do
+                ttsOpenaiBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsSilentBtn.classList.remove('active');
                 client.setTtsServiceType('openai');
                 currentTtsServiceEl.textContent = 'openai';
+            });
+            
+            ttsSilentBtn.addEventListener('click', () => {
+                ttsSilentBtn.classList.add('active');
+                ttsBrowserBtn.classList.remove('active');
+                ttsOpenaiBtn.classList.remove('active');
+                client.setTtsServiceType('silent');
+                currentTtsServiceEl.textContent = 'silent';
             });
             
             client.addEventListener('status', (status) => {
@@ -804,11 +893,15 @@
             const languageEl = document.getElementById('student-language');
             const connectBtn = document.getElementById('student-connect-btn');
             const disconnectBtn = document.getElementById('student-disconnect-btn');
+            const enBtn = document.getElementById('student-en-btn');
+            const esBtn = document.getElementById('student-es-btn');
+            const frBtn = document.getElementById('student-fr-btn');
+            const deBtn = document.getElementById('student-de-btn');
             const translationsEl = document.getElementById('student-translations');
             const logsEl = document.getElementById('student-logs');
             const ttsServiceEl = document.getElementById('student-tts-service'); // New element for displaying teacher's TTS service
             
-            const client = new WebSocketClient('student', 'es-ES', 'openai');
+            const client = new WebSocketClient('student', 'es-ES');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -818,7 +911,41 @@
                 client.disconnect();
             });
             
-            // No language buttons anymore - Spanish (es-ES) is used by default for students
+            enBtn.addEventListener('click', () => {
+                enBtn.classList.add('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'en-US');
+                languageEl.textContent = 'en-US';
+            });
+            
+            esBtn.addEventListener('click', () => {
+                esBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'es-ES');
+                languageEl.textContent = 'es-ES';
+            });
+            
+            frBtn.addEventListener('click', () => {
+                frBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                deBtn.classList.remove('active');
+                client.register('student', 'fr-FR');
+                languageEl.textContent = 'fr-FR';
+            });
+            
+            deBtn.addEventListener('click', () => {
+                deBtn.classList.add('active');
+                enBtn.classList.remove('active');
+                esBtn.classList.remove('active');
+                frBtn.classList.remove('active');
+                client.register('student', 'de-DE');
+                languageEl.textContent = 'de-DE';
+            });
             
             client.addEventListener('status', (status) => {
                 if (typeof status === 'string') {
@@ -894,8 +1021,8 @@
             const translationsEl = document.getElementById('monitor-translations');
             const logsEl = document.getElementById('monitor-logs');
             
-            const teacherClient = new WebSocketClient('teacher', 'en-US', 'openai');
-            const studentClient = new WebSocketClient('student', 'es-ES', 'openai');
+            const teacherClient = new WebSocketClient('teacher', 'en-US');
+            const studentClient = new WebSocketClient('student', 'es-ES');
             
             teacherConnectBtn.addEventListener('click', () => {
                 teacherClient.connect();
