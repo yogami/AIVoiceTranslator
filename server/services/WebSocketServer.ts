@@ -224,17 +224,13 @@ export class WebSocketServer {
       this.languages.set(ws, message.languageCode);
     }
     
-    // Store client settings with Browser TTS as default service (changed from OpenAI)
-    const settings: any = this.clientSettings.get(ws) || { ttsServiceType: 'browser' };
+    // Store client settings
+    const settings: any = this.clientSettings.get(ws) || {};
     
     // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
       settings.ttsServiceType = message.settings.ttsServiceType;
       console.log(`Client requested TTS service type: ${settings.ttsServiceType}`);
-    } else if (!settings.ttsServiceType) {
-      // Set browser as the default TTS service
-      settings.ttsServiceType = 'browser';
-      console.log(`Setting default TTS service type to Browser for consistency`);
     }
     
     // Store updated settings
@@ -273,70 +269,6 @@ export class WebSocketServer {
     }
     
     // Get all student connections
-    const { connections: studentConnections, languages: studentLanguages } = this.getStudentConnections();
-    
-    if (studentConnections.length === 0) {
-      console.log('No students connected, skipping translation');
-      return;
-    }
-    
-    // Translate text to all student languages
-    const teacherLanguage = this.languages.get(ws) || 'en-US';
-    const teacherTtsServiceType = this.findTeacherTtsServiceType();
-    
-    // Translate to all required languages
-    const { translations, translationResults } = await this.translateToLanguages(
-      message.text,
-      teacherLanguage,
-      studentLanguages,
-      teacherTtsServiceType
-    );
-    
-    // Send translations to students
-    this.sendTranslationsToStudents(
-      studentConnections,
-      message.text,
-      teacherLanguage,
-      translations,
-      translationResults,
-      teacherTtsServiceType
-    );
-  }
-  
-  /**
-   * Find the teacher's preferred TTS service type
-   * @returns The TTS service type to use
-   */
-  private findTeacherTtsServiceType(): string {
-    // Default to browser if no preference is set
-    let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
-    let foundTeacherPreference = false;
-    
-    // Look for any teacher client and get their preference
-    this.connections.forEach(client => {
-      if (this.roles.get(client) === 'teacher') {
-        if (this.clientSettings.get(client)?.ttsServiceType) {
-          // Use the teacher's preference for all student translations
-          teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
-          foundTeacherPreference = true;
-          console.log(`Found teacher preference for TTS service: ${teacherTtsServiceType}`);
-        }
-      }
-    });
-    
-    // Log for debugging
-    if (!foundTeacherPreference) {
-      console.log(`No explicit teacher preference found for TTS service, using: ${teacherTtsServiceType}`);
-    }
-    
-    return teacherTtsServiceType;
-  }
-  
-  /**
-   * Get all student connections and their unique languages
-   * @returns Object containing student connections and unique languages
-   */
-  private getStudentConnections(): { connections: WebSocketClient[], languages: string[] } {
     const studentConnections: WebSocketClient[] = [];
     const studentLanguages: string[] = [];
     
@@ -354,49 +286,50 @@ export class WebSocketServer {
       }
     });
     
-    return { connections: studentConnections, languages: studentLanguages };
-  }
-  
-  /**
-   * Translate text to multiple languages
-   * @param text The text to translate
-   * @param sourceLanguage The source language code
-   * @param targetLanguages Array of target language codes
-   * @param ttsServiceType The TTS service type to use
-   * @returns Object containing translations and translation results
-   */
-  private async translateToLanguages(
-    text: string,
-    sourceLanguage: string,
-    targetLanguages: string[],
-    ttsServiceType: string
-  ): Promise<{
-    translations: Record<string, string>,
-    translationResults: Record<string, { originalText: string, translatedText: string, audioBuffer: Buffer }>
-  }> {
+    if (studentConnections.length === 0) {
+      console.log('No students connected, skipping translation');
+      return;
+    }
+    
+    // Translate text to all student languages
+    const teacherLanguage = this.languages.get(ws) || 'en-US';
+    
+    // Using our new speechTranslationService to perform translations
+    // This is a simplified implementation as we don't have translateTextToMultipleLanguages in the service
     const translations: Record<string, string> = {};
+    
+    // Translate for each language
+    // Define a type for translation results that includes audioBuffer
     const translationResults: Record<string, { 
       originalText: string;
       translatedText: string;
       audioBuffer: Buffer;
     }> = {};
     
-    for (const targetLanguage of targetLanguages) {
+    for (const targetLanguage of studentLanguages) {
       try {
-        // Only log in development mode to avoid cluttering the logs
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`WebSocket: Using TTS service '${ttsServiceType}' for language '${targetLanguage}'`);
-        }
+        // Get the teacher's preferred TTS service type
+        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+        
+        // Look for the teacher's TTS service preference
+        this.connections.forEach(client => {
+          if (this.roles.get(client) === 'teacher' &&
+              this.clientSettings.get(client)?.ttsServiceType) {
+            // Use the teacher's preference for all student translations
+            teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+          }
+        });
+        
+        // No need to set environment variable anymore - we'll pass it directly
+        console.log(`Using teacher's TTS service '${teacherTtsServiceType}' for language '${targetLanguage}'`);
         
         // Perform the translation with the selected TTS service
-        console.log(`TTS Service Override: Explicitly using '${ttsServiceType}' for language ${targetLanguage}`);
-        
         const result = await speechTranslationService.translateSpeech(
           Buffer.from(''), // Empty buffer as we already have the text
-          sourceLanguage,
+          teacherLanguage,
           targetLanguage,
-          text,
-          { ttsServiceType } // Pass TTS service type as object
+          message.text, // Use the pre-transcribed text
+          { ttsServiceType: teacherTtsServiceType } // Pass TTS service type as object
         );
         
         // Store the full result object for this language
@@ -406,125 +339,84 @@ export class WebSocketServer {
         translations[targetLanguage] = result.translatedText;
       } catch (error) {
         console.error(`Error translating to ${targetLanguage}:`, error);
-        translations[targetLanguage] = text; // Fallback to original text
+        translations[targetLanguage] = message.text; // Fallback to original text
         translationResults[targetLanguage] = {
-          originalText: text,
-          translatedText: text,
+          originalText: message.text,
+          translatedText: message.text,
           audioBuffer: Buffer.from('') // Empty buffer for fallback
         };
       }
     }
     
-    return { translations, translationResults };
-  }
-  
-  /**
-   * Create a translation message for a student
-   */
-  private createTranslationMessage(
-    originalText: string,
-    translatedText: string,
-    sourceLanguage: string,
-    targetLanguage: string,
-    ttsServiceType: string,
-    translationResults: Record<string, { originalText: string, translatedText: string, audioBuffer: Buffer }>
-  ): any {
-    // Create translation message with audio data support
-    const translationMessage: any = {
-      type: 'translation',
-      text: translatedText,
-      originalText: originalText,
-      sourceLanguage: sourceLanguage,
-      targetLanguage: targetLanguage,
-      ttsServiceType: ttsServiceType // Include the service type for client reference
-    };
-    
-    // If we have a translation result with audio buffer, include it
-    if (translationResults[targetLanguage] && translationResults[targetLanguage].audioBuffer) {
-      try {
-        const audioBuffer = translationResults[targetLanguage].audioBuffer;
-        
-        // Check if this is a special marker for browser speech synthesis
-        const bufferString = audioBuffer.toString('utf8');
-        
-        // Check if this is a browser speech JSON marker
-        if (bufferString.includes('"type":"browser-speech"') || bufferString.includes("'type':'browser-speech'")) {
-          // This is a marker for browser-based speech synthesis
-          // Use browser speech synthesis client-side
-          translationMessage.useClientSpeech = true;
-          
-          try {
-            // Try to parse the JSON - this should now work with the format from TextToSpeechService
-            translationMessage.speechParams = JSON.parse(bufferString);
-            
-            // Ensure autoPlay is set to true in the speech params
-            if (translationMessage.speechParams.autoPlay === undefined) {
-              translationMessage.speechParams.autoPlay = true;
-            }
-            
-            // Only log in development mode
-            if (process.env.NODE_ENV === 'development') {
-              console.log(`Using browser speech synthesis for ${targetLanguage}`);
-            }
-          } catch (jsonError) {
-            console.error('Error parsing speech params:', jsonError);
-            // Fallback to default speech params
-            translationMessage.speechParams = {
-              type: 'browser-speech',
-              text: translatedText,
-              languageCode: targetLanguage,
-              autoPlay: true
-            };
-          }
-        } else if (audioBuffer.length > 0) {
-          // This is actual audio data - encode as base64
-          translationMessage.audioData = audioBuffer.toString('base64');
-          translationMessage.useClientSpeech = false; // Explicitly set to false
-          
-          // Minimal logging for development mode only
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
-          }
-        }
-      } catch (error) {
-        console.error('Error processing audio data for translation:', error);
-      }
-    } else if (process.env.NODE_ENV === 'development') {
-      // Only log in development mode
-      console.log(`No audio buffer available for language ${targetLanguage}`);
-    }
-    
-    return translationMessage;
-  }
-  
-  /**
-   * Send translations to each student
-   */
-  private sendTranslationsToStudents(
-    studentConnections: WebSocketClient[],
-    originalText: string,
-    sourceLanguage: string,
-    translations: Record<string, string>,
-    translationResults: Record<string, { originalText: string, translatedText: string, audioBuffer: Buffer }>,
-    ttsServiceType: string
-  ): void {
+    // Send translations to students
     studentConnections.forEach(client => {
       const studentLanguage = this.languages.get(client);
       if (!studentLanguage) return;
       
-      const translatedText = translations[studentLanguage] || originalText;
+      const translatedText = translations[studentLanguage] || message.text;
       
-      // Create the message
-      const translationMessage = this.createTranslationMessage(
-        originalText,
-        translatedText,
-        sourceLanguage,
-        studentLanguage,
-        ttsServiceType,
-        translationResults
-      );
+      // Get the teacher's preferred TTS service type (same as used for generation)
+      let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
+      this.connections.forEach(teacherClient => {
+        if (this.roles.get(teacherClient) === 'teacher' &&
+            this.clientSettings.get(teacherClient)?.ttsServiceType) {
+          teacherTtsServiceType = this.clientSettings.get(teacherClient)?.ttsServiceType;
+        }
+      });
+      // Use teacher's preference instead of individual student settings
+      const ttsServiceType = teacherTtsServiceType;
       
-      // Send to client
+      // Create translation message with audio data support
+      const translationMessage: any = {
+        type: 'translation',
+        text: translatedText,
+        originalText: message.text,
+        sourceLanguage: teacherLanguage,
+        targetLanguage: studentLanguage,
+        ttsServiceType: ttsServiceType // Include the service type for client reference
+      };
+      
+      // If we have a translation result with audio buffer, include it
+      if (translationResults[studentLanguage] && translationResults[studentLanguage].audioBuffer) {
+        try {
+          const audioBuffer = translationResults[studentLanguage].audioBuffer;
+          
+          // Check if this is a special marker for browser speech synthesis
+          const bufferString = audioBuffer.toString('utf8');
+          
+          if (bufferString.startsWith('{"type":"browser-speech"')) {
+            // This is a marker for browser-based speech synthesis
+            console.log(`Using client browser speech synthesis for ${studentLanguage}`);
+            translationMessage.useClientSpeech = true;
+            try {
+              translationMessage.speechParams = JSON.parse(bufferString);
+              console.log(`Successfully parsed speech params for ${studentLanguage}`);
+            } catch (jsonError) {
+              console.error('Error parsing speech params:', jsonError);
+              translationMessage.speechParams = {
+                type: 'browser-speech',
+                text: translatedText,
+                languageCode: studentLanguage,
+                autoPlay: true
+              };
+            }
+          } else if (audioBuffer.length > 0) {
+            // This is actual audio data - encode as base64
+            translationMessage.audioData = audioBuffer.toString('base64');
+            translationMessage.useClientSpeech = false; // Explicitly set to false
+            
+            // Log audio data details for debugging
+            console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
+            console.log(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
+            console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+          }
+        } catch (error) {
+          console.error('Error processing audio data for translation:', error);
+        }
+      } else {
+        console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
+      }
+      
       client.send(JSON.stringify(translationMessage));
     });
   }
@@ -577,8 +469,7 @@ export class WebSocketServer {
   private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
     const role = this.roles.get(ws);
     const languageCode = message.languageCode || this.languages.get(ws);
-    // Use the service type specified in the request, or fall back to 'browser'
-    const ttsService = message.ttsService || 'browser';
+    const ttsService = message.ttsService || 'openai';
     const text = message.text;
     
     console.log(`Received TTS request from ${role} for service ${ttsService} in language ${languageCode}`);
@@ -636,9 +527,6 @@ export class WebSocketServer {
   ): Promise<{ success: boolean; audioData?: string; error?: string }> {
     try {
       // Use the translation service to generate speech audio with specific TTS service
-      // Explicitly log the TTS service we're using to help with debugging
-      console.log(`TTS Service Override: Explicitly using '${ttsService}' for TTS request`);
-      
       const result = await speechTranslationService.translateSpeech(
         Buffer.from(''), // Empty buffer since we have the text
         'en-US',        // Source language doesn't matter for TTS
@@ -732,17 +620,13 @@ export class WebSocketServer {
     const role = this.roles.get(ws);
     console.log(`Processing settings update from ${role}:`, message);
     
-    // Get existing settings or create new object with Browser as default TTS
-    const settings: any = this.clientSettings.get(ws) || { ttsServiceType: 'browser' };
+    // Get existing settings or create new object
+    const settings: any = this.clientSettings.get(ws) || {};
     
     // Update TTS service type if provided
     if (message.ttsServiceType) {
       settings.ttsServiceType = message.ttsServiceType;
       console.log(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
-    } else if (!settings.ttsServiceType) {
-      // Use browser as the default TTS service
-      settings.ttsServiceType = 'browser';
-      console.log(`Setting default TTS service type to Browser for ${role}`);
     }
     
     // Store updated settings

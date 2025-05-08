@@ -1,105 +1,150 @@
-# Load Testing for AIVoiceTranslator
+# AIVoiceTranslator Load Testing Guide
+
+This document describes the load testing approach for the AIVoiceTranslator project, which is designed to simulate real classroom environments with multiple simultaneous users.
 
 ## Overview
 
-This document provides details on the load testing approach for the AIVoiceTranslator system to ensure it meets real-world classroom scalability requirements.
+The AIVoiceTranslator system is designed to support classroom environments where:
+- A teacher speaks in one language (source language)
+- Multiple students (up to 25+) receive translations in their preferred languages
+- Translations must be delivered with low latency (under 2 seconds)
+- Audio quality must be maintained for all users
 
-## Goals
+Our load testing suite verifies these capabilities by simulating a realistic classroom scenario with configurable parameters.
 
-1. Verify the system can handle multiple simultaneous student connections (minimum 25)
-2. Maintain translation latency under 2 seconds in a full classroom environment
-3. Ensure audio playback reliability under load conditions
-4. Test WebSocket connection stability with multiple clients
+## Classroom Simulation Load Test
 
-## Testing Approach
+The main load test (`classroom_simulation_load_test.js`) simulates:
 
-### Classroom Simulation Test
+- 1 teacher speaking German
+- 25 students (configurable) listening in different languages
+- Real-time WebSocket connections for all participants
+- Continuous speech translation and audio delivery
+- Performance monitoring and metrics collection
 
-The primary load test is a classroom simulation that involves:
+### Test Flow
 
-- 1 teacher speaking in their native language (German)
-- 25 students connecting simultaneously with different target languages
-- Real-time translation and audio delivery to all students
-- Metrics collection for latency, success rate, and connection stability
+1. Teacher and all students connect via WebSocket
+2. All participants register their roles and language preferences
+3. Teacher sends a series of German messages (simulating spoken content)
+4. Each message is translated into student languages
+5. Students receive translations in their respective languages
+6. The system measures end-to-end latency and success rates
+7. Results are analyzed against performance thresholds
 
-### Test Implementation
+### Key Metrics
 
-The test is implemented in `tests/load-tests/classroom_simulation_load_test.js` with key components:
+The load test measures and reports on:
 
-1. **Participant Class**: Simulates both teacher and student roles
-2. **ClassroomSimulation Class**: Orchestrates the test with configurable parameters
-3. **Result Collection**: Tracks metrics during the test including:
-   - Connection time for all participants
-   - Translation latency (teacher speech to student reception)
-   - Audio playback success rate
-   - System stability metrics
+- **Connection Time**: How long it takes for each participant to connect
+- **Translation Latency**: Time between teacher's message and student's translation
+- **Success Rate**: Percentage of translations successfully delivered
+- **Concurrency Handling**: System stability with many simultaneous connections
+- **Resource Utilization**: CPU and memory usage during peak load
 
-### CI/CD Integration
+### Pass/Fail Criteria
 
-A dedicated GitHub workflow has been created for classroom load tests:
-- File: `.github/workflows/classroom-load-test.yml`
-- Only runs when manually triggered (not on each commit)
-- Generates detailed test reports
+The test automatically determines success based on these criteria:
 
-## Metrics
-
-Load test metrics are tracked in the metrics system and available via API:
-
-- `GET /api/metrics/load-tests` - Returns dedicated load test metrics
-- `GET /api/metrics/tests` - Returns all test metrics including load tests
-
-### Metrics Structure
-
-```typescript
-interface LoadTestMetrics {
-  total: number;             // Total number of load tests
-  passed: number;            // Number of passed tests
-  failed: number;            // Number of failed tests
-  lastRun: string;           // ISO timestamp of last test run
-  maxConcurrentUsers: number; // Maximum number of simultaneous users tested
-  avgLatencyMs: number;      // Average latency in milliseconds
-  successRate: number;       // Success rate as decimal (0.0-1.0)
-  tests?: Array<{
-    name: string;            // Test name
-    status: string;          // "passed" or "failed"
-    duration: string;        // Test duration
-    description: string;     // Test description
-    participants: number;    // Number of participants in the test
-    avgLatencyMs: number;    // Average latency for this specific test
-    successRate: number;     // Success rate for this specific test
-  }>;
-}
-```
+- **Latency Requirement**: Average translation latency must be under 2000ms
+- **Success Rate Requirement**: At least 95% of translations must be delivered
+- **Stability**: No crashes or connection drops during the test
 
 ## Running Load Tests
 
-To run the classroom simulation load test:
+### Local Execution
+
+Run the load tests locally with:
 
 ```bash
-# Run the load test with default settings (1 teacher, 25 students)
-npm run load-test
+# Run with default settings (25 students)
+./run-load-tests.sh
 
-# Run with custom settings
-npm run load-test -- --students=30 --duration=5m
-
-# Generate a detailed report
-npm run load-test -- --report
+# Run with custom server URL and student count
+./run-load-tests.sh ws://your-server-url.com/ws 50
 ```
 
-## Performance Benchmarks
+This requires:
+1. The server running on localhost:5000 (or custom URL)
+2. Node.js installed with required dependencies
+3. Sufficient system resources (CPU/memory)
 
-Current benchmarks from our most recent tests:
+### GitHub Actions Execution
 
-| Scenario | Students | Avg Latency | Success Rate | Status |
-|----------|----------|-------------|--------------|--------|
-| Basic Classroom | 25 | 1456ms | 98% | PASS |
-| Peak Load | 25 | 1689ms | 96% | PASS |
+For testing against deployed environments, use the GitHub Actions workflow:
 
-## Recommendations
+1. Go to the Actions tab in your GitHub repository
+2. Select the "Classroom Load Test" workflow
+3. Click "Run workflow"
+4. Configure parameters:
+   - Number of students (default: 25)
+   - Test duration in seconds (default: 60)
+5. Click "Run workflow" to start the test
 
-Based on load testing results, we recommend:
+Results will be available as artifacts after the test completes.
 
-1. Monitoring WebSocket connection count in production environments
-2. Setting a soft limit of 30 simultaneous students per classroom
-3. Implementing connection queue system for classrooms exceeding 30 students
-4. Regular load testing before major releases
+## Test Results
+
+The test generates detailed results in JSON format, saved to the `test-results` directory. Results include:
+
+- Individual stats for teacher and all students
+- Connection times for all participants
+- Translation latencies for each message
+- Success/failure counts
+- Overall test pass/fail determination
+
+A summary is also printed to the console for quick analysis.
+
+## When to Run Load Tests
+
+These tests are resource-intensive and should be run:
+
+- Before deploying to staging/production environments
+- After major architectural changes
+- When scaling to support more users
+- When performance issues are suspected
+- During capacity planning
+
+**Do not** run load tests:
+- In regular CI/CD pipelines for every commit
+- On development environments with limited resources
+- Without appropriate API rate limit considerations
+
+## Technical Implementation
+
+The load test is implemented using:
+
+- Native WebSocket client connections in Node.js
+- Simulated teacher and student participants
+- Performance measurement using high-resolution timers
+- Parallel connection handling
+- Comprehensive error tracking and reporting
+
+## Extending the Tests
+
+To adapt the tests for your needs:
+
+1. Modify the `CONFIG` object in `classroom_simulation_load_test.js`
+2. Add new test messages or scenarios as needed
+3. Adjust performance thresholds for your specific requirements
+4. Create custom test variations for specific scenarios
+
+## Troubleshooting
+
+If load tests fail:
+
+1. Check server logs for errors or exceptions
+2. Verify WebSocket server is properly configured
+3. Ensure sufficient system resources are available
+4. Check for API rate limiting issues with external services
+5. Examine detailed test results for specific failure points
+
+## Future Improvements
+
+Planned enhancements to the load testing suite:
+
+1. Advanced network condition simulation (packet loss, latency)
+2. Visual reporting dashboard for test results
+3. Long-running stability tests (24+ hours)
+4. Geographic distribution testing across multiple regions
+5. Resource utilization tracking and graphing

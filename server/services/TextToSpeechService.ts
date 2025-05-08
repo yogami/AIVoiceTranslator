@@ -1,16 +1,8 @@
 /**
- * Text to Speech Service - Modular Implementation
+ * Text to Speech Service
  * 
  * This service is responsible for generating speech from translated text
  * with preserved emotional tone using OpenAI's Text-to-Speech API.
- * 
- * Refactored to improve code quality with:
- * - Lower cyclomatic complexity (target: ≤ 3)
- * - Smaller functions (target: < 20 lines)
- * - Smaller classes (target: < 100 lines) 
- * - Reduced nesting depth (target: ≤ 3)
- * - SOLID principles (Single Responsibility, Open/Closed, Liskov Substitution,
- *   Interface Segregation, Dependency Inversion)
  */
 
 import OpenAI from 'openai';
@@ -133,7 +125,7 @@ export class BrowserSpeechSynthesisService implements ITextToSpeechService {
       languageCode: options.languageCode,
       preserveEmotions: options.preserveEmotions,
       speed: options.speed || 1.0,
-      autoPlay: false // Disable automatic playback to prevent auto-playing issues
+      autoPlay: true // Enable automatic playback to match OpenAI behavior
     });
     
     // Return the marker as a buffer
@@ -156,467 +148,15 @@ export class SilentTextToSpeechService implements ITextToSpeechService {
 }
 
 /**
- * Interface for speech parameters used in TTS processing
- */
-interface SpeechParams {
-  voice: string;
-  speed: number;
-  input: string;
-}
-
-/**
- * Interface for file system operations
- */
-export interface IFileSystem {
-  readFile(path: string): Promise<Buffer>;
-  writeFile(path: string, data: Buffer): Promise<void>;
-  checkFileExists(path: string): Promise<boolean>;
-  getFileStats(path: string): Promise<fs.Stats>;
-  ensureDirectoryExists(dirPath: string): Promise<void>;
-}
-
-/**
- * Interface for cache operations
- */
-export interface ICacheManager {
-  generateCacheKey(options: TextToSpeechOptions): string;
-  getCachedAudio(cacheKey: string): Promise<Buffer | null>;
-  cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void>;
-  ensureCacheDirectories(): Promise<void>;
-}
-
-/**
- * Interface for voice selection
- */
-export interface IVoiceSelector {
-  selectVoice(languageCode: string, emotion?: string): string;
-}
-
-/**
- * Interface for emotion processing
- */
-export interface IEmotionProcessor {
-  detectEmotions(text: string): DetectedEmotion[];
-  formatInputForEmotion(text: string, emotion: string): string;
-  adjustSpeechParams(emotion: string, options: TextToSpeechOptions): SpeechParams;
-}
-
-/**
- * Node file system implementation
- */
-export class NodeFileSystem implements IFileSystem {
-  public async readFile(filePath: string): Promise<Buffer> {
-    return await readFile(filePath);
-  }
-
-  public async writeFile(filePath: string, data: Buffer): Promise<void> {
-    await writeFile(filePath, data);
-  }
-
-  public async checkFileExists(filePath: string): Promise<boolean> {
-    try {
-      await access(filePath, fs.constants.F_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  public async getFileStats(filePath: string): Promise<fs.Stats> {
-    return await stat(filePath);
-  }
-
-  public async ensureDirectoryExists(dirPath: string): Promise<void> {
-    try {
-      await access(dirPath, fs.constants.F_OK);
-    } catch (error) {
-      try {
-        await mkdir(dirPath, { recursive: true });
-        console.log(`Created directory: ${dirPath}`);
-      } catch (mkdirError) {
-        console.error(`Error creating directory:`, mkdirError);
-      }
-    }
-  }
-}
-
-/**
- * Implementation of cache manager
- */
-export class TTSCacheManager implements ICacheManager {
-  private readonly fileSystem: IFileSystem;
-  private readonly cacheDir: string;
-  private readonly tempDir: string;
-  private readonly maxCacheAgeMs: number;
-
-  constructor(fileSystem: IFileSystem, cacheDir: string = CACHE_DIR, tempDir: string = TEMP_DIR, maxCacheAgeMs: number = MAX_CACHE_AGE_MS) {
-    this.fileSystem = fileSystem;
-    this.cacheDir = cacheDir;
-    this.tempDir = tempDir;
-    this.maxCacheAgeMs = maxCacheAgeMs;
-  }
-
-  public generateCacheKey(options: TextToSpeechOptions): string {
-    const dataToHash = JSON.stringify({
-      text: options.text,
-      languageCode: options.languageCode,
-      voice: options.voice,
-      speed: options.speed,
-      preserveEmotions: options.preserveEmotions
-    });
-    
-    return createHash('md5').update(dataToHash).digest('hex');
-  }
-  
-  public async getCachedAudio(cacheKey: string): Promise<Buffer | null> {
-    const cachePath = path.join(this.cacheDir, `${cacheKey}.mp3`);
-    
-    if (!await this.fileSystem.checkFileExists(cachePath)) {
-      return null;
-    }
-    
-    // Check file age
-    const fileStats = await this.fileSystem.getFileStats(cachePath);
-    const fileAgeMs = Date.now() - fileStats.mtimeMs;
-    
-    if (fileAgeMs < this.maxCacheAgeMs) {
-      console.log(`Using cached audio: ${cachePath}`);
-      return await this.fileSystem.readFile(cachePath);
-    } else {
-      console.log(`Cache expired for: ${cachePath}`);
-      return null;
-    }
-  }
-  
-  public async cacheAudio(cacheKey: string, audioBuffer: Buffer): Promise<void> {
-    const cachePath = path.join(this.cacheDir, `${cacheKey}.mp3`);
-    
-    try {
-      await this.fileSystem.writeFile(cachePath, audioBuffer);
-      console.log(`Cached audio to: ${cachePath}`);
-    } catch (error) {
-      console.error('Error caching audio:', error);
-    }
-  }
-  
-  public async ensureCacheDirectories(): Promise<void> {
-    await this.fileSystem.ensureDirectoryExists(this.cacheDir);
-    await this.fileSystem.ensureDirectoryExists(this.tempDir);
-  }
-
-  public async saveToTemporaryFile(buffer: Buffer): Promise<string> {
-    const outputFilePath = path.join(this.tempDir, `tts-${Date.now()}.mp3`);
-    await this.fileSystem.writeFile(outputFilePath, buffer);
-    console.log(`Saved synthesized speech to: ${outputFilePath}`);
-    return outputFilePath;
-  }
-}
-
-/**
- * Implementation of emotion processor
- */
-export class EmotionDetector implements IEmotionProcessor {
-  private readonly emotionPatterns: EmotionPattern[];
-  private readonly voiceSelector: IVoiceSelector;
-  
-  constructor(emotionPatterns: EmotionPattern[] = EMOTION_PATTERNS, voiceSelector: IVoiceSelector) {
-    this.emotionPatterns = emotionPatterns;
-    this.voiceSelector = voiceSelector;
-  }
-
-  /**
-   * Detect emotions in text
-   */
-  public detectEmotions(text: string): DetectedEmotion[] {
-    const detectedEmotions: DetectedEmotion[] = [];
-    
-    // Check for each emotion pattern
-    this.emotionPatterns.forEach(emotionPattern => {
-      const result = this.processEmotionPattern(text, emotionPattern);
-      if (result) {
-        detectedEmotions.push(result);
-      }
-    });
-    
-    // Sort by confidence (descending)
-    return detectedEmotions.sort((a, b) => b.confidence - a.confidence);
-  }
-
-  /**
-   * Process a single emotion pattern against text
-   */
-  private processEmotionPattern(text: string, emotionPattern: EmotionPattern): DetectedEmotion | null {
-    let matchCount = 0;
-    let totalMatches = 0;
-    
-    // Check each pattern for this emotion
-    emotionPattern.patterns.forEach(pattern => {
-      const matches = text.match(pattern);
-      if (matches && matches.length > 0) {
-        matchCount++;
-        totalMatches += matches.length;
-      }
-    });
-    
-    // Calculate confidence if we have matches
-    if (matchCount > 0) {
-      const confidence = this.calculateConfidence(matchCount, totalMatches, text.length, emotionPattern.patterns.length);
-      return {
-        emotion: emotionPattern.name,
-        confidence
-      };
-    }
-    
-    return null;
-  }
-
-  /**
-   * Calculate confidence score for emotion detection
-   */
-  private calculateConfidence(matchCount: number, totalMatches: number, textLength: number, patternCount: number): number {
-    // Pattern match ratio (how many different patterns matched)
-    const patternRatio = matchCount / patternCount;
-    
-    // Normalized confidence with smoothing based on text length
-    return Math.min(0.3 + (patternRatio * 0.5) + (totalMatches / textLength) * 20, 1);
-  }
-  
-  /**
-   * Format input text with SSML (Speech Synthesis Markup Language)
-   * Note: OpenAI TTS doesn't support SSML directly but we can use text formatting
-   * to better convey mood to the model
-   */
-  public formatInputForEmotion(text: string, emotion: string): string {
-    // Basic formatting based on emotion
-    switch (emotion) {
-      case 'excited':
-        return text.replace(/\!/g, '!!').replace(/\./g, '! ');
-      case 'serious':
-        return text.replace(/(\w+)/g, (match) => {
-          if (match.length > 4 && Math.random() > 0.7) {
-            return match.toUpperCase();
-          }
-          return match;
-        });
-      case 'calm':
-        return text.replace(/\./g, '... ').replace(/\!/g, '.');
-      case 'sad':
-        return text.replace(/\./g, '... ').replace(/\!/g, '...');
-      default:
-        return text;
-    }
-  }
-  
-  /**
-   * Adjust speed based on emotion
-   */
-  private adjustSpeedForEmotion(emotion: string, baseSpeed: number): number {
-    switch (emotion) {
-      case 'excited':
-        return Math.min(baseSpeed * 1.2, 1.75); // Faster for excitement
-      case 'serious':
-        return Math.max(baseSpeed * 0.9, 0.7); // Slower for seriousness
-      case 'calm':
-        return Math.max(baseSpeed * 0.85, 0.7); // Slower for calmness
-      case 'sad':
-        return Math.max(baseSpeed * 0.8, 0.7); // Slower for sadness
-      default:
-        return baseSpeed;
-    }
-  }
-  
-  /**
-   * Apply special formatting to input text based on emotion
-   */
-  private applyEmotionalEmphasis(text: string, emotion: string): string {
-    switch (emotion) {
-      case 'excited':
-        // Emphasize exclamations and enthusiastic words
-        return text.replace(
-          /(!+|\bwow\b|\bamazing\b|\bincredible\b|\bawesome\b)/gi,
-          match => match.toUpperCase()
-        );
-      case 'serious':
-        // Add more spacing between important words
-        return text.replace(
-          /(\bimportant\b|\bcritical\b|\bcrucial\b|\bserious\b|\bwarning\b)/gi,
-          match => `. ${match.toUpperCase()} .`
-        );
-      default:
-        return text;
-    }
-  }
-  
-  /**
-   * Adjust speech parameters based on detected emotion
-   */
-  public adjustSpeechParams(emotion: string, options: TextToSpeechOptions): SpeechParams {
-    // Get voice based on emotion and language
-    const voice = options.voice || this.voiceSelector.selectVoice(options.languageCode, emotion);
-    
-    // Set base speed (default to 1.0 if not specified)
-    const baseSpeed = options.speed || 1.0;
-    
-    // Adjust speed based on emotion
-    const speed = this.adjustSpeedForEmotion(emotion, baseSpeed);
-    
-    // Apply emotional emphasis to text
-    const input = this.applyEmotionalEmphasis(options.text, emotion);
-    
-    return { voice, speed, input };
-  }
-}
-
-/**
- * Voice selection implementation
- */
-export class VoiceSelector implements IVoiceSelector {
-  private readonly voiceOptions: Record<string, string[]>;
-  
-  constructor(voiceOptions: Record<string, string[]> = VOICE_OPTIONS) {
-    this.voiceOptions = voiceOptions;
-  }
-  
-  /**
-   * Get available voices for a language
-   */
-  private getAvailableVoices(languageCode: string): string[] {
-    // Extract base language code (e.g., 'en' from 'en-US')
-    const baseLanguage = languageCode.split('-')[0].toLowerCase();
-    
-    // Return available voices for this language or use the default
-    return this.voiceOptions[baseLanguage] || this.voiceOptions.default;
-  }
-  
-  /**
-   * Check if a specific voice is available for a language
-   */
-  private isVoiceAvailable(voice: string, availableVoices: string[]): boolean {
-    return availableVoices.includes(voice);
-  }
-  
-  /**
-   * Get preferred voice for an emotion
-   */
-  private getPreferredVoiceForEmotion(emotion: string): string {
-    switch (emotion) {
-      case 'excited':
-        return 'echo';
-      case 'serious':
-        return 'onyx';
-      case 'calm':
-        return 'nova';
-      case 'sad':
-        return 'shimmer';
-      default:
-        return 'nova'; // Default voice
-    }
-  }
-  
-  /**
-   * Select appropriate voice for language and emotion
-   */
-  public selectVoice(languageCode: string, emotion?: string): string {
-    const availableVoices = this.getAvailableVoices(languageCode);
-    
-    // If no emotion is specified, use the first available voice
-    if (!emotion) {
-      return availableVoices[0];
-    }
-    
-    // Get the preferred voice for this emotion
-    const preferredVoice = this.getPreferredVoiceForEmotion(emotion);
-    
-    // Use the preferred voice if available, otherwise fallback to first available
-    return this.isVoiceAvailable(preferredVoice, availableVoices) 
-      ? preferredVoice 
-      : availableVoices[0];
-  }
-}
-
-/**
- * Interface for TTS API provider
- */
-export interface ITTSApiProvider {
-  createSpeech(voice: string, speed: number, input: string): Promise<Buffer>;
-}
-
-/**
- * OpenAI API wrapper for text-to-speech
- */
-export class OpenAITTSApiProvider implements ITTSApiProvider {
-  private readonly openai: OpenAI;
-  private readonly model: string;
-  
-  constructor(openai: OpenAI, model: string = "tts-1") {
-    this.openai = openai;
-    this.model = model;
-  }
-  
-  /**
-   * Call OpenAI API to create speech audio
-   */
-  public async createSpeech(voice: string, speed: number, input: string): Promise<Buffer> {
-    console.log(`Using voice: ${voice}, speed: ${speed}`);
-    
-    const mp3 = await this.openai.audio.speech.create({
-      model: this.model, // Basic model, use tts-1-hd for higher quality
-      voice: voice,
-      input: input,
-      speed: speed,
-      response_format: "mp3",
-    });
-    
-    return Buffer.from(await mp3.arrayBuffer());
-  }
-}
-
-/**
- * Interface for error handling
- */
-export interface IErrorHandler {
-  handleSynthesisError(error: unknown): never;
-}
-
-/**
- * Implementation of TTS error handler
- */
-export class TTSErrorHandler implements IErrorHandler {
-  public handleSynthesisError(error: unknown): never {
-    console.error('Error synthesizing speech:', error);
-    throw new Error(`Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
-/**
  * OpenAI Text to Speech Service
  * Handles text-to-speech conversion using OpenAI's TTS API
  */
 export class OpenAITextToSpeechService implements ITextToSpeechService {
   private readonly openai: OpenAI;
-  private readonly cacheManager: ICacheManager;
-  private readonly emotionProcessor: IEmotionProcessor;
-  private readonly errorHandler: IErrorHandler;
   
-  constructor(
-    openai: OpenAI,
-    cacheManager?: ICacheManager,
-    emotionProcessor?: IEmotionProcessor,
-    errorHandler?: IErrorHandler
-  ) {
+  constructor(openai: OpenAI) {
     this.openai = openai;
-    // Use simple implementations when not provided
-    this.cacheManager = cacheManager || {
-      getCachedItem: async (_key: string) => null,
-      setCachedItem: async (_key: string, _data: any) => {}
-    };
-    this.emotionProcessor = emotionProcessor || {
-      detectEmotions: (text: string) => this.detectEmotions(text),
-      formatForEmotion: (text: string, emotion: string) => this.formatInputForEmotion(text, emotion)
-    };
-    this.errorHandler = errorHandler || {
-      handleError: (error: Error) => { console.error('TTS Error:', error); throw error; }
-    };
+    this.ensureCacheDirectoryExists();
   }
   
   /**
@@ -861,12 +401,7 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
     try {
       console.log(`Synthesizing speech for text (${options.text.length} chars) in ${options.languageCode}`);
       
-      // Get a voice for this language, ensuring it's a valid OpenAI voice
       let voice = options.voice || this.selectVoice(options.languageCode);
-      // Make sure we don't use 'default' as a voice value
-      if (voice === 'default') {
-        voice = 'nova'; // Default to 'nova' if no specific voice is set
-      }
       let speed = options.speed || 1.0;
       let input = options.text;
       
@@ -900,47 +435,25 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
       // Create speech using OpenAI's API
       console.log(`Using voice: ${voice}, speed: ${speed}`);
       
-      try {
-        // Ensure we're using a valid OpenAI voice name
-        // Valid voices: 'nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'
-        // Fallback to 'nova' if the voice is invalid or set to 'default'
-        const validVoices = ['nova', 'shimmer', 'echo', 'onyx', 'fable', 'alloy', 'ash', 'sage', 'coral'];
-        const safeVoice = validVoices.includes(voice) ? voice : 'nova';
-        
-        if (safeVoice !== voice) {
-          console.log(`Voice '${voice}' is not valid for OpenAI TTS API, using '${safeVoice}' instead`);
-        }
-        
-        const response = await this.openai.audio.speech.create({
-          model: "tts-1", // Basic model, use tts-1-hd for higher quality
-          voice: safeVoice,
-          input: input,
-          speed: speed,
-          response_format: "mp3",
-        });
-        
-        // Get the audio as a buffer
-        try {
-          if (response && response.arrayBuffer) {
-            const buffer = Buffer.from(await response.arrayBuffer());
-            return buffer;
-          } else {
-            console.error('Response structure:', JSON.stringify({
-              type: typeof response,
-              hasArrayBuffer: !!(response && typeof response.arrayBuffer === 'function')
-            }));
-            throw new Error('Invalid response from OpenAI speech API - missing arrayBuffer method');
-          }
-        } catch (bufferError) {
-          console.error('Error processing response buffer:', bufferError);
-          throw bufferError;
-        }
-      } catch (apiError) {
-        console.error('API error when creating speech:', apiError);
-        throw apiError;
-      }
+      const mp3 = await this.openai.audio.speech.create({
+        model: "tts-1", // Basic model, use tts-1-hd for higher quality
+        voice: voice,
+        input: input,
+        speed: speed,
+        response_format: "mp3",
+      });
       
-
+      // Get the audio as a buffer
+      const buffer = Buffer.from(await mp3.arrayBuffer());
+      
+      // Save to file (optional - for debugging)
+      await writeFile(outputFilePath, buffer);
+      console.log(`Saved synthesized speech to: ${outputFilePath}`);
+      
+      // Cache the result for future use
+      await this.cacheAudio(cacheKey, buffer);
+      
+      return buffer;
     } catch (error) {
       console.error('Error synthesizing speech:', error);
       throw new Error(`Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -999,21 +512,9 @@ export const ttsFactory = TextToSpeechFactory.getInstance();
 
 // Export a convenience function to get the default TTS service (backward compatibility)
 export const textToSpeechService = {
-  synthesizeSpeech: async (options: TextToSpeechOptions, serviceTypeOverride?: string): Promise<Buffer> => {
-    // Use the explicitly provided service type if available, otherwise use environment variable or fall back to OpenAI
-    // Always honor the service type override if provided
-    let serviceType = serviceTypeOverride || process.env.TTS_SERVICE_TYPE || 'openai';
-    
-    // Explicitly log the choice to help with debugging
-    if (serviceTypeOverride) {
-      console.log(`TTS Service selection: Explicitly using '${serviceTypeOverride}' (overridden from outside)`);
-    }
-    
-    // Simple log for diagnostic purposes - not visible to end users
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`TTS service: Using ${serviceType} service for ${options.languageCode}`);
-    }
-    
+  synthesizeSpeech: async (options: TextToSpeechOptions): Promise<Buffer> => {
+    // Get TTS service type from environment or default to 'openai'
+    const serviceType = process.env.TTS_SERVICE_TYPE || 'openai';
     return ttsFactory.getService(serviceType).synthesizeSpeech(options);
   }
 };

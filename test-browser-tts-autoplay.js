@@ -5,11 +5,11 @@
  * includes the autoPlay flag in the JSON buffer data.
  */
 
-const fs = require('fs');
-const assert = require('assert');
+import fs from 'fs';
+import assert from 'assert';
 
-// Import the TTS service class using CommonJS require
-const { BrowserSpeechSynthesisService } = require('./server/services/TextToSpeechService');
+// Import the TTS service class
+import { BrowserSpeechSynthesisService } from './server/services/TextToSpeechService.js';
 
 // Create an instance of the service
 const browserTTS = new BrowserSpeechSynthesisService();
