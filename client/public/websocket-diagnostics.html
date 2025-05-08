@@ -439,7 +439,7 @@
     <script>
         // WebSocket Client Class
         class WebSocketClient {
-            constructor(role = 'teacher', language = 'en-US', ttsServiceType = 'browser') {
+            constructor(role = 'teacher', language = 'en-US', ttsServiceType = 'openai') {
                 this.ws = null;
                 this.sessionId = null;
                 this.role = role;
@@ -738,15 +738,13 @@
             const esBtn = document.getElementById('teacher-es-btn');
             const frBtn = document.getElementById('teacher-fr-btn');
             const deBtn = document.getElementById('teacher-de-btn');
-            const ttsBrowserBtn = document.getElementById('teacher-tts-browser-btn');
             const ttsOpenaiBtn = document.getElementById('teacher-tts-openai-btn');
-            const ttsSilentBtn = document.getElementById('teacher-tts-silent-btn');
             const currentTtsServiceEl = document.getElementById('current-tts-service');
             const messageInput = document.getElementById('teacher-message');
             const sendBtn = document.getElementById('teacher-send-btn');
             const logsEl = document.getElementById('teacher-logs');
             
-            const client = new WebSocketClient('teacher', 'en-US', 'browser');
+            const client = new WebSocketClient('teacher', 'en-US', 'openai');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -804,29 +802,11 @@
                 languageEl.textContent = 'de-DE';
             });
             
-            // TTS Service selection
-            ttsBrowserBtn.addEventListener('click', () => {
-                ttsBrowserBtn.classList.add('active');
-                ttsOpenaiBtn.classList.remove('active');
-                ttsSilentBtn.classList.remove('active');
-                client.setTtsServiceType('browser');
-                currentTtsServiceEl.textContent = 'browser';
-            });
-            
+            // TTS Service selection - only OpenAI is available now
             ttsOpenaiBtn.addEventListener('click', () => {
-                ttsOpenaiBtn.classList.add('active');
-                ttsBrowserBtn.classList.remove('active');
-                ttsSilentBtn.classList.remove('active');
+                // Already active, nothing to do
                 client.setTtsServiceType('openai');
                 currentTtsServiceEl.textContent = 'openai';
-            });
-            
-            ttsSilentBtn.addEventListener('click', () => {
-                ttsSilentBtn.classList.add('active');
-                ttsBrowserBtn.classList.remove('active');
-                ttsOpenaiBtn.classList.remove('active');
-                client.setTtsServiceType('silent');
-                currentTtsServiceEl.textContent = 'silent';
             });
             
             client.addEventListener('status', (status) => {
@@ -892,7 +872,7 @@
             const logsEl = document.getElementById('student-logs');
             const ttsServiceEl = document.getElementById('student-tts-service'); // New element for displaying teacher's TTS service
             
-            const client = new WebSocketClient('student', 'es-ES');
+            const client = new WebSocketClient('student', 'es-ES', 'openai');
             
             connectBtn.addEventListener('click', () => {
                 client.connect();
@@ -1012,8 +992,8 @@
             const translationsEl = document.getElementById('monitor-translations');
             const logsEl = document.getElementById('monitor-logs');
             
-            const teacherClient = new WebSocketClient('teacher', 'en-US');
-            const studentClient = new WebSocketClient('student', 'es-ES');
+            const teacherClient = new WebSocketClient('teacher', 'en-US', 'openai');
+            const studentClient = new WebSocketClient('student', 'es-ES', 'openai');
             
             teacherConnectBtn.addEventListener('click', () => {
                 teacherClient.connect();
