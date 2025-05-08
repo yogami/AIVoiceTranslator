@@ -2040,11 +2040,25 @@
              */
             static async playFromBase64(base64Data) {
                 try {
+                    if (!base64Data || base64Data.length === 0) {
+                        throw new Error('Invalid or empty audio data provided');
+                    }
+                    
                     log(`Playing audio from base64, data length: ${base64Data.length} chars`);
                     log(`First 20 chars of base64: ${base64Data.substring(0, 20)}...`);
                     
+                    // Clean the base64 data if it has a data URL prefix
+                    let cleanBase64 = base64Data;
+                    if (base64Data.startsWith('data:')) {
+                        const commaIndex = base64Data.indexOf(',');
+                        if (commaIndex !== -1) {
+                            cleanBase64 = base64Data.substring(commaIndex + 1);
+                            log('Extracted base64 data from data URL');
+                        }
+                    }
+                    
                     // Convert base64 to blob for playback
-                    const binaryString = atob(base64Data);
+                    const binaryString = atob(cleanBase64);
                     log(`Converted to binary string of length: ${binaryString.length}`);
                     
                     const bytes = new Uint8Array(binaryString.length);
@@ -2071,17 +2085,29 @@
                         mimeType = 'audio/wav';
                         log('Detected WAV audio');
                     } else {
-                        log(`Unknown audio format with header: ${headerHex}`);
+                        log(`Unknown audio format with header: ${headerHex}, using default audio/mp3`);
                     }
                     
                     // Create blob with detected MIME type
                     const blob = new Blob([bytes.buffer], { type: mimeType });
                     log(`Created audio blob: size=${blob.size} bytes, type=${mimeType}`);
                     
+                    if (blob.size === 0) {
+                        throw new Error('Generated audio blob is empty');
+                    }
+                    
                     const audioURL = URL.createObjectURL(blob);
                     
                     // Get the audio player
                     const audioPlayer = document.getElementById('audio-player');
+                    
+                    if (!audioPlayer) {
+                        throw new Error('Audio player element not found in the document');
+                    }
+                    
+                    // Reset the audio player first to clean any previous state
+                    audioPlayer.pause();
+                    audioPlayer.currentTime = 0;
                     
                     // Set up promise to track audio loading status
                     const loadPromise = new Promise((resolve, reject) => {
@@ -2101,6 +2127,9 @@
                     
                     // Set source and start loading
                     audioPlayer.src = audioURL;
+                    audioPlayer.load(); // Explicitly load the audio
+                    
+                    log('Audio player source set and loading...');
                     
                     // Wait for loading to complete with timeout
                     const timeoutPromise = new Promise((_, reject) => {
@@ -2109,15 +2138,37 @@
                     
                     await Promise.race([loadPromise, timeoutPromise]);
                     
-                    // Play the audio
-                    await audioPlayer.play();
-                    log('Audio playback started');
+                    // Play the audio with additional error handling
+                    log('Audio loaded, attempting to play...');
+                    const playPromise = audioPlayer.play();
+                    
+                    if (playPromise !== undefined) {
+                        await playPromise;
+                        log('Audio playback started successfully');
+                    } else {
+                        log('Audio play() method returned undefined, playback may not have started');
+                    }
                     
                     showSuccess('Playing audio');
                     return true;
                 } catch (error) {
-                    log(`Error playing audio: ${error.message}`);
+                    const errorMessage = `Error playing audio: ${error.message}`;
+                    log(errorMessage);
                     showError(`Failed to play audio: ${error.message}`);
+                    
+                    // Try to reset the audio player
+                    try {
+                        const audioPlayer = document.getElementById('audio-player');
+                        if (audioPlayer) {
+                            audioPlayer.pause();
+                            audioPlayer.currentTime = 0;
+                            audioPlayer.src = '';
+                            audioPlayer.load();
+                        }
+                    } catch (resetError) {
+                        log('Error resetting audio player: ' + resetError.message);
+                    }
+                    
                     return false;
                 }
             }
