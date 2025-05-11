@@ -14,10 +14,22 @@
 
 import fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
+
 import OpenAI from 'openai';
 import { storage } from '../storage';
 import { textToSpeechService, ttsFactory } from './TextToSpeechService';
+// Add these at the top of the file (after existing imports)
+import { promisify } from 'util';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+// Add this code near the top of the file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 
 // Promisify file system operations
 const writeFile = promisify(fs.writeFile);
@@ -631,15 +643,20 @@ export class SpeechTranslationService {
   }
 }
 
+// Replace the problematic OpenAI initialization section (around line 637) with this:
 // Initialize OpenAI client with API key from environment
-console.log(`OpenAI API key status: ${process.env.OPENAI_API_KEY ? 'Present' : 'Missing'}`);
-if (!process.env.OPENAI_API_KEY) {
-  console.error('OPENAI_API_KEY is missing or empty. This might cause API failures.');
-}
-
-// Create singleton instance with safe initialization pattern
 let openai: OpenAI;
+
 try {
+  // Check for OpenAI API key
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('OpenAI API key status: Missing');
+    console.warn('OPENAI_API_KEY is missing or empty. This might cause API failures.');
+  } else {
+    console.log('OpenAI API key status: Present');
+  }
+  
+  // Initialize OpenAI client
   openai = new OpenAI({ 
     apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder-for-initialization-only' 
   });
