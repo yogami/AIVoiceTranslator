@@ -162,8 +162,7 @@ describe('Storage Interface', () => {
   it('should create a new user', async () => {
     const newUser = await storage.createUser({
       username: 'newuser',
-      password: 'hashed_new_password',
-      role: 'admin'
+      password: 'hashed_new_password'
     });
     
     expect(newUser).toBeDefined();
@@ -210,7 +209,9 @@ describe('Storage Interface', () => {
     
     // Verify we can retrieve the created language
     const languages = await storage.getLanguages();
-    expect(languages).toHaveLength(3);
+    const foundLanguage = languages.find(lang => lang.code === 'fr-FR');
+    expect(foundLanguage).toBeDefined();
+    expect(foundLanguage?.name).toBe('French');
   });
   
   it('should add a translation', async () => {
