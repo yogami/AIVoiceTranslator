@@ -103,175 +103,20 @@ apiRoutes.get('/user', async (req: Request, res: Response) => {
 
 
 
-/**
- * Get code coverage metrics
- * Returns test coverage metrics for the project
- */
-apiRoutes.get('/metrics/coverage', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.coverage);
-  } catch (error) {
-    console.error('Error fetching coverage metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve coverage metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get code complexity metrics
- * Returns complexity metrics for the project
- */
-apiRoutes.get('/metrics/complexity', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.complexity);
-  } catch (error) {
-    console.error('Error fetching complexity metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve complexity metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get code smells metrics
- * Returns code smells metrics for the project
- */
-apiRoutes.get('/metrics/code-smells', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.codeSmells);
-  } catch (error) {
-    console.error('Error fetching code smells metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve code smells metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get code duplication metrics
- * Returns duplication metrics for the project
- */
-apiRoutes.get('/metrics/duplication', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.duplication);
-  } catch (error) {
-    console.error('Error fetching duplication metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve duplication metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get dependencies metrics
- * Returns dependencies metrics for the project
- */
-apiRoutes.get('/metrics/dependencies', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.dependencies);
-  } catch (error) {
-    console.error('Error fetching dependencies metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve dependencies metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get test results metrics
- * Returns test results metrics for the project
- */
-apiRoutes.get('/metrics/test-results', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.testResults);
-  } catch (error) {
-    console.error('Error fetching test results metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve test results metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get CI/CD workflow metrics
- * Returns GitHub Actions workflow metrics
- */
-apiRoutes.get('/metrics/ci-cd', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json({
-      cicd: metrics.testResults.cicd,
-      audio: metrics.testResults.audio
-    });
-  } catch (error) {
-    console.error('Error fetching CI/CD metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve CI/CD metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get CI/CD workflow metrics
- * Returns GitHub Actions workflow metrics
- */
-apiRoutes.get('/metrics/ci-cd', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.testResults.cicd);
-  } catch (error) {
-    console.error('Error fetching CI/CD workflow metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve CI/CD workflow metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Get audio test metrics
- * Returns metrics specifically for audio tests
- */
-apiRoutes.get('/metrics/audio-tests', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics.testResults.audio);
-  } catch (error) {
-    console.error('Error fetching audio test metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve audio test metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
 
-/**
- * Refresh all metrics
- * Forces a recalculation of all metrics
- */
-apiRoutes.post('/metrics/refresh', async (req: Request, res: Response) => {
-  try {
-    const metrics = await refreshMetrics();
-    res.json({ success: true, metrics });
-  } catch (error) {
-    console.error('Error refreshing metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to refresh metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
+
+
+
+
+
+
+
+
