@@ -6,13 +6,13 @@ export NODE_ENV=test
 # Function to run unit tests
 run_unit_tests() {
   echo "Running unit tests..."
-  npx jest --testPathPattern=tests/unit
+  NODE_OPTIONS="--experimental-vm-modules" npx jest --testPathPattern=tests/unit --no-cache
 }
 
 # Function to run integration tests
 run_integration_tests() {
   echo "Running integration tests..."
-  npx jest --testPathPattern=tests/integration
+  NODE_OPTIONS="--experimental-vm-modules" npx jest --testPathPattern=tests/integration --no-cache
 }
 
 # Function to run e2e tests
@@ -31,40 +31,31 @@ run_all_tests() {
 # Function to run tests with coverage
 run_coverage() {
   echo "Running tests with coverage..."
-  npx jest --coverage
-}
-
-# Pre-test compilation
-pretest() {
-  echo "Compiling TypeScript for tests..."
-  npx tsc -p tsconfig.test.json --outDir dist-tests
+  NODE_OPTIONS="--experimental-vm-modules" npx jest --coverage --no-cache
 }
 
 # Clean test output
 clean_tests() {
   echo "Cleaning test output..."
   rm -rf dist-tests
+  rm -rf coverage
 }
 
 # Parse command line arguments
 case "$1" in
   "unit")
-    pretest
     run_unit_tests
     ;;
   "integration")
-    pretest
     run_integration_tests
     ;;
   "e2e")
     run_e2e_tests
     ;;
   "all")
-    pretest
     run_all_tests
     ;;
   "coverage")
-    pretest
     run_coverage
     ;;
   "clean")

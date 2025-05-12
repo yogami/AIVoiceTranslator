@@ -1,4 +1,4 @@
-import { WebSocketService } from '../../../server/websocket';
+import { WebSocketService } from '../../../server/websocket.js';
 import { Server } from 'http';
 import WebSocket from 'ws';
 import { IncomingMessage } from 'http';

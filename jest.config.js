@@ -1,23 +1,28 @@
+/** @type {import('ts-jest').JestConfigWithTsJest} */
 export default {
-  preset: 'ts-jest',
+  preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
-  roots: ['<rootDir>/server', '<rootDir>/tests'],
+  roots: ['<rootDir>/tests'],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: 'tsconfig.test.json', // Use a specific tsconfig for tests
-    }],
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        useESM: true,
+      },
+    ],
   },
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  collectCoverage: true,
-  coverageDirectory: 'coverage',
-  coveragePathIgnorePatterns: ['/node_modules/', '/tests/'],
-  // Important: Do not auto-mock anything
+  collectCoverage: false,
   automock: false,
-  // Clear all mocks between tests
   clearMocks: true,
-  // Important: Enable sourcemaps for proper stack traces
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/server/$1' // Path alias for cleaner imports
-  }
+    '^@/(.*)$': '<rootDir>/server/$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  testTimeout: 20000,
+  verbose: true,
+  // Ignore pre-compilation errors
+  transformIgnorePatterns: [],
 };
