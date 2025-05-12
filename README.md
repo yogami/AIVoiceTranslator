@@ -129,7 +129,8 @@ The Teacher Interface allows instructors to:
 4. Monitor active student connections and their language selections
 5. See performance metrics including latency and processing times
 
-Access at: `/teacher`
+**Location:** `client/public/simple-speech-test.html`  
+**Access URL:** `/teacher`
 
 ### Student Interface
 
@@ -142,8 +143,8 @@ The Student Interface allows students to:
 5. Access translation history
 
 Two versions are available:
-- Standard: `/student`
-- Simplified: `/simple-student.html` (optimized for mobile devices)
+- Standard: **Location:** `client/public/simple-student.html`, **Access URL:** `/student`
+- Simplified: **Location:** `client/public/simple-student.html`, **Access URL:** `/simple-student.html` (optimized for mobile devices)
 
 ### WebSocket Connection Page
 
@@ -155,7 +156,8 @@ The primary interface for establishing WebSocket connections, with additional di
 - Test different TTS voices and settings
 - View detailed diagnostics for troubleshooting
 
-Access at: `/websocket-diagnostics.html`
+**Location:** `client/public/websocket-diagnostics.html`  
+**Access URL:** `/websocket-diagnostics.html`
 
 ## WebSocket Protocol
 
