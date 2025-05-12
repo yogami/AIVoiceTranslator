@@ -1,4 +1,4 @@
-import { translateSpeech } from '../../../server/openai.js';
+import { translateSpeech } from '../../../server/openai';
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
@@ -65,7 +65,7 @@ describe('Translation Service', () => {
     mockOpenAI = new (jest.requireMock('openai').default)();
     
     // Mock the config module to return our OpenAI instance
-    jest.mock('../../../server/config.js', () => ({
+    jest.mock('../../../server/config', () => ({
       OPENAI_API_KEY: 'test-key'
     }));
   });
@@ -108,12 +108,12 @@ describe('Translation Service', () => {
   it('should handle errors gracefully', async () => {
     // Directly mock the translateSpeech function for this test
     jest.resetModules();
-    jest.doMock('../../../server/openai.js', () => ({
+    jest.doMock('../../../server/openai', () => ({
       translateSpeech: jest.fn().mockRejectedValue(new Error('API Error'))
     }));
     
     // Import the mocked version
-    const { translateSpeech: mockedTranslateSpeech } = await import('../../../server/openai.js');
+    const { translateSpeech: mockedTranslateSpeech } = await import('../../../server/openai');
     
     // Call the mocked function and ensure it handles the error
     try {
