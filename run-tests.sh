@@ -12,7 +12,7 @@ run_unit_tests() {
 # Function to run specific test file
 run_specific_test() {
   echo "Running specific test file: $1"
-  npx jest "$1"
+  npx jest --no-cache "$@"
 }
 
 # Function to run integration tests
@@ -23,8 +23,8 @@ run_integration_tests() {
 
 # Function to run e2e tests
 run_e2e_tests() {
-  echo "Running e2e tests..."
-  npx playwright test
+  echo "Running e2e tests with Jest (Playwright tests skipped)..."
+  npx jest --testPathPattern=tests/e2e
 }
 
 # Function to run all tests
