@@ -63,16 +63,22 @@ describe('API Routes', () => {
     });
   });
   
-  // Skip this test as the endpoint doesn't seem to be implemented yet
-  it.skip('should get user information', async () => {
+  // Test getting user information from the API
+  it('should get user information', async () => {
     const response = await request(app)
       .get('/api/user')
       .expect('Content-Type', /json/)
       .expect(200);
     
+    // Verify we get a valid user object with expected properties
     expect(response.body).toHaveProperty('id');
     expect(response.body).toHaveProperty('username');
-    // Password should not be returned in the response
+    
+    // Security check: Password should never be returned in the response
     expect(response.body).not.toHaveProperty('password');
+    
+    // Additional validation to ensure the user data is properly structured
+    expect(typeof response.body.id).toBe('number');
+    expect(typeof response.body.username).toBe('string');
   });
 });
