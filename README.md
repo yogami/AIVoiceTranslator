@@ -41,7 +41,7 @@ AIVoiceTranslator/
 │   └── public/              # Static assets and HTML interfaces
 │       ├── js/              # JavaScript libraries and utilities
 │       ├── simple-student.html  # Simplified student interface
-│       └── websocket-diagnostics.html  # WebSocket testing interface
+│       └── websocket-diagnostics.html  # WebSocket connection and diagnostics interface
 │
 ├── server/                  # Server-side code
 │   ├── config.ts            # Server configuration
@@ -145,13 +145,15 @@ Two versions are available:
 - Standard: `/student`
 - Simplified: `/simple-student.html` (optimized for mobile devices)
 
-### WebSocket Diagnostics
+### WebSocket Connection Page
 
-A diagnostic interface for testing WebSocket connections and TTS settings:
+The primary interface for establishing WebSocket connections, with additional diagnostic capabilities:
 
-- Monitor WebSocket connection status
+- Create and manage WebSocket connections to the server
+- Configure connection parameters and preferences
+- Monitor connection status and performance metrics
 - Test different TTS voices and settings
-- View performance metrics
+- View detailed diagnostics for troubleshooting
 
 Access at: `/websocket-diagnostics.html`
 
