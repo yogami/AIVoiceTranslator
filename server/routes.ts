@@ -11,16 +11,6 @@
  */
 import { Router, Request, Response } from 'express';
 import { storage } from './storage';
-import { 
-  getAllMetrics, 
-  refreshMetrics, 
-  CoverageMetrics, 
-  ComplexityMetrics,
-  CodeSmellsMetrics,
-  DuplicationMetrics,
-  DependenciesMetrics,
-  TestResultsMetrics
-} from './metrics';
 
 export const apiRoutes = Router();
 
@@ -111,22 +101,7 @@ apiRoutes.get('/user', async (req: Request, res: Response) => {
   }
 });
 
-/**
- * Get all code metrics
- * Returns all code quality metrics for the project
- */
-apiRoutes.get('/metrics', async (req: Request, res: Response) => {
-  try {
-    const metrics = await getAllMetrics();
-    res.json(metrics);
-  } catch (error) {
-    console.error('Error fetching metrics:', error);
-    res.status(500).json({ 
-      error: 'Failed to retrieve metrics',
-      message: error instanceof Error ? error.message : 'Unknown error' 
-    });
-  }
-});
+
 
 /**
  * Get code coverage metrics

@@ -1,6 +1,0 @@
-Screenshot of https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev/student
---------------------------------------------------
-Elements:
-- <header innerHTML="Benedictaitor Student">Benedictaitor Student</header>
-- <select data-testid="language-selector"></select>
-- <div data-testid="translation-container"></div>
