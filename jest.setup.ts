@@ -3,7 +3,7 @@ import { jest } from '@jest/globals';
 
 // Mock the url module
 jest.mock('url', () => ({
-  fileURLToPath: (url: string) => '/mocked/path/to/file',
+  fileURLToPath: jest.fn((url: string) => '/mocked/path/to/file'),
 }));
 
 // Mock the fs module
@@ -13,12 +13,12 @@ jest.mock('fs', () => ({
     pipe: jest.fn(),
   })),
   promises: {
-    writeFile: jest.fn().mockResolvedValue(undefined),
-    unlink: jest.fn().mockResolvedValue(undefined),
+    writeFile: jest.fn().mockResolvedValue(undefined as any),
+    unlink: jest.fn().mockResolvedValue(undefined as any),
     stat: jest.fn().mockResolvedValue({
       size: 1024,
       mtime: new Date(),
-    }),
+    } as any),
   },
   // Include standard fs methods needed by the tests
   existsSync: jest.fn().mockReturnValue(true),
@@ -32,9 +32,9 @@ jest.mock('dotenv', () => ({
 
 // Mock path
 jest.mock('path', () => ({
-  resolve: jest.fn((...args) => args.join('/')),
-  join: jest.fn((...args) => args.join('/')),
-  dirname: jest.fn((p) => p.split('/').slice(0, -1).join('/')),
+  resolve: jest.fn((...args: string[]) => args.join('/')),
+  join: jest.fn((...args: string[]) => args.join('/')),
+  dirname: jest.fn((p: string) => p.split('/').slice(0, -1).join('/')),
 }));
 
 // You can add other global mocks here as needed

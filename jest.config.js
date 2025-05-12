@@ -7,20 +7,20 @@ export default {
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       useESM: true,
-      // Handle "__filename has already been declared" errors
       isolatedModules: true 
     }]
   },
+  setupFiles: ['<rootDir>/jest.setup.ts'], // Reference the setup file
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   collectCoverage: false,
   automock: false,
   clearMocks: true,
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/server/$1'
+    '^@/(.*)$': '<rootDir>/server/$1',
+    '^(\\.{1,2}/.*)\\.js$': '$1' // Handle .js imports without extension
   },
   testTimeout: 10000,
   verbose: true,
-  // Allow tests to be found in the utils folder
   testPathIgnorePatterns: []
 };
