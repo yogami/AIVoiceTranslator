@@ -1,8 +1,0 @@
-Screenshot of https://34522ab7-4880-49aa-98ce-1ae5e45aa9cc-00-67qrwrk3v299.picard.replit.dev/teacher
---------------------------------------------------
-Elements:
-- <header innerHTML="Benedictaitor Teacher">Benedictaitor Teacher</header>
-- <button data-testid="start-recording" disabled="false" onclick="() => this.startRecording()"></button>
-- <button data-testid="stop-recording" disabled="true" onclick="() => this.stopRecording()"></button>
-- <div data-testid="transcript-container"></div>
-- <span innerHTML="This is a test transcription message" className="transcript-item">This is a test transcription message</span>

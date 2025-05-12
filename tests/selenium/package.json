@@ -1,6 +1,0 @@
-{
-  "name": "selenium-tests",
-  "version": "1.0.0",
-  "description": "Selenium tests for AIVoiceTranslator",
-  "type": "commonjs"
-}
