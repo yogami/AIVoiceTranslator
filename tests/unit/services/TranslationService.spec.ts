@@ -136,6 +136,15 @@ describe('SpeechTranslationService', () => {
     
     // Manually inject our mocks
     speechTranslationServiceInstance['ttsFactory'] = mockTtsFactory;
+    
+    // Log the test setup for debugging
+    console.log('Test setup complete for SpeechTranslationService');
+    console.log('Methods being tested:');
+    console.log('- translateSpeech');
+    console.log('Dependencies being mocked:');
+    console.log('- transcriptionService.transcribe');
+    console.log('- translationService.translate');
+    console.log('- ttsFactory.getService().synthesizeSpeech');
   });
   
   // Happy path test
