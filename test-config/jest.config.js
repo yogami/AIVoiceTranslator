@@ -20,14 +20,7 @@ export default {
   clearMocks: true,
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/server/$1',
-    '^(\\.{1,2}/.*)\\.js$': '$1', // Handle .js imports without extension
-    // Map the url module to a mock implementation for resolving import.meta.url issues
-    'url': '<rootDir>/test-config/mocks/url.mock.ts'
-  },
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
+    '^(\\.{1,2}/.*)\\.js$': '$1' // Handle .js imports without extension
   },
   testTimeout: 10000,
   verbose: true,
