@@ -3,28 +3,31 @@
 # Set the test environment variables
 export NODE_ENV=test
 
+# Define the Jest config file path
+JEST_CONFIG="--config=test-config/jest.config.js"
+
 # Function to run unit tests
 run_unit_tests() {
   echo "Running unit tests..."
-  npx jest --testPathPattern=tests/unit
+  npx jest $JEST_CONFIG --testPathPattern=tests/unit
 }
 
 # Function to run specific test file
 run_specific_test() {
   echo "Running specific test file: $1"
-  npx jest --no-cache "$@"
+  npx jest $JEST_CONFIG --no-cache "$@"
 }
 
 # Function to run integration tests
 run_integration_tests() {
   echo "Running integration tests..."
-  npx jest --testPathPattern=tests/integration
+  npx jest $JEST_CONFIG --testPathPattern=tests/integration
 }
 
 # Function to run e2e tests
 run_e2e_tests() {
   echo "Running e2e tests with Jest (Playwright tests skipped)..."
-  npx jest --testPathPattern=tests/e2e
+  npx jest $JEST_CONFIG --testPathPattern=tests/e2e
 }
 
 # Function to run all tests
@@ -37,7 +40,7 @@ run_all_tests() {
 # Function to run tests with coverage
 run_coverage() {
   echo "Running tests with coverage..."
-  npx jest --coverage
+  npx jest $JEST_CONFIG --coverage
 }
 
 # Clean test output
