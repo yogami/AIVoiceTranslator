@@ -38,7 +38,8 @@ if (!existsSync(vitestBin)) {
 }
 
 // Run the test with Vitest using our isolated configuration
-const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath], {
+// Add coverage flag to generate coverage report
+const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath, '--coverage'], {
   stdio: 'inherit',
   shell: true,
   env: {
