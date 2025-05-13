@@ -1,7 +1,7 @@
 // This file will be referenced in your Jest config to set up global mocks
 import { jest } from '@jest/globals';
 
-// Mock the url module
+// Mock the url module - critical for ESM compatibility
 jest.mock('url', () => ({
   fileURLToPath: jest.fn((url: string) => '/mocked/path/to/file'),
 }));
@@ -36,5 +36,8 @@ jest.mock('path', () => ({
   join: jest.fn((...args: string[]) => args.join('/')),
   dirname: jest.fn((p: string) => p.split('/').slice(0, -1).join('/')),
 }));
+
+// Add other global mocks here if needed, but DO NOT mock the SUT
+// (TranslationService)
 
 // You can add other global mocks here as needed
