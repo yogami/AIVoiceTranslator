@@ -1,10 +1,9 @@
 /**
  * TranslationService Unit Tests
  * 
- * IMPORTANT: This test uses dynamic imports to ensure we don't have conflicts
- * with the ESM-specific code in TranslationService (import.meta.url).
- * 
- * We're properly following the principle of not mocking the SUT.
+ * IMPORTANT: This test properly follows the principle of not mocking the System Under Test (SUT).
+ * We only mock external dependencies. We're using dynamic imports for TranslationService
+ * to avoid conflicts with ESM's import.meta.url.
  */
 import { jest, expect, describe, it, beforeEach } from '@jest/globals';
 
@@ -46,6 +45,18 @@ jest.mock('../../../server/config', () => ({
   TRANSLATION_CACHE_EXPIRY: 3600000
 }));
 
+// Mock the TextToSpeechService
+jest.mock('../../../server/services/TextToSpeechService', () => ({
+  textToSpeechService: {
+    synthesizeSpeech: jest.fn().mockResolvedValue(Buffer.from('mock audio data'))
+  },
+  ttsFactory: {
+    getService: jest.fn().mockReturnValue({
+      synthesizeSpeech: jest.fn().mockResolvedValue(Buffer.from('mock audio data'))
+    })
+  }
+}));
+
 describe('Translation Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -58,7 +69,7 @@ describe('Translation Service', () => {
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
-    // Dynamically import the service to avoid the conflict with __filename
+    // Dynamically import the service to avoid conflicts with import.meta.url
     const { translateSpeech } = await import('../../../server/services/TranslationService');
     
     // Call the ACTUAL function, not a mock
@@ -82,7 +93,7 @@ describe('Translation Service', () => {
     const targetLanguage = 'es-ES';
     const preTranscribedText = 'Pre-transcribed text for testing';
     
-    // Dynamically import the service to avoid the conflict with __filename
+    // Dynamically import the service to avoid conflicts with import.meta.url
     const { translateSpeech } = await import('../../../server/services/TranslationService');
     
     // Call the ACTUAL function, not a mock
