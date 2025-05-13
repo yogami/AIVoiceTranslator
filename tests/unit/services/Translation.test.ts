@@ -1,50 +1,34 @@
 /**
  * Translation Service Unit Tests
  * 
- * This file tests the translation functionality with proper mocking techniques
- * as per the testing strategy guidelines.
+ * This file tests the actual translation functionality from the application's
+ * openai.ts module, which serves as a facade for the TranslationService.
  */
 
 import { TranslationResult } from '../../../server/openai';
+import { jest, expect, describe, it, beforeEach } from '@jest/globals';
 
-// Mock the OpenAI client
-jest.mock('openai', () => {
-  // Create mock implementations for OpenAI methods
-  const mockTranscriptionCreate = jest.fn().mockResolvedValue({
-    text: 'This is a test transcription'
-  });
-  
-  const mockChatCreate = jest.fn().mockResolvedValue({
-    choices: [{ message: { content: 'This is a test translation' } }]
-  });
-  
-  const mockSpeechCreate = jest.fn().mockImplementation(async () => {
-    return {
-      arrayBuffer: jest.fn().mockResolvedValue(new ArrayBuffer(1000))
-    };
-  });
-  
-  // Create the mock constructor
+// Mock the internal TranslationService that our facade calls (dependency, not the SUT)
+jest.mock('../../../server/services/TranslationService', () => {
   return {
-    default: jest.fn().mockImplementation(() => ({
-      audio: {
-        transcriptions: {
-          create: mockTranscriptionCreate
-        },
-        speech: {
-          create: mockSpeechCreate
-        }
-      },
-      chat: {
-        completions: {
-          create: mockChatCreate
-        }
-      }
-    }))
+    speechTranslationService: {
+      translateSpeech: jest.fn().mockImplementation(async (
+        audioBuffer: Buffer, 
+        sourceLanguage: string, 
+        targetLanguage: string,
+        preTranscribedText?: string
+      ) => {
+        return {
+          originalText: preTranscribedText || 'This is a test transcription',
+          translatedText: 'This is a test translation',
+          audioBuffer: Buffer.from('test audio response')
+        };
+      })
+    }
   };
 });
 
-// Mock the config to provide a test API key
+// Mock the config (external dependency)
 jest.mock('../../../server/config', () => ({
   OPENAI_API_KEY: 'test-api-key'
 }));
@@ -64,38 +48,33 @@ describe('Translation Result Interface', () => {
   });
 });
 
-describe('Translation Functionality', () => {
-  // Mock the translation function
-  const mockTranslateFunction = jest.fn().mockImplementation(
-    async (audioBuffer: Buffer, sourceLanguage: string, targetLanguage: string, preTranscribedText?: string) => {
-      return {
-        originalText: preTranscribedText || 'This is a test transcription',
-        translatedText: 'This is a test translation',
-        audioBuffer: Buffer.from('test audio response')
-      };
-    }
-  );
-  
+describe('Translation Facade', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.resetModules();
   });
   
-  it('should translate text from one language to another', async () => {
-    // Use the mock function
-    const result = await mockTranslateFunction(
+  it('should use the real translation facade to translate text', async () => {
+    // Dynamically import the ACTUAL facade module to test
+    const { translateSpeech } = require('../../../server/openai');
+    
+    // Use the actual function with mocked dependencies
+    const result = await translateSpeech(
       Buffer.from('test audio'),
       'en-US',
       'es-ES'
     );
     
-    // Verify the mock was called with the correct parameters (ignoring specific buffer contents)
-    expect(mockTranslateFunction).toHaveBeenCalledTimes(1);
-    const callArgs = mockTranslateFunction.mock.calls[0];
-    expect(Buffer.isBuffer(callArgs[0])).toBeTruthy();
-    expect(callArgs[1]).toBe('en-US');
-    expect(callArgs[2]).toBe('es-ES');
+    // Verify integration with the speech translation service
+    const translationService = require('../../../server/services/TranslationService');
+    expect(translationService.speechTranslationService.translateSpeech).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'en-US',
+      'es-ES',
+      undefined
+    );
     
-    // Verify the result structure
+    // Verify the result structure is correct
     expect(result).toHaveProperty('originalText');
     expect(result).toHaveProperty('translatedText');
     expect(result).toHaveProperty('audioBuffer');
@@ -105,21 +84,25 @@ describe('Translation Functionality', () => {
   });
   
   it('should bypass transcription when preTranscribedText is provided', async () => {
-    // Use the mock function with preTranscribedText
-    const result = await mockTranslateFunction(
+    // Dynamically import the ACTUAL facade module to test
+    const { translateSpeech } = require('../../../server/openai');
+    
+    // Use the actual facade with a preTranscribedText parameter
+    const result = await translateSpeech(
       Buffer.from('test audio'),
       'en-US',
       'es-ES',
       'Pre-transcribed text'
     );
     
-    // Verify the mock was called with the correct parameters
-    expect(mockTranslateFunction).toHaveBeenCalledTimes(1);
-    const callArgs = mockTranslateFunction.mock.calls[0];
-    expect(Buffer.isBuffer(callArgs[0])).toBeTruthy();
-    expect(callArgs[1]).toBe('en-US');
-    expect(callArgs[2]).toBe('es-ES');
-    expect(callArgs[3]).toBe('Pre-transcribed text');
+    // Verify integration with the speech translation service
+    const translationService = require('../../../server/services/TranslationService');
+    expect(translationService.speechTranslationService.translateSpeech).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'en-US',
+      'es-ES',
+      'Pre-transcribed text'
+    );
     
     // Verify the result has the correct original text
     expect(result.originalText).toBe('Pre-transcribed text');
