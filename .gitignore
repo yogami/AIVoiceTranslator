@@ -8,3 +8,15 @@ vite.config.ts.*
 audio-cache/
 temp/
 coverage/
+
+# Test-related redundant files
+server-output.log
+server-stderr.log
+dist-tests/
+backup/
+.jest-cache/
+test-results/
+cleanup.sh
+
+# Log files
+*.log
