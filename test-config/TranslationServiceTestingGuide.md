@@ -1,88 +1,133 @@
 # TranslationService Testing Guide
 
-This document outlines the testing strategy for the TranslationService and related components in the AIVoiceTranslator project. It follows the principles established in our main TestingStrategy.md, with specific focus on testing ESM modules.
+This guide provides instructions for running and maintaining tests for the TranslationService component of the AIVoiceTranslator project.
 
-## Key Testing Principles
+## Testing Philosophy
 
-1. **NEVER modify source code** - Tests should adapt to the code, not vice versa
-2. **NEVER mock the System Under Test (SUT)** - Only mock external dependencies
-3. **Use REAL implementations** of the systems under test
-4. **Keep testing infrastructure isolated** from application code
+Our testing approach follows these key principles:
 
-## Test Setup Structure
+1. **Test isolation**: Tests are completely isolated from application code
+2. **No source modifications**: Tests never require changes to application source code
+3. **SUT integrity**: The System Under Test is never mocked, only its dependencies
+4. **Comprehensive coverage**: Tests cover happy paths, error paths, and edge cases
 
-We've implemented a completely isolated testing approach:
+## Test Directory Structure
 
 ```
 project/
-├── server/                      # Application source code (untouched)
-│   └── services/
-│       ├── TranslationService.ts  # System Under Test
-│       └── ...
-├── test-config/                 # Test-specific configurations
-│   └── vitest/
-│       └── vitest.config.mjs    # Isolated Vitest config for ESM tests
-├── test-scripts/                # Test execution scripts
-│   ├── run-translation-tests.mjs  # Runner for TranslationService.spec.ts
-│   └── run-all-translation-tests.sh  # Runs all translation tests
-└── tests/
-    └── unit/services/
-        ├── TranslationService.spec.ts  # Tests using Vitest (ESM compatible)
-        └── Translation.test.ts         # Tests using Jest
+├── tests/                  # Contains all test files
+│   └── unit/
+│       └── services/
+│           └── TranslationService.spec.ts  # Main test file
+├── test-scripts/           # Scripts for running tests
+│   ├── run-translation-tests.mjs
+│   └── run-translation-coverage.mjs
+└── test-config/            # Test configuration and documentation
+    ├── vitest/
+    │   └── vitest.config.mjs
+    ├── coverage/           # Coverage reports directory
+    ├── test-coverage-analysis.md
+    └── TranslationServiceTestingGuide.md
 ```
-
-## Testing TranslationService (ESM module)
-
-The TranslationService uses ESM features like `import.meta.url` which are incompatible with CommonJS testing. To solve this, we:
-
-1. Use Vitest which has native ESM support
-2. Keep a dedicated config file in `test-config/vitest/`
-3. Use a special runner script that executes tests in isolation
-4. Mock external dependencies (fs, url, openai) but NEVER the SUT
 
 ## Running the Tests
 
-To run TranslationService tests:
+### Basic Test Execution
+
+To run the TranslationService tests without coverage reporting:
 
 ```bash
-# Run TranslationService tests (ESM compatible)
 node test-scripts/run-translation-tests.mjs
-
-# Run all translation-related tests
-./test-scripts/run-all-translation-tests.sh
 ```
 
-Test results are saved in the `test-results/` directory.
+This script:
+- Uses an isolated Vitest configuration
+- Runs only the TranslationService tests
+- Reports results in the terminal
+
+### Coverage Analysis
+
+For a coverage analysis:
+
+```bash
+node test-scripts/run-translation-coverage.mjs
+```
+
+Due to dependency constraints, we use manual coverage analysis instead of automated tools. The coverage analysis is documented in `test-config/test-coverage-analysis.md`.
+
+## Test Cases
+
+The test suite includes the following types of tests:
+
+### Happy Path Tests
+- Basic speech translation
+- Translation with pre-transcribed text
+- Audio transcription
+- Text translation
+
+### Error Path Tests
+- Transcription service failures
+- Translation service failures
+- OpenAI API errors
+- File system errors
+
+### Edge Cases
+- Empty audio buffer
+- Very small audio files
+- Very long text
+- Same source/target language
+- TTS service errors
+
+## Adding New Tests
+
+When adding new tests:
+
+1. Add test cases to `tests/unit/services/TranslationService.spec.ts`
+2. Follow the existing patterns for mocking dependencies
+3. Cover both happy paths and error paths
+4. Include edge cases where appropriate
+5. Update `test-coverage-analysis.md` with new coverage information
 
 ## Mocking Strategy
 
-1. **External Dependencies**: We mock external modules like fs, url, and OpenAI
-   ```typescript
-   // Example - mocking OpenAI
-   vi.mock('openai', () => ({
-     default: vi.fn().mockImplementation(() => ({
-       audio: { /*...*/ },
-       chat: { /*...*/ }
-     }))
-   }));
-   ```
+- The Vitest `vi` object is used for mocking
+- Dependencies are mocked using `vi.fn()`
+- The System Under Test (SUT) is never mocked
+- Reset mocks before each test with `vi.resetAllMocks()`
 
-2. **Internal Dependencies**: For dependencies of the SUT, we create mock objects and inject them
-   ```typescript
-   // Example - manually creating and injecting mocks
-   const mockTtsService = {
-     synthesizeSpeech: vi.fn().mockResolvedValue(/*...*/),
-   };
-   
-   // Injecting the mock
-   speechTranslationServiceInstance['ttsFactory'] = mockTtsFactory;
-   ```
+## Test Design Pattern
 
-## Important Notes
+Each test follows this pattern:
 
-1. Testing code should NEVER modify the application source code.
-2. Vitest configuration is kept completely separate from Vite configuration.
-3. Mock implementations should be defined inline in the test files, not in external files that might affect the application.
-4. ESM-related fixes are contained entirely within the testing infrastructure.
+```typescript
+it('should [expected behavior]', async () => {
+  // Arrange - set up test conditions
+  const input = ...;
+  mockDependency.method.mockReturnValueOnce(...);
+  
+  // Act - call the method being tested
+  const result = await serviceInstance.method(input);
+  
+  // Assert - verify the result
+  expect(result).toEqual(...);
+  expect(mockDependency.method).toHaveBeenCalledWith(...);
+});
+```
 
-By following these guidelines, we maintain a clean separation between application code and testing infrastructure, ensuring that tests can be run without affecting the actual application functionality.
+## Troubleshooting
+
+If tests are failing:
+
+1. **ESM compatibility issues**: Make sure `NODE_OPTIONS='--experimental-vm-modules'` is set
+2. **Mock failures**: Check that dependencies are properly mocked
+3. **Path issues**: Verify the correct paths are being used in test files
+4. **Assertion errors**: Ensure expectations match the actual implementation
+
+## Maintaining Tests
+
+As the application evolves:
+
+1. Update tests when implementation changes
+2. Add tests for new functionality
+3. Periodically verify test coverage
+4. Keep all test code in the designated test directories

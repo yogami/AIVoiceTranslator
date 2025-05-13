@@ -38,14 +38,18 @@ if (!existsSync(vitestBin)) {
 }
 
 // Run the test with Vitest using our isolated configuration
-// Just run the tests without coverage for now
-const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath], {
+// Added --no-threads to avoid parallel execution issues with mocks
+console.log('✨ Added module mocking in setup file to prevent fs/util promisify errors');
+const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath, '--no-threads'], {
   stdio: 'inherit',
   shell: true,
   env: {
     ...process.env,
     NODE_ENV: 'test',
-    NODE_OPTIONS: '--experimental-vm-modules'
+    NODE_OPTIONS: '--experimental-vm-modules',
+    // Ensure test environment variables
+    VITEST_TEST_ENV: 'true',
+    OPENAI_API_KEY: 'test-api-key'
   }
 });
 
