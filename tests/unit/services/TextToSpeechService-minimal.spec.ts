@@ -179,12 +179,242 @@ describe('TextToSpeechService Core Tests', () => {
   });
   
   describe('OpenAITextToSpeechService', () => {
-    // Note: We're skipping detailed testing of OpenAITextToSpeechService because it's challenging to mock properly.
-    // In a real-world scenario, we would use integration tests or specialized mocking techniques to test this component.
+    // Create a proper test double for the OpenAI API
+    class OpenAITestDouble {
+      audio = {
+        speech: {
+          create: vi.fn().mockImplementation(async (options) => {
+            // Return a mock object that mimics the OpenAI API response
+            return {
+              arrayBuffer: async () => {
+                // Create a mock audio buffer with voice and text info for verification
+                const mockAudioContent = `mock_${options.voice}_${options.input.substring(0, 10)}`;
+                return Buffer.from(mockAudioContent).buffer;
+              }
+            };
+          })
+        }
+      };
+    }
+    
+    // Declare a service instance and API test double for reuse
+    let openaiApiDouble: any;
+    let service: any;
+    
+    beforeEach(() => {
+      // Create a fresh test double for each test
+      openaiApiDouble = new OpenAITestDouble();
+      // Create a service instance with our test double
+      service = new ttsModule.OpenAITextToSpeechService(openaiApiDouble);
+    });
     
     it('should be exported from the module', () => {
       expect(ttsModule.OpenAITextToSpeechService).toBeDefined();
       expect(typeof ttsModule.OpenAITextToSpeechService).toBe('function');
+    });
+    
+    // Test the TTS service with our mock OpenAI API
+    it('should synthesize speech using the OpenAI API', async () => {
+      // Due to caching, we need to provide a unique text to force API call
+      const uniqueText = `Hello world ${Date.now()}`;
+      
+      // Modify the mock implementation to verify parameters
+      let capturedParams: any = null;
+      openaiApiDouble.audio.speech.create.mockImplementationOnce(async (options) => {
+        capturedParams = options;
+        return {
+          arrayBuffer: async () => Buffer.from('mock audio').buffer
+        };
+      });
+      
+      // Call the service with test parameters
+      const buffer = await service.synthesizeSpeech({
+        text: uniqueText,
+        languageCode: 'en-US',
+        preserveEmotions: false
+      });
+      
+      // Verify parameters were correct
+      expect(capturedParams).toBeDefined();
+      expect(capturedParams.model).toBe('tts-1');
+      expect(capturedParams.input).toBe(uniqueText);
+      expect(capturedParams.voice).toBeDefined();
+      
+      // Verify we got a buffer back
+      expect(Buffer.isBuffer(buffer)).toBe(true);
+      expect(buffer.length).toBeGreaterThan(0);
+    });
+    
+    // Test with emotion detection
+    it('should detect and use emotions when preserveEmotions is true', async () => {
+      // Make a unique emotional text to bypass cache
+      const uniqueText = `This is amazing! I am so excited!!! ${Date.now()}`;
+      
+      // Capture parameters
+      let capturedParams: any = null;
+      openaiApiDouble.audio.speech.create.mockImplementationOnce(async (options) => {
+        capturedParams = options;
+        return {
+          arrayBuffer: async () => Buffer.from('mock audio').buffer
+        };
+      });
+      
+      // Call with emotional text
+      const buffer = await service.synthesizeSpeech({
+        text: uniqueText,
+        languageCode: 'en-US',
+        preserveEmotions: true
+      });
+      
+      // Verify parameters for excited text
+      expect(capturedParams).toBeDefined();
+      expect(capturedParams.model).toBe('tts-1');
+      expect(capturedParams.input).toMatch(/amazing|excited/i);
+      expect(capturedParams.speed).toBeGreaterThan(1.0); // Excited text should have faster speed
+      
+      // Verify we got a buffer back
+      expect(Buffer.isBuffer(buffer)).toBe(true);
+    });
+    
+    // Test error handling in the speech synthesis path
+    it('should handle API errors gracefully', async () => {
+      // Make the API throw an error
+      openaiApiDouble.audio.speech.create.mockRejectedValueOnce(
+        new Error('API error')
+      );
+      
+      // Expect the service to throw with a helpful message
+      await expect(
+        service.synthesizeSpeech({
+          text: 'Error test',
+          languageCode: 'en-US'
+        })
+      ).rejects.toThrow('Speech synthesis failed');
+    });
+    
+    // Test the utility functions that don't require an actual API call
+    it('should detect emotions in text correctly', () => {
+      // Access the private method
+      const detectEmotions = service.detectEmotions.bind(service);
+      
+      // Test excited emotion detection
+      const excitedResult = detectEmotions('This is amazing! I am so excited!!!');
+      expect(excitedResult[0]?.emotion).toBe('excited');
+      
+      // Test serious emotion detection
+      const seriousResult = detectEmotions('This is a serious warning. Important information follows.');
+      expect(seriousResult[0]?.emotion).toBe('serious');
+      
+      // Test calm emotion detection
+      const calmResult = detectEmotions('Relax and breathe. Stay calm and peaceful.');
+      expect(calmResult[0]?.emotion).toBe('calm');
+      
+      // Test sad emotion detection
+      const sadResult = detectEmotions('I am sad about this unfortunate situation 😢');
+      expect(sadResult[0]?.emotion).toBe('sad');
+      
+      // Test no emotion detection
+      const noEmotionResult = detectEmotions('This is a plain text without emotion markers.');
+      expect(noEmotionResult.length).toBe(0);
+    });
+    
+    it('should select appropriate voice for language', () => {
+      // Access the private method
+      const selectVoice = service.selectVoice.bind(service);
+      
+      // Test voice selection for different languages
+      expect(selectVoice('en-US')).toMatch(/^(alloy|echo|fable|onyx|nova|shimmer)$/);
+      expect(selectVoice('fr-FR')).toMatch(/^(alloy|nova|shimmer)$/);
+      expect(selectVoice('ja-JP')).toMatch(/^(nova|alloy|echo)$/);
+      expect(selectVoice('zh-CN')).toMatch(/^(alloy|nova|onyx)$/);
+      
+      // Test voice selection with emotions
+      expect(selectVoice('en-US', 'excited')).toMatch(/^(echo|alloy|echo|fable|onyx|nova|shimmer)$/);
+      expect(selectVoice('en-US', 'serious')).toMatch(/^(onyx|alloy|echo|fable|nova|shimmer)$/);
+      expect(selectVoice('en-US', 'calm')).toMatch(/^(nova|alloy|echo|fable|onyx|shimmer)$/);
+      expect(selectVoice('en-US', 'sad')).toMatch(/^(shimmer|alloy|echo|fable|onyx|nova)$/);
+      
+      // Test fallback for unsupported language
+      expect(selectVoice('xx-XX')).toMatch(/^(nova|alloy)$/);
+    });
+    
+    it('should format input text based on detected emotion', () => {
+      // Access the private method
+      const formatInputForEmotion = service.formatInputForEmotion.bind(service);
+      
+      // Test formatting for different emotions
+      const excitedText = formatInputForEmotion('Hello world.', 'excited');
+      expect(excitedText).toContain('!');
+      
+      const seriousText = formatInputForEmotion('Important information here.', 'serious');
+      // Serious may have some uppercase words depending on random selection
+      expect(seriousText.length).toBeGreaterThanOrEqual(26);
+      
+      const calmText = formatInputForEmotion('Take a breath.', 'calm');
+      expect(calmText).toContain('...');
+      
+      const sadText = formatInputForEmotion('Bad news.', 'sad');
+      expect(sadText).toContain('...');
+    });
+    
+    it('should adjust speech parameters based on emotion', () => {
+      // Access the private method
+      const adjustSpeechParams = service.adjustSpeechParams.bind(service);
+      
+      // Test adjustments for different emotions
+      const excited = adjustSpeechParams('excited', { 
+        text: 'Test', 
+        languageCode: 'en-US',
+        speed: 1.0
+      });
+      expect(excited.speed).toBeGreaterThan(1.0);
+      
+      const serious = adjustSpeechParams('serious', { 
+        text: 'Test', 
+        languageCode: 'en-US',
+        speed: 1.0
+      });
+      expect(serious.speed).toBeLessThan(1.0);
+      
+      const calm = adjustSpeechParams('calm', { 
+        text: 'Test', 
+        languageCode: 'en-US',
+        speed: 1.0
+      });
+      expect(calm.speed).toBeLessThan(1.0);
+      
+      const sad = adjustSpeechParams('sad', { 
+        text: 'Test', 
+        languageCode: 'en-US',
+        speed: 1.0
+      });
+      expect(sad.speed).toBeLessThan(1.0);
+    });
+    
+    // Test the cache key generation
+    it('should generate consistent cache keys for the same inputs', () => {
+      // Access the private method
+      const generateCacheKey = service.generateCacheKey.bind(service);
+      
+      const input1 = {
+        text: 'Hello world',
+        languageCode: 'en-US',
+        voice: 'alloy',
+        speed: 1.0,
+        preserveEmotions: true
+      };
+      
+      const input2 = { ...input1 };
+      
+      // Same inputs should generate same cache key
+      const key1 = generateCacheKey(input1);
+      const key2 = generateCacheKey(input2);
+      expect(key1).toBe(key2);
+      
+      // Different inputs should produce different keys
+      const input3 = { ...input1, text: 'Different text' };
+      const key3 = generateCacheKey(input3);
+      expect(key3).not.toBe(key1);
     });
   });
   
