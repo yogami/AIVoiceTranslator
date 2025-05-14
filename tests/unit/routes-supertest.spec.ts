@@ -221,7 +221,7 @@ describe('API Routes (Supertest)', () => {
       expect(response.body).toEqual({ error: 'User not found' });
     });
     
-    it('should handle errors', async () => {
+    it('should handle Error objects', async () => {
       // Setup mock to throw error
       const error = new Error('Database error');
       storageMock.storage.getUser = vi.fn().mockRejectedValue(error);
@@ -232,6 +232,19 @@ describe('API Routes (Supertest)', () => {
       expect(response.body).toEqual({
         error: 'Failed to retrieve user',
         message: 'Database error'
+      });
+    });
+    
+    it('should handle non-Error objects', async () => {
+      // Setup mock to throw a non-Error object
+      storageMock.storage.getUser = vi.fn().mockRejectedValue('Connection error');
+      
+      const response = await request(app).get('/api/user');
+      
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({
+        error: 'Failed to retrieve user',
+        message: 'Unknown error'
       });
     });
   });
