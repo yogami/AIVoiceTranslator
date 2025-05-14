@@ -3,3 +3,7 @@ modules = ["nodejs-20"]
 [nix]
 channel = "stable-24_05"
 packages = ["psmisc", "lsof"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
