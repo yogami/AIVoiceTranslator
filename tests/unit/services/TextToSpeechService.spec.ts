@@ -109,6 +109,68 @@ describe('TextToSpeechService', () => {
       expect(markerJson.type).toBe('browser-speech');
       expect(markerJson.text).toBe(options.text);
     });
+    
+    it('should handle all options in speech synthesis', async () => {
+      // Arrange
+      const service = new BrowserSpeechSynthesisService();
+      
+      // Various combinations of options
+      const optionsTests = [
+        {
+          text: 'Simple text',
+          languageCode: 'en-US'
+        },
+        {
+          text: 'Text with speed',
+          languageCode: 'fr-FR',
+          speed: 0.8
+        },
+        {
+          text: 'Text with preserveEmotions',
+          languageCode: 'es-ES',
+          preserveEmotions: true
+        },
+        {
+          text: 'Text with autoPlay',
+          languageCode: 'de-DE',
+          autoPlay: false
+        },
+        {
+          text: 'Complete options',
+          languageCode: 'it-IT',
+          preserveEmotions: true,
+          speed: 1.5,
+          autoPlay: false
+        }
+      ];
+      
+      // Act & Assert for each test case
+      for (const opt of optionsTests) {
+        const result = await service.synthesizeSpeech(opt);
+        expect(result).toBeInstanceOf(Buffer);
+        
+        const markerJson = JSON.parse(result.toString());
+        expect(markerJson.type).toBe('browser-speech');
+        expect(markerJson.text).toBe(opt.text);
+        expect(markerJson.languageCode).toBe(opt.languageCode);
+        
+        // Check optional properties
+        if (opt.speed !== undefined) {
+          expect(markerJson.speed).toBe(opt.speed);
+        }
+        
+        if (opt.preserveEmotions !== undefined) {
+          expect(markerJson.preserveEmotions).toBe(opt.preserveEmotions);
+        }
+        
+        if (opt.autoPlay !== undefined) {
+          expect(markerJson.autoPlay).toBe(opt.autoPlay);
+        } else {
+          // Default autoPlay should be true
+          expect(markerJson.autoPlay).toBe(true);
+        }
+      }
+    });
   });
 
   describe('SilentTextToSpeechService', () => {
@@ -124,6 +186,53 @@ describe('TextToSpeechService', () => {
       const result = await service.synthesizeSpeech(options);
       
       // Assert
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result.length).toBe(0);
+    });
+    
+    it('should ignore all options and always return empty buffer', async () => {
+      // Arrange
+      const service = new SilentTextToSpeechService();
+      
+      // Various combinations of options
+      const optionsTests = [
+        {
+          text: 'Simple text',
+          languageCode: 'en-US'
+        },
+        {
+          text: 'Text with all options',
+          languageCode: 'fr-FR',
+          preserveEmotions: true,
+          speed: 1.5,
+          autoPlay: false
+        },
+        {
+          text: '', // Even empty text
+          languageCode: 'es-ES'
+        }
+      ];
+      
+      // Act & Assert for each test case
+      for (const opt of optionsTests) {
+        const result = await service.synthesizeSpeech(opt);
+        expect(result).toBeInstanceOf(Buffer);
+        expect(result.length).toBe(0);
+      }
+    });
+    
+    it('should handle minimal options gracefully', async () => {
+      // Arrange
+      const service = new SilentTextToSpeechService();
+      
+      // Minimal required options (missing optional fields)
+      const minimalOptions: TextToSpeechOptions = {
+        text: 'Text',
+        languageCode: 'en-US'
+      };
+      
+      // Act & Assert
+      const result = await service.synthesizeSpeech(minimalOptions);
       expect(result).toBeInstanceOf(Buffer);
       expect(result.length).toBe(0);
     });
@@ -147,7 +256,7 @@ describe('TextToSpeechService', () => {
       expect(service).toBeInstanceOf(OpenAITextToSpeechService);
     });
     
-    it('should use cached audio when available and fresh', () => {
+    it('should use cached audio when available and fresh', async () => {
       // Arrange
       const mockOpenAI = {
         audio: {
@@ -171,10 +280,108 @@ describe('TextToSpeechService', () => {
       const mockBuffer = Buffer.from('cached audio data');
       vi.mocked(fs.promises.readFile).mockResolvedValue(mockBuffer);
       
-      // This test verifies that when the cache is available and fresh,
-      // the OpenAI API is not called. We're not testing the actual result
-      // value to avoid hanging operations.
+      const options: TextToSpeechOptions = {
+        text: 'Test text for OpenAI speech',
+        languageCode: 'en-US'
+      };
+      
+      // Act
+      const result = await service.synthesizeSpeech(options);
+      
+      // Assert - should get the cached buffer and not call OpenAI
+      expect(result).toEqual(mockBuffer);
+      expect(fs.promises.readFile).toHaveBeenCalled();
       expect(mockOpenAI.audio.speech.create).not.toHaveBeenCalled();
+    });
+    
+    it('should generate new audio when cache is stale', async () => {
+      // Arrange
+      const mockOpenAI = {
+        audio: {
+          speech: {
+            create: vi.fn().mockResolvedValue({
+              arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer)
+            })
+          }
+        }
+      };
+      
+      const service = new OpenAITextToSpeechService(mockOpenAI as any);
+      
+      // File exists but is old
+      vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+      vi.mocked(fs.promises.stat).mockResolvedValue({
+        mtimeMs: Date.now() - (48 * 60 * 60 * 1000) // 48 hours old (stale)
+      } as fs.Stats);
+      
+      const options: TextToSpeechOptions = {
+        text: 'Test text for OpenAI speech',
+        languageCode: 'en-US'
+      };
+      
+      // Act
+      const result = await service.synthesizeSpeech(options);
+      
+      // Assert - should call OpenAI and write the new buffer to cache
+      expect(result).toBeInstanceOf(Buffer);
+      expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
+      expect(fs.promises.writeFile).toHaveBeenCalled();
+    });
+    
+    it('should generate new audio when cache doesn\'t exist', async () => {
+      // Arrange
+      const mockOpenAI = {
+        audio: {
+          speech: {
+            create: vi.fn().mockResolvedValue({
+              arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer)
+            })
+          }
+        }
+      };
+      
+      const service = new OpenAITextToSpeechService(mockOpenAI as any);
+      
+      // File doesn't exist
+      vi.mocked(fs.promises.access).mockRejectedValue(new Error('File not found'));
+      
+      const options: TextToSpeechOptions = {
+        text: 'Test text for OpenAI speech',
+        languageCode: 'en-US'
+      };
+      
+      // Act
+      const result = await service.synthesizeSpeech(options);
+      
+      // Assert - should call OpenAI and write the new buffer to cache
+      expect(result).toBeInstanceOf(Buffer);
+      expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
+      expect(fs.promises.writeFile).toHaveBeenCalled();
+    });
+    
+    it('should handle OpenAI API errors gracefully', async () => {
+      // Arrange
+      const mockOpenAI = {
+        audio: {
+          speech: {
+            create: vi.fn().mockRejectedValue(new Error('API Error'))
+          }
+        }
+      };
+      
+      const service = new OpenAITextToSpeechService(mockOpenAI as any);
+      
+      // File doesn't exist, forcing API call
+      vi.mocked(fs.promises.access).mockRejectedValue(new Error('File not found'));
+      
+      const options: TextToSpeechOptions = {
+        text: 'Test text for OpenAI speech',
+        languageCode: 'en-US'
+      };
+      
+      // Act & Assert
+      await expect(service.synthesizeSpeech(options)).rejects.toThrow();
+      expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
     });
     
     it('should expose public methods for speech synthesis', () => {
@@ -194,6 +401,41 @@ describe('TextToSpeechService', () => {
       expect(service.synthesizeSpeech).toBeDefined();
       expect(typeof service.synthesizeSpeech).toBe('function');
     });
+    
+    it('should pass voice options to OpenAI correctly', async () => {
+      // Arrange
+      const mockOpenAI = {
+        audio: {
+          speech: {
+            create: vi.fn().mockResolvedValue({
+              arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3, 4]).buffer)
+            })
+          }
+        }
+      };
+      
+      const service = new OpenAITextToSpeechService(mockOpenAI as any);
+      
+      // File doesn't exist, forcing API call
+      vi.mocked(fs.promises.access).mockRejectedValue(new Error('File not found'));
+      
+      const options: TextToSpeechOptions = {
+        text: 'Test text for OpenAI speech',
+        languageCode: 'en-US',
+        voice: 'alloy'
+      };
+      
+      // Act
+      await service.synthesizeSpeech(options);
+      
+      // Assert - check correct parameters passed to OpenAI
+      expect(mockOpenAI.audio.speech.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voice: 'alloy',
+          input: options.text
+        })
+      );
+    });
   });
   
   describe('TextToSpeechFactory', () => {
@@ -206,12 +448,51 @@ describe('TextToSpeechService', () => {
       expect(silentService).toBeInstanceOf(SilentTextToSpeechService);
     });
     
+    it('should return OpenAI service when requested', () => {
+      // Act
+      const openaiService = ttsFactory.getService('openai');
+      
+      // Assert
+      expect(openaiService).toBeDefined();
+      expect(openaiService).toBeInstanceOf(OpenAITextToSpeechService);
+    });
+    
     it('should fall back to default service if requested service not found', () => {
       // Act
       const unknownService = ttsFactory.getService('non-existent-service');
       
       // Assert - should return some service instance
       expect(unknownService).toBeDefined();
+    });
+    
+    it('should return the same instance when requesting the same service type', () => {
+      // Act
+      const service1 = ttsFactory.getService('browser');
+      const service2 = ttsFactory.getService('browser');
+      
+      // Assert - same instance (singleton pattern)
+      expect(service1).toBe(service2);
+    });
+    
+    it('should return services without requiring case-sensitive service type', () => {
+      // Act - request with different case
+      const service1 = ttsFactory.getService('BROWSER');
+      const service2 = ttsFactory.getService('Browser');
+      const service3 = ttsFactory.getService('browser');
+      
+      // Assert - all should be the same instance
+      expect(service1).toBe(service3);
+      expect(service2).toBe(service3);
+      expect(service1).toBeInstanceOf(BrowserSpeechSynthesisService);
+    });
+    
+    it('should allow accessing the default service directly', () => {
+      // Act
+      const defaultService = ttsFactory.getDefaultService();
+      
+      // Assert - should be defined and an instance of one of our services
+      expect(defaultService).toBeDefined();
+      expect(defaultService).toBeInstanceOf(Object);
     });
   });
 });
