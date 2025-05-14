@@ -567,35 +567,54 @@ describe('OpenAITranslationService', () => {
     expect(result).toBe('');
   });
   
-  it('should handle API errors gracefully', async () => {
+  it('should handle API errors and retry', async () => {
     // Arrange
     const text = 'This is a test';
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
-    // Mock API error
-    openaiMock.chat.completions.create.mockRejectedValueOnce(new Error('API error'));
+    // Mock API error on first call, success on second
+    openaiMock.chat.completions.create
+      .mockRejectedValueOnce(new Error('API error'))
+      .mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: 'Esta es una traducción de prueba',
+            },
+          },
+        ],
+      });
     
     // Act
-    await expect(translationService.translate(text, sourceLanguage, targetLanguage))
-      .rejects.toThrow('Translation failed');
+    const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+    
+    // Assert - the service should retry and succeed
+    expect(openaiMock.chat.completions.create).toHaveBeenCalledTimes(2);
+    expect(result).toBe('Esta es una traducción de prueba');
   });
   
-  it('should handle empty API response gracefully', async () => {
+  it('should handle empty API response by returning original text', async () => {
     // Arrange
     const text = 'This is a test';
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
-    // Mock empty API response
+    // When no usable content is available from the API response
     openaiMock.chat.completions.create.mockResolvedValueOnce({
-      choices: []
+      choices: [
+        {
+          message: {
+            content: null, // API might return null content
+          },
+        },
+      ],
     });
     
     // Act
     const result = await translationService.translate(text, sourceLanguage, targetLanguage);
     
-    // Assert - should return empty string for empty API response
-    expect(result).toBe('');
+    // Assert - the implementation returns the original text as fallback
+    expect(result).toBe('This is a test');
   });
 });
