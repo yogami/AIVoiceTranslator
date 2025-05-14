@@ -272,6 +272,140 @@ describe('SpeechTranslationService', () => {
       audioBuffer: expect.any(Buffer)
     });
   });
+  
+  // Development mode test (no API key)
+  it('should use development mode when API key is not available', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio');
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Create a service with apiKeyAvailable = false
+    const devModeService = new SpeechTranslationService(
+      transcriptionService,
+      translationService,
+      false // apiKeyAvailable = false
+    );
+    
+    // Inject mock TTS factory
+    devModeService['ttsFactory'] = mockTtsFactory;
+    
+    // Act
+    const result = await devModeService.translateSpeech(
+      audioBuffer,
+      sourceLanguage,
+      targetLanguage
+    );
+    
+    // Assert - in dev mode, we should generate placeholder results
+    expect(transcriptionService.transcribe).not.toHaveBeenCalled();
+    expect(translationService.translate).not.toHaveBeenCalled();
+    expect(result.originalText).toContain('development mode');
+    // The actual translated text might vary, but check for specific language indicator
+    expect(result.translatedText).toContain('traducción');
+    expect(result.audioBuffer).toEqual(expect.any(Buffer));
+  });
+  
+  // Empty transcription test
+  it('should handle empty transcription results', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio');
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Mock empty transcription
+    transcriptionService.transcribe.mockResolvedValueOnce('');
+    
+    // Act
+    const result = await speechTranslationServiceInstance.translateSpeech(
+      audioBuffer,
+      sourceLanguage,
+      targetLanguage
+    );
+    
+    // Assert - translation should be skipped if transcription is empty
+    expect(transcriptionService.transcribe).toHaveBeenCalled();
+    expect(translationService.translate).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      originalText: '',
+      translatedText: '',
+      audioBuffer: expect.any(Buffer)
+    });
+  });
+  
+  // Translation error handling test
+  it('should handle translation errors gracefully', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio');
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Mock translation service to throw error
+    translationService.translate.mockRejectedValueOnce(new Error('Translation error'));
+    
+    // Act
+    const result = await speechTranslationServiceInstance.translateSpeech(
+      audioBuffer,
+      sourceLanguage,
+      targetLanguage
+    );
+    
+    // Assert - should fall back to original text
+    expect(result.originalText).toBe('This is a test transcription');
+    expect(result.translatedText).toBe('This is a test transcription'); // Falls back to original
+    expect(result.audioBuffer).toEqual(expect.any(Buffer));
+  });
+  
+  // TTS error handling test
+  it('should handle text-to-speech errors gracefully', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio');
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Mock TTS service to throw error
+    mockTtsService.synthesizeSpeech.mockRejectedValueOnce(new Error('TTS error'));
+    
+    // Act
+    const result = await speechTranslationServiceInstance.translateSpeech(
+      audioBuffer,
+      sourceLanguage,
+      targetLanguage
+    );
+    
+    // Assert - should return result despite TTS error
+    expect(result.originalText).toBe('This is a test transcription');
+    expect(result.translatedText).toBe('Esta es una traducción de prueba');
+    expect(result.audioBuffer).toEqual(expect.any(Buffer));
+  });
+  
+  // Test with different language combinations
+  it('should handle different language combinations', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio');
+    const sourceLanguage = 'fr-FR';
+    const targetLanguage = 'de-DE';
+    
+    // Act
+    const result = await speechTranslationServiceInstance.translateSpeech(
+      audioBuffer,
+      sourceLanguage,
+      targetLanguage
+    );
+    
+    // Assert
+    expect(transcriptionService.transcribe).toHaveBeenCalledWith(audioBuffer, sourceLanguage);
+    expect(translationService.translate).toHaveBeenCalledWith(
+      'This is a test transcription',
+      sourceLanguage,
+      targetLanguage
+    );
+    expect(result).toEqual({
+      originalText: 'This is a test transcription',
+      translatedText: 'Esta es una traducción de prueba',
+      audioBuffer: expect.any(Buffer)
+    });
+  });
 });
 
 // Tests for the OpenAITranscriptionService
@@ -321,6 +455,46 @@ describe('OpenAITranscriptionService', () => {
     expect(result).toBe('This is a test transcription');
     expect(audioHandlerMock.deleteTempFile).toHaveBeenCalledWith('/tmp/test-audio.wav');
   });
+  
+  it('should skip transcription for small audio buffers', async () => {
+    // Arrange
+    const tinyAudioBuffer = Buffer.from('tiny'); // Too small to transcribe
+    const sourceLanguage = 'en-US';
+    
+    // Act
+    const result = await transcriptionService.transcribe(tinyAudioBuffer, sourceLanguage);
+    
+    // Assert - should return empty string for tiny buffers
+    expect(audioHandlerMock.createTempFile).not.toHaveBeenCalled();
+    expect(openaiMock.audio.transcriptions.create).not.toHaveBeenCalled();
+    expect(result).toBe('');
+  });
+  
+  it('should handle file operation errors', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio'.repeat(100));
+    const sourceLanguage = 'en-US';
+    
+    // Mock file operation to fail
+    audioHandlerMock.createTempFile.mockRejectedValueOnce(new Error('File system error'));
+    
+    // Act & Assert
+    await expect(transcriptionService.transcribe(audioBuffer, sourceLanguage))
+      .rejects.toThrow('Transcription failed');
+  });
+  
+  it('should handle API errors gracefully', async () => {
+    // Arrange
+    const audioBuffer = Buffer.from('test audio'.repeat(100));
+    const sourceLanguage = 'en-US';
+    
+    // Mock API to fail
+    openaiMock.audio.transcriptions.create.mockRejectedValueOnce(new Error('API error'));
+    
+    // Act & Assert
+    await expect(transcriptionService.transcribe(audioBuffer, sourceLanguage))
+      .rejects.toThrow('Transcription failed');
+  });
 });
 
 // Tests for the OpenAITranslationService
@@ -364,5 +538,64 @@ describe('OpenAITranslationService', () => {
     // Assert
     expect(openaiMock.chat.completions.create).toHaveBeenCalled();
     expect(result).toBe('Esta es una traducción de prueba');
+  });
+  
+  it('should skip translation when source and target languages are the same', async () => {
+    // Arrange
+    const text = 'This is a test';
+    const language = 'en-US'; // Same for source and target
+    
+    // Act
+    const result = await translationService.translate(text, language, language);
+    
+    // Assert - should return original text without calling API
+    expect(openaiMock.chat.completions.create).not.toHaveBeenCalled();
+    expect(result).toBe(text);
+  });
+  
+  it('should skip translation for empty text', async () => {
+    // Arrange
+    const text = '';
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Act
+    const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+    
+    // Assert - should return empty string without calling API
+    expect(openaiMock.chat.completions.create).not.toHaveBeenCalled();
+    expect(result).toBe('');
+  });
+  
+  it('should handle API errors gracefully', async () => {
+    // Arrange
+    const text = 'This is a test';
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Mock API error
+    openaiMock.chat.completions.create.mockRejectedValueOnce(new Error('API error'));
+    
+    // Act
+    await expect(translationService.translate(text, sourceLanguage, targetLanguage))
+      .rejects.toThrow('Translation failed');
+  });
+  
+  it('should handle empty API response gracefully', async () => {
+    // Arrange
+    const text = 'This is a test';
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'es-ES';
+    
+    // Mock empty API response
+    openaiMock.chat.completions.create.mockResolvedValueOnce({
+      choices: []
+    });
+    
+    // Act
+    const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+    
+    // Assert - should return empty string for empty API response
+    expect(result).toBe('');
   });
 });
