@@ -86,25 +86,17 @@ describe('TranslationService Minimal Tests', () => {
         preTranscribedText
       );
       
-      // Verify the function was called with correct parameters
+      // Verify the function was called
       expect(openai.translateSpeech).toHaveBeenCalledTimes(1);
       
-      // Create the expected call object without undefined parameters
-      const expectedCall = [
+      // For Vi/Vitest mocks, we need to use a simpler approach without typechecking
+      // as TypeScript doesn't recognize the mock properties directly
+      expect(openai.translateSpeech).toHaveBeenLastCalledWith(
         audioBuffer,
         sourceLanguage,
         targetLanguage,
         preTranscribedText
-      ];
-      
-      // Get the actual call arguments
-      const actualCall = openai.translateSpeech.mock.calls[0];
-      
-      // Compare each parameter
-      expect(actualCall[0]).toEqual(expectedCall[0]);
-      expect(actualCall[1]).toEqual(expectedCall[1]);
-      expect(actualCall[2]).toEqual(expectedCall[2]);
-      expect(actualCall[3]).toEqual(expectedCall[3]);
+      );
     });
     
     it('should handle missing API key', async () => {
