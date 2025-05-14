@@ -573,8 +573,8 @@ describe('OpenAITranslationService', () => {
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
-    // Mock API error
-    openaiMock.chat.completions.create.mockRejectedValueOnce(new Error('API error'));
+    // Reset the mock completely and implement a rejection
+    openaiMock.chat.completions.create = vi.fn().mockRejectedValue(new Error('API error'));
     
     // Act
     const result = await translationService.translate(text, sourceLanguage, targetLanguage);
