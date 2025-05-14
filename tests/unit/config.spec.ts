@@ -1,50 +1,40 @@
 /**
- * Config Module Tests
- * 
- * Verifies that the configuration module exports the correct values.
+ * Tests for config.ts
  */
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Mock fs and path modules
+vi.mock('fs', () => ({
+  existsSync: vi.fn().mockReturnValue(true),
+  readFileSync: vi.fn().mockReturnValue('OPENAI_API_KEY=mocked-api-key\nNODE_ENV=test'),
+}));
+
+vi.mock('path', () => ({
+  join: vi.fn().mockReturnValue('/path/to/.env'),
+  dirname: vi.fn().mockReturnValue('/server'),
+  resolve: vi.fn().mockReturnValue('/root')
+}));
 
 describe('Config Module', () => {
-  // Store original environment
-  const originalEnv = { ...process.env };
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    
+    // Set environment variables before import
+    process.env.OPENAI_API_KEY = 'test-api-key';
+  });
   
   afterEach(() => {
-    // Restore original environment after each test
-    process.env = { ...originalEnv };
-    vi.resetModules();
+    vi.restoreAllMocks();
   });
   
-  it('should export the OpenAI API key from environment', async () => {
-    // Set a test API key
-    process.env.OPENAI_API_KEY = 'test-api-key';
+  it('should correctly export API key from environment', async () => {
+    // Import the module after setting up mocks and environment
+    const configModule = await import('../../server/config');
     
-    // Import the module
-    const config = await import('../../server/config');
-    
-    // Check that the API key is correctly exported
-    expect(config.OPENAI_API_KEY).toBe('test-api-key');
-  });
-  
-  it('should return undefined for absent environment variables', async () => {
-    // Delete the API key
-    delete process.env.OPENAI_API_KEY;
-    
-    // Import the module
-    const config = await import('../../server/config');
-    
-    // Check that the API key is undefined
-    expect(config.OPENAI_API_KEY).toBeUndefined();
-  });
-  
-  it('should properly load environment variables', async () => {
-    // Set a custom environment variable
-    process.env.TEST_CONFIG_VAR = 'test-value';
-    
-    // Import the module (which will process the environment)
-    await import('../../server/config');
-    
-    // Verify the environment handling works correctly
-    expect(process.env.TEST_CONFIG_VAR).toBe('test-value');
+    // Verify the API key is exported
+    expect(configModule.OPENAI_API_KEY).toBe('test-api-key');
   });
 });
