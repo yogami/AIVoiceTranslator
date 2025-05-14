@@ -28,15 +28,18 @@ console.log(`✨ Test pattern: ${testPattern}`);
 console.log('');
 
 // Run Vitest with the configuration and coverage
+// Add options for more stable execution
 const result = spawnSync('npx', [
   'vitest', 'run',
   '--config', configPath,
   '--coverage',
+  '--threads=false',    // Disable threading to avoid race conditions
   testPattern
 ], {
   cwd: resolve(__dirname, '..'),
   stdio: 'inherit',
-  shell: true
+  shell: true,
+  timeout: 30000        // 30 second overall timeout
 });
 
 // Exit with the same code as the command
