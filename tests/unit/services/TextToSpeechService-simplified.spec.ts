@@ -13,12 +13,13 @@ vi.mock('openai', async () => {
     // Echo the input parameters in the mock response for verification
     return {
       arrayBuffer: async () => {
-        const mockText = `voice:${options.voice}-model:${options.model}-input:${options.input.substring(0, 20)}`;
+        const mockText = `voice:${options.voice}-model:${options.model || 'tts-1'}-input:${options.input?.substring(0, 20) || 'test'}`;
         return new TextEncoder().encode(mockText).buffer;
       }
     };
   });
   
+  // Create our mock OpenAI with correct structure for both instance and prototype
   const MockOpenAI = vi.fn().mockImplementation(() => ({
     audio: {
       speech: {
@@ -27,15 +28,22 @@ vi.mock('openai', async () => {
     }
   }));
   
+  // Add prototype properties so the TextToSpeechService can reference them
+  MockOpenAI.prototype = {
+    audio: {
+      speech: {
+        create: mockCreate
+      }
+    }
+  };
+  
   return {
     default: MockOpenAI
   };
 });
 
 // Mock fs/promises
-vi.mock('fs/promises', async (importOriginal) => {
-  const actual = await importOriginal();
-  
+vi.mock('fs/promises', async () => {
   const mockReadFile = vi.fn().mockImplementation((path) => {
     if (path.includes('exists')) {
       return Promise.resolve(Buffer.from('mock cached audio'));
@@ -44,7 +52,6 @@ vi.mock('fs/promises', async (importOriginal) => {
   });
   
   return {
-    ...actual,
     writeFile: vi.fn().mockResolvedValue(undefined),
     readFile: mockReadFile,
     access: vi.fn().mockImplementation((path) => {
@@ -63,10 +70,8 @@ vi.mock('fs/promises', async (importOriginal) => {
   };
 });
 
-// Mock fs - use the importOriginal approach as suggested
-vi.mock('fs', async (importOriginal) => {
-  const actual = await importOriginal();
-  
+// Mock fs - no need for importOriginal
+vi.mock('fs', async () => {
   // Create our mock functions
   const mockExistsSync = vi.fn().mockReturnValue(true);
   const mockWriteFile = vi.fn();
@@ -76,7 +81,6 @@ vi.mock('fs', async (importOriginal) => {
   const mockStat = vi.fn();
   
   return {
-    ...actual,  // Keep the original module structure
     constants: { F_OK: 0 },
     existsSync: mockExistsSync,
     writeFile: mockWriteFile,
@@ -89,32 +93,23 @@ vi.mock('fs', async (importOriginal) => {
 });
 
 // Mock path to avoid ESM issues
-vi.mock('path', async (importOriginal) => {
-  const actual = await importOriginal();
-  
-  const mockPath = {
+vi.mock('path', async () => {
+  return {
     join: vi.fn((...args) => args.join('/')),
     dirname: vi.fn((p) => p.substring(0, p.lastIndexOf('/') || 0)),
     resolve: vi.fn((...args) => args.join('/'))
   };
-  
-  return {
-    ...actual,
-    ...mockPath
-  };
 });
 
 // Mock crypto
-vi.mock('crypto', async (importOriginal) => {
-  const actual = await importOriginal();
-  
+vi.mock('crypto', async () => {
+  // Create a mock hash object with necessary methods
   const mockHash = {
     update: vi.fn().mockReturnThis(),
     digest: vi.fn().mockReturnValue('mock-hash')
   };
   
   return {
-    ...actual,
     createHash: vi.fn().mockReturnValue(mockHash)
   };
 });
@@ -273,14 +268,31 @@ describe('TextToSpeechService Tests', () => {
   });
   
   describe('OpenAITextToSpeechService', () => {
+    let fsPromisesMock;
+    let openaiMock;
+
     beforeEach(() => {
-      // Reset cache directory access results
-      vi.mocked(require('fs/promises').access).mockImplementation((path) => {
+      // Get mocks from the vi.mock calls
+      fsPromisesMock = require('fs/promises');
+      openaiMock = require('openai').default;
+      
+      // Reset specific mocks for this test suite
+      fsPromisesMock.access = vi.fn((path) => {
         if (path.includes('exists') || path.includes('audio-cache') || path.includes('temp')) {
           return Promise.resolve();
         }
         return Promise.reject(new Error('ENOENT'));
       });
+      
+      fsPromisesMock.readFile = vi.fn((path) => {
+        if (path.includes('exists')) {
+          return Promise.resolve(Buffer.from('mock cached audio'));
+        }
+        return Promise.reject(new Error('ENOENT'));
+      });
+      
+      fsPromisesMock.writeFile = vi.fn().mockResolvedValue(undefined);
+      fsPromisesMock.mkdir = vi.fn().mockResolvedValue(undefined);
     });
     
     it('should create an OpenAI client with API key', () => {
@@ -317,8 +329,19 @@ describe('TextToSpeechService Tests', () => {
         { languageCode: 'ja-JP', expectedVoice: 'alloy' }
       ];
       
-      // Create spy on OpenAI client
-      const openaiSpy = vi.spyOn(require('openai').default.prototype.audio.speech, 'create');
+      // Create spy on OpenAI client creation
+      const openaiCreateSpy = vi.fn().mockImplementation(async (options) => {
+        return {
+          arrayBuffer: async () => {
+            const mockText = `voice:${options.voice}-model:${options.model || 'tts-1'}-input:${options.input.substring(0, 20)}`;
+            return new TextEncoder().encode(mockText).buffer;
+          }
+        };
+      });
+      
+      // Replace the create method with our spy
+      const originalCreate = openaiMock.prototype.audio.speech.create;
+      openaiMock.prototype.audio.speech.create = openaiCreateSpy;
       
       for (const testCase of testCases) {
         await service.synthesizeSpeech({
@@ -327,14 +350,19 @@ describe('TextToSpeechService Tests', () => {
         });
         
         // Check the voice parameter in the last call
-        const lastCall = openaiSpy.mock.calls[openaiSpy.mock.calls.length - 1][0] as any;
-        expect(lastCall.voice).toBe(testCase.expectedVoice);
+        const lastCall = openaiCreateSpy.mock.calls[openaiCreateSpy.mock.calls.length - 1];
+        expect(lastCall[0].voice).toBe(testCase.expectedVoice);
       }
+      
+      // Restore original
+      openaiMock.prototype.audio.speech.create = originalCreate;
     });
     
     it('should cache audio with the correct hash key', async () => {
+      const writeFileSpy = vi.fn().mockResolvedValue(undefined);
+      fsPromisesMock.writeFile = writeFileSpy;
+      
       const service = new ttsModule.OpenAITextToSpeechService();
-      const writeFileSpy = vi.spyOn(require('fs/promises'), 'writeFile');
       
       await service.synthesizeSpeech({
         text: 'Cache test',
@@ -350,49 +378,53 @@ describe('TextToSpeechService Tests', () => {
     });
     
     it('should use cached audio when available', async () => {
+      // Setup mocks
+      fsPromisesMock.access = vi.fn().mockResolvedValue(undefined);
+      
+      const readFileSpy = vi.fn().mockResolvedValue(Buffer.from('cached audio data'));
+      fsPromisesMock.readFile = readFileSpy;
+      
+      // Create spy on OpenAI client create
+      const openaiCreateSpy = vi.fn().mockImplementation(async (options) => {
+        return {
+          arrayBuffer: async () => {
+            const mockText = `API generated audio for ${options.input.substring(0, 20)}`;
+            return new TextEncoder().encode(mockText).buffer;
+          }
+        };
+      });
+      
+      // Replace the create method
+      const originalCreate = openaiMock.prototype.audio.speech.create;
+      openaiMock.prototype.audio.speech.create = openaiCreateSpy;
+      
       const service = new ttsModule.OpenAITextToSpeechService();
       
-      // Make cache hit more likely
-      vi.mocked(require('fs/promises').access).mockResolvedValue(undefined);
-      
-      // Spy on readFile and OpenAI
-      const readFileSpy = vi.spyOn(require('fs/promises'), 'readFile');
-      const openaiSpy = vi.spyOn(require('openai').default.prototype.audio.speech, 'create');
-      
-      // First call - should check cache first (may or may not hit)
+      // First call should check cache (and miss in this test)
       await service.synthesizeSpeech({
         text: 'Cache test',
         languageCode: 'en-US'
       });
       
-      // Mock that the file now exists
-      vi.mocked(require('fs/promises').readFile).mockResolvedValue(Buffer.from('cached audio data'));
-      
-      // Second call - should hit cache
-      const audioBuffer = await service.synthesizeSpeech({
+      // Second call with same parameters should hit cache
+      const result = await service.synthesizeSpeech({
         text: 'Cache test',
         languageCode: 'en-US'
       });
       
       // Verify cache was checked
       expect(readFileSpy).toHaveBeenCalled();
+      expect(result.toString()).toBe('cached audio data');
       
-      // Either the OpenAI was called less times than readFile
-      // or we got cached data
-      const openaiCalls = openaiSpy.mock.calls.length;
-      const readFileCalls = readFileSpy.mock.calls.length;
-      
-      expect(
-        openaiCalls < readFileCalls || 
-        audioBuffer.toString() === 'cached audio data'
-      ).toBeTruthy();
+      // Restore original method
+      openaiMock.prototype.audio.speech.create = originalCreate;
     });
     
     it('should handle audio directory creation', async () => {
       // Mock access to throw ENOENT for directories
-      vi.mocked(require('fs/promises').access).mockRejectedValue(new Error('ENOENT'));
-      
-      const mkdirSpy = vi.spyOn(require('fs/promises'), 'mkdir');
+      fsPromisesMock.access = vi.fn().mockRejectedValue(new Error('ENOENT'));
+      const mkdirSpy = vi.fn().mockResolvedValue(undefined);
+      fsPromisesMock.mkdir = mkdirSpy;
       
       const service = new ttsModule.OpenAITextToSpeechService();
       
@@ -403,17 +435,17 @@ describe('TextToSpeechService Tests', () => {
       
       // Verify mkdir was called
       expect(mkdirSpy).toHaveBeenCalled();
-      // Should create with recursive option
-      expect(mkdirSpy.mock.calls[0][1]).toHaveProperty('recursive', true);
+      // Should create directories recursively
+      expect(mkdirSpy.mock.calls[0][1]).toEqual({ recursive: true });
     });
     
     it('should handle audio generation errors gracefully', async () => {
       // Spy on console.error
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
-      // Mock OpenAI to throw an error
-      vi.mocked(require('openai').default.prototype.audio.speech.create)
-        .mockRejectedValueOnce(new Error('API error'));
+      // Replace OpenAI create with a version that throws
+      const originalCreate = openaiMock.prototype.audio.speech.create;
+      openaiMock.prototype.audio.speech.create = vi.fn().mockRejectedValue(new Error('API error'));
       
       const service = new ttsModule.OpenAITextToSpeechService();
       
@@ -430,7 +462,8 @@ describe('TextToSpeechService Tests', () => {
       // Console.error should have been called
       expect(consoleErrorSpy).toHaveBeenCalled();
       
-      // Restore console.error
+      // Restore original method and console spy
+      openaiMock.prototype.audio.speech.create = originalCreate;
       consoleErrorSpy.mockRestore();
     });
   });
