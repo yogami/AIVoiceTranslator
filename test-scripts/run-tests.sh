@@ -42,6 +42,9 @@ function print_info {
 # Track overall success/failure
 OVERALL_SUCCESS=true
 
+# Clean existing coverage
+rm -rf coverage
+
 # Change to project root
 cd "$(dirname "$0")/.."
 
@@ -61,12 +64,18 @@ fi
 
 # Step 2: Run WebSocketService tests with Jest
 print_info "Running WebSocketService tests with Jest..."
-node ./test-scripts/run-websocket-tests.js
+node ./test-scripts/run-websocket-tests.mjs
 if [ $? -eq 0 ]; then
   print_success "WebSocketService tests passed!"
 else
   print_error "WebSocketService tests failed!"
   OVERALL_SUCCESS=false
+fi
+
+# Check coverage
+if [ "$OVERALL_SUCCESS" = true ]; then
+  print_info "Checking test coverage..."
+  node ./test-scripts/check-coverage.js
 fi
 
 # Print summary

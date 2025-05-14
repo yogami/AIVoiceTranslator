@@ -41,73 +41,32 @@ function fileExists(filePath) {
   }
 }
 
-// Read and parse Jest coverage report
-function readJestCoverage() {
-  const jestCoverageFile = path.resolve(process.cwd(), 'coverage/jest/coverage-summary.json');
+// Read coverage report
+function readCoverageReport() {
+  const coverageFile = path.resolve(process.cwd(), 'coverage/coverage-summary.json');
   
-  if (!fileExists(jestCoverageFile)) {
-    console.log(`${colors.yellow}Warning: Jest coverage report not found at ${jestCoverageFile}${colors.reset}`);
-    console.log(`${colors.blue}Run Jest tests with coverage first: node test-scripts/run-websocket-tests.js${colors.reset}`);
+  if (!fileExists(coverageFile)) {
+    console.log(`${colors.yellow}Warning: Coverage report not found at ${coverageFile}${colors.reset}`);
+    console.log(`${colors.blue}Run tests with coverage first: ./test-scripts/run-tests.sh${colors.reset}`);
     return null;
   }
   
   try {
-    return JSON.parse(fs.readFileSync(jestCoverageFile, 'utf8'));
+    return JSON.parse(fs.readFileSync(coverageFile, 'utf8'));
   } catch (error) {
-    console.error(`${colors.red}Error reading Jest coverage: ${error.message}${colors.reset}`);
+    console.error(`${colors.red}Error reading coverage report: ${error.message}${colors.reset}`);
     return null;
   }
 }
 
-// Read and parse Vitest coverage report
-function readVitestCoverage() {
-  const vitestCoverageFile = path.resolve(process.cwd(), 'coverage/vitest/coverage-summary.json');
-  
-  if (!fileExists(vitestCoverageFile)) {
-    console.log(`${colors.yellow}Warning: Vitest coverage report not found at ${vitestCoverageFile}${colors.reset}`);
-    console.log(`${colors.blue}Run Vitest tests with coverage first: node test-scripts/run-translation-tests.mjs${colors.reset}`);
-    return null;
-  }
-  
-  try {
-    return JSON.parse(fs.readFileSync(vitestCoverageFile, 'utf8'));
-  } catch (error) {
-    console.error(`${colors.red}Error reading Vitest coverage: ${error.message}${colors.reset}`);
-    return null;
-  }
-}
-
-// Calculate combined coverage
-function calculateCombinedCoverage(jestCoverage, vitestCoverage) {
-  if (!jestCoverage && !vitestCoverage) {
-    console.error(`${colors.red}Error: No coverage reports found. Run tests with coverage first.${colors.reset}`);
+// Calculate coverage percentages
+function validateCoverage(coverage) {
+  if (!coverage) {
+    console.error(`${colors.red}Error: No coverage report found. Run tests with coverage first.${colors.reset}`);
     process.exit(1);
   }
   
-  // If one report is missing, return the other
-  if (!jestCoverage) return vitestCoverage;
-  if (!vitestCoverage) return jestCoverage;
-  
-  // Initialize combined totals
-  const combined = {
-    total: {
-      lines: { total: 0, covered: 0, pct: 0 },
-      statements: { total: 0, covered: 0, pct: 0 },
-      functions: { total: 0, covered: 0, pct: 0 },
-      branches: { total: 0, covered: 0, pct: 0 }
-    }
-  };
-  
-  // Combine metrics
-  for (const metric of ['lines', 'statements', 'functions', 'branches']) {
-    combined.total[metric].total = jestCoverage.total[metric].total + vitestCoverage.total[metric].total;
-    combined.total[metric].covered = jestCoverage.total[metric].covered + vitestCoverage.total[metric].covered;
-    combined.total[metric].pct = combined.total[metric].total > 0 
-      ? (combined.total[metric].covered / combined.total[metric].total) * 100 
-      : 0;
-  }
-  
-  return combined;
+  return coverage;
 }
 
 // Format coverage percentage with color
@@ -120,43 +79,23 @@ function formatCoverage(pct, target = 90) {
 function checkCoverage() {
   printHeader("AIVoiceTranslator Coverage Checker");
   
-  const jestCoverage = readJestCoverage();
-  const vitestCoverage = readVitestCoverage();
+  const coverage = readCoverageReport();
+  const validCoverage = validateCoverage(coverage);
   
-  if (jestCoverage) {
-    console.log(`${colors.blue}Jest Coverage:${colors.reset}`);
-    console.log(`  Lines: ${formatCoverage(jestCoverage.total.lines.pct)}`);
-    console.log(`  Statements: ${formatCoverage(jestCoverage.total.statements.pct)}`);
-    console.log(`  Functions: ${formatCoverage(jestCoverage.total.functions.pct)}`);
-    console.log(`  Branches: ${formatCoverage(jestCoverage.total.branches.pct)}`);
-    console.log();
-  }
-  
-  if (vitestCoverage) {
-    console.log(`${colors.blue}Vitest Coverage:${colors.reset}`);
-    console.log(`  Lines: ${formatCoverage(vitestCoverage.total.lines.pct)}`);
-    console.log(`  Statements: ${formatCoverage(vitestCoverage.total.statements.pct)}`);
-    console.log(`  Functions: ${formatCoverage(vitestCoverage.total.functions.pct)}`);
-    console.log(`  Branches: ${formatCoverage(vitestCoverage.total.branches.pct)}`);
-    console.log();
-  }
-  
-  const combined = calculateCombinedCoverage(jestCoverage, vitestCoverage);
-  
-  printHeader("Combined Coverage");
-  console.log(`${colors.white}Lines:${colors.reset}      ${formatCoverage(combined.total.lines.pct)} (${combined.total.lines.covered}/${combined.total.lines.total})`);
-  console.log(`${colors.white}Statements:${colors.reset} ${formatCoverage(combined.total.statements.pct)} (${combined.total.statements.covered}/${combined.total.statements.total})`);
-  console.log(`${colors.white}Functions:${colors.reset}  ${formatCoverage(combined.total.functions.pct)} (${combined.total.functions.covered}/${combined.total.functions.total})`);
-  console.log(`${colors.white}Branches:${colors.reset}   ${formatCoverage(combined.total.branches.pct)} (${combined.total.branches.covered}/${combined.total.branches.total})`);
+  printHeader("Test Coverage");
+  console.log(`${colors.white}Lines:${colors.reset}      ${formatCoverage(validCoverage.total.lines.pct)} (${validCoverage.total.lines.covered}/${validCoverage.total.lines.total})`);
+  console.log(`${colors.white}Statements:${colors.reset} ${formatCoverage(validCoverage.total.statements.pct)} (${validCoverage.total.statements.covered}/${validCoverage.total.statements.total})`);
+  console.log(`${colors.white}Functions:${colors.reset}  ${formatCoverage(validCoverage.total.functions.pct)} (${validCoverage.total.functions.covered}/${validCoverage.total.functions.total})`);
+  console.log(`${colors.white}Branches:${colors.reset}   ${formatCoverage(validCoverage.total.branches.pct)} (${validCoverage.total.branches.covered}/${validCoverage.total.branches.total})`);
   console.log();
   
   // Check if we meet our targets
   const target = 90;
   const meetingTarget = 
-    combined.total.lines.pct >= target &&
-    combined.total.statements.pct >= target &&
-    combined.total.functions.pct >= target &&
-    combined.total.branches.pct >= 85; // Lower target for branches
+    validCoverage.total.lines.pct >= target &&
+    validCoverage.total.statements.pct >= target &&
+    validCoverage.total.functions.pct >= target &&
+    validCoverage.total.branches.pct >= 85; // Lower target for branches
   
   if (meetingTarget) {
     console.log(`${colors.green}✓ Coverage targets met! (≥90% for most metrics, ≥85% for branches)${colors.reset}`);
