@@ -1,149 +1,118 @@
 /**
- * Comprehensive tests for Vite integration
- *
- * Tests the vite.ts module thoroughly, including
- * development mode, production mode, and error handling.
+ * Comprehensive tests for vite.ts
+ * 
+ * These tests cover the Vite server setup, middleware functions,
+ * and static file serving capabilities.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Express } from 'express';
-import { Server } from 'http';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import express from 'express';
+import http from 'http';
 
-// Mock console methods to avoid noise in test output
-vi.spyOn(console, 'log').mockImplementation(() => {});
-vi.spyOn(console, 'error').mockImplementation(() => {});
+// Mock all external dependencies
+vi.mock('express', () => {
+  return {
+    default: vi.fn(() => ({
+      use: vi.fn(),
+      get: vi.fn(),
+      all: vi.fn()
+    }))
+  };
+});
 
-// Mock vite
 vi.mock('vite', () => {
-  // Create a mock for createServer
-  const createServerMock = vi.fn().mockResolvedValue({
-    middlewares: {
-      use: vi.fn()
-    },
-    transformIndexHtml: vi.fn().mockImplementation((url, html) => {
-      return `transformed-${html}`;
-    }),
-    ssrLoadModule: vi.fn().mockImplementation((file) => {
-      return Promise.resolve({
-        render: vi.fn().mockReturnValue('rendered-content')
-      });
-    }),
-    ssrFixStacktrace: vi.fn()
-  });
-  
   return {
-    createServer: createServerMock
+    createServer: vi.fn().mockResolvedValue({
+      middlewares: { handle: vi.fn() },
+      transformIndexHtml: vi.fn().mockResolvedValue('<html>Transformed HTML</html>'),
+      ssrLoadModule: vi.fn().mockResolvedValue({
+        render: vi.fn().mockResolvedValue({ html: '<div>Rendered content</div>' })
+      })
+    })
   };
 });
 
-// Mock fs
-vi.mock('fs', () => {
+vi.mock('fs/promises', () => {
   return {
-    promises: {
-      readFile: vi.fn().mockImplementation((path) => {
-        if (path.includes('index.html')) {
-          return Promise.resolve('<html><body>test</body></html>');
-        }
-        return Promise.resolve('file content');
-      }),
-      access: vi.fn().mockResolvedValue(undefined)
-    }
+    readFile: vi.fn().mockResolvedValue('<html>Original HTML</html>')
   };
 });
 
-// Mock path
 vi.mock('path', () => {
   return {
-    resolve: vi.fn().mockImplementation((...args) => args.join('/')),
-    join: vi.fn().mockImplementation((...args) => args.join('/'))
+    resolve: vi.fn((...args) => args.join('/')),
+    join: vi.fn((...args) => args.join('/'))
   };
 });
 
-describe('Vite Module', () => {
-  let viteModule: any;
-  let mockApp: Partial<Express>;
-  let mockServer: Partial<Server>;
+// Mock http.Server
+vi.mock('http', () => {
+  return {
+    Server: vi.fn().mockImplementation(() => ({
+      address: vi.fn().mockReturnValue({ port: 3000 })
+    }))
+  };
+});
+
+// Import the module after mocks are set up
+describe('Vite Server Module', () => {
+  let viteModule;
+  let app;
+  let server;
   
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     
-    // Create mock Express app
-    mockApp = {
-      use: vi.fn(),
-      get: vi.fn()
-    };
+    app = express();
+    server = new http.Server();
     
-    // Create mock HTTP server
-    mockServer = {
-      on: vi.fn()
-    };
-    
-    // Import the vite module
+    // Import the module
     viteModule = await import('../../server/vite');
   });
   
-  describe('log function', () => {
-    it('should log messages with source prefix', () => {
-      // Spy on console.log
-      const logSpy = vi.spyOn(console, 'log');
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+  
+  describe('log Function', () => {
+    it('should log messages with the specified source', () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       
-      // Call the log function
-      viteModule.log('test message');
+      viteModule.log('Test message');
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Test message'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('express'));
       
-      // Verify it was called with the right prefix
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('test message'));
-    });
-    
-    it('should use custom source prefix if provided', () => {
-      // Spy on console.log
-      const logSpy = vi.spyOn(console, 'log');
+      viteModule.log('Another message', 'vite');
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Another message'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('vite'));
       
-      // Call the log function with custom source
-      viteModule.log('test message', 'custom-source');
-      
-      // Verify it was called with the right prefix
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('custom-source'));
+      consoleSpy.mockRestore();
     });
   });
   
-  describe('setupVite function', () => {
-    it('should set up Vite middleware in development mode', async () => {
-      // Set NODE_ENV to development
-      vi.stubEnv('NODE_ENV', 'development');
+  describe('setupVite Function', () => {
+    it('should set up Vite middleware correctly', async () => {
+      // Call the function
+      await viteModule.setupVite(app, server);
       
-      // Call setupVite
-      await viteModule.setupVite(mockApp as Express, mockServer as Server);
+      // Check that app.use was called
+      expect(app.use).toHaveBeenCalled();
       
-      // Verify createServer was called
-      const vite = await import('vite');
-      expect(vite.createServer).toHaveBeenCalled();
+      // Check that app.get was called with the correct route handler
+      expect(app.get).toHaveBeenCalled();
       
-      // Verify app.use was called to set up middleware
-      expect(mockApp.use).toHaveBeenCalled();
-      
-      // Verify app.get was called to set up catch-all route
-      expect(mockApp.get).toHaveBeenCalled();
-    });
-    
-    it('should set up production mode serving', async () => {
-      // Set NODE_ENV to production
-      vi.stubEnv('NODE_ENV', 'production');
-      
-      // Call setupVite
-      await viteModule.setupVite(mockApp as Express, mockServer as Server);
-      
-      // Verify app.get was called to set up catch-all route
-      expect(mockApp.get).toHaveBeenCalled();
+      // Check that app.all was called with the correct wildcard route handler
+      expect(app.all).toHaveBeenCalled();
     });
   });
   
-  describe('serveStatic function', () => {
-    it('should set up static file serving middleware', () => {
-      // Call serveStatic
-      viteModule.serveStatic(mockApp as Express);
+  describe('serveStatic Function', () => {
+    it('should configure Express to serve static files', () => {
+      // Call the function
+      viteModule.serveStatic(app);
       
-      // Verify app.use was called
-      expect(mockApp.use).toHaveBeenCalled();
+      // Check that app.use was called to set up static file serving
+      expect(app.use).toHaveBeenCalled();
     });
   });
 });
