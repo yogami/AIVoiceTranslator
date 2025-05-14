@@ -8,26 +8,43 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import http from 'http';
 
-// Mock all external dependencies
-vi.mock('express', () => {
+// Mock all external dependencies with proper ESM support using importOriginal pattern
+vi.mock('express', async (importOriginal) => {
+  // Get actual module exports
+  const actual = await importOriginal();
+  
+  // Create mock implementation
+  const mockExpressApp = vi.fn(() => ({
+    use: vi.fn(),
+    get: vi.fn(),
+    all: vi.fn()
+  }));
+  
+  // Return both original exports and mock
   return {
-    default: vi.fn(() => ({
-      use: vi.fn(),
-      get: vi.fn(),
-      all: vi.fn()
-    }))
+    ...actual,
+    default: mockExpressApp
   };
 });
 
-vi.mock('vite', () => {
-  return {
-    createServer: vi.fn().mockResolvedValue({
-      middlewares: { handle: vi.fn() },
-      transformIndexHtml: vi.fn().mockResolvedValue('<html>Transformed HTML</html>'),
-      ssrLoadModule: vi.fn().mockResolvedValue({
-        render: vi.fn().mockResolvedValue({ html: '<div>Rendered content</div>' })
-      })
+// Use the importOriginal pattern as recommended by Vitest for more complex mocking scenarios
+vi.mock('vite', async (importOriginal) => {
+  // This ensures we get all the exports from the original module
+  const actual = await importOriginal();
+  
+  // Create our mock implementation
+  const mockCreateServer = vi.fn().mockResolvedValue({
+    middlewares: { handle: vi.fn() },
+    transformIndexHtml: vi.fn().mockResolvedValue('<html>Transformed HTML</html>'),
+    ssrLoadModule: vi.fn().mockResolvedValue({
+      render: vi.fn().mockResolvedValue({ html: '<div>Rendered content</div>' })
     })
+  });
+  
+  // Return a combination of the original exports and our mocks
+  return {
+    ...actual, // Keep all original exports, including defineConfig
+    createServer: mockCreateServer // Override just the createServer function
   };
 });
 
@@ -44,12 +61,19 @@ vi.mock('path', () => {
   };
 });
 
-// Mock http.Server
-vi.mock('http', () => {
+// Mock http module with importOriginal pattern
+vi.mock('http', async (importOriginal) => {
+  // Get actual module exports
+  const actual = await importOriginal();
+  
+  // Create mock implementation
+  const mockServer = vi.fn().mockImplementation(() => ({
+    address: vi.fn().mockReturnValue({ port: 3000 })
+  }));
+  
   return {
-    Server: vi.fn().mockImplementation(() => ({
-      address: vi.fn().mockReturnValue({ port: 3000 })
-    }))
+    ...actual, // Include all original exports
+    Server: mockServer // Override just the Server constructor
   };
 });
 
