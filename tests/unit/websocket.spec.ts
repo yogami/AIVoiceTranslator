@@ -109,6 +109,7 @@ describe('WebSocket Module', () => {
 
   afterEach(() => {
     vi.resetModules();
+    vi.useRealTimers();
   });
 
   describe('WebSocketService class', () => {
@@ -279,34 +280,33 @@ describe('WebSocket Module', () => {
 
     it('should setup and use heartbeat mechanism', async () => {
       const { WebSocketService } = await import('../../server/websocket');
-      const { setInterval } = await import('timers');
       
       const wsService = new WebSocketService(mockServer, { 
         heartbeatInterval: 5000 
       });
       
-      // Verify setInterval was called with the correct interval
-      expect(setInterval).toHaveBeenCalledWith(expect.any(Function), 5000);
-      
       // @ts-ignore - accessing private property for testing
       const heartbeatInterval = wsService['heartbeatInterval'];
       expect(heartbeatInterval).toBeDefined();
       
-      // Simulate heartbeat execution by calling the callback directly
-      // @ts-ignore - get the first argument (callback function) from the first call
-      const heartbeatCallback = (setInterval as any).mock.calls[0][0];
-      heartbeatCallback();
-      
-      // Verify ping was called on each client
+      // Mark all clients as alive before heartbeat
       const clients = Array.from(wsService.getClients());
       clients.forEach(client => {
+        (client as any).isAlive = true;
+      });
+      
+      // Advance timer to trigger heartbeat
+      vi.advanceTimersByTime(5000);
+      
+      // After heartbeat, all clients should have isAlive set to false and ping called
+      clients.forEach(client => {
         expect(client.ping).toHaveBeenCalled();
+        expect((client as any).isAlive).toBe(false);
       });
     });
 
     it('should terminate inactive clients during heartbeat', async () => {
       const { WebSocketService } = await import('../../server/websocket');
-      const { setInterval } = await import('timers');
       
       const wsService = new WebSocketService(mockServer);
       
@@ -314,9 +314,8 @@ describe('WebSocket Module', () => {
       const clients = Array.from(wsService.getClients());
       (clients[0] as any).isAlive = false;
       
-      // @ts-ignore - get the first argument (callback function) from the first call
-      const heartbeatCallback = (setInterval as any).mock.calls[0][0];
-      heartbeatCallback();
+      // Advance timer to trigger heartbeat
+      vi.advanceTimersByTime(30000); // Default interval
       
       // The inactive client should be terminated
       expect(clients[0].terminate).toHaveBeenCalled();
@@ -324,15 +323,17 @@ describe('WebSocket Module', () => {
 
     it('should clean up resources when closed', async () => {
       const { WebSocketService } = await import('../../server/websocket');
-      const { clearInterval } = await import('timers');
       
       const wsService = new WebSocketService(mockServer);
+      
+      // Spy on clearInterval
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
       
       // @ts-ignore - accessing private property for testing
       wsService['cleanup']();
       
       // Verify clearInterval was called
-      expect(clearInterval).toHaveBeenCalled();
+      expect(clearIntervalSpy).toHaveBeenCalled();
       
       // @ts-ignore - accessing private property for testing
       expect(wsService['heartbeatInterval']).toBeNull();
@@ -426,6 +427,245 @@ describe('WebSocket Module', () => {
       clients.forEach(client => {
         expect(client.send).toHaveBeenCalledWith(JSON.stringify({ type: 'test' }));
       });
+    });
+    
+    it('should handle WebSocket connection events', async () => {
+      // Create special mocks for this test
+      const mockWsServer = {
+        on: vi.fn(),
+        clients: new Set()
+      };
+      
+      // Create a mock for the WebSocketServer constructor that returns our mock
+      const mockWsServerConstructor = vi.fn().mockReturnValue(mockWsServer);
+      
+      // Mock the ws module temporarily for this test
+      vi.doMock('ws', () => ({
+        WebSocketServer: mockWsServerConstructor,
+        WebSocket: {
+          OPEN: 1,
+          CLOSED: 3
+        }
+      }));
+      
+      // Import the module with our custom mocks
+      const { WebSocketService } = await import('../../server/websocket');
+      
+      // Create a new service which should call our mocked constructor
+      new WebSocketService(mockServer);
+      
+      // Verify connection handler was registered
+      expect(mockWsServer.on).toHaveBeenCalledWith('connection', expect.any(Function));
+      
+      // Simulate connection event by calling the handler
+      const connectionCall = mockWsServer.on.mock.calls.find(call => call[0] === 'connection');
+      expect(connectionCall).toBeDefined();
+      const connectionHandler = connectionCall![1];
+      
+      // Create mock client and request
+      const mockClient = {
+        on: vi.fn(),
+        send: vi.fn(),
+        isAlive: undefined,
+        sessionId: undefined,
+        role: undefined,
+        languageCode: undefined,
+        readyState: 1
+      };
+      
+      const mockRequest = {
+        headers: { 'sec-websocket-key': 'test-key' },
+        url: '/ws',
+        socket: { remoteAddress: '127.0.0.1' }
+      };
+      
+      // Call the connection handler
+      connectionHandler(mockClient, mockRequest);
+      
+      // Verify client was set up correctly
+      expect(mockClient.isAlive).toBe(true);
+      expect(mockClient.sessionId).toBeDefined();
+      
+      // Verify event handlers were registered
+      expect(mockClient.on).toHaveBeenCalledWith('pong', expect.any(Function));
+      expect(mockClient.on).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(mockClient.on).toHaveBeenCalledWith('close', expect.any(Function));
+      
+      // Verify confirmation message was sent
+      expect(mockClient.send).toHaveBeenCalled();
+      const sentMessage = JSON.parse(mockClient.send.mock.calls[0][0]);
+      expect(sentMessage.type).toBe('connection');
+      expect(sentMessage.status).toBe('connected');
+      
+      // Reset the mock
+      vi.resetModules();
+    });
+    
+    it('should handle message processing and trigger handlers', async () => {
+      // We'll use vi.doMock again for a more detailed test
+      const mockWsServer = {
+        on: vi.fn(),
+        clients: new Set()
+      };
+      
+      vi.doMock('ws', () => ({
+        WebSocketServer: vi.fn().mockReturnValue(mockWsServer),
+        WebSocket: {
+          OPEN: 1,
+          CLOSED: 3
+        }
+      }));
+      
+      // Import the module
+      const { WebSocketService } = await import('../../server/websocket');
+      
+      // Create a new service
+      const wsService = new WebSocketService(mockServer);
+      
+      // Get the connection handler
+      const connectionCall = mockWsServer.on.mock.calls.find(call => call[0] === 'connection');
+      expect(connectionCall).toBeDefined();
+      const connectionHandler = connectionCall![1];
+      
+      // Create a mock client with captured message handlers
+      const messageHandlers: Record<string, Function> = {};
+      const mockClient = {
+        on: vi.fn().mockImplementation((event, handler) => {
+          messageHandlers[event] = handler;
+          return mockClient;
+        }),
+        send: vi.fn(),
+        isAlive: true,
+        sessionId: 'test-session',
+        role: undefined,
+        languageCode: undefined,
+        readyState: 1
+      };
+      
+      const mockRequest = {
+        headers: {},
+        url: '/ws',
+        socket: { remoteAddress: '127.0.0.1' }
+      };
+      
+      // Connect the client
+      connectionHandler(mockClient, mockRequest);
+      
+      // Register message handler for 'test-message'
+      const mockHandler = vi.fn();
+      wsService.onMessage('test-message', mockHandler);
+      
+      // Simulate receiving a message of type 'test-message'
+      const testMessage = { type: 'test-message', data: 'test-data' };
+      messageHandlers['message'](Buffer.from(JSON.stringify(testMessage)));
+      
+      // Verify our handler was called with the correct arguments
+      expect(mockHandler).toHaveBeenCalledWith(mockClient, testMessage);
+      
+      // Test registration message processing
+      const registrationMessage = { 
+        type: 'register', 
+        role: 'teacher',
+        languageCode: 'en-US'
+      };
+      
+      // Simulate receiving a registration message
+      messageHandlers['message'](Buffer.from(JSON.stringify(registrationMessage)));
+      
+      // Verify client properties were updated
+      expect(mockClient.role).toBe('teacher');
+      expect(mockClient.languageCode).toBe('en-US');
+      
+      // Test close handling
+      const mockCloseHandler = vi.fn();
+      wsService.onClose(mockCloseHandler);
+      
+      // Simulate close event
+      messageHandlers['close'](1000, 'Normal close');
+      
+      // Verify close handler was called
+      expect(mockCloseHandler).toHaveBeenCalledWith(mockClient, 1000, 'Normal close');
+      
+      // Simulate pong event
+      mockClient.isAlive = false;
+      messageHandlers['pong']();
+      
+      // Verify isAlive was reset
+      expect(mockClient.isAlive).toBe(true);
+      
+      // Test error handling in message processing
+      const invalidMessage = Buffer.from('this is not valid JSON');
+      messageHandlers['message'](invalidMessage);
+      
+      // No assertion needed - we're just checking that it doesn't throw
+      
+      // Reset mocks
+      vi.resetModules();
+    });
+    
+    it('should handle errors in message handlers', async () => {
+      // We'll use vi.doMock again for this test
+      const mockWsServer = {
+        on: vi.fn(),
+        clients: new Set()
+      };
+      
+      vi.doMock('ws', () => ({
+        WebSocketServer: vi.fn().mockReturnValue(mockWsServer),
+        WebSocket: { OPEN: 1 }
+      }));
+      
+      // Import the module
+      const { WebSocketService } = await import('../../server/websocket');
+      
+      // Create a new service
+      const wsService = new WebSocketService(mockServer);
+      
+      // Get the connection handler
+      const connectionCall = mockWsServer.on.mock.calls.find(call => call[0] === 'connection');
+      expect(connectionCall).toBeDefined();
+      const connectionHandler = connectionCall![1];
+      
+      // Create a mock client with captured message handlers
+      const messageHandlers: Record<string, Function> = {};
+      const mockClient = {
+        on: vi.fn().mockImplementation((event, handler) => {
+          messageHandlers[event] = handler;
+          return mockClient;
+        }),
+        send: vi.fn(),
+        isAlive: true,
+        sessionId: 'test-session',
+        readyState: 1
+      };
+      
+      const mockRequest = { 
+        headers: {}, 
+        url: '/ws',
+        socket: { remoteAddress: '127.0.0.1' }
+      };
+      
+      // Connect the client
+      connectionHandler(mockClient, mockRequest);
+      
+      // Register a message handler that throws an error
+      const mockHandler = vi.fn().mockImplementation(() => {
+        throw new Error('Test error in handler');
+      });
+      
+      wsService.onMessage('test-error', mockHandler);
+      
+      // Simulate receiving a message
+      const testMessage = { type: 'test-error', data: 'test-data' };
+      messageHandlers['message'](Buffer.from(JSON.stringify(testMessage)));
+      
+      // Verify handler was called (despite throwing)
+      expect(mockHandler).toHaveBeenCalled();
+      
+      // No assertion needed for error handling - we're just checking that it doesn't crash
+      
+      // Reset mocks
+      vi.resetModules();
     });
 
     it('should send messages to a client when client is in OPEN state', async () => {
