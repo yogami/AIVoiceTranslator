@@ -18,15 +18,19 @@ import { existsSync } from 'fs';
 // Get the directory of the current module
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Path to the test file we want to run
-const testPattern = './tests/unit/services/TranslationService.spec.ts';
+// Path to the test files we want to run
+const testPatterns = [
+  './tests/unit/services/TranslationService.spec.ts',
+  './tests/unit/services/TranslationServiceErrorHandling.spec.ts',
+  './tests/unit/services/TranslationServiceEmptyResponse.spec.ts'
+];
 
 // Config file path (relative to project root)
 const configPath = './test-config/vitest/vitest.config.mjs';
 
 console.log(`✨ Running TranslationService tests with Vitest`);
 console.log(`✨ Using dedicated test configuration: ${configPath}`);
-console.log(`✨ Test pattern: ${testPattern}`);
+console.log(`✨ Test patterns: ${testPatterns.join(', ')}`);
 
 // Path to the Vitest binary in node_modules
 const vitestBin = resolve(process.cwd(), './node_modules/.bin/vitest');
@@ -37,8 +41,20 @@ if (!existsSync(vitestBin)) {
   process.exit(1);
 }
 
-// Run the test with Vitest using our isolated configuration and coverage
-const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath, '--coverage'], {
+// Run the tests with Vitest using our isolated configuration and coverage
+// Add --silent flag for cleaner output and use a large testTimeout
+const args = [
+  'run',
+  ...testPatterns, // Include all test patterns 
+  '--config', configPath,
+  '--coverage',
+  '--test-timeout=60000', // 60 seconds timeout for tests with retry logic
+  '--pool=forks' // Run tests in isolated processes
+];
+
+console.log(`Running command: ${vitestBin} ${args.join(' ')}`);
+
+const result = spawnSync(vitestBin, args, {
   stdio: 'inherit',
   shell: true,
   env: {
