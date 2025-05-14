@@ -479,4 +479,21 @@ describe('WebSocket Factory Functions', () => {
     const sentData = JSON.parse(client.send.mock.calls[0][0]);
     expect(sentData.type).toBe('test');
   });
+  
+  it('should return WebSocketServer instance via getServer method', () => {
+    // Arrange
+    const service = new WebSocketService(mockServer);
+    
+    // Act
+    const serverInstance = service.getServer();
+    
+    // Assert
+    expect(serverInstance).toBeDefined();
+    expect(serverInstance).toBe((service as any).wss);
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
 });
