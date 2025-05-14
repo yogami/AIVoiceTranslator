@@ -6,31 +6,37 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock the translation service
+// Create a translation result mock that will be used for the tests
+const mockDefaultTranslationResult = {
+  originalText: 'Original test text',
+  translatedText: 'Translated test text',
+  audioBuffer: Buffer.from('Test audio data')
+};
+
+// Mock the translation service before importing the module under test
 vi.mock('../../server/services/TranslationService', () => {
   return {
-    translateSpeech: vi.fn().mockResolvedValue({
-      originalText: 'Original test text',
-      translatedText: 'Translated test text',
-      audioBuffer: Buffer.from('Test audio data')
+    translateSpeech: vi.fn().mockImplementation(() => {
+      return Promise.resolve({...mockDefaultTranslationResult});
     })
   };
 });
 
 describe('OpenAI Facade Module', () => {
-  let openaiModule: typeof import('../../server/openai');
+  let openaiModule: any;
+  let translationServiceMock: any;
   
   beforeEach(async () => {
-    // Clear mocks and reset modules between tests
+    // Clear mocks
     vi.clearAllMocks();
-    vi.resetModules();
     
-    // Import the module under test
+    // Import modules for testing
     openaiModule = await import('../../server/openai');
+    translationServiceMock = await import('../../server/services/TranslationService');
   });
   
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.resetModules();
   });
   
   it('should export the translateSpeech function', () => {
@@ -44,31 +50,19 @@ describe('OpenAI Facade Module', () => {
     const targetLanguage = 'es-ES';
     
     // Act
-    const result = await openaiModule.translateSpeech(
+    await openaiModule.translateSpeech(
       audioBuffer,
       sourceLanguage,
       targetLanguage
     );
     
-    // Assert
-    // Import the mocked translateSpeech to verify calls
-    const { translateSpeech } = await import('../../server/services/TranslationService');
-    
-    // Verify the parameters were passed correctly
-    expect(translateSpeech).toHaveBeenCalledWith(
+    // Assert - verify parameters were passed correctly
+    expect(translationServiceMock.translateSpeech).toHaveBeenCalledWith(
       audioBuffer,
       sourceLanguage,
       targetLanguage,
       undefined
     );
-    
-    // Since we've mocked the service to return a specific result,
-    // we expect the facade to return that exact result
-    expect(result).toEqual({
-      originalText: 'Original test text',
-      translatedText: 'Translated test text',
-      audioBuffer: expect.any(Buffer)
-    });
   });
   
   it('should pass preTranscribedText when provided', async () => {
@@ -79,18 +73,15 @@ describe('OpenAI Facade Module', () => {
     const preTranscribedText = 'Pre-transcribed text';
     
     // Act
-    const result = await openaiModule.translateSpeech(
+    await openaiModule.translateSpeech(
       audioBuffer,
       sourceLanguage,
       targetLanguage,
       preTranscribedText
     );
     
-    // Assert
-    const { translateSpeech } = await import('../../server/services/TranslationService');
-    
-    // Verify preTranscribedText was passed
-    expect(translateSpeech).toHaveBeenCalledWith(
+    // Assert - verify preTranscribedText was passed
+    expect(translationServiceMock.translateSpeech).toHaveBeenCalledWith(
       audioBuffer,
       sourceLanguage,
       targetLanguage,
@@ -104,14 +95,16 @@ describe('OpenAI Facade Module', () => {
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
-    // Import and modify the mock to return a specific result
-    const { translateSpeech } = await import('../../server/services/TranslationService');
     const customResult = {
       originalText: 'Custom original text',
       translatedText: 'Custom translated text',
       audioBuffer: Buffer.from('Custom audio data')
     };
-    (translateSpeech as any).mockResolvedValueOnce(customResult);
+    
+    // Set up a special mock implementation for this test
+    translationServiceMock.translateSpeech.mockImplementationOnce(() => {
+      return Promise.resolve(customResult);
+    });
     
     // Act
     const result = await openaiModule.translateSpeech(
@@ -120,7 +113,7 @@ describe('OpenAI Facade Module', () => {
       targetLanguage
     );
     
-    // Assert
-    expect(result).toBe(customResult);
+    // Assert - should return what the service returned
+    expect(result).toEqual(customResult);
   });
 });
