@@ -62,8 +62,8 @@ else
   OVERALL_SUCCESS=false
 fi
 
-# Step 2: Run WebSocketService tests with Jest
-print_info "Running WebSocketService tests with Jest..."
+# Step 2: Run WebSocketService tests with Vitest
+print_info "Running WebSocketService tests with Vitest..."
 node ./test-scripts/run-websocket-tests.mjs
 if [ $? -eq 0 ]; then
   print_success "WebSocketService tests passed!"

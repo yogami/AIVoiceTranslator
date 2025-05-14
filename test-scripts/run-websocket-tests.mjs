@@ -1,48 +1,52 @@
 #!/usr/bin/env node
 
-// This script runs Jest tests specifically for WebSocketService
-// as part of our hybrid testing strategy
+/**
+ * This script runs Vitest tests for the WebSocketService module
+ * It uses a dedicated configuration file that is completely isolated from the application
+ * 
+ * Following testing principles:
+ * - Do NOT modify source code
+ * - Do NOT mock the System Under Test (SUT)
+ * - Only mock external dependencies
+ */
 
-import { spawn } from 'child_process';
-import path from 'path';
+import { spawnSync } from 'child_process';
+import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import { existsSync } from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// Get the directory of the current module
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Define paths
-const jestConfigPath = path.resolve(__dirname, '../test-config/jest.config.js');
-const testPath = path.resolve(__dirname, '../tests/unit/services/websocket.spec.ts');
+// Path to the test file we want to run
+const testPattern = './tests/unit/services/websocket.spec.ts';
 
-// Configure Jest command
-const jestCommand = 'jest';
-const jestArgs = [
-  '--config', jestConfigPath,
-  '--verbose',
-  '--coverage',
-  testPath
-];
+// Config file path (relative to project root)
+const configPath = './test-config/vitest/vitest.config.mjs';
 
-// Execute Jest
-console.log(`Running WebSocketService tests with Jest...`);
-console.log(`Command: ${jestCommand} ${jestArgs.join(' ')}`);
+console.log(`✨ Running WebSocketService tests with Vitest`);
+console.log(`✨ Using dedicated test configuration: ${configPath}`);
+console.log(`✨ Test pattern: ${testPattern}`);
 
-const jestProcess = spawn(jestCommand, jestArgs, {
-  stdio: 'inherit',
-  shell: true
-});
+// Path to the Vitest binary in node_modules
+const vitestBin = resolve(process.cwd(), './node_modules/.bin/vitest');
 
-// Handle process events
-jestProcess.on('error', (error) => {
-  console.error(`Failed to start Jest: ${error.message}`);
+// Check if Vitest exists
+if (!existsSync(vitestBin)) {
+  console.error('❌ Vitest not found. Please run: npm install vitest');
   process.exit(1);
+}
+
+// Run the test with Vitest using our isolated configuration and coverage
+const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath, '--coverage'], {
+  stdio: 'inherit',
+  shell: true,
+  env: {
+    ...process.env,
+    NODE_ENV: 'test',
+    NODE_OPTIONS: '--experimental-vm-modules'
+  }
 });
 
-jestProcess.on('close', (code) => {
-  if (code !== 0) {
-    console.error(`Jest process exited with code ${code}`);
-    process.exit(code);
-  }
-  console.log('WebSocketService tests completed successfully!');
-});
+// Exit with the same code as the test process
+process.exit(result.status);
