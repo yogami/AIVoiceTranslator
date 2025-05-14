@@ -622,4 +622,295 @@ describe('WebSocket Factory Functions', () => {
       clearInterval((service as any).heartbeatInterval);
     }
   });
+  
+  it('should handle new WebSocket connections and set up event listeners', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Simulate a connection event
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.on = vi.fn();
+    mockSocket.send = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Get the connection handler
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    
+    // Act - simulate connection event
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Assert
+    expect(mockSocket.isAlive).toBe(true);
+    expect(mockSocket.sessionId).toBeDefined();
+    expect(mockSocket.on).toHaveBeenCalledWith('pong', expect.any(Function));
+    expect(mockSocket.on).toHaveBeenCalledWith('message', expect.any(Function));
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
+  
+  it('should handle pong messages and update client status', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Create mock client
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.isAlive = false;
+    mockSocket.on = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Get the connection handler and simulate connection
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Extract the pong handler
+    const pongHandler = mockSocket.on.mock.calls.find(call => call[0] === 'pong')[1];
+    
+    // Reset the isAlive flag
+    mockSocket.isAlive = false;
+    
+    // Act - simulate pong event
+    pongHandler();
+    
+    // Assert
+    expect(mockSocket.isAlive).toBe(true);
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
+  
+  it('should handle and process incoming register messages', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Create mock client
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.on = vi.fn();
+    mockSocket.send = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Get the connection handler and simulate connection
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Extract the message handler
+    const messageHandler = mockSocket.on.mock.calls.find(call => call[0] === 'message')[1];
+    
+    // Create a register message
+    const registerMessage = JSON.stringify({
+      type: 'register',
+      role: 'teacher',
+      languageCode: 'en-US'
+    });
+    
+    // Act - simulate message event with register message
+    messageHandler(Buffer.from(registerMessage));
+    
+    // Assert
+    expect(mockSocket.role).toBe('teacher');
+    expect(mockSocket.languageCode).toBe('en-US');
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
+
+  it('should handle changing roles in register messages', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Create mock client
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.role = 'student'; // Initial role
+    mockSocket.on = vi.fn();
+    mockSocket.send = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Get the connection handler and simulate connection
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Extract the message handler
+    const messageHandler = mockSocket.on.mock.calls.find(call => call[0] === 'message')[1];
+    
+    // Create a register message with a different role
+    const registerMessage = JSON.stringify({
+      type: 'register',
+      role: 'teacher', // Changed role
+      languageCode: 'en-US'
+    });
+    
+    // Act - simulate message event with register message
+    messageHandler(Buffer.from(registerMessage));
+    
+    // Assert
+    expect(mockSocket.role).toBe('teacher');
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
+  
+  it('should execute registered message handlers for custom message types', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Register a custom message handler
+    const customMessageHandler = vi.fn();
+    service.onMessage('custom-type', customMessageHandler);
+    
+    // Create mock client
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.on = vi.fn();
+    mockSocket.send = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Get the connection handler and simulate connection
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Extract the message handler
+    const messageHandler = mockSocket.on.mock.calls.find(call => call[0] === 'message')[1];
+    
+    // Create a custom message
+    const customMessage = JSON.stringify({
+      type: 'custom-type',
+      data: 'test-data'
+    });
+    
+    // Act - simulate message event with custom message
+    messageHandler(Buffer.from(customMessage));
+    
+    // Assert
+    expect(customMessageHandler).toHaveBeenCalledWith(
+      expect.objectContaining({ isAlive: true }),
+      expect.objectContaining({ type: 'custom-type', data: 'test-data' })
+    );
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
+  
+  it('should handle malformed JSON messages gracefully', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Create mock client
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.on = vi.fn();
+    mockSocket.send = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Spy on the error log
+    const errorLogSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Get the connection handler and simulate connection
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Extract the message handler
+    const messageHandler = mockSocket.on.mock.calls.find(call => call[0] === 'message')[1];
+    
+    // Create an invalid JSON message
+    const invalidMessage = Buffer.from('This is not valid JSON');
+    
+    // Act - simulate message event with invalid message
+    messageHandler(invalidMessage);
+    
+    // Assert
+    expect(errorLogSpy).toHaveBeenCalled();
+    
+    // Clean up
+    errorLogSpy.mockRestore();
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
+  
+  it('should handle close events on WebSocket connections', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Register a custom close handler
+    const closeHandlerFn = vi.fn();
+    service.onClose(closeHandlerFn);
+    
+    // Create mock client
+    const mockSocket = new (WebSocket as any)();
+    mockSocket.on = vi.fn();
+    mockSocket.send = vi.fn();
+    
+    const mockRequest = {
+      headers: { origin: 'test-origin' },
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Get the connection handler and simulate connection
+    const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
+    connectionHandler(mockSocket, mockRequest);
+    
+    // Extract the close handler
+    const closeHandler = mockSocket.on.mock.calls.find(call => call[0] === 'close')[1];
+    
+    // Act - simulate close event
+    closeHandler(1000, 'Normal closure');
+    
+    // Assert
+    expect(closeHandlerFn).toHaveBeenCalledWith(
+      expect.any(Object), // The socket will have a dynamic sessionId
+      1000,
+      'Normal closure'
+    );
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
 });
