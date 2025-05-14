@@ -34,16 +34,48 @@ vi.mock('fs', () => {
     })),
     writeFile: vi.fn((path, data, callback) => callback(null)),
     unlink: vi.fn((path, callback) => callback(null)),
+    mkdir: vi.fn((path, options, callback) => {
+      if (typeof options === 'function') {
+        options(null);
+      } else if (callback) {
+        callback(null);
+      }
+    }),
     stat: vi.fn((path, callback) => callback(null, {
       size: 1024,
       mtime: new Date(),
+      mtimeMs: Date.now(),
     })),
+    access: vi.fn((path, mode, callback) => {
+      if (typeof mode === 'function') {
+        mode(null);
+      } else if (callback) {
+        callback(null);
+      }
+    }),
+    readFile: vi.fn((path, options, callback) => {
+      if (typeof options === 'function') {
+        options(null, Buffer.from('mock-file-content'));
+      } else if (callback) {
+        callback(null, Buffer.from('mock-file-content'));
+      }
+    }),
+    constants: {
+      F_OK: 0,
+      R_OK: 4,
+      W_OK: 2,
+      X_OK: 1,
+    },
     promises: {
       writeFile: vi.fn().mockResolvedValue(undefined),
       unlink: vi.fn().mockResolvedValue(undefined),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockResolvedValue(Buffer.from('mock-file-content')),
+      access: vi.fn().mockResolvedValue(undefined),
       stat: vi.fn().mockResolvedValue({
         size: 1024,
         mtime: new Date(),
+        mtimeMs: Date.now(),
       }),
     }
   };
@@ -87,6 +119,51 @@ vi.mock('dotenv', () => {
       config: vi.fn()
     },
     config: vi.fn()
+  };
+});
+
+// Mock util module - needed for promisify function used in TextToSpeechService
+vi.mock('util', () => {
+  return {
+    promisify: vi.fn((fn) => fn),
+    default: {
+      promisify: vi.fn((fn) => fn)
+    }
+  };
+});
+
+// Mock crypto module
+vi.mock('crypto', () => {
+  const mockHashUpdate = {
+    update: vi.fn().mockReturnThis(),
+    digest: vi.fn().mockReturnValue('mocked-hash-value')
+  };
+
+  const mockCreateHash = vi.fn().mockReturnValue(mockHashUpdate);
+
+  return {
+    createHash: mockCreateHash,
+    default: {
+      createHash: mockCreateHash
+    }
+  };
+});
+
+// Mock path module
+vi.mock('path', () => {
+  const mockJoin = vi.fn((...paths) => paths.join('/'));
+  
+  return {
+    join: mockJoin,
+    resolve: vi.fn((...paths) => paths.join('/')),
+    dirname: vi.fn((p) => p.split('/').slice(0, -1).join('/')),
+    basename: vi.fn((p) => p.split('/').pop()),
+    default: {
+      join: mockJoin,
+      resolve: vi.fn((...paths) => paths.join('/')),
+      dirname: vi.fn((p) => p.split('/').slice(0, -1).join('/')),
+      basename: vi.fn((p) => p.split('/').pop())
+    }
   };
 });
 
