@@ -496,4 +496,119 @@ describe('WebSocket Factory Functions', () => {
       clearInterval((service as any).heartbeatInterval);
     }
   });
+  
+  it('should perform heartbeat checks and terminate inactive connections', () => {
+    // Setup
+    const originalSetInterval = global.setInterval;
+    let heartbeatCallback: () => void;
+    
+    // Mock setInterval to capture the callback
+    global.setInterval = vi.fn((callback: any) => {
+      heartbeatCallback = callback;
+      return 123; // Mock interval ID
+    }) as any;
+    
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Create mock clients
+    const mockInactiveClient = new (WebSocket as any)();
+    mockInactiveClient.isAlive = false;
+    mockInactiveClient.sessionId = 'inactive-session';
+    mockInactiveClient.terminate = vi.fn();
+    
+    const mockActiveClient = new (WebSocket as any)();
+    mockActiveClient.isAlive = true;
+    mockActiveClient.sessionId = 'active-session';
+    mockActiveClient.terminate = vi.fn();
+    mockActiveClient.ping = vi.fn();
+    
+    // Add clients to the server
+    wss.clients.add(mockInactiveClient);
+    wss.clients.add(mockActiveClient);
+    
+    // Act - directly call the setupHeartbeat method to register the interval
+    (service as any).setupHeartbeat();
+    
+    // Manually execute the captured heartbeat callback
+    if (heartbeatCallback) {
+      heartbeatCallback();
+    }
+    
+    // Assert
+    expect(mockInactiveClient.terminate).toHaveBeenCalled();
+    expect(mockActiveClient.terminate).not.toHaveBeenCalled();
+    expect(mockActiveClient.ping).toHaveBeenCalled();
+    expect(mockActiveClient.isAlive).toBe(false);
+    
+    // Clean up and restore original setInterval
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+    global.setInterval = originalSetInterval;
+  });
+  
+  it('should clean up resources when server closes', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    (service as any).heartbeatInterval = setInterval(() => {}, 1000);
+    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+    
+    // Act - simulate server close event
+    const closeHandler = wss.on.mock.calls.find(call => call[0] === 'close')[1];
+    closeHandler();
+    
+    // Assert
+    expect(clearIntervalSpy).toHaveBeenCalledWith((service as any).heartbeatInterval);
+    expect((service as any).heartbeatInterval).toBeNull();
+    
+    // Clean up
+    clearIntervalSpy.mockRestore();
+  });
+  
+  it('should filter clients by role using getClientsByRole', () => {
+    // Setup
+    const service = new WebSocketService(mockServer);
+    const wss = (service as any).wss;
+    
+    // Create mock clients with different roles
+    const teacherClient1 = new (WebSocket as any)();
+    teacherClient1.role = 'teacher';
+    
+    const teacherClient2 = new (WebSocket as any)();
+    teacherClient2.role = 'teacher';
+    
+    const studentClient1 = new (WebSocket as any)();
+    studentClient1.role = 'student';
+    
+    const studentClient2 = new (WebSocket as any)();
+    studentClient2.role = 'student';
+    
+    const noRoleClient = new (WebSocket as any)();
+    
+    // Add clients to the server
+    wss.clients.add(teacherClient1);
+    wss.clients.add(teacherClient2);
+    wss.clients.add(studentClient1);
+    wss.clients.add(studentClient2);
+    wss.clients.add(noRoleClient);
+    
+    // Act
+    const teacherClients = service.getClientsByRole('teacher');
+    const studentClients = service.getClientsByRole('student');
+    
+    // Assert
+    expect(teacherClients.length).toBe(2);
+    expect(studentClients.length).toBe(2);
+    expect(teacherClients).toContain(teacherClient1);
+    expect(teacherClients).toContain(teacherClient2);
+    expect(studentClients).toContain(studentClient1);
+    expect(studentClients).toContain(studentClient2);
+    
+    // Clean up
+    if ((service as any).heartbeatInterval) {
+      clearInterval((service as any).heartbeatInterval);
+    }
+  });
 });
