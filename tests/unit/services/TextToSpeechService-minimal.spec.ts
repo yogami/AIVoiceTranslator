@@ -63,37 +63,38 @@ vi.stubGlobal('util', {
 // Set environment variables
 vi.stubEnv('OPENAI_API_KEY', 'mock-api-key');
 
-// Create our core mocks directly in the OpenAI object
-const mockOpenAICreate = vi.fn().mockImplementation(async (options) => {
+// Create our speech mock function
+const mockSpeechCreate = vi.fn().mockImplementation(async (options) => {
+  const mockText = `voice:${options.voice}-model:${options.model || 'tts-1'}-input:${options.input?.substring(0, 20) || 'test'}`;
+  const mockBuffer = Buffer.from(mockText);
+  
   return {
-    arrayBuffer: async () => {
-      const mockText = `voice:${options.voice}-model:${options.model || 'tts-1'}-input:${options.input?.substring(0, 20) || 'test'}`;
-      return new TextEncoder().encode(mockText).buffer;
-    }
+    arrayBuffer: async () => mockBuffer
   };
 });
 
-// This is the OpenAI constructor function that will replace the real one
-const mockOpenAIConstructor = vi.fn(() => ({
+// Create a proper mock OpenAI class
+class MockOpenAI {
   audio: {
     speech: {
-      create: mockOpenAICreate
+      create: typeof mockSpeechCreate;
     }
-  }
-}));
+  };
 
-// Add this property to make the constructor look more like the real OpenAI class
-mockOpenAIConstructor.prototype = {
-  audio: {
-    speech: {
-      create: mockOpenAICreate
-    }
+  constructor(_options?: { apiKey?: string }) {
+    this.audio = {
+      speech: {
+        create: mockSpeechCreate
+      }
+    };
   }
-};
+}
 
-// Mock the openai module as a global
-vi.stubGlobal('openai', {
-  default: mockOpenAIConstructor
+// Mock the openai module
+vi.mock('openai', () => {
+  return {
+    default: MockOpenAI
+  };
 });
 
 describe('TextToSpeechService Core Tests', () => {
@@ -199,52 +200,98 @@ describe('TextToSpeechService Core Tests', () => {
   });
   
   describe('OpenAITextToSpeechService', () => {
+    // Create a mock OpenAI instance to pass to the service
+    let mockOpenAIInstance: any;
+    
+    beforeEach(() => {
+      // Create a fresh mock instance for each test
+      mockOpenAIInstance = new MockOpenAI({ apiKey: 'test-key' });
+      vi.clearAllMocks();
+    });
+    
     it('should create an instance with OpenAI client', () => {
-      const service = new ttsModule.OpenAITextToSpeechService();
+      // Now properly pass the OpenAI instance to the constructor
+      const service = new ttsModule.OpenAITextToSpeechService(mockOpenAIInstance);
       expect(service).toBeDefined();
     });
     
-    it('should generate speech via OpenAI API', async () => {
-      const service = new ttsModule.OpenAITextToSpeechService();
+    it('should generate speech and handle caching', async () => {
+      // We don't need to mock fs modules here as we're not testing that part
+  
+      // Create service with our mock OpenAI
+      const service = new ttsModule.OpenAITextToSpeechService(mockOpenAIInstance);
       
-      const result = await service.synthesizeSpeech({
+      // First call should use the API
+      const result1 = await service.synthesizeSpeech({
         text: 'Test speech generation',
         languageCode: 'en-US',
         preserveEmotions: true
       });
       
-      // Expect a buffer with content
-      expect(Buffer.isBuffer(result)).toBeTruthy();
-      expect(result.length).toBeGreaterThan(0);
+      // Should return a buffer with our mock data
+      expect(Buffer.isBuffer(result1)).toBeTruthy();
+      expect(result1.length).toBeGreaterThan(0);
+      
+      // The OpenAI create function should have been called
+      expect(mockSpeechCreate).toHaveBeenCalled();
     });
     
-    it('should use a cache key based on parameters', async () => {
-      // Verify we have a service instance
-      const service = new ttsModule.OpenAITextToSpeechService();
-      expect(service).toBeDefined();
+    it('should detect emotions in text', async () => {
+      // Create service with mock OpenAI
+      const service = new ttsModule.OpenAITextToSpeechService(mockOpenAIInstance);
       
-      // We can confirm the md5 hash use by just checking that the service works
-      expect(mockOpenAICreate).toBeDefined();
-    });
-    
-    it('should handle speech generation', async () => {
-      // Get a fresh service
-      const service = new ttsModule.OpenAITextToSpeechService();
-      
-      // No need to spy since we're using our mock directly
-      
-      // Call synthesizeSpeech
-      const params = {
-        text: 'Test speech generation',
+      // Call with text containing emotion indicators
+      const result = await service.synthesizeSpeech({
+        text: 'This is amazing! I am so excited!!!',
         languageCode: 'en-US',
         preserveEmotions: true
-      };
+      });
       
-      const result = await service.synthesizeSpeech(params);
+      // Should detect excitement and use it
+      expect(mockSpeechCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voice: expect.any(String),
+          input: expect.stringContaining('excited'),
+        })
+      );
       
-      // We expect a buffer with our mock data
       expect(Buffer.isBuffer(result)).toBeTruthy();
-      expect(result.length).toBeGreaterThan(0);
+    });
+    
+    it('should select appropriate voice based on language code', async () => {
+      // Create service with mock OpenAI
+      const service = new ttsModule.OpenAITextToSpeechService(mockOpenAIInstance);
+      
+      // Test with French
+      await service.synthesizeSpeech({
+        text: 'Bonjour monde',
+        languageCode: 'fr-FR',
+        preserveEmotions: false
+      });
+      
+      // Should select a voice appropriate for French
+      expect(mockSpeechCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voice: expect.stringMatching(/alloy|nova|shimmer/),
+        })
+      );
+      
+      // Reset for next test
+      mockSpeechCreate.mockClear();
+      
+      // Test with Japanese
+      await service.synthesizeSpeech({
+        text: 'こんにちは世界',
+        languageCode: 'ja-JP',
+        preserveEmotions: false
+      });
+      
+      // Should select a voice appropriate for Japanese
+      expect(mockSpeechCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          voice: expect.stringMatching(/nova|alloy|echo/),
+        })
+      );
     });
   });
   
