@@ -23,7 +23,18 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       reportsDirectory: './coverage',
       exclude: ['**/node_modules/**', '**/tests/**'],
-      include: ['server/websocket.ts', 'server/services/TextToSpeechService.ts'],
+      include: [
+        'server/websocket.ts', 
+        'server/services/TextToSpeechService.ts',
+        'server/services/TranslationService.ts',
+        'server/openai.ts',
+        'server/openai-streaming.ts',
+        'server/storage.ts',
+        'server/routes.ts',
+        'server/config.ts',
+        'server/index.ts',
+        'server/vite.ts'
+      ],
       all: true,
       thresholds: {
         lines: 90,
