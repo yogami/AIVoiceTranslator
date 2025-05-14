@@ -11,6 +11,8 @@ import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
+// Import Jest functions for testing
+import '@jest/globals';
 
 // CORRECT: Only mock external dependencies, not the SUT
 jest.mock('ws', () => {
@@ -170,7 +172,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register connection handlers correctly', () => {
-    const connectionHandler = vi.fn();
+    const connectionHandler = jest.fn();
     webSocketService.onConnection(connectionHandler);
     
     // Verify the connection handler was registered
@@ -179,7 +181,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register close handlers correctly', () => {
-    const closeHandler = vi.fn();
+    const closeHandler = jest.fn();
     webSocketService.onClose(closeHandler);
     
     // Verify the close handler was registered
