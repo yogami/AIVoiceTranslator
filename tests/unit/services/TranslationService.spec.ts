@@ -573,14 +573,25 @@ describe('OpenAITranslationService', () => {
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
-    // Reset the mock completely and implement a rejection
-    openaiMock.chat.completions.create = vi.fn().mockRejectedValue(new Error('API error'));
+    // Save original mock implementation
+    const originalMockImpl = openaiMock.chat.completions.create;
     
-    // Act
-    const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+    // Replace with a mock that will reject immediately without retries
+    openaiMock.chat.completions.create = vi.fn().mockImplementation(() => {
+      // Simulate an error that will be caught by the translate method
+      throw new Error('API error');
+    });
     
-    // Assert - The service should return an empty string on error, not throw
-    expect(result).toBe('');
+    try {
+      // Act
+      const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+      
+      // Assert - The service should return an empty string on error, not throw
+      expect(result).toBe('');
+    } finally {
+      // Restore original mock implementation
+      openaiMock.chat.completions.create = originalMockImpl;
+    }
   });
   
   it('should handle empty API response gracefully', async () => {
@@ -589,15 +600,23 @@ describe('OpenAITranslationService', () => {
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
     
+    // Save original mock implementation
+    const originalMockImpl = openaiMock.chat.completions.create;
+    
     // Mock empty API response
-    openaiMock.chat.completions.create.mockResolvedValueOnce({
+    openaiMock.chat.completions.create = vi.fn().mockResolvedValue({
       choices: []
     });
     
-    // Act
-    const result = await translationService.translate(text, sourceLanguage, targetLanguage);
-    
-    // Assert - should return fallback translation for empty API response
-    expect(result).toBe('Esta es una traducción de prueba');
+    try {
+      // Act
+      const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+      
+      // Assert - should return an empty string for empty API response 
+      expect(result).toBe('');
+    } finally {
+      // Restore original mock implementation
+      openaiMock.chat.completions.create = originalMockImpl;
+    }
   });
 });

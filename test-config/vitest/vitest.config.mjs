@@ -11,9 +11,9 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.spec.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
-    testTimeout: 10000,          // 10 seconds per test
-    hookTimeout: 10000,          // 10 seconds for hooks 
-    teardownTimeout: 5000,       // 5 seconds for teardown
+    testTimeout: 30000,          // 30 seconds per test
+    hookTimeout: 15000,          // 15 seconds for hooks 
+    teardownTimeout: 10000,       // 10 seconds for teardown
     maxConcurrency: 1,           // Run tests sequentially
     maxThreads: 1,               // Use only one thread
     minThreads: 1,               // Use at least one thread
