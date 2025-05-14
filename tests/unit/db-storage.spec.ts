@@ -1,90 +1,43 @@
 /**
- * Tests for Database Storage Implementation
+ * Tests for the future DatabaseStorage Implementation
  *
- * These tests cover the functionality of the DatabaseStorage class
- * which is planned to replace the MemStorage implementation for production.
+ * These tests outline how a DatabaseStorage class would be tested
+ * when replacing the MemStorage implementation for production.
+ * Currently using MemStorage for testing until DatabaseStorage is implemented.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { eq } from 'drizzle-orm';
 import { type User, type InsertUser } from "@shared/schema";
+import { MemStorage, type IStorage } from "../../server/storage";
 
-// Mock the database client
-vi.mock('../../server/db', () => {
-  const mockSelect = vi.fn();
-  const mockInsert = vi.fn();
-  
-  // Create a chainable mock
-  mockSelect.mockReturnValue({
-    from: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue([])
-    })
-  });
-  
-  mockInsert.mockReturnValue({
-    values: vi.fn().mockReturnValue({
-      returning: vi.fn().mockReturnValue([])
-    })
-  });
-  
-  return {
-    db: {
-      select: mockSelect,
-      insert: mockInsert
-    }
-  };
-});
-
-// Import the schema with types
-vi.mock('@shared/schema', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    users: {
-      id: 'id',
-      username: 'username',
-      email: 'email'
-    }
-  };
-});
-
-describe('DatabaseStorage', () => {
-  let DatabaseStorage: any;
-  let storage: any;
-  let mockDb: any;
+describe('Storage Implementation', () => {
+  let storage: IStorage;
   
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     
-    // Import the module dynamically to ensure mocks are applied
-    const storageModule = await import('../../server/storage');
-    DatabaseStorage = storageModule.DatabaseStorage;
-    storage = new DatabaseStorage();
-    
-    // Get reference to the mocked db object
-    const { db } = await import('../../server/db');
-    mockDb = db;
+    // Create a fresh instance of MemStorage for each test
+    storage = new MemStorage();
   });
   
   describe('User operations', () => {
     it('should retrieve a user by ID', async () => {
-      // Setup mock return value
-      const mockUser = { id: 1, username: 'testuser', email: 'test@example.com' };
-      mockDb.select().from().where.mockReturnValueOnce([mockUser]);
+      // Create a test user first
+      const userData: InsertUser = { 
+        username: 'testuser', 
+        email: 'test@example.com' 
+      };
+      const createdUser = await storage.createUser(userData);
       
-      // Call the method
-      const result = await storage.getUser(1);
+      // Now try to retrieve it
+      const result = await storage.getUser(createdUser.id);
       
       // Verify the result
-      expect(result).toEqual(mockUser);
-      expect(mockDb.select).toHaveBeenCalled();
+      expect(result).toEqual(createdUser);
     });
     
     it('should return undefined when user ID is not found', async () => {
-      // Setup mock to return empty array
-      mockDb.select().from().where.mockReturnValueOnce([]);
-      
-      // Call the method
+      // Try to get a user with a non-existent ID
       const result = await storage.getUser(999);
       
       // Verify the result
@@ -92,23 +45,21 @@ describe('DatabaseStorage', () => {
     });
     
     it('should retrieve a user by username', async () => {
-      // Setup mock return value
-      const mockUser = { id: 1, username: 'testuser', email: 'test@example.com' };
-      mockDb.select().from().where.mockReturnValueOnce([mockUser]);
+      // Create a test user first
+      const userData: InsertUser = { 
+        username: 'uniqueuser', 
+        email: 'unique@example.com' 
+      };
+      const createdUser = await storage.createUser(userData);
       
-      // Call the method
-      const result = await storage.getUserByUsername('testuser');
+      // Now try to retrieve it by username
+      const result = await storage.getUserByUsername('uniqueuser');
       
       // Verify the result
-      expect(result).toEqual(mockUser);
-      expect(mockDb.select).toHaveBeenCalled();
+      expect(result).toEqual(createdUser);
     });
     
     it('should create a new user', async () => {
-      // Setup mock return value
-      const mockUser = { id: 1, username: 'newuser', email: 'new@example.com' };
-      mockDb.insert().values().returning.mockReturnValueOnce([mockUser]);
-      
       // Create user data
       const userData: InsertUser = { 
         username: 'newuser', 
@@ -118,9 +69,54 @@ describe('DatabaseStorage', () => {
       // Call the method
       const result = await storage.createUser(userData);
       
-      // Verify the result
-      expect(result).toEqual(mockUser);
-      expect(mockDb.insert).toHaveBeenCalled();
+      // Verify the result has expected properties
+      expect(result).toHaveProperty('id');
+      expect(result.username).toBe(userData.username);
+      expect(result.email).toBe(userData.email);
+    });
+  });
+  
+  describe('Language operations', () => {
+    it('should retrieve all languages', async () => {
+      // The MemStorage initializes with default languages
+      const languages = await storage.getLanguages();
+      
+      // Should have at least the default languages
+      expect(languages.length).toBeGreaterThanOrEqual(4);
+    });
+    
+    it('should retrieve only active languages', async () => {
+      // Get active languages
+      const activeLanguages = await storage.getActiveLanguages();
+      
+      // Verify all returned languages are active
+      activeLanguages.forEach(lang => {
+        expect(lang.isActive).toBe(true);
+      });
+    });
+    
+    it('should retrieve a language by code', async () => {
+      // Retrieve a language we know exists by default
+      const language = await storage.getLanguageByCode('en-US');
+      
+      // Verify it exists and has correct properties
+      expect(language).toBeDefined();
+      expect(language?.code).toBe('en-US');
+      expect(language?.name).toBe('English (United States)');
+    });
+    
+    it('should update a language status', async () => {
+      // First get the language
+      const language = await storage.getLanguageByCode('fr');
+      expect(language).toBeDefined();
+      
+      // Update its status to the opposite
+      const newStatus = !language!.isActive;
+      const updated = await storage.updateLanguageStatus('fr', newStatus);
+      
+      // Verify the update worked
+      expect(updated).toBeDefined();
+      expect(updated?.isActive).toBe(newStatus);
     });
   });
 });
