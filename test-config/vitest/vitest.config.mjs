@@ -16,7 +16,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       reportsDirectory: './coverage',
       exclude: ['**/node_modules/**', '**/tests/**'],
-      include: ['server/websocket.ts'],
+      include: ['server/websocket.ts', 'server/services/TextToSpeechService.ts'],
       all: true,
       thresholds: {
         lines: 90,

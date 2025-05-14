@@ -27,10 +27,11 @@ console.log(`✨ Using dedicated test configuration: ${configPath}`);
 console.log(`✨ Test pattern: ${testPattern}`);
 console.log('');
 
-// Run Vitest with the configuration
+// Run Vitest with the configuration and coverage
 const result = spawnSync('npx', [
   'vitest', 'run',
   '--config', configPath,
+  '--coverage',
   testPattern
 ], {
   cwd: resolve(__dirname, '..'),
