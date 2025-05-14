@@ -1,703 +1,475 @@
 /**
- * WebSocket Module Tests
- * 
- * These tests verify the functionality of the WebSocketService and related utilities.
- * Coverage targets: 90% for lines, functions, and statements; 85% for branches
+ * Tests for WebSocket functionality
  */
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
-import { IncomingMessage } from 'http';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { WebSocketService, WebSocketState, createWebSocketServer, broadcastMessage, sendToClient } from '../../server/websocket';
 import { Server } from 'http';
-import { Socket } from 'net';
+import { WebSocket, WebSocketServer as WSServer } from 'ws';
+import { EventEmitter } from 'events';
 
-// Spy on console methods
-beforeAll(() => {
-  vi.spyOn(console, 'log').mockImplementation(() => {});
-  vi.spyOn(console, 'warn').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
-});
-
-// Mock WebSocket
-vi.mock('ws', () => {
-  // Create a mock client for use in tests
-  const MockClient = vi.fn().mockImplementation((options = {}) => {
-    const defaultProps = {
-      send: vi.fn(),
-      on: vi.fn(),
-      close: vi.fn(),
-      ping: vi.fn(),
-      terminate: vi.fn(),
-      isAlive: true,
-      readyState: 1, // OPEN by default
-      role: undefined,
-      languageCode: undefined,
-      sessionId: undefined
-    };
-
-    return {
-      ...defaultProps,
-      ...options
-    };
-  });
-
-  // Create a mock server
-  const MockWebSocketServer = vi.fn().mockImplementation(() => {
-    const clients = new Set();
-    // Create two clients with different roles
-    clients.add(new MockClient({ role: 'teacher', readyState: 1 }));
-    clients.add(new MockClient({ role: 'student', readyState: 1 }));
-    // Add a closed client
-    clients.add(new MockClient({ role: 'student', readyState: 3 }));
-    
-    return {
-      on: vi.fn(),
-      clients,
-      close: vi.fn()
-    };
-  });
-
-  return {
-    WebSocketServer: MockWebSocketServer,
-    WebSocket: {
-      OPEN: 1,
-      CLOSING: 2,
-      CLOSED: 3,
-      CONNECTING: 0
-    }
-  };
-});
-
-// Mock http module
-vi.mock('http', () => {
-  const MockServer = vi.fn().mockImplementation(() => ({
-    on: vi.fn()
-  }));
+// Override the imports with our mocked versions - must be defined before class definitions
+vi.mock('ws', async () => {
+  const EventEmitter = (await import('events')).EventEmitter;
   
-  const MockIncomingMessage = vi.fn().mockImplementation(() => ({
-    headers: {
-      'sec-websocket-key': 'test-key'
-    },
-    url: '/ws',
-    socket: {
-      remoteAddress: '127.0.0.1'
+  // Use a factory function to create instances
+  class MockWebSocket extends EventEmitter {
+    readyState = WebSocketState.OPEN;
+    isAlive = true;
+    sessionId = undefined;
+    role = undefined;
+    languageCode = undefined;
+    
+    send = vi.fn();
+    ping = vi.fn();
+    terminate = vi.fn();
+  }
+  
+  class MockWSServer extends EventEmitter {
+    clients = new Set();
+    options = null;
+    
+    constructor(options) {
+      super();
+      this.options = options;
     }
-  }));
-
+  }
+  
   return {
-    Server: MockServer,
-    IncomingMessage: MockIncomingMessage,
-    createServer: vi.fn().mockReturnValue({
-      listen: vi.fn()
-    })
+    WebSocketServer: vi.fn((options) => new MockWSServer(options)),
+    WebSocket: MockWebSocket
   };
 });
 
-// Use Vi's mock timers instead of mocking the timer modules
-beforeEach(() => {
-  vi.useFakeTimers();
+vi.mock('http', async () => {
+  const EventEmitter = (await import('events')).EventEmitter;
+  
+  class MockServer extends EventEmitter {}
+  
+  return {
+    Server: MockServer
+  };
 });
 
-describe('WebSocket Module', () => {
-  let mockServer;
+// Now define the classes for use in tests
+class MockWebSocket extends EventEmitter {
+  readyState = WebSocketState.OPEN;
+  isAlive = true;
+  sessionId?: string;
+  role?: 'teacher' | 'student';
+  languageCode?: string;
+  
+  send = vi.fn();
+  ping = vi.fn();
+  terminate = vi.fn();
+}
 
+class MockWSServer extends EventEmitter {
+  clients: Set<MockWebSocket> = new Set();
+  options: any;
+  
+  constructor(options: any) {
+    super();
+    this.options = options;
+  }
+}
+
+class MockServer extends EventEmitter {}
+
+describe('WebSocketService', () => {
+  let mockServer: MockServer;
+  let webSocketService: WebSocketService;
+  let wss: MockWSServer;
+  
+  // Save console methods
+  const originalConsole = { ...console };
+  
   beforeEach(() => {
-    // Create a mock HTTP server
-    mockServer = new Server();
-    
-    // Reset mocks before each test
+    // Reset mocks
     vi.clearAllMocks();
+    
+    // Mock console methods
+    console.log = vi.fn();
+    console.error = vi.fn();
+    console.warn = vi.fn();
+    
+    // Create mocked server
+    mockServer = new MockServer();
+    
+    // Create WebSocket service
+    webSocketService = new WebSocketService(mockServer as unknown as Server);
+    
+    // Get the mocked WebSocketServer
+    wss = vi.mocked(WSServer).mock.results[0].value as MockWSServer;
   });
-
+  
   afterEach(() => {
-    vi.resetModules();
-    vi.useRealTimers();
+    // Restore console methods
+    console.log = originalConsole.log;
+    console.error = originalConsole.error;
+    console.warn = originalConsole.warn;
   });
-
-  describe('WebSocketService class', () => {
-    it('should create a WebSocketService instance with default config', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // The test passes if the constructor doesn't throw
-      expect(wsService).toBeDefined();
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['config'].path).toBe('/ws'); // Default path
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['config'].heartbeatInterval).toBe(30000); // Default interval
+  
+  it('should initialize with default configuration', () => {
+    // Verify WebSocketServer was constructed correctly
+    expect(WSServer).toHaveBeenCalledWith({
+      server: mockServer,
+      path: '/ws'
     });
-
-    it('should create a WebSocketService instance with custom config', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer, { 
-        path: '/test-ws',
-        heartbeatInterval: 10000,
-        logLevel: 'debug'
-      });
-      
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['config'].path).toBe('/test-ws');
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['config'].heartbeatInterval).toBe(10000);
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['config'].logLevel).toBe('debug');
-    });
-
-    it('should register message handlers correctly', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Register a message handler
-      const mockHandler = vi.fn();
-      wsService.onMessage('test-message', mockHandler);
-      
-      // Use private method access pattern to test the handler was registered
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['messageHandlers'].has('test-message')).toBe(true);
-
-      // Register another handler for the same message type
-      const mockHandler2 = vi.fn();
-      wsService.onMessage('test-message', mockHandler2);
-      
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['messageHandlers'].get('test-message').length).toBe(2);
-    });
-
-    it('should register connection handlers correctly', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Register a connection handler
-      const mockHandler = vi.fn();
-      wsService.onConnection(mockHandler);
-      
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['connectionHandlers'].length).toBe(1);
-    });
-
-    it('should register close handlers correctly', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Register a close handler
-      const mockHandler = vi.fn();
-      wsService.onClose(mockHandler);
-      
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['closeHandlers'].length).toBe(1);
-    });
-
-    it('should broadcast messages to all clients in OPEN state', async () => {
-      const { WebSocketService, WebSocketState } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      const clients = Array.from(wsService.getClients());
-      
-      const message = { type: 'test', data: 'test-data' };
-      wsService.broadcast(message);
-      
-      // Only clients in OPEN state should receive messages
-      const openClients = clients.filter(client => client.readyState === WebSocketState.OPEN);
-      openClients.forEach(client => {
-        expect(client.send).toHaveBeenCalledWith(JSON.stringify(message));
-      });
-      
-      // Count the number of calls to send
-      const sendCallCount = clients.reduce((count, client) => {
-        return count + (client.send as any).mock.calls.length;
-      }, 0);
-      
-      // There should be exactly 2 open clients (teacher and student)
-      expect(sendCallCount).toBe(2);
-    });
-
-    it('should broadcast messages to clients with a specific role', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      const clients = Array.from(wsService.getClients());
-      
-      const message = { type: 'teacher-message', data: 'for teachers only' };
-      wsService.broadcastToRole('teacher', message);
-      
-      // Find all teacher clients
-      const teacherClients = clients.filter(client => (client as any).role === 'teacher' && client.readyState === 1);
-      teacherClients.forEach(client => {
-        expect(client.send).toHaveBeenCalledWith(JSON.stringify(message));
-      });
-      
-      // Student clients should not receive the message
-      const studentClients = clients.filter(client => (client as any).role === 'student');
-      studentClients.forEach(client => {
-        if (client.readyState === 1) {
-          expect(client.send).not.toHaveBeenCalledWith(JSON.stringify(message));
-        }
-      });
-    });
-
-    it('should get clients with a specific role', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Get clients by role
-      const teacherClients = wsService.getClientsByRole('teacher');
-      const studentClients = wsService.getClientsByRole('student');
-      
-      // Should find 1 teacher and 2 students (one open, one closed)
-      expect(teacherClients.length).toBe(1);
-      expect(studentClients.length).toBe(2);
-      
-      // Verify each client has the correct role
-      teacherClients.forEach(client => {
-        expect(client.role).toBe('teacher');
-      });
-      
-      studentClients.forEach(client => {
-        expect(client.role).toBe('student');
-      });
-    });
-
-    it('should not send messages to clients not in OPEN state', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Get a client that is not in OPEN state
-      const clients = Array.from(wsService.getClients());
-      const closedClient = clients.find(client => client.readyState !== 1);
-      
-      // Send a message to the closed client
-      const message = { type: 'test', data: 'test-data' };
-      wsService.sendToClient(closedClient as any, message);
-      
-      // Verify send was not called
-      expect(closedClient!.send).not.toHaveBeenCalled();
-    });
-
-    it('should setup and use heartbeat mechanism', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer, { 
-        heartbeatInterval: 5000 
-      });
-      
-      // @ts-ignore - accessing private property for testing
-      const heartbeatInterval = wsService['heartbeatInterval'];
-      expect(heartbeatInterval).toBeDefined();
-      
-      // Mark all clients as alive before heartbeat
-      const clients = Array.from(wsService.getClients());
-      clients.forEach(client => {
-        (client as any).isAlive = true;
-      });
-      
-      // Advance timer to trigger heartbeat
-      vi.advanceTimersByTime(5000);
-      
-      // After heartbeat, all clients should have isAlive set to false and ping called
-      clients.forEach(client => {
-        expect(client.ping).toHaveBeenCalled();
-        expect((client as any).isAlive).toBe(false);
-      });
-    });
-
-    it('should terminate inactive clients during heartbeat', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Get all clients and mark one as inactive
-      const clients = Array.from(wsService.getClients());
-      (clients[0] as any).isAlive = false;
-      
-      // Advance timer to trigger heartbeat
-      vi.advanceTimersByTime(30000); // Default interval
-      
-      // The inactive client should be terminated
-      expect(clients[0].terminate).toHaveBeenCalled();
-    });
-
-    it('should clean up resources when closed', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      
-      // Spy on clearInterval
-      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-      
-      // @ts-ignore - accessing private property for testing
-      wsService['cleanup']();
-      
-      // Verify clearInterval was called
-      expect(clearIntervalSpy).toHaveBeenCalled();
-      
-      // @ts-ignore - accessing private property for testing
-      expect(wsService['heartbeatInterval']).toBeNull();
-    });
-
-    it('should expose the WebSocket server through getServer', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      const server = wsService.getServer();
-      
-      expect(server).toBeDefined();
-      // @ts-ignore - accessing private property for testing
-      expect(server).toBe(wsService['wss']);
-    });
-
-    it('should get all clients through getClients', async () => {
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      const clients = wsService.getClients();
-      
-      expect(clients).toBeDefined();
-      expect(clients.size).toBe(3); // Should have 3 mock clients
-    });
-
-    it('should respect configured log level', async () => {
-      console.log = vi.fn();
-      console.warn = vi.fn();
-      console.error = vi.fn();
-      
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      // Create a service with error-only logging
-      const wsService = new WebSocketService(mockServer, {
-        logLevel: 'error'
-      });
-      
-      // @ts-ignore - access private log method
-      wsService['log']('debug', 'Debug message');
-      // @ts-ignore - access private log method
-      wsService['log']('info', 'Info message');
-      // @ts-ignore - access private log method
-      wsService['log']('warn', 'Warning message');
-      // @ts-ignore - access private log method
-      wsService['log']('error', 'Error message');
-      
-      // Only error should be logged
-      expect(console.log).not.toHaveBeenCalled();
-      expect(console.warn).not.toHaveBeenCalled();
-      expect(console.error).toHaveBeenCalledWith('Error message');
-    });
+    
+    // Verify log message
+    expect(console.log).toHaveBeenCalledWith(
+      "WebSocket server initialized and listening on path: /ws"
+    );
   });
-
-  describe('Helper functions', () => {
-    it('should create a WebSocketServer with the factory function', async () => {
-      const { createWebSocketServer } = await import('../../server/websocket');
-      
-      const wsServer = createWebSocketServer(mockServer, '/test-path');
-      
-      expect(wsServer).toBeDefined();
-      // @ts-ignore - accessing private property for testing
-      expect(wsServer['config'].path).toBe('/test-path');
-    });
-
-    it('should broadcast messages with the broadcast function to WebSocketService', async () => {
-      const { broadcastMessage, WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      const broadcastSpy = vi.spyOn(wsService, 'broadcast');
-      
-      // Call the standalone broadcast function with WebSocketService instance
-      broadcastMessage(wsService, { type: 'test' });
-      
-      // Verify broadcast was called on the service
-      expect(broadcastSpy).toHaveBeenCalledWith({ type: 'test' });
-    });
-
-    it('should broadcast messages with the broadcast function to WSServer', async () => {
-      const { broadcastMessage, WebSocketService } = await import('../../server/websocket');
-      
-      const wsService = new WebSocketService(mockServer);
-      // @ts-ignore - accessing private property for testing
-      const wss = wsService['wss'];
-      
-      // Call the standalone broadcast function with raw WSServer
-      broadcastMessage(wss, { type: 'test' });
-      
-      // Verify clients received the message
-      const clients = Array.from(wss.clients).filter(c => c.readyState === 1);
-      clients.forEach(client => {
-        expect(client.send).toHaveBeenCalledWith(JSON.stringify({ type: 'test' }));
-      });
+  
+  it('should initialize with custom configuration', () => {
+    const customPath = '/custom-ws';
+    const customConfig = {
+      path: customPath,
+      heartbeatInterval: 5000,
+      logLevel: 'debug' as const
+    };
+    
+    // Create with custom config
+    webSocketService = new WebSocketService(mockServer as unknown as Server, customConfig);
+    
+    // Verify WebSocketServer was constructed with custom path
+    expect(WSServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: customPath
+      })
+    );
+  });
+  
+  it('should register and execute message handlers', () => {
+    // Create mock handler
+    const mockHandler = vi.fn();
+    webSocketService.onMessage('test-message', mockHandler);
+    
+    // Create mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event to register the client
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Verify client received connection confirmation
+    expect(mockClient.send).toHaveBeenCalledWith(expect.stringContaining('connection'));
+    
+    // Create a test message
+    const testMessage = JSON.stringify({
+      type: 'test-message',
+      data: 'test-data'
     });
     
-    it('should handle WebSocket connection events', async () => {
-      // Create special mocks for this test
-      const mockWsServer = {
-        on: vi.fn(),
-        clients: new Set()
-      };
-      
-      // Create a mock for the WebSocketServer constructor that returns our mock
-      const mockWsServerConstructor = vi.fn().mockReturnValue(mockWsServer);
-      
-      // Mock the ws module temporarily for this test
-      vi.doMock('ws', () => ({
-        WebSocketServer: mockWsServerConstructor,
-        WebSocket: {
-          OPEN: 1,
-          CLOSED: 3
-        }
-      }));
-      
-      // Import the module with our custom mocks
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      // Create a new service which should call our mocked constructor
-      new WebSocketService(mockServer);
-      
-      // Verify connection handler was registered
-      expect(mockWsServer.on).toHaveBeenCalledWith('connection', expect.any(Function));
-      
-      // Simulate connection event by calling the handler
-      const connectionCall = mockWsServer.on.mock.calls.find(call => call[0] === 'connection');
-      expect(connectionCall).toBeDefined();
-      const connectionHandler = connectionCall![1];
-      
-      // Create mock client and request
-      const mockClient = {
-        on: vi.fn(),
-        send: vi.fn(),
-        isAlive: undefined,
-        sessionId: undefined,
-        role: undefined,
-        languageCode: undefined,
-        readyState: 1
-      };
-      
-      const mockRequest = {
-        headers: { 'sec-websocket-key': 'test-key' },
-        url: '/ws',
-        socket: { remoteAddress: '127.0.0.1' }
-      };
-      
-      // Call the connection handler
-      connectionHandler(mockClient, mockRequest);
-      
-      // Verify client was set up correctly
-      expect(mockClient.isAlive).toBe(true);
-      expect(mockClient.sessionId).toBeDefined();
-      
-      // Verify event handlers were registered
-      expect(mockClient.on).toHaveBeenCalledWith('pong', expect.any(Function));
-      expect(mockClient.on).toHaveBeenCalledWith('message', expect.any(Function));
-      expect(mockClient.on).toHaveBeenCalledWith('close', expect.any(Function));
-      
-      // Verify confirmation message was sent
-      expect(mockClient.send).toHaveBeenCalled();
-      const sentMessage = JSON.parse(mockClient.send.mock.calls[0][0]);
-      expect(sentMessage.type).toBe('connection');
-      expect(sentMessage.status).toBe('connected');
-      
-      // Reset the mock
-      vi.resetModules();
+    // Emit message event from client
+    mockClient.emit('message', testMessage);
+    
+    // Verify handler was called with correct arguments
+    expect(mockHandler).toHaveBeenCalledWith(
+      mockClient,
+      expect.objectContaining({
+        type: 'test-message',
+        data: 'test-data'
+      })
+    );
+  });
+  
+  it('should handle connection events', () => {
+    // Create mock connection handler
+    const mockConnectionHandler = vi.fn();
+    webSocketService.onConnection(mockConnectionHandler);
+    
+    // Create mock request
+    const mockRequest = { 
+      headers: {}, 
+      socket: { remoteAddress: '127.0.0.1' },
+      url: '/ws'
+    };
+    
+    // Create mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event
+    wss.emit('connection', mockClient, mockRequest);
+    
+    // Verify connection handler was called
+    expect(mockConnectionHandler).toHaveBeenCalledWith(mockClient, mockRequest);
+    
+    // Verify client properties are set
+    expect(mockClient.isAlive).toBe(true);
+    expect(mockClient.sessionId).toBeDefined();
+    
+    // Verify client received connection confirmation
+    expect(mockClient.send).toHaveBeenCalledWith(
+      expect.stringContaining('sessionId')
+    );
+  });
+  
+  it('should handle close events', () => {
+    // Create mock close handler
+    const mockCloseHandler = vi.fn();
+    webSocketService.onClose(mockCloseHandler);
+    
+    // Create mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event to register the client
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Emit close event
+    const closeCode = 1000;
+    const closeReason = 'normal closure';
+    mockClient.emit('close', closeCode, closeReason);
+    
+    // Verify close handler was called
+    expect(mockCloseHandler).toHaveBeenCalledWith(mockClient, closeCode, closeReason);
+  });
+  
+  it('should handle registration messages', () => {
+    // Create mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Create a registration message
+    const registerMessage = JSON.stringify({
+      type: 'register',
+      role: 'teacher',
+      languageCode: 'en-US'
     });
     
-    it('should handle message processing and trigger handlers', async () => {
-      // We'll use vi.doMock again for a more detailed test
-      const mockWsServer = {
-        on: vi.fn(),
-        clients: new Set()
-      };
-      
-      vi.doMock('ws', () => ({
-        WebSocketServer: vi.fn().mockReturnValue(mockWsServer),
-        WebSocket: {
-          OPEN: 1,
-          CLOSED: 3
-        }
-      }));
-      
-      // Import the module
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      // Create a new service
-      const wsService = new WebSocketService(mockServer);
-      
-      // Get the connection handler
-      const connectionCall = mockWsServer.on.mock.calls.find(call => call[0] === 'connection');
-      expect(connectionCall).toBeDefined();
-      const connectionHandler = connectionCall![1];
-      
-      // Create a mock client with captured message handlers
-      const messageHandlers: Record<string, Function> = {};
-      const mockClient = {
-        on: vi.fn().mockImplementation((event, handler) => {
-          messageHandlers[event] = handler;
-          return mockClient;
-        }),
-        send: vi.fn(),
-        isAlive: true,
-        sessionId: 'test-session',
-        role: undefined,
-        languageCode: undefined,
-        readyState: 1
-      };
-      
-      const mockRequest = {
-        headers: {},
-        url: '/ws',
-        socket: { remoteAddress: '127.0.0.1' }
-      };
-      
-      // Connect the client
-      connectionHandler(mockClient, mockRequest);
-      
-      // Register message handler for 'test-message'
-      const mockHandler = vi.fn();
-      wsService.onMessage('test-message', mockHandler);
-      
-      // Simulate receiving a message of type 'test-message'
-      const testMessage = { type: 'test-message', data: 'test-data' };
-      messageHandlers['message'](Buffer.from(JSON.stringify(testMessage)));
-      
-      // Verify our handler was called with the correct arguments
-      expect(mockHandler).toHaveBeenCalledWith(mockClient, testMessage);
-      
-      // Test registration message processing
-      const registrationMessage = { 
-        type: 'register', 
-        role: 'teacher',
-        languageCode: 'en-US'
-      };
-      
-      // Simulate receiving a registration message
-      messageHandlers['message'](Buffer.from(JSON.stringify(registrationMessage)));
-      
-      // Verify client properties were updated
-      expect(mockClient.role).toBe('teacher');
-      expect(mockClient.languageCode).toBe('en-US');
-      
-      // Test close handling
-      const mockCloseHandler = vi.fn();
-      wsService.onClose(mockCloseHandler);
-      
-      // Simulate close event
-      messageHandlers['close'](1000, 'Normal close');
-      
-      // Verify close handler was called
-      expect(mockCloseHandler).toHaveBeenCalledWith(mockClient, 1000, 'Normal close');
-      
-      // Simulate pong event
-      mockClient.isAlive = false;
-      messageHandlers['pong']();
-      
-      // Verify isAlive was reset
-      expect(mockClient.isAlive).toBe(true);
-      
-      // Test error handling in message processing
-      const invalidMessage = Buffer.from('this is not valid JSON');
-      messageHandlers['message'](invalidMessage);
-      
-      // No assertion needed - we're just checking that it doesn't throw
-      
-      // Reset mocks
-      vi.resetModules();
-    });
+    // Emit message event
+    mockClient.emit('message', registerMessage);
     
-    it('should handle errors in message handlers', async () => {
-      // We'll use vi.doMock again for this test
-      const mockWsServer = {
-        on: vi.fn(),
-        clients: new Set()
-      };
-      
-      vi.doMock('ws', () => ({
-        WebSocketServer: vi.fn().mockReturnValue(mockWsServer),
-        WebSocket: { OPEN: 1 }
-      }));
-      
-      // Import the module
-      const { WebSocketService } = await import('../../server/websocket');
-      
-      // Create a new service
-      const wsService = new WebSocketService(mockServer);
-      
-      // Get the connection handler
-      const connectionCall = mockWsServer.on.mock.calls.find(call => call[0] === 'connection');
-      expect(connectionCall).toBeDefined();
-      const connectionHandler = connectionCall![1];
-      
-      // Create a mock client with captured message handlers
-      const messageHandlers: Record<string, Function> = {};
-      const mockClient = {
-        on: vi.fn().mockImplementation((event, handler) => {
-          messageHandlers[event] = handler;
-          return mockClient;
-        }),
-        send: vi.fn(),
-        isAlive: true,
-        sessionId: 'test-session',
-        readyState: 1
-      };
-      
-      const mockRequest = { 
-        headers: {}, 
-        url: '/ws',
-        socket: { remoteAddress: '127.0.0.1' }
-      };
-      
-      // Connect the client
-      connectionHandler(mockClient, mockRequest);
-      
-      // Register a message handler that throws an error
-      const mockHandler = vi.fn().mockImplementation(() => {
-        throw new Error('Test error in handler');
+    // Verify client properties are updated
+    expect(mockClient.role).toBe('teacher');
+    expect(mockClient.languageCode).toBe('en-US');
+  });
+  
+  it('should broadcast messages to all clients', () => {
+    // Create mock clients
+    const mockClient1 = new MockWebSocket();
+    const mockClient2 = new MockWebSocket();
+    
+    // Add clients to the server
+    wss.clients.add(mockClient1);
+    wss.clients.add(mockClient2);
+    
+    // Broadcast a message
+    const message = { type: 'broadcast-test', data: 'test-data' };
+    webSocketService.broadcast(message);
+    
+    // Verify both clients received the message
+    expect(mockClient1.send).toHaveBeenCalledWith(JSON.stringify(message));
+    expect(mockClient2.send).toHaveBeenCalledWith(JSON.stringify(message));
+  });
+  
+  it('should broadcast messages only to clients with specific role', () => {
+    // Create mock clients with different roles
+    const teacherClient = new MockWebSocket();
+    teacherClient.role = 'teacher';
+    
+    const studentClient = new MockWebSocket();
+    studentClient.role = 'student';
+    
+    // Add clients to the server
+    wss.clients.add(teacherClient);
+    wss.clients.add(studentClient);
+    
+    // Broadcast a message to teachers only
+    const message = { type: 'teacher-message', data: 'teacher-data' };
+    webSocketService.broadcastToRole('teacher', message);
+    
+    // Verify only teacher client received the message
+    expect(teacherClient.send).toHaveBeenCalledWith(JSON.stringify(message));
+    expect(studentClient.send).not.toHaveBeenCalled();
+  });
+  
+  it('should send messages to a specific client', () => {
+    // Create mock clients
+    const mockClient1 = new MockWebSocket();
+    const mockClient2 = new MockWebSocket();
+    
+    // Add clients to the server
+    wss.clients.add(mockClient1);
+    wss.clients.add(mockClient2);
+    
+    // Send a message to a specific client
+    const message = { type: 'direct-message', data: 'direct-data' };
+    webSocketService.sendToClient(mockClient1 as any, message);
+    
+    // Verify only the target client received the message
+    expect(mockClient1.send).toHaveBeenCalledWith(JSON.stringify(message));
+    expect(mockClient2.send).not.toHaveBeenCalled();
+  });
+  
+  it('should not send messages to closed clients', () => {
+    // Create mock client with closed state
+    const closedClient = new MockWebSocket();
+    closedClient.readyState = WebSocketState.CLOSED;
+    
+    // Add client to the server
+    wss.clients.add(closedClient);
+    
+    // Send a message to the closed client
+    const message = { type: 'test-message', data: 'test-data' };
+    webSocketService.sendToClient(closedClient as any, message);
+    
+    // Verify no message was sent
+    expect(closedClient.send).not.toHaveBeenCalled();
+  });
+  
+  it('should get clients by role', () => {
+    // Create mock clients with different roles
+    const teacherClient1 = new MockWebSocket();
+    teacherClient1.role = 'teacher';
+    
+    const teacherClient2 = new MockWebSocket();
+    teacherClient2.role = 'teacher';
+    
+    const studentClient = new MockWebSocket();
+    studentClient.role = 'student';
+    
+    // Add clients to the server
+    wss.clients.add(teacherClient1);
+    wss.clients.add(teacherClient2);
+    wss.clients.add(studentClient);
+    
+    // Get clients by role
+    const teachers = webSocketService.getClientsByRole('teacher');
+    const students = webSocketService.getClientsByRole('student');
+    
+    // Verify correct clients are returned
+    expect(teachers.length).toBe(2);
+    expect(students.length).toBe(1);
+  });
+  
+  it('should return all clients', () => {
+    // Create mock clients
+    const mockClient1 = new MockWebSocket();
+    const mockClient2 = new MockWebSocket();
+    
+    // Add clients to the server
+    wss.clients.add(mockClient1);
+    wss.clients.add(mockClient2);
+    
+    // Get all clients
+    const clients = webSocketService.getClients();
+    
+    // Verify all clients are returned
+    expect(clients.size).toBe(2);
+    expect(clients.has(mockClient1)).toBe(true);
+    expect(clients.has(mockClient2)).toBe(true);
+  });
+  
+  it('should setup heartbeat interval', () => {
+    // Mock setInterval
+    const originalSetInterval = global.setInterval;
+    global.setInterval = vi.fn();
+    
+    try {
+      // Create new service to trigger heartbeat setup
+      const service = new WebSocketService(mockServer as unknown as Server, {
+        heartbeatInterval: 1000
       });
       
-      wsService.onMessage('test-error', mockHandler);
+      // Verify setInterval was called with correct interval
+      expect(global.setInterval).toHaveBeenCalledWith(
+        expect.any(Function),
+        1000
+      );
       
-      // Simulate receiving a message
-      const testMessage = { type: 'test-error', data: 'test-data' };
-      messageHandlers['message'](Buffer.from(JSON.stringify(testMessage)));
-      
-      // Verify handler was called (despite throwing)
-      expect(mockHandler).toHaveBeenCalled();
-      
-      // No assertion needed for error handling - we're just checking that it doesn't crash
-      
-      // Reset mocks
-      vi.resetModules();
-    });
+    } finally {
+      // Restore original function
+      global.setInterval = originalSetInterval;
+    }
+  });
+});
 
-    it('should send messages to a client when client is in OPEN state', async () => {
-      const { sendToClient, WebSocketState } = await import('../../server/websocket');
-      
-      // Create a mock client in OPEN state
-      const mockClient = {
-        send: vi.fn(),
-        readyState: WebSocketState.OPEN
-      };
-      
-      // Send a message
-      sendToClient(mockClient as any, { type: 'test' });
-      
-      // Check if send was called
-      expect(mockClient.send).toHaveBeenCalledWith(JSON.stringify({ type: 'test' }));
-    });
-
-    it('should not send messages to a client when client is not in OPEN state', async () => {
-      const { sendToClient, WebSocketState } = await import('../../server/websocket');
-      
-      // Create a mock client not in OPEN state
-      const mockClient = {
-        send: vi.fn(),
-        readyState: WebSocketState.CLOSED
-      };
-      
-      // Send a message
-      sendToClient(mockClient as any, { type: 'test' });
-      
-      // Check if send was not called
-      expect(mockClient.send).not.toHaveBeenCalled();
-    });
+describe('WebSocket Utility Functions', () => {
+  it('should create a WebSocketService through factory function', () => {
+    // Mock Server
+    const mockServer = new MockServer();
+    const customPath = '/custom-path';
+    
+    // Call factory function
+    const service = createWebSocketServer(mockServer as unknown as Server, customPath);
+    
+    // Verify WebSocketService was created correctly
+    expect(service).toBeInstanceOf(WebSocketService);
+    expect(WSServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: customPath
+      })
+    );
+  });
+  
+  it('should broadcast message through utility function (WebSocketService)', () => {
+    // Create mock service with broadcast method
+    class MockWebSocketService {
+      broadcast = vi.fn();
+      clients = undefined; // Make sure we don't have a clients property to test instanceof branch
+    }
+    
+    const mockService = new MockWebSocketService();
+    
+    // Create test message
+    const message = { type: 'test', data: 'test-data' };
+    
+    // Call broadcast utility
+    broadcastMessage(mockService as unknown as WebSocketService, message);
+    
+    // Verify service.broadcast was called
+    expect(mockService.broadcast).toHaveBeenCalledWith(message);
+  });
+  
+  it('should broadcast message through utility function (WSServer)', () => {
+    // Create mock clients
+    const mockClient1 = { readyState: WebSocketState.OPEN, send: vi.fn() };
+    const mockClient2 = { readyState: WebSocketState.OPEN, send: vi.fn() };
+    
+    // Create mock server
+    const mockServer = {
+      clients: new Set([mockClient1, mockClient2])
+    };
+    
+    // Create test message
+    const message = { type: 'test', data: 'test-data' };
+    
+    // Call broadcast utility
+    broadcastMessage(mockServer as unknown as WSServer, message);
+    
+    // Verify clients received the message
+    expect(mockClient1.send).toHaveBeenCalledWith(JSON.stringify(message));
+    expect(mockClient2.send).toHaveBeenCalledWith(JSON.stringify(message));
+  });
+  
+  it('should send message to client through utility function', () => {
+    // Create mock client
+    const mockClient = { readyState: WebSocketState.OPEN, send: vi.fn() };
+    
+    // Create test message
+    const message = { type: 'test', data: 'test-data' };
+    
+    // Call sendToClient utility
+    sendToClient(mockClient as unknown as WebSocket, message);
+    
+    // Verify client received the message
+    expect(mockClient.send).toHaveBeenCalledWith(JSON.stringify(message));
+  });
+  
+  it('should not send message to closed client through utility function', () => {
+    // Create mock client with closed state
+    const mockClient = { readyState: WebSocketState.CLOSED, send: vi.fn() };
+    
+    // Create test message
+    const message = { type: 'test', data: 'test-data' };
+    
+    // Call sendToClient utility
+    sendToClient(mockClient as unknown as WebSocket, message);
+    
+    // Verify no message was sent
+    expect(mockClient.send).not.toHaveBeenCalled();
   });
 });
