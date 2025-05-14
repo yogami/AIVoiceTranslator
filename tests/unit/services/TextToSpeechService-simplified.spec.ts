@@ -124,11 +124,16 @@ describe('TextToSpeechService Tests', () => {
       expect(typeof ttsModule.textToSpeechService.synthesizeSpeech).toBe('function');
     });
     
-    it('should export all the required classes', () => {
-      expect(ttsModule.TextToSpeechService).toBeDefined();
+    it('should export all the required classes and functionality', () => {
+      // Check for the implementation classes
       expect(ttsModule.SilentTextToSpeechService).toBeDefined();
       expect(ttsModule.OpenAITextToSpeechService).toBeDefined();
+      expect(ttsModule.TextToSpeechFactory).toBeDefined();
       expect(ttsModule.ttsFactory).toBeDefined();
+      
+      // Verify factory produces expected instances
+      const silentService = ttsModule.ttsFactory.getService('silent');
+      expect(silentService).toBeInstanceOf(ttsModule.SilentTextToSpeechService);
     });
   });
 });
