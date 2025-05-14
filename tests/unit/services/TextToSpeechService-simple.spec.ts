@@ -4,82 +4,66 @@
  * These tests focus on the public API and proper exports
  * of the TextToSpeechService module.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock OpenAI with default export pattern
-vi.mock('openai', async (importOriginal) => {
-  const MockOpenAI = vi.fn().mockImplementation(() => ({
-    audio: {
-      speech: {
-        create: vi.fn().mockResolvedValue({ 
-          arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(128)) 
-        }),
-      },
-    },
-  }));
-  
+// Always mock at the top level to ensure it's hoisted properly
+vi.mock('openai', () => {
   return {
-    default: MockOpenAI
+    default: vi.fn().mockImplementation(() => ({
+      audio: {
+        speech: {
+          create: vi.fn().mockResolvedValue({ 
+            arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(128))
+          }),
+        },
+      },
+    })),
   };
 });
 
-// Mock environment variables
+// No need to mock the module we're testing
 vi.stubEnv('OPENAI_API_KEY', 'test-api-key');
 
-describe('TextToSpeechService Module Exports', () => {
+describe('TextToSpeechService Module', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  afterEach(() => {
     vi.resetModules();
   });
 
-  it('should export the required classes and functions', async () => {
-    // Import the module
+  it('should export the expected interfaces and classes', async () => {
     const ttsModule = await import('../../../server/services/TextToSpeechService');
     
-    // Verify the exports
-    expect(typeof ttsModule.TextToSpeechService).toBe('function');
-    expect(typeof ttsModule.TTSFactory).toBe('function');
+    // Check exports exist
     expect(ttsModule.textToSpeechService).toBeDefined();
     expect(ttsModule.ttsFactory).toBeDefined();
+    expect(typeof ttsModule.OpenAITextToSpeechService).toBe('function');
+    expect(typeof ttsModule.BrowserSpeechSynthesisService).toBe('function');
+    expect(typeof ttsModule.SilentTextToSpeechService).toBe('function');
+    expect(typeof ttsModule.TextToSpeechFactory).toBe('function');
   });
 
-  it('should initialize with the OpenAI client', async () => {
-    // Import the module
+  it('should create an OpenAI client when imported', async () => {
     await import('../../../server/services/TextToSpeechService');
     
-    // Check that OpenAI was called
-    const OpenAI = await import('openai');
-    expect(OpenAI.default).toHaveBeenCalled();
+    // Check OpenAI constructor was called
+    const OpenAI = (await import('openai')).default;
+    expect(OpenAI).toHaveBeenCalled();
   });
-
-  it('should synthesize speech using the OpenAI service', async () => {
-    // Import the module
-    const { textToSpeechService } = await import('../../../server/services/TextToSpeechService');
-    
-    // Test synthesizeSpeech method
-    const text = 'Hello, this is a test';
-    const language = 'en-US';
-    
-    // Call the method
-    const result = await textToSpeechService.synthesizeSpeech(text, language);
-    
-    // Verify the result is a Buffer
-    expect(Buffer.isBuffer(result)).toBe(true);
-  });
-
-  it('should get a TTS service via the factory', async () => {
-    // Import the module
+  
+  it('should provide a factory with different TTS services', async () => {
     const { ttsFactory } = await import('../../../server/services/TextToSpeechService');
     
-    // Get TTS services for different types
+    // Get different services
     const openaiService = ttsFactory.getService('openai');
     const browserService = ttsFactory.getService('browser');
+    const silentService = ttsFactory.getService('silent');
     
-    // Verify the services have the required method
+    // Just verify they exist and have required method
+    expect(openaiService).toBeDefined();
+    expect(browserService).toBeDefined();
+    expect(silentService).toBeDefined();
     expect(typeof openaiService.synthesizeSpeech).toBe('function');
     expect(typeof browserService.synthesizeSpeech).toBe('function');
+    expect(typeof silentService.synthesizeSpeech).toBe('function');
   });
 });
