@@ -1,47 +1,46 @@
 /**
  * WebSocketService Unit Tests
  * 
- * Using Vitest for ESM compatibility.
+ * Using Jest for ESM compatibility.
  * This file follows the principles:
  * - Do NOT modify source code
  * - Do NOT mock the System Under Test (SUT)
  * - Only mock external dependencies
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach, afterAll } from 'vitest';
-import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient, WebSocketState, ExtendedWebSocket, WebSocketMessage } from '../../../server/websocket';
+import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient, WebSocketState, ExtendedWebSocket, WebSocketMessage } from '../../../server/websocket.js';
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 
 // CORRECT: Only mock external dependencies, not the SUT
-vi.mock('ws', () => {
-  const mockOn = vi.fn();
+jest.mock('ws', () => {
+  const mockOn = jest.fn();
   
   // Create a mock WebSocketServer that registers the upgrade handler on the HTTP server
   const mockWebSocketServer = function(options: any) {
     // This simulates the 'ws' package's behavior of adding an 'upgrade' listener
     // to the HTTP server when a new WebSocketServer is created
     if (options.server && typeof options.server.on === 'function') {
-      options.server.on('upgrade', vi.fn());
+      options.server.on('upgrade', jest.fn());
     }
     
     return {
       on: mockOn,
-      handleUpgrade: vi.fn(),
-      emit: vi.fn(),
+      handleUpgrade: jest.fn(),
+      emit: jest.fn(),
       clients: new Set(),
-      close: vi.fn()
+      close: jest.fn()
     };
   };
   
   // Note the use of WebSocketServer to match the actual import
-  const MockWebSocket = vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    send: vi.fn(),
-    close: vi.fn(),
-    ping: vi.fn(),
-    terminate: vi.fn(),
+  const MockWebSocket = jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    send: jest.fn(),
+    close: jest.fn(),
+    ping: jest.fn(),
+    terminate: jest.fn(),
     readyState: 1
   }));
 
@@ -54,22 +53,12 @@ vi.mock('ws', () => {
 
 // IMPORTANT: Create a real HTTP server mock, not a simple object
 const createMockServer = () => {
-  const mockOn = vi.fn();
+  const mockOn = jest.fn();
   const mockServer: Partial<Server> = {
     on: mockOn,
-    listeners: vi.fn().mockReturnValue([]),
-    removeListener: vi.fn()
+    listeners: jest.fn().mockReturnValue([]),
+    removeListener: jest.fn()
   };
-  
-  // Mock the 'on' method to capture handlers
-  (mockOn as any).mock = {
-    calls: [] as Array<[string, Function]>
-  };
-  
-  mockOn.mockImplementation((event: string, handler: Function) => {
-    (mockOn as any).mock.calls.push([event, handler]);
-    return mockServer;
-  });
   
   return mockServer as Server;
 };
@@ -82,15 +71,15 @@ const originalConsoleError = console.error;
 describe('WebSocketService', () => {
   let webSocketService: WebSocketService;
   let mockServer: Server;
-  let mockConsoleLog: any;
-  let mockConsoleWarn: any;
-  let mockConsoleError: any;
+  let mockConsoleLog: jest.SpyInstance;
+  let mockConsoleWarn: jest.SpyInstance;
+  let mockConsoleError: jest.SpyInstance;
   
   beforeEach(() => {
     // Mock console methods
-    mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-    mockConsoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
+    mockConsoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
     
     mockServer = createMockServer();
     
@@ -98,7 +87,7 @@ describe('WebSocketService', () => {
     webSocketService = new WebSocketService(mockServer);
     
     // Clear all mocks between tests
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
   
   afterEach(() => {
@@ -160,7 +149,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register message handlers correctly', () => {
-    const messageHandler = vi.fn();
+    const messageHandler = jest.fn();
     webSocketService.onMessage('test', messageHandler);
     
     // Use our knowledge of the internal structure (private property access via any)
@@ -171,8 +160,8 @@ describe('WebSocketService', () => {
   });
   
   it('should register multiple message handlers for the same type', () => {
-    const handler1 = vi.fn();
-    const handler2 = vi.fn();
+    const handler1 = jest.fn();
+    const handler2 = jest.fn();
     
     webSocketService.onMessage('test', handler1);
     webSocketService.onMessage('test', handler2);
@@ -184,7 +173,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register connection handlers correctly', () => {
-    const connectionHandler = vi.fn();
+    const connectionHandler = jest.fn();
     webSocketService.onConnection(connectionHandler);
     
     // Verify the connection handler was registered
@@ -193,7 +182,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register close handlers correctly', () => {
-    const closeHandler = vi.fn();
+    const closeHandler = jest.fn();
     webSocketService.onClose(closeHandler);
     
     // Verify the close handler was registered
@@ -356,7 +345,7 @@ describe('WebSocketService', () => {
   
   it('should cleanup resources when server closes', () => {
     // Setup - spy on the cleanup method
-    const cleanupSpy = vi.spyOn(webSocketService as any, 'cleanup');
+    const cleanupSpy = jest.spyOn(webSocketService as any, 'cleanup');
     
     // Act - simulate server close event
     const wsServer = (webSocketService as any).wss;
@@ -427,7 +416,7 @@ describe('WebSocket Factory Functions', () => {
   
   beforeEach(() => {
     mockServer = createMockServer();
-    vi.clearAllMocks();
+    jest.clearAllMocks();
   });
   
   it('should create WebSocketService using createWebSocketServer', () => {
@@ -447,7 +436,7 @@ describe('WebSocket Factory Functions', () => {
   it('should broadcast message using WebSocketService instance', () => {
     // Setup
     const service = new WebSocketService(mockServer);
-    const broadcastSpy = vi.spyOn(service, 'broadcast');
+    const broadcastSpy = jest.spyOn(service, 'broadcast');
     
     // Act
     broadcastMessage(service, { type: 'test' });
