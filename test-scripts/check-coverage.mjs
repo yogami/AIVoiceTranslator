@@ -3,15 +3,19 @@
 /**
  * Test Coverage Checker
  * 
- * This script analyzes test coverage reports from both Jest and Vitest 
- * and provides a consolidated report on test coverage.
+ * This script analyzes test coverage reports and provides
+ * a consolidated report on test coverage.
  * 
  * It helps ensure we're meeting our coverage target of 90%.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Define colors for terminal output
 const colors = {

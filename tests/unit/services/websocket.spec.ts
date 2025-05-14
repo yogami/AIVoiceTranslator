@@ -1,45 +1,47 @@
 /**
  * WebSocketService Unit Tests
  * 
+ * Using Vitest for ESM compatibility.
  * This file follows the principles:
  * - Do NOT modify source code
  * - Do NOT mock the System Under Test (SUT)
  * - Only mock external dependencies
  */
 
+import { describe, it, expect, beforeEach, vi, afterEach, afterAll } from 'vitest';
 import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient, WebSocketState, ExtendedWebSocket, WebSocketMessage } from '../../../server/websocket';
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 
 // CORRECT: Only mock external dependencies, not the SUT
-jest.mock('ws', () => {
-  const mockOn = jest.fn();
+vi.mock('ws', () => {
+  const mockOn = vi.fn();
   
   // Create a mock WebSocketServer that registers the upgrade handler on the HTTP server
   const mockWebSocketServer = function(options: any) {
     // This simulates the 'ws' package's behavior of adding an 'upgrade' listener
     // to the HTTP server when a new WebSocketServer is created
     if (options.server && typeof options.server.on === 'function') {
-      options.server.on('upgrade', jest.fn());
+      options.server.on('upgrade', vi.fn());
     }
     
     return {
       on: mockOn,
-      handleUpgrade: jest.fn(),
-      emit: jest.fn(),
+      handleUpgrade: vi.fn(),
+      emit: vi.fn(),
       clients: new Set(),
-      close: jest.fn()
+      close: vi.fn()
     };
   };
   
   // Note the use of WebSocketServer to match the actual import
-  const MockWebSocket = jest.fn().mockImplementation(() => ({
-    on: jest.fn(),
-    send: jest.fn(),
-    close: jest.fn(),
-    ping: jest.fn(),
-    terminate: jest.fn(),
+  const MockWebSocket = vi.fn().mockImplementation(() => ({
+    on: vi.fn(),
+    send: vi.fn(),
+    close: vi.fn(),
+    ping: vi.fn(),
+    terminate: vi.fn(),
     readyState: 1
   }));
 
@@ -53,9 +55,9 @@ jest.mock('ws', () => {
 // IMPORTANT: Create a real HTTP server mock, not a simple object
 const createMockServer = () => {
   const mockServer: Partial<Server> = {
-    on: jest.fn(),
-    listeners: jest.fn().mockReturnValue([]),
-    removeListener: jest.fn()
+    on: vi.fn(),
+    listeners: vi.fn().mockReturnValue([]),
+    removeListener: vi.fn()
   };
   return mockServer as Server;
 };
