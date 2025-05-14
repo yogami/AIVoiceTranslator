@@ -1,14 +1,13 @@
 /**
  * WebSocketService Unit Tests
  * 
- * Using Jest for ESM compatibility.
  * This file follows the principles:
  * - Do NOT modify source code
  * - Do NOT mock the System Under Test (SUT)
  * - Only mock external dependencies
  */
 
-import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient, WebSocketState, ExtendedWebSocket, WebSocketMessage } from '../../../server/websocket.js';
+import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient, WebSocketState, ExtendedWebSocket, WebSocketMessage } from '../../../server/websocket';
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
@@ -53,13 +52,11 @@ jest.mock('ws', () => {
 
 // IMPORTANT: Create a real HTTP server mock, not a simple object
 const createMockServer = () => {
-  const mockOn = jest.fn();
   const mockServer: Partial<Server> = {
-    on: mockOn,
+    on: jest.fn(),
     listeners: jest.fn().mockReturnValue([]),
     removeListener: jest.fn()
   };
-  
   return mockServer as Server;
 };
 
@@ -173,7 +170,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register connection handlers correctly', () => {
-    const connectionHandler = jest.fn();
+    const connectionHandler = vi.fn();
     webSocketService.onConnection(connectionHandler);
     
     // Verify the connection handler was registered
@@ -182,7 +179,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register close handlers correctly', () => {
-    const closeHandler = jest.fn();
+    const closeHandler = vi.fn();
     webSocketService.onClose(closeHandler);
     
     // Verify the close handler was registered
