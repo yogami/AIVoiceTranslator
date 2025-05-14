@@ -3,8 +3,13 @@
 // This script runs Jest tests specifically for WebSocketService
 // as part of our hybrid testing strategy
 
-const { spawn } = require('child_process');
-const path = require('path');
+import { spawn } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Define paths
 const jestConfigPath = path.resolve(__dirname, '../test-config/jest.config.js');
@@ -15,6 +20,7 @@ const jestCommand = 'jest';
 const jestArgs = [
   '--config', jestConfigPath,
   '--verbose',
+  '--coverage',
   testPath
 ];
 

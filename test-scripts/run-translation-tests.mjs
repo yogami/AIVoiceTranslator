@@ -37,8 +37,8 @@ if (!existsSync(vitestBin)) {
   process.exit(1);
 }
 
-// Run the test with Vitest using our isolated configuration
-const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath], {
+// Run the test with Vitest using our isolated configuration and coverage
+const result = spawnSync(vitestBin, ['run', testPattern, '--config', configPath, '--coverage'], {
   stdio: 'inherit',
   shell: true,
   env: {
