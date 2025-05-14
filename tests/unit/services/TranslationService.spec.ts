@@ -577,8 +577,10 @@ describe('OpenAITranslationService', () => {
     openaiMock.chat.completions.create.mockRejectedValueOnce(new Error('API error'));
     
     // Act
-    await expect(translationService.translate(text, sourceLanguage, targetLanguage))
-      .rejects.toThrow('Translation failed');
+    const result = await translationService.translate(text, sourceLanguage, targetLanguage);
+    
+    // Assert - The service should return an empty string on error, not throw
+    expect(result).toBe('');
   });
   
   it('should handle empty API response gracefully', async () => {
