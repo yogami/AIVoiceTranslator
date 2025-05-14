@@ -1,0 +1,1 @@
+$ lsof -i :5000 || echo "Port 5000 is free
