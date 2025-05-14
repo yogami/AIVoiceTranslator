@@ -11,8 +11,11 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.spec.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
-    // Setup module mocking to avoid fs and other Node.js module issues
-    setupFiles: [resolve(__dirname, './setup.ts')]
+    coverage: {
+      provider: 'c8',
+      reporter: ['text', 'json', 'html'],
+      exclude: ['**/node_modules/**', '**/tests/**']
+    }
   },
   resolve: {
     alias: {
