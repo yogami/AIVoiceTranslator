@@ -176,6 +176,24 @@ describe('TextToSpeechService', () => {
       // value to avoid hanging operations.
       expect(mockOpenAI.audio.speech.create).not.toHaveBeenCalled();
     });
+    
+    it('should expose public methods for speech synthesis', () => {
+      // Arrange
+      const mockOpenAI = {
+        audio: {
+          speech: {
+            create: vi.fn()
+          }
+        }
+      };
+      
+      // Act - create instance
+      const service = new OpenAITextToSpeechService(mockOpenAI as any);
+      
+      // Assert - verify public methods exist
+      expect(service.synthesizeSpeech).toBeDefined();
+      expect(typeof service.synthesizeSpeech).toBe('function');
+    });
   });
   
   describe('TextToSpeechFactory', () => {
