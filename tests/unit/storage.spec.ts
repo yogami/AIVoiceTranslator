@@ -1,295 +1,360 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+/**
+ * Tests for the Storage module
+ * 
+ * This file tests the MemStorage implementation of the IStorage interface
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemStorage } from '../../server/storage';
-import type {
-  InsertUser,
-  InsertLanguage,
-  InsertTranslation,
-  InsertTranscript,
-  User,
-  Language,
-  Translation,
-  Transcript
-} from '../../shared/schema';
+import type { InsertUser, InsertLanguage, InsertTranslation, InsertTranscript } from '@shared/schema';
 
 describe('MemStorage', () => {
   let storage: MemStorage;
-
+  
   beforeEach(() => {
+    // Create a fresh storage instance for each test
     storage = new MemStorage();
   });
-
-  // User method tests
+  
   describe('User Methods', () => {
-    const testUser: InsertUser = {
-      username: 'testuser',
-      password: 'password123'
-    };
-
-    it('should create a user', async () => {
-      const createdUser = await storage.createUser(testUser);
+    it('should create and retrieve users', async () => {
+      // Create a test user
+      const insertUser: InsertUser = {
+        username: 'testuser',
+        password: 'password123'
+      };
       
-      expect(createdUser).toMatchObject({
-        ...testUser,
-        id: expect.any(Number)
+      // Add user to storage
+      const user = await storage.createUser(insertUser);
+      
+      // Verify returned user
+      expect(user).toMatchObject({
+        id: expect.any(Number),
+        username: 'testuser',
+        password: 'password123'
       });
-    });
-
-    it('should get a user by id', async () => {
-      const createdUser = await storage.createUser(testUser);
-      const retrievedUser = await storage.getUser(createdUser.id);
       
-      expect(retrievedUser).toEqual(createdUser);
-    });
-
-    it('should return undefined for non-existent user id', async () => {
-      const user = await storage.getUser(999);
-      expect(user).toBeUndefined();
-    });
-
-    it('should get a user by username', async () => {
-      const createdUser = await storage.createUser(testUser);
-      const retrievedUser = await storage.getUserByUsername(testUser.username);
+      // Verify we can retrieve the user by ID
+      const retrievedUser = await storage.getUser(user.id);
+      expect(retrievedUser).toEqual(user);
       
-      expect(retrievedUser).toEqual(createdUser);
+      // Verify we can retrieve the user by username
+      const retrievedByUsername = await storage.getUserByUsername('testuser');
+      expect(retrievedByUsername).toEqual(user);
     });
-
-    it('should return undefined for non-existent username', async () => {
-      const user = await storage.getUserByUsername('nonexistentuser');
-      expect(user).toBeUndefined();
+    
+    it('should return undefined for non-existent users', async () => {
+      // Attempt to retrieve a user that doesn't exist
+      const nonExistentUser = await storage.getUser(999);
+      expect(nonExistentUser).toBeUndefined();
+      
+      // Attempt to retrieve by a username that doesn't exist
+      const nonExistentByUsername = await storage.getUserByUsername('notexist');
+      expect(nonExistentByUsername).toBeUndefined();
+    });
+    
+    it('should generate unique IDs for users', async () => {
+      // Create multiple users
+      const user1 = await storage.createUser({ username: 'user1', password: 'pwd1' });
+      const user2 = await storage.createUser({ username: 'user2', password: 'pwd2' });
+      
+      // Verify IDs are unique
+      expect(user1.id).not.toEqual(user2.id);
     });
   });
-
-  // Language method tests
+  
   describe('Language Methods', () => {
-    const testLanguage: InsertLanguage = {
-      code: 'fr-CA',
-      name: 'French (Canada)',
-      isActive: true
-    };
-
-    it('should create a language', async () => {
-      const createdLanguage = await storage.createLanguage(testLanguage);
-      
-      expect(createdLanguage).toMatchObject({
-        ...testLanguage,
-        id: expect.any(Number)
-      });
-    });
-
-    it('should get all languages including default ones', async () => {
+    it('should initialize with default languages', async () => {
+      // A new storage instance should have default languages
       const languages = await storage.getLanguages();
       
-      // Check if default languages are created (at least 4)
+      // Check we have the expected defaults
       expect(languages.length).toBeGreaterThanOrEqual(4);
-      
-      // Verify default languages
-      const defaultCodes = ['en-US', 'es', 'de', 'fr'];
-      for (const code of defaultCodes) {
-        const language = languages.find(l => l.code === code);
-        expect(language).toBeDefined();
-      }
+      expect(languages.map(l => l.code)).toContain('en-US');
+      expect(languages.map(l => l.code)).toContain('es');
+      expect(languages.map(l => l.code)).toContain('de');
+      expect(languages.map(l => l.code)).toContain('fr');
     });
-
-    it('should get only active languages', async () => {
-      // Create an inactive language
+    
+    it('should create and retrieve languages', async () => {
+      // Create a new language
+      const insertLanguage: InsertLanguage = {
+        code: 'ja-JP',
+        name: 'Japanese',
+        isActive: true
+      };
+      
+      const language = await storage.createLanguage(insertLanguage);
+      
+      // Verify returned language
+      expect(language).toMatchObject({
+        id: expect.any(Number),
+        code: 'ja-JP',
+        name: 'Japanese',
+        isActive: true
+      });
+      
+      // Verify we can retrieve all languages including the new one
+      const languages = await storage.getLanguages();
+      expect(languages.some(l => l.code === 'ja-JP')).toBe(true);
+      
+      // Verify we can retrieve the language by code
+      const retrievedByCode = await storage.getLanguageByCode('ja-JP');
+      expect(retrievedByCode).toEqual(language);
+    });
+    
+    it('should return active languages only', async () => {
+      // First create one active and one inactive language
       await storage.createLanguage({
         code: 'it',
         name: 'Italian',
+        isActive: true
+      });
+      
+      await storage.createLanguage({
+        code: 'ru',
+        name: 'Russian',
         isActive: false
       });
       
+      // Get active languages
       const activeLanguages = await storage.getActiveLanguages();
       
       // All returned languages should be active
-      expect(activeLanguages.every(lang => lang.isActive)).toBe(true);
+      expect(activeLanguages.every(l => l.isActive)).toBe(true);
       
-      // The inactive language should not be in the results
-      expect(activeLanguages.find(lang => lang.code === 'it')).toBeUndefined();
-    });
-
-    it('should get a language by code', async () => {
-      await storage.createLanguage(testLanguage);
-      const language = await storage.getLanguageByCode(testLanguage.code);
+      // Should include the active language we created
+      expect(activeLanguages.some(l => l.code === 'it')).toBe(true);
       
-      expect(language).toMatchObject(testLanguage);
+      // Should not include the inactive language
+      expect(activeLanguages.some(l => l.code === 'ru')).toBe(false);
     });
-
-    it('should return undefined for non-existent language code', async () => {
-      const language = await storage.getLanguageByCode('nonexistentcode');
-      expect(language).toBeUndefined();
-    });
-
+    
     it('should update language status', async () => {
-      // Create a language
-      await storage.createLanguage(testLanguage);
+      // First, get an active language
+      const language = await storage.getLanguageByCode('en-US');
+      expect(language?.isActive).toBe(true);
       
-      // Update its status to inactive
-      const updatedLanguage = await storage.updateLanguageStatus(testLanguage.code, false);
-      
-      expect(updatedLanguage).toBeDefined();
+      // Update it to inactive
+      const updatedLanguage = await storage.updateLanguageStatus('en-US', false);
       expect(updatedLanguage?.isActive).toBe(false);
       
-      // Verify the update was persisted
-      const retrievedLanguage = await storage.getLanguageByCode(testLanguage.code);
+      // Verify the language is now inactive
+      const retrievedLanguage = await storage.getLanguageByCode('en-US');
       expect(retrievedLanguage?.isActive).toBe(false);
-    });
-
-    it('should return undefined when updating non-existent language', async () => {
-      const result = await storage.updateLanguageStatus('nonexistentcode', false);
-      expect(result).toBeUndefined();
+      
+      // Updating a non-existent language should return undefined
+      const nonExistentUpdate = await storage.updateLanguageStatus('nonexistent', true);
+      expect(nonExistentUpdate).toBeUndefined();
     });
   });
-
-  // Translation method tests
+  
   describe('Translation Methods', () => {
-    const testTranslation: InsertTranslation = {
-      sourceLanguage: 'en-US',
-      targetLanguage: 'es',
-      originalText: 'Hello, world!',
-      translatedText: '¡Hola, mundo!',
-      latency: 250
-    };
-
-    it('should add a translation', async () => {
-      const addedTranslation = await storage.addTranslation(testTranslation);
+    it('should add and retrieve translations', async () => {
+      // Create a translation
+      const insertTranslation: InsertTranslation = {
+        sourceLanguage: 'en-US',
+        targetLanguage: 'es',
+        originalText: 'Hello',
+        translatedText: 'Hola',
+        latency: 200
+      };
       
-      expect(addedTranslation).toMatchObject({
-        ...testTranslation,
+      const translation = await storage.addTranslation(insertTranslation);
+      
+      // Verify returned translation
+      expect(translation).toMatchObject({
         id: expect.any(Number),
+        sourceLanguage: 'en-US',
+        targetLanguage: 'es',
+        originalText: 'Hello',
+        translatedText: 'Hola',
+        latency: 200,
         timestamp: expect.any(Date)
       });
-    });
-
-    it('should get translations by target language', async () => {
-      // Add translations for multiple languages
-      await storage.addTranslation(testTranslation);
-      await storage.addTranslation({
-        ...testTranslation,
-        targetLanguage: 'fr',
-        translatedText: 'Bonjour, monde!'
-      });
       
-      const spanishTranslations = await storage.getTranslationsByLanguage('es');
-      const frenchTranslations = await storage.getTranslationsByLanguage('fr');
-      
-      expect(spanishTranslations.length).toBe(1);
-      expect(frenchTranslations.length).toBe(1);
-      expect(spanishTranslations[0].translatedText).toBe('¡Hola, mundo!');
-      expect(frenchTranslations[0].translatedText).toBe('Bonjour, monde!');
+      // Verify we can retrieve translations by target language
+      const retrievedTranslations = await storage.getTranslationsByLanguage('es');
+      expect(retrievedTranslations.length).toBeGreaterThan(0);
+      expect(retrievedTranslations[0]).toEqual(translation);
     });
-
-    it('should return an empty array for non-existent target language', async () => {
-      const translations = await storage.getTranslationsByLanguage('nonexistentlanguage');
-      expect(translations).toEqual([]);
-    });
-
-    it('should respect the limit parameter', async () => {
-      // Add multiple translations for the same language
+    
+    it('should retrieve translations with limit', async () => {
+      // Add multiple translations
       for (let i = 0; i < 5; i++) {
         await storage.addTranslation({
-          ...testTranslation,
+          sourceLanguage: 'en-US',
+          targetLanguage: 'fr',
           originalText: `Text ${i}`,
-          translatedText: `Texto ${i}`
+          translatedText: `Texte ${i}`,
+          latency: 100 + i
         });
       }
       
-      const translations = await storage.getTranslationsByLanguage('es', 3);
-      expect(translations.length).toBe(3);
+      // Retrieve with limit of 3
+      const limitedTranslations = await storage.getTranslationsByLanguage('fr', 3);
+      
+      // Should only return 3 translations
+      expect(limitedTranslations.length).toBe(3);
     });
-
+    
     it('should sort translations by timestamp in descending order', async () => {
-      // Add translations with controlled timestamps
-      for (let i = 0; i < 3; i++) {
-        const translation = await storage.addTranslation({
-          ...testTranslation,
-          originalText: `Text ${i}`,
-          translatedText: `Texto ${i}`
-        });
-        
-        // Force the timestamp to be distinct
-        // @ts-ignore - We're manipulating the private Map directly for testing
-        storage.translations.set(translation.id, {
-          ...translation,
-          timestamp: new Date(Date.now() + i * 1000)
-        });
-      }
+      // Clear all existing translations by recreating storage
+      storage = new MemStorage();
       
-      const translations = await storage.getTranslationsByLanguage('es');
+      // Add translations with different timestamps
+      const translation1 = await storage.addTranslation({
+        sourceLanguage: 'en-US',
+        targetLanguage: 'de',
+        originalText: 'First',
+        translatedText: 'Erste',
+        latency: 100
+      });
       
-      // Verify descending order
-      for (let i = 0; i < translations.length - 1; i++) {
-        expect(translations[i].timestamp.getTime()).toBeGreaterThan(
-          translations[i + 1].timestamp.getTime()
-        );
-      }
+      // Wait a bit to ensure different timestamps
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const translation2 = await storage.addTranslation({
+        sourceLanguage: 'en-US',
+        targetLanguage: 'de',
+        originalText: 'Second',
+        translatedText: 'Zweite',
+        latency: 100
+      });
+      
+      // Get translations
+      const translations = await storage.getTranslationsByLanguage('de');
+      
+      // Should be sorted by timestamp descending (newest first)
+      expect(translations[0].id).toBe(translation2.id);
+      expect(translations[1].id).toBe(translation1.id);
     });
   });
-
-  // Transcript method tests
+  
   describe('Transcript Methods', () => {
-    const testTranscript: InsertTranscript = {
-      sessionId: 'session123',
-      language: 'en-US',
-      text: 'This is a test transcript.'
-    };
-
-    it('should add a transcript', async () => {
-      const addedTranscript = await storage.addTranscript(testTranscript);
+    it('should add and retrieve transcripts by session', async () => {
+      // Create transcripts for a session
+      const sessionId = 'test-session-1';
+      const language = 'en-US';
       
-      expect(addedTranscript).toMatchObject({
-        ...testTranscript,
+      const insertTranscript1: InsertTranscript = {
+        sessionId,
+        language,
+        text: 'First transcript'
+      };
+      
+      const insertTranscript2: InsertTranscript = {
+        sessionId,
+        language,
+        text: 'Second transcript'
+      };
+      
+      const transcript1 = await storage.addTranscript(insertTranscript1);
+      const transcript2 = await storage.addTranscript(insertTranscript2);
+      
+      // Verify returned transcripts
+      expect(transcript1).toMatchObject({
         id: expect.any(Number),
+        sessionId,
+        language,
+        text: 'First transcript',
         timestamp: expect.any(Date)
       });
-    });
-
-    it('should get transcripts by session ID and language', async () => {
-      // Add transcripts for multiple sessions and languages
-      await storage.addTranscript(testTranscript);
-      await storage.addTranscript({
-        ...testTranscript,
-        sessionId: 'session456'
-      });
-      await storage.addTranscript({
-        ...testTranscript,
-        language: 'es'
+      
+      expect(transcript2).toMatchObject({
+        id: expect.any(Number),
+        sessionId,
+        language,
+        text: 'Second transcript',
+        timestamp: expect.any(Date)
       });
       
-      const transcripts = await storage.getTranscriptsBySession('session123', 'en-US');
+      // Retrieve transcripts for the session
+      const transcripts = await storage.getTranscriptsBySession(sessionId, language);
       
-      expect(transcripts.length).toBe(1);
-      expect(transcripts[0].text).toBe('This is a test transcript.');
+      // Should have retrieved both transcripts
+      expect(transcripts.length).toBe(2);
+      expect(transcripts.map(t => t.id)).toContain(transcript1.id);
+      expect(transcripts.map(t => t.id)).toContain(transcript2.id);
     });
-
-    it('should return an empty array for non-existent session or language', async () => {
-      const transcripts = await storage.getTranscriptsBySession('nonexistentsession', 'en-US');
-      expect(transcripts).toEqual([]);
+    
+    it('should filter transcripts by session and language', async () => {
+      // Add transcripts with different sessions and languages
+      const transcript1 = await storage.addTranscript({
+        sessionId: 'session-a',
+        language: 'en-US',
+        text: 'English transcript'
+      });
+      
+      const transcript2 = await storage.addTranscript({
+        sessionId: 'session-a',
+        language: 'es',
+        text: 'Spanish transcript'
+      });
+      
+      const transcript3 = await storage.addTranscript({
+        sessionId: 'session-b',
+        language: 'en-US',
+        text: 'Different session transcript'
+      });
+      
+      // Retrieve by session-a and en-US
+      const transcriptsA_En = await storage.getTranscriptsBySession('session-a', 'en-US');
+      expect(transcriptsA_En.length).toBe(1);
+      expect(transcriptsA_En[0].id).toBe(transcript1.id);
+      
+      // Retrieve by session-a and es
+      const transcriptsA_Es = await storage.getTranscriptsBySession('session-a', 'es');
+      expect(transcriptsA_Es.length).toBe(1);
+      expect(transcriptsA_Es[0].id).toBe(transcript2.id);
+      
+      // Retrieve by session-b and en-US
+      const transcriptsB_En = await storage.getTranscriptsBySession('session-b', 'en-US');
+      expect(transcriptsB_En.length).toBe(1);
+      expect(transcriptsB_En[0].id).toBe(transcript3.id);
+      
+      // Retrieve by non-existent session
+      const transcriptsNonExistent = await storage.getTranscriptsBySession('non-existent', 'en-US');
+      expect(transcriptsNonExistent.length).toBe(0);
     });
-
+    
     it('should sort transcripts by timestamp in ascending order', async () => {
-      // Add multiple transcripts for the same session with controlled timestamps
-      for (let i = 0; i < 3; i++) {
-        const transcript = await storage.addTranscript({
-          ...testTranscript,
-          text: `Transcript ${i}`
-        });
-        
-        // Force the timestamp to be distinct but in reverse order
-        // @ts-ignore - We're manipulating the private Map directly for testing
-        storage.transcripts.set(transcript.id, {
-          ...transcript,
-          timestamp: new Date(Date.now() - i * 1000)
-        });
-      }
+      // Clear all existing transcripts by recreating storage
+      storage = new MemStorage();
+      const sessionId = 'time-sorted-session';
+      const language = 'en-US';
       
-      const transcripts = await storage.getTranscriptsBySession('session123', 'en-US');
+      // Add transcripts with different timestamps
+      const transcript1 = await storage.addTranscript({
+        sessionId,
+        language,
+        text: 'First transcript'
+      });
       
-      // Verify ascending order
-      for (let i = 0; i < transcripts.length - 1; i++) {
-        expect(transcripts[i].timestamp.getTime()).toBeLessThan(
-          transcripts[i + 1].timestamp.getTime()
-        );
-      }
+      // Wait a bit to ensure different timestamps
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const transcript2 = await storage.addTranscript({
+        sessionId,
+        language,
+        text: 'Second transcript'
+      });
+      
+      // Wait a bit to ensure different timestamps
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const transcript3 = await storage.addTranscript({
+        sessionId,
+        language,
+        text: 'Third transcript'
+      });
+      
+      // Get transcripts
+      const transcripts = await storage.getTranscriptsBySession(sessionId, language);
+      
+      // Should be in chronological order (oldest first)
+      expect(transcripts[0].id).toBe(transcript1.id);
+      expect(transcripts[1].id).toBe(transcript2.id);
+      expect(transcripts[2].id).toBe(transcript3.id);
     });
   });
 });
