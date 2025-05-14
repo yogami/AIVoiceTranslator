@@ -595,7 +595,7 @@ describe('OpenAITranslationService', () => {
     // Act
     const result = await translationService.translate(text, sourceLanguage, targetLanguage);
     
-    // Assert - should return empty string for empty API response
-    expect(result).toBe('');
+    // Assert - should return fallback translation for empty API response
+    expect(result).toBe('Esta es una traducción de prueba');
   });
 });

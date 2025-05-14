@@ -75,7 +75,7 @@ fi
 # Check coverage
 if [ "$OVERALL_SUCCESS" = true ]; then
   print_info "Checking test coverage..."
-  node ./test-scripts/check-coverage.js
+  node ./test-scripts/check-coverage.mjs
 fi
 
 # Print summary
