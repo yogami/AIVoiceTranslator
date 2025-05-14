@@ -11,8 +11,6 @@ import { WebSocketService, createWebSocketServer, broadcastMessage, sendToClient
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
-// Import Jest functions for testing
-import '@jest/globals';
 
 // CORRECT: Only mock external dependencies, not the SUT
 jest.mock('ws', () => {

@@ -15,7 +15,9 @@ export default {
   setupFiles: ['<rootDir>/test-config/jest.setup.ts'],
   testRegex: '(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  collectCoverage: false,
+  collectCoverage: true,
+  coverageDirectory: '<rootDir>/coverage/jest',
+  coverageReporters: ['json', 'lcov', 'text', 'clover'],
   automock: false,
   clearMocks: true,
   moduleNameMapper: {

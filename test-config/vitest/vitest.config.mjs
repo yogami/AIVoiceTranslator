@@ -14,7 +14,16 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['**/node_modules/**', '**/tests/**']
+      reportsDirectory: './coverage/vitest',
+      exclude: ['**/node_modules/**', '**/tests/**'],
+      include: ['server/**/*.ts'],
+      all: true,
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 85,
+        statements: 90
+      }
     }
   },
   resolve: {
