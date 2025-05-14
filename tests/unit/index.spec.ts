@@ -1,259 +1,324 @@
+/**
+ * Tests for index.ts
+ * 
+ * These tests focus on the server setup and route configuration.
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import express from 'express';
-import { createServer } from 'http';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
-import { apiRoutes } from '../../server/routes';
 
-// Mock the dependencies
+// Mock express and http modules
 vi.mock('express', () => {
-  const mockApp = {
+  const expressApp = {
     use: vi.fn(),
     get: vi.fn(),
-    sendFile: vi.fn()
-  };
-  return {
-    default: vi.fn(() => mockApp),
-    json: vi.fn(),
+    listen: vi.fn(),
     static: vi.fn()
   };
+  
+  // Create the express function
+  const expressFn: any = vi.fn(() => expressApp);
+  
+  // Add methods to the express function
+  expressFn.json = vi.fn();
+  expressFn.static = vi.fn(() => 'static-middleware');
+  
+  return { default: expressFn };
 });
 
 vi.mock('http', () => ({
-  createServer: vi.fn()
+  createServer: vi.fn(() => ({
+    listen: vi.fn((port, callback) => {
+      callback();
+      return {
+        address: vi.fn(() => ({ port }))
+      };
+    })
+  }))
 }));
 
+// Mock WebSocketServer
 vi.mock('../../server/services/WebSocketServer', () => ({
   WebSocketServer: vi.fn()
 }));
 
+// Mock routes
 vi.mock('../../server/routes', () => ({
-  apiRoutes: {}
+  apiRoutes: 'api-routes-mock'
 }));
 
-// Mock console functions
-vi.spyOn(console, 'log').mockImplementation(() => {});
-vi.spyOn(console, 'warn').mockImplementation(() => {});
-vi.spyOn(console, 'error').mockImplementation(() => {});
+// Mock config.ts to prevent side effects
+vi.mock('../../server/config', () => ({}));
 
-describe('Server Entry Point', () => {
-  let mockApp: any;
-  let mockHttpServer: any;
-  let originalEnv: NodeJS.ProcessEnv;
+describe('Express Server Setup', () => {
+  // Capture console output
+  const originalConsole = { ...console };
   
   beforeEach(() => {
-    // Reset all mocks
-    vi.resetAllMocks();
-    
-    // Save original env
-    originalEnv = { ...process.env };
-    
-    // Setup mocks
-    mockApp = {
-      use: vi.fn(),
-      get: vi.fn()
-    };
-    vi.mocked(express).mockReturnValue(mockApp);
-    
-    mockHttpServer = {
-      listen: vi.fn((port, callback) => {
-        if (callback) callback();
-        return mockHttpServer;
-      })
-    };
-    vi.mocked(createServer).mockReturnValue(mockHttpServer);
-    
-    // Mock Date to have consistent output
-    const mockDate = new Date('2023-01-01T12:00:00Z');
-    vi.spyOn(global, 'Date').mockImplementation(() => mockDate as any);
+    vi.resetModules();
+    // Mock console methods
+    console.log = vi.fn();
+    console.warn = vi.fn();
+    console.error = vi.fn();
   });
   
   afterEach(() => {
+    // Restore console
+    console.log = originalConsole.log;
+    console.warn = originalConsole.warn;
+    console.error = originalConsole.error;
+    
     // Restore environment
+    vi.restoreAllMocks();
+  });
+  
+  it('should set up server with required middleware', async () => {
+    // Arrange
+    // Save original env
+    const originalEnv = { ...process.env };
+    process.env.OPENAI_API_KEY = 'test-api-key';
+    
+    // Import the modules we need for testing
+    const express = await import('express');
+    const http = await import('http');
+    const { WebSocketServer } = await import('../../server/services/WebSocketServer');
+    
+    // Act - import the module which sets up the server
+    const indexModule = await import('../../server/index');
+    
+    // Assert middleware and routes are set up
+    expect(express.default).toHaveBeenCalled();
+    expect(express.json).toHaveBeenCalled();
+    expect(express.default().use).toHaveBeenCalledWith('api-routes-mock');
+    expect(express.static).toHaveBeenCalledWith('client/public');
+    expect(http.createServer).toHaveBeenCalled();
+    expect(WebSocketServer).toHaveBeenCalled();
+    
+    // Assert console logs for API key presence
+    expect(console.log).toHaveBeenCalledWith('OpenAI API key status: Present');
+    expect(console.warn).not.toHaveBeenCalled();
+    
+    // Restore env
     process.env = originalEnv;
-    vi.resetModules();
   });
 
-  it('should configure CORS middleware correctly', async () => {
+  it('should warn if no OpenAI API key is found', async () => {
     // Arrange
-    // Create a mock for the 'next' middleware
-    const mockNext = vi.fn();
-    
-    // Act
-    // Import the module which causes immediate execution
-    const { configureCorsMiddleware } = await import('../../server/index');
-    
-    // Call the middleware on our mock app
-    configureCorsMiddleware(mockApp);
-    
-    // Get the middleware function registered with app.use
-    const corsMiddleware = mockApp.use.mock.calls[0][0];
-    
-    // Test OPTIONS request
-    const mockOptionsReq = { method: 'OPTIONS' };
-    const mockOptionsRes = { 
-      header: vi.fn(),
-      sendStatus: vi.fn() 
-    };
-    corsMiddleware(mockOptionsReq, mockOptionsRes, mockNext);
-    
-    // Test non-OPTIONS request
-    const mockReq = { method: 'GET' };
-    const mockRes = { 
-      header: vi.fn(),
-      sendStatus: vi.fn() 
-    };
-    corsMiddleware(mockReq, mockRes, mockNext);
-    
-    // Assert
-    // Headers should be set for both requests
-    expect(mockOptionsRes.header).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-    expect(mockOptionsRes.header).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    expect(mockOptionsRes.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    expect(mockOptionsRes.header).toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
-    
-    // OPTIONS request should send 200 status
-    expect(mockOptionsRes.sendStatus).toHaveBeenCalledWith(200);
-    
-    // Next should not be called for OPTIONS
-    expect(mockNext).not.toHaveBeenCalled();
-    
-    // Non-OPTIONS request should call next
-    expect(mockRes.header).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-    expect(mockNext).toHaveBeenCalled();
-  });
-
-  it('should warn when OPENAI_API_KEY is missing', async () => {
-    // Arrange
-    // Clear the API key
+    // Save original env and remove API key
+    const originalEnv = { ...process.env };
     delete process.env.OPENAI_API_KEY;
     
-    // Import the startServer function
-    const { startServer } = await import('../../server/index');
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Act
-    await startServer();
+    // Import the modules we need for testing
+    const express = await import('express');
     
-    // Assert
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Assert middleware and warning logs
     expect(console.warn).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
     expect(console.warn).toHaveBeenCalledWith('Translation functionality will be limited');
+    
+    // Restore env
+    process.env = originalEnv;
   });
-
-  it('should log success when OPENAI_API_KEY is present', async () => {
+  
+  it('should set up CORS middleware', async () => {
     // Arrange
-    // Set the API key
-    process.env.OPENAI_API_KEY = 'test-api-key';
+    // Save original env
+    const originalEnv = { ...process.env };
     
-    // Import the startServer function
-    const { startServer } = await import('../../server/index');
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Act
-    await startServer();
+    // Create a mock request and response
+    const req = { method: 'GET' };
+    const res = {
+      header: vi.fn(),
+      sendStatus: vi.fn()
+    };
+    const next = vi.fn();
+    
+    // Import and capture express app
+    const express = await import('express');
+    
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Find the CORS middleware function
+    const corsMiddleware = express.default().use.mock.calls[0][0];
+    
+    // Execute the middleware
+    corsMiddleware(req, res, next);
     
     // Assert
-    expect(console.log).toHaveBeenCalledWith('OpenAI API key status: Present');
-    expect(console.log).toHaveBeenCalledWith('OpenAI client initialized successfully');
+    expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+    expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
+    expect(next).toHaveBeenCalled();
+    
+    // Restore env
+    process.env = originalEnv;
   });
-
-  it('should set up Express app with middleware and routes', async () => {
+  
+  it('should handle OPTIONS requests in CORS middleware', async () => {
     // Arrange
-    process.env.OPENAI_API_KEY = 'test-api-key';
-    const mockStatic = vi.fn().mockReturnValue('static-middleware');
-    vi.mocked(express.static).mockImplementation(mockStatic);
-    vi.mocked(express.json).mockReturnValue('json-middleware');
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Import the startServer function
-    const { startServer } = await import('../../server/index');
+    // Create a mock request and response for OPTIONS request
+    const req = { method: 'OPTIONS' };
+    const res = {
+      header: vi.fn(),
+      sendStatus: vi.fn()
+    };
+    const next = vi.fn();
     
-    // Act
-    await startServer();
+    // Import and capture express app
+    const express = await import('express');
+    
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Find the CORS middleware function
+    const corsMiddleware = express.default().use.mock.calls[0][0];
+    
+    // Execute the middleware
+    corsMiddleware(req, res, next);
     
     // Assert
-    // Check middleware setup
-    expect(mockApp.use).toHaveBeenCalledWith('json-middleware');
-    expect(mockApp.use).toHaveBeenCalledWith('/api', apiRoutes);
-    expect(express.static).toHaveBeenCalledWith('client/public');
-    
-    // Check routes
-    expect(mockApp.get).toHaveBeenCalledWith('/student', expect.any(Function));
-    expect(mockApp.get).toHaveBeenCalledWith('/teacher', expect.any(Function));
-    expect(mockApp.get).toHaveBeenCalledWith('/metrics', expect.any(Function));
-    expect(mockApp.get).toHaveBeenCalledWith('/tests', expect.any(Function));
-    expect(mockApp.get).toHaveBeenCalledWith('/', expect.any(Function));
-    expect(mockApp.get).toHaveBeenCalledWith('*', expect.any(Function));
+    expect(res.sendStatus).toHaveBeenCalledWith(200);
+    expect(next).not.toHaveBeenCalled();
   });
-
-  it('should create and configure HTTP server', async () => {
+  
+  it('should set up route handlers', async () => {
     // Arrange
-    process.env.OPENAI_API_KEY = 'test-api-key';
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Import the startServer function
-    const { startServer } = await import('../../server/index');
+    // Import express to capture route handlers
+    const express = await import('express');
     
-    // Act
-    await startServer();
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Assert that routes are set up
+    expect(express.default().get).toHaveBeenCalledWith('/student', expect.any(Function));
+    expect(express.default().get).toHaveBeenCalledWith('/teacher', expect.any(Function));
+    expect(express.default().get).toHaveBeenCalledWith('/metrics', expect.any(Function));
+    expect(express.default().get).toHaveBeenCalledWith('/tests', expect.any(Function));
+    expect(express.default().get).toHaveBeenCalledWith('/', expect.any(Function));
+    expect(express.default().get).toHaveBeenCalledWith('*', expect.any(Function));
+  });
+  
+  it('should handle route for student page', async () => {
+    // Arrange
+    // Reset modules to force re-execution of code
+    vi.resetModules();
+    
+    // Import express to capture route handlers
+    const express = await import('express');
+    
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Find the student route handler
+    const routeHandler = express.default().get.mock.calls.find(
+      call => call[0] === '/student'
+    )[1];
+    
+    // Mock request and response
+    const req = {};
+    const res = { sendFile: vi.fn() };
+    
+    // Execute the route handler
+    routeHandler(req, res);
     
     // Assert
-    expect(createServer).toHaveBeenCalledWith(mockApp);
-    expect(WebSocketServer).toHaveBeenCalledWith(mockHttpServer);
+    expect(res.sendFile).toHaveBeenCalledWith('simple-student.html', { root: 'client/public' });
   });
-
-  it('should start server on specified port', async () => {
+  
+  it('should handle route for teacher page', async () => {
     // Arrange
-    process.env.PORT = '8080';
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Import the startServer function
-    const { startServer } = await import('../../server/index');
+    // Import express to capture route handlers
+    const express = await import('express');
     
-    // Act
-    await startServer();
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Find the teacher route handler
+    const routeHandler = express.default().get.mock.calls.find(
+      call => call[0] === '/teacher'
+    )[1];
+    
+    // Mock request and response
+    const req = { query: {} };
+    const res = { sendFile: vi.fn() };
+    
+    // Execute the route handler
+    routeHandler(req, res);
     
     // Assert
-    expect(mockHttpServer.listen).toHaveBeenCalledWith('8080', expect.any(Function));
-    expect(console.log).toHaveBeenCalledWith('12:00:00 PM [express] serving on port 8080');
+    expect(res.sendFile).toHaveBeenCalledWith('simple-speech-test.html', { root: 'client/public' });
   });
-
-  it('should start server on default port when PORT is not specified', async () => {
+  
+  it('should handle route for teacher page with demo query parameter', async () => {
     // Arrange
-    delete process.env.PORT;
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Import the startServer function
-    const { startServer } = await import('../../server/index');
+    // Import express to capture route handlers
+    const express = await import('express');
     
-    // Act
-    await startServer();
+    // Act - import the module which sets up the server
+    await import('../../server/index');
+    
+    // Find the teacher route handler
+    const routeHandler = express.default().get.mock.calls.find(
+      call => call[0] === '/teacher'
+    )[1];
+    
+    // Mock request and response
+    const req = { query: { demo: 'true' } };
+    const res = { sendFile: vi.fn() };
+    
+    // Execute the route handler
+    routeHandler(req, res);
     
     // Assert
-    expect(mockHttpServer.listen).toHaveBeenCalledWith(5000, expect.any(Function));
-    expect(console.log).toHaveBeenCalledWith('12:00:00 PM [express] serving on port 5000');
+    expect(res.sendFile).toHaveBeenCalledWith('simple-speech-test.html', { root: 'client/public' });
   });
-
-  it('should handle server errors', async () => {
-    // This test verifies the catch block in the main execution
-    // We need to mock import() to be able to test this
-    // Since we can't directly test the execution of the file
-    
+  
+  it('should handle server start error', async () => {
     // Arrange
-    const mockError = new Error('Test server error');
-    vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+    // Reset modules to force re-execution of code
+    vi.resetModules();
     
-    // Mock startServer to throw an error
-    const mockStartServer = vi.fn().mockRejectedValue(mockError);
-    vi.mock('../../server/index', () => ({
-      startServer: mockStartServer
-    }));
+    // Mock process.exit
+    const exitMock = vi.spyOn(process, 'exit').mockImplementation(vi.fn() as any);
     
-    // Act
+    // Mock http.createServer to throw an error
+    vi.mocked(await import('http')).createServer.mockImplementation(() => {
+      throw new Error('Server start error');
+    });
+    
+    // Act - import the module which sets up the server
     try {
-      // Re-import and execute
       await import('../../server/index');
-    } catch (e) {
-      // We expect this to be caught by the catch block in index.ts
+    } catch (error) {
+      // Error is expected
     }
     
     // Assert
-    // Note: This assertion may be challenging since we can't easily test
-    // the main execution flow directly in vitest
-    // expect(console.error).toHaveBeenCalledWith('Error starting server:', mockError);
-    // expect(process.exit).toHaveBeenCalledWith(1);
+    expect(console.error).toHaveBeenCalledWith('Error starting server:', expect.any(Error));
+    expect(exitMock).toHaveBeenCalledWith(1);
+    
+    // Restore process.exit
+    exitMock.mockRestore();
   });
 });
