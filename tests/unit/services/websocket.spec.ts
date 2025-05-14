@@ -70,15 +70,15 @@ const originalConsoleError = console.error;
 describe('WebSocketService', () => {
   let webSocketService: WebSocketService;
   let mockServer: Server;
-  let mockConsoleLog: jest.SpyInstance;
-  let mockConsoleWarn: jest.SpyInstance;
-  let mockConsoleError: jest.SpyInstance;
+  let mockConsoleLog: any;
+  let mockConsoleWarn: any;
+  let mockConsoleError: any;
   
   beforeEach(() => {
     // Mock console methods
-    mockConsoleLog = jest.spyOn(console, 'log').mockImplementation(() => {});
-    mockConsoleWarn = jest.spyOn(console, 'warn').mockImplementation(() => {});
-    mockConsoleError = jest.spyOn(console, 'error').mockImplementation(() => {});
+    mockConsoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    mockConsoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockConsoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     
     mockServer = createMockServer();
     
@@ -86,7 +86,7 @@ describe('WebSocketService', () => {
     webSocketService = new WebSocketService(mockServer);
     
     // Clear all mocks between tests
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   
   afterEach(() => {
@@ -148,7 +148,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register message handlers correctly', () => {
-    const messageHandler = jest.fn();
+    const messageHandler = vi.fn();
     webSocketService.onMessage('test', messageHandler);
     
     // Use our knowledge of the internal structure (private property access via any)
@@ -159,8 +159,8 @@ describe('WebSocketService', () => {
   });
   
   it('should register multiple message handlers for the same type', () => {
-    const handler1 = jest.fn();
-    const handler2 = jest.fn();
+    const handler1 = vi.fn();
+    const handler2 = vi.fn();
     
     webSocketService.onMessage('test', handler1);
     webSocketService.onMessage('test', handler2);
@@ -172,7 +172,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register connection handlers correctly', () => {
-    const connectionHandler = jest.fn();
+    const connectionHandler = vi.fn();
     webSocketService.onConnection(connectionHandler);
     
     // Verify the connection handler was registered
@@ -181,7 +181,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register close handlers correctly', () => {
-    const closeHandler = jest.fn();
+    const closeHandler = vi.fn();
     webSocketService.onClose(closeHandler);
     
     // Verify the close handler was registered
@@ -344,7 +344,7 @@ describe('WebSocketService', () => {
   
   it('should cleanup resources when server closes', () => {
     // Setup - spy on the cleanup method
-    const cleanupSpy = jest.spyOn(webSocketService as any, 'cleanup');
+    const cleanupSpy = vi.spyOn(webSocketService as any, 'cleanup');
     
     // Act - simulate server close event
     const wsServer = (webSocketService as any).wss;
@@ -415,7 +415,7 @@ describe('WebSocket Factory Functions', () => {
   
   beforeEach(() => {
     mockServer = createMockServer();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   
   it('should create WebSocketService using createWebSocketServer', () => {
