@@ -13,22 +13,59 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// Minimal required mocks to avoid test hanging
-vi.mock('fs', () => ({
-  promises: {
-    access: vi.fn().mockResolvedValue(undefined),
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    readFile: vi.fn().mockResolvedValue(Buffer.from('mock file content')),
-    stat: vi.fn().mockResolvedValue({ mtimeMs: Date.now() }),
-    mkdir: vi.fn().mockResolvedValue(undefined)
-  },
-  constants: { F_OK: 0 }
-}));
+// Properly mock the fs module with default export
+vi.mock('fs', () => {
+  const mockFunctions = {
+    writeFile: vi.fn((path, data, callback) => callback(null)),
+    mkdir: vi.fn((path, options, callback) => {
+      if (typeof options === 'function') {
+        options(null);
+      } else if (callback) {
+        callback(null);
+      }
+    }),
+    readFile: vi.fn((path, options, callback) => {
+      if (typeof options === 'function') {
+        options(null, Buffer.from('mock file content'));
+      } else if (callback) {
+        callback(null, Buffer.from('mock file content'));
+      }
+    }),
+    stat: vi.fn((path, callback) => callback(null, { mtimeMs: Date.now() })),
+    access: vi.fn((path, mode, callback) => {
+      if (typeof mode === 'function') {
+        mode(null);
+      } else if (callback) {
+        callback(null);
+      }
+    }),
+    constants: { F_OK: 0 }
+  };
+  
+  return {
+    default: mockFunctions,
+    promises: {
+      access: vi.fn().mockResolvedValue(undefined),
+      writeFile: vi.fn().mockResolvedValue(undefined),
+      readFile: vi.fn().mockResolvedValue(Buffer.from('mock file content')),
+      stat: vi.fn().mockResolvedValue({ mtimeMs: Date.now() }),
+      mkdir: vi.fn().mockResolvedValue(undefined)
+    },
+    ...mockFunctions
+  };
+});
 
-vi.mock('path', () => ({
-  join: vi.fn((...args) => args.join('/')), 
-  dirname: vi.fn((p) => p.split('/').slice(0, -1).join('/'))
-}));
+vi.mock('path', () => {
+  const pathFunctions = {
+    join: vi.fn((...args) => args.join('/')),
+    dirname: vi.fn((p) => p.split('/').slice(0, -1).join('/'))
+  };
+  
+  return {
+    default: pathFunctions,
+    ...pathFunctions
+  };
+});
 
 // Simple OpenAI mock
 vi.mock('openai', () => ({
