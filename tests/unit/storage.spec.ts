@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemStorage } from '../../server/storage';
-import type { InsertUser, InsertLanguage, InsertTranslation, InsertTranscript } from '@shared/schema';
+import type { InsertUser, InsertLanguage, InsertTranslation, InsertTranscript } from '../../shared/schema';
 
 describe('MemStorage', () => {
   let storage: MemStorage;
