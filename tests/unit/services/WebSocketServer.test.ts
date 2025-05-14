@@ -2,32 +2,33 @@ import { WebSocketService } from '../../../server/websocket';
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
+import { vi, beforeEach, describe, it, expect } from 'vitest';
 
 // CORRECT: Only mock external dependencies, not the SUT
-jest.mock('ws', () => {
-  const mockOn = jest.fn();
+vi.mock('ws', () => {
+  const mockOn = vi.fn();
   
   // Create a mock WebSocketServer that registers the upgrade handler on the HTTP server
   const mockWebSocketServer = function(options: any) {
     // This simulates the 'ws' package's behavior of adding an 'upgrade' listener
     // to the HTTP server when a new WebSocketServer is created
     if (options.server && typeof options.server.on === 'function') {
-      options.server.on('upgrade', jest.fn());
+      options.server.on('upgrade', vi.fn());
     }
     
     return {
       on: mockOn,
-      handleUpgrade: jest.fn(),
-      emit: jest.fn(),
+      handleUpgrade: vi.fn(),
+      emit: vi.fn(),
       clients: new Set()
     };
   };
   
   // Note the use of WebSocketServer to match the actual import
-  const MockWebSocket = jest.fn().mockImplementation(() => ({
-    on: jest.fn(),
-    send: jest.fn(),
-    close: jest.fn(),
+  const MockWebSocket = vi.fn().mockImplementation(() => ({
+    on: vi.fn(),
+    send: vi.fn(),
+    close: vi.fn(),
     readyState: 1
   }));
 
@@ -41,9 +42,9 @@ jest.mock('ws', () => {
 // IMPORTANT: Create a real HTTP server mock, not a simple object
 const createMockServer = () => {
   const mockServer: Partial<Server> = {
-    on: jest.fn(),
-    listeners: jest.fn().mockReturnValue([]),
-    removeListener: jest.fn()
+    on: vi.fn(),
+    listeners: vi.fn().mockReturnValue([]),
+    removeListener: vi.fn()
   };
   return mockServer as Server;
 };
@@ -78,7 +79,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register message handlers correctly', () => {
-    const messageHandler = jest.fn();
+    const messageHandler = vi.fn();
     webSocketService.onMessage('test', messageHandler);
     
     // Use our knowledge of the internal structure (private property access via any)
@@ -89,7 +90,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register connection handlers correctly', () => {
-    const connectionHandler = jest.fn();
+    const connectionHandler = vi.fn();
     webSocketService.onConnection(connectionHandler);
     
     // Verify the connection handler was registered
@@ -98,7 +99,7 @@ describe('WebSocketService', () => {
   });
   
   it('should register close handlers correctly', () => {
-    const closeHandler = jest.fn();
+    const closeHandler = vi.fn();
     webSocketService.onClose(closeHandler);
     
     // Verify the close handler was registered
