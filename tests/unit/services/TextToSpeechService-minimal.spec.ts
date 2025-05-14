@@ -63,39 +63,18 @@ vi.stubGlobal('util', {
 // Set environment variables
 vi.stubEnv('OPENAI_API_KEY', 'mock-api-key');
 
-// Create our speech mock function
-const mockSpeechCreate = vi.fn().mockImplementation(async (options) => {
-  const mockText = `voice:${options.voice}-model:${options.model || 'tts-1'}-input:${options.input?.substring(0, 20) || 'test'}`;
-  const mockBuffer = Buffer.from(mockText);
-  
-  return {
-    arrayBuffer: async () => mockBuffer
-  };
-});
+// IMPORTANT: We're NOT attempting to mock the OpenAI module directly
+// Instead, we're mocking the necessary file system operations and testing functions
+// that don't require a working OpenAI client
 
-// Create a proper mock OpenAI class
-class MockOpenAI {
-  audio: {
-    speech: {
-      create: typeof mockSpeechCreate;
-    }
-  };
-
-  constructor(_options?: { apiKey?: string }) {
-    this.audio = {
-      speech: {
-        create: mockSpeechCreate
-      }
-    };
-  }
-}
-
-// Mock the openai module
-vi.mock('openai', () => {
-  return {
-    default: MockOpenAI
-  };
-});
+// Mock fs promises functions
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn().mockRejectedValue(new Error('File not found')),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  stat: vi.fn().mockResolvedValue({ mtimeMs: Date.now() }),
+  access: vi.fn().mockRejectedValue(new Error('No access'))
+}));
 
 describe('TextToSpeechService Core Tests', () => {
   let ttsModule: any;
