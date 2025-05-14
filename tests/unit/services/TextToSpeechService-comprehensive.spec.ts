@@ -32,91 +32,55 @@ vi.mock('openai', async () => {
   };
 });
 
-// Mock fs module with ES Module compatibility
+// Mock fs for simpler compatibility with the simplest approach
 vi.mock('fs', async () => {
-  const mockExistSync = vi.fn().mockImplementation((path) => {
-    // Simulate certain paths existing
-    return path.includes('exists') || path.includes('cache');
-  });
-
-  const mockConstants = {
-    F_OK: 0
-  };
-
-  // Mock writeFile, readFile, etc. that are used with promisify
-  const mockWriteFile = vi.fn();
-  const mockReadFile = vi.fn();
-  const mockAccess = vi.fn();
-  const mockMkdir = vi.fn();
-  const mockStat = vi.fn();
-
   return {
     default: {
-      constants: mockConstants,
-      existsSync: mockExistSync,
-      writeFile: mockWriteFile,
-      readFile: mockReadFile,
-      access: mockAccess,
-      mkdir: mockMkdir,
-      stat: mockStat
+      constants: { F_OK: 0 },
+      existsSync: vi.fn().mockReturnValue(true),
+      writeFile: vi.fn(),
+      readFile: vi.fn(),
+      access: vi.fn(),
+      mkdir: vi.fn(),
+      stat: vi.fn()
     },
-    constants: mockConstants,
-    existsSync: mockExistSync,
-    writeFile: mockWriteFile,
-    readFile: mockReadFile,
-    access: mockAccess,
-    mkdir: mockMkdir,
-    stat: mockStat,
+    constants: { F_OK: 0 },
+    existsSync: vi.fn().mockReturnValue(true),
+    writeFile: vi.fn(),
+    readFile: vi.fn(),
+    access: vi.fn(),
+    mkdir: vi.fn(),
+    stat: vi.fn(),
     createReadStream: vi.fn().mockReturnValue({})
   };
 });
 
-// Mock fs/promises with detailed cache read/write behavior
+// Mock fs/promises with simplified approach
 vi.mock('fs/promises', async () => {
-  const cachedFiles = new Map(); // In-memory simulation of files
-  
-  const mockFunctions = {
-    writeFile: vi.fn().mockImplementation((path, data) => {
-      cachedFiles.set(path, data);
+  // Global cache for test files
+  const mockBuffer = Buffer.from('mock cached audio');
+  const writeFileMock = vi.fn().mockResolvedValue(undefined);
+  const readFileMock = vi.fn().mockResolvedValue(mockBuffer);
+  const accessMock = vi.fn().mockImplementation((path) => {
+    if (path.includes('exists') || path.includes('audio-cache') || path.includes('temp')) {
       return Promise.resolve();
-    }),
-    readFile: vi.fn().mockImplementation((path) => {
-      // Return specific data for paths we know about
-      if (path.includes('cache') && cachedFiles.has(path)) {
-        return Promise.resolve(cachedFiles.get(path));
-      }
-      if (path.includes('exists')) {
-        return Promise.resolve(Buffer.from('mock cached audio'));
-      }
-      return Promise.reject(new Error('ENOENT: File not found'));
-    }),
-    access: vi.fn().mockImplementation((path) => {
-      // Simulate file existence checks
-      if (path.includes('exists') || path.includes('audio-cache') || 
-          path.includes('temp') || cachedFiles.has(path)) {
-        return Promise.resolve();
-      }
-      return Promise.reject(new Error('ENOENT: File not found'));
-    }),
-    mkdir: vi.fn().mockResolvedValue(undefined),
-    stat: vi.fn().mockImplementation((path) => {
-      // Simulate file stats with different creation times
-      if (path.includes('expired')) {
-        // Return an older time for expired files
-        return Promise.resolve({
-          mtimeMs: Date.now() - (25 * 60 * 60 * 1000) // 25 hours ago
-        });
-      }
-      // Return recent time for non-expired files
-      return Promise.resolve({
-        mtimeMs: Date.now() - (1 * 60 * 60 * 1000) // 1 hour ago
-      });
-    })
-  };
-  
+    }
+    return Promise.reject(new Error('ENOENT'));
+  });
+  const mkdirMock = vi.fn().mockResolvedValue(undefined);
+  const statMock = vi.fn().mockImplementation((path) => {
+    if (path.includes('expired')) {
+      return Promise.resolve({ mtimeMs: Date.now() - (25 * 60 * 60 * 1000) });
+    }
+    return Promise.resolve({ mtimeMs: Date.now() - (1 * 60 * 60 * 1000) });
+  });
+
   return {
-    default: mockFunctions,
-    ...mockFunctions
+    writeFile: writeFileMock,
+    readFile: readFileMock, 
+    access: accessMock,
+    mkdir: mkdirMock,
+    stat: statMock
   };
 });
 
