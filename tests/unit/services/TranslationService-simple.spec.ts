@@ -6,42 +6,94 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock OpenAI
-vi.mock('openai', () => {
+// Mock util.promisify
+vi.mock('util', async (importOriginal) => {
+  const mockUtil = {
+    promisify: vi.fn(fn => fn),
+  };
+  
   return {
-    default: vi.fn().mockImplementation(() => ({
-      audio: {
-        transcriptions: {
-          create: vi.fn().mockResolvedValue({
-            text: 'This is a mock transcription',
-          }),
-        },
-      },
-      chat: {
-        completions: {
-          create: vi.fn().mockResolvedValue({
-            choices: [
-              {
-                message: {
-                  content: 'This is a mock translation',
-                },
-              },
-            ],
-          }),
-        },
-      },
-    })),
+    default: mockUtil,
+    ...mockUtil
   };
 });
 
-// Mock fs
-vi.mock('fs', () => {
+// Mock path module
+vi.mock('path', async (importOriginal) => {
+  const mockPath = {
+    join: vi.fn((...args) => args.join('/')),
+    dirname: vi.fn(path => path.substring(0, path.lastIndexOf('/')) || '/'),
+    resolve: vi.fn((...args) => args.join('/')),
+  };
+  
   return {
+    default: mockPath,
+    ...mockPath
+  };
+});
+
+// Mock url module
+vi.mock('url', async (importOriginal) => {
+  const mockUrl = {
+    fileURLToPath: vi.fn((url) => '/mocked/file/path'),
+  };
+  
+  return {
+    default: mockUrl,
+    ...mockUrl
+  };
+});
+
+// Mock OpenAI
+vi.mock('openai', async (importOriginal) => {
+  const MockOpenAI = vi.fn().mockImplementation(() => ({
+    audio: {
+      transcriptions: {
+        create: vi.fn().mockResolvedValue({
+          text: 'This is a mock transcription',
+        }),
+      },
+    },
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({
+          choices: [
+            {
+              message: {
+                content: 'This is a mock translation',
+              },
+            },
+          ],
+        }),
+      },
+    },
+  }));
+  
+  return {
+    default: MockOpenAI
+  };
+});
+
+// Mock fs with default export pattern
+vi.mock('fs', async (importOriginal) => {
+  const mockFs = {
     promises: {
       writeFile: vi.fn().mockResolvedValue(undefined),
       unlink: vi.fn().mockResolvedValue(undefined),
+      stat: vi.fn().mockResolvedValue({ size: 1024, mtime: new Date() }),
     },
-    createReadStream: vi.fn(),
+    writeFile: vi.fn((path, data, callback) => callback(null)),
+    unlink: vi.fn((path, callback) => callback(null)),
+    stat: vi.fn((path, callback) => callback(null, { size: 1024, mtime: new Date() })),
+    createReadStream: vi.fn(() => ({
+      on: vi.fn(),
+      pipe: vi.fn(),
+    })),
+  };
+  
+  return {
+    default: mockFs,
+    ...mockFs
   };
 });
 
