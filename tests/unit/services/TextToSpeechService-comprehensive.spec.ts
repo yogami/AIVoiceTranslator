@@ -1,365 +1,746 @@
 /**
  * Comprehensive tests for TextToSpeechService
  * 
- * This test file focuses on thorough coverage of the TextToSpeechService module
- * including all classes and their methods, with proper mocking of dependencies.
+ * This test suite aims to achieve >90% coverage for the TextToSpeechService module.
+ * It focuses on testing all major classes and methods, including edge cases.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Mock for OpenAI
-const mockCreateSpeech = vi.fn().mockResolvedValue(Buffer.from('mock audio data'));
-
-// Mock OpenAI properly for ESM
+// Mock OpenAI with detailed speech creation functionality
 vi.mock('openai', async () => {
-  const mockOpenAI = vi.fn().mockImplementation(() => ({
+  const mockCreate = vi.fn().mockImplementation(async (options) => {
+    // Return an object with arrayBuffer method that mocks audio data
+    return {
+      arrayBuffer: async () => {
+        // Generate different mock data based on voice/speed for testing differentiation
+        const prefix = `voice:${options.voice}-speed:${options.speed}`;
+        return new TextEncoder().encode(`${prefix}-${options.input}`).buffer;
+      }
+    };
+  });
+  
+  const MockOpenAI = vi.fn().mockImplementation(() => ({
     audio: {
       speech: {
-        create: mockCreateSpeech
+        create: mockCreate
       }
     }
   }));
   
   return {
-    default: mockOpenAI
+    default: MockOpenAI
   };
 });
 
-// Mock fs/promises for file operations
-vi.mock('fs/promises', async () => {
+// Mock fs module with ES Module compatibility
+vi.mock('fs', async () => {
+  const mockExistSync = vi.fn().mockImplementation((path) => {
+    // Simulate certain paths existing
+    return path.includes('exists') || path.includes('cache');
+  });
+
+  const mockConstants = {
+    F_OK: 0
+  };
+
+  // Mock writeFile, readFile, etc. that are used with promisify
+  const mockWriteFile = vi.fn();
+  const mockReadFile = vi.fn();
+  const mockAccess = vi.fn();
+  const mockMkdir = vi.fn();
+  const mockStat = vi.fn();
+
   return {
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    readFile: vi.fn().mockResolvedValue(Buffer.from('mock cached audio')),
-    access: vi.fn().mockImplementation((path) => {
-      // Simulate cache hit/miss based on path
+    default: {
+      constants: mockConstants,
+      existsSync: mockExistSync,
+      writeFile: mockWriteFile,
+      readFile: mockReadFile,
+      access: mockAccess,
+      mkdir: mockMkdir,
+      stat: mockStat
+    },
+    constants: mockConstants,
+    existsSync: mockExistSync,
+    writeFile: mockWriteFile,
+    readFile: mockReadFile,
+    access: mockAccess,
+    mkdir: mockMkdir,
+    stat: mockStat,
+    createReadStream: vi.fn().mockReturnValue({})
+  };
+});
+
+// Mock fs/promises with detailed cache read/write behavior
+vi.mock('fs/promises', async () => {
+  const cachedFiles = new Map(); // In-memory simulation of files
+  
+  const mockFunctions = {
+    writeFile: vi.fn().mockImplementation((path, data) => {
+      cachedFiles.set(path, data);
+      return Promise.resolve();
+    }),
+    readFile: vi.fn().mockImplementation((path) => {
+      // Return specific data for paths we know about
+      if (path.includes('cache') && cachedFiles.has(path)) {
+        return Promise.resolve(cachedFiles.get(path));
+      }
       if (path.includes('exists')) {
+        return Promise.resolve(Buffer.from('mock cached audio'));
+      }
+      return Promise.reject(new Error('ENOENT: File not found'));
+    }),
+    access: vi.fn().mockImplementation((path) => {
+      // Simulate file existence checks
+      if (path.includes('exists') || path.includes('audio-cache') || 
+          path.includes('temp') || cachedFiles.has(path)) {
         return Promise.resolve();
       }
-      return Promise.reject(new Error('ENOENT'));
+      return Promise.reject(new Error('ENOENT: File not found'));
     }),
-    mkdir: vi.fn().mockResolvedValue(undefined)
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockImplementation((path) => {
+      // Simulate file stats with different creation times
+      if (path.includes('expired')) {
+        // Return an older time for expired files
+        return Promise.resolve({
+          mtimeMs: Date.now() - (25 * 60 * 60 * 1000) // 25 hours ago
+        });
+      }
+      // Return recent time for non-expired files
+      return Promise.resolve({
+        mtimeMs: Date.now() - (1 * 60 * 60 * 1000) // 1 hour ago
+      });
+    })
+  };
+  
+  return {
+    default: mockFunctions,
+    ...mockFunctions
   };
 });
 
-// Mock path for ESM compatibility
+// Mock crypto
+vi.mock('crypto', async () => {
+  // Simple mock hash function that returns a predictable hash
+  const mockHash = {
+    update: vi.fn().mockReturnThis(),
+    digest: vi.fn().mockImplementation(format => {
+      return 'mocked-hash-value';
+    })
+  };
+  
+  const mockFunctions = {
+    createHash: vi.fn().mockReturnValue(mockHash)
+  };
+  
+  return {
+    default: mockFunctions,
+    ...mockFunctions
+  };
+});
+
+// Mock path module with ES Module compatibility
 vi.mock('path', async () => {
-  const mockPath = {
+  const mockFunctions = {
     join: vi.fn((...args) => args.join('/')),
     dirname: vi.fn((p) => p.substring(0, p.lastIndexOf('/') || 0)),
     resolve: vi.fn((...args) => args.join('/'))
   };
   
   return {
-    default: mockPath,
-    ...mockPath
+    default: mockFunctions,
+    ...mockFunctions
   };
 });
 
-// Set environment variables
-vi.stubEnv('OPENAI_API_KEY', 'mock-api-key');
+// Mock util module for promisify
+vi.mock('util', async () => {
+  const mockPromisify = vi.fn((fn) => {
+    // Return a function that wraps the original in a promise
+    return (...args) => {
+      // Get the last argument which is usually the callback
+      const callback = args[args.length - 1];
+      
+      if (typeof callback === 'function') {
+        return new Promise((resolve) => {
+          // Call the function with the callback that resolves the promise
+          fn(...args.slice(0, -1), (err, result) => {
+            if (err) resolve(Buffer.from('error'));
+            else resolve(result || Buffer.from('success'));
+          });
+        });
+      } else {
+        // If no callback is provided, just return a resolved promise
+        return Promise.resolve(Buffer.from('success'));
+      }
+    };
+  });
+  
+  return {
+    default: {
+      promisify: mockPromisify
+    },
+    promisify: mockPromisify
+  };
+});
+
+// We need to set the process.cwd() for CACHE_DIR and TEMP_DIR paths
+const originalCwd = process.cwd;
+vi.stubGlobal('process', {
+  ...process,
+  cwd: vi.fn().mockReturnValue('/mock-project-root'),
+  env: {
+    ...process.env,
+    OPENAI_API_KEY: 'mock-api-key',
+    TEMP_DIR: '/mock-temp-dir',
+    TTS_SERVICE_TYPE: 'openai'
+  }
+});
 
 describe('TextToSpeechService Comprehensive Tests', () => {
   let ttsModule: any;
-  let TextToSpeechService: any;
-  let SilentTextToSpeechService: any;
-  let OpenAITextToSpeechService: any;
-  let TTSFactory: any;
   
-  // Clear mocks and reset modules before each test
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     
     // Import the module
     ttsModule = await import('../../../server/services/TextToSpeechService');
-    
-    // Get class references
-    TextToSpeechService = ttsModule.TextToSpeechService;
-    SilentTextToSpeechService = ttsModule.SilentTextToSpeechService;
-    OpenAITextToSpeechService = ttsModule.OpenAITextToSpeechService;
-    TTSFactory = ttsModule.ttsFactory;
   });
   
   afterEach(() => {
     vi.restoreAllMocks();
   });
   
-  describe('TextToSpeechService base class', () => {
-    it('should be defined as an abstract class', () => {
-      expect(TextToSpeechService).toBeDefined();
+  describe('BrowserSpeechSynthesisService', () => {
+    it('should return a marker buffer with speech information', async () => {
+      const browserTTS = new ttsModule.BrowserSpeechSynthesisService();
       
-      // Should throw when instantiating abstract class
-      expect(() => new TextToSpeechService()).toThrow();
+      const result = await browserTTS.synthesizeSpeech({
+        text: 'Test speech',
+        languageCode: 'en-US',
+        preserveEmotions: true,
+        speed: 1.2
+      });
+      
+      // Verify result is a Buffer
+      expect(Buffer.isBuffer(result)).toBe(true);
+      
+      // Parse the result and verify content
+      const parsed = JSON.parse(result.toString());
+      expect(parsed.type).toBe('browser-speech');
+      expect(parsed.text).toBe('Test speech');
+      expect(parsed.languageCode).toBe('en-US');
+      expect(parsed.preserveEmotions).toBe(true);
+      expect(parsed.speed).toBe(1.2);
+      expect(parsed.autoPlay).toBe(true);
     });
-  });
-  
-  describe('SilentTextToSpeechService', () => {
-    it('should return an empty buffer regardless of input', async () => {
-      const silentTTS = new SilentTextToSpeechService();
+    
+    it('should use default speed when not provided', async () => {
+      const browserTTS = new ttsModule.BrowserSpeechSynthesisService();
       
-      // Test with various inputs
-      const result1 = await silentTTS.synthesizeSpeech({ text: 'Hello', language: 'en-US' });
-      const result2 = await silentTTS.synthesizeSpeech({ text: 'Bonjour', language: 'fr-FR' });
-      const result3 = await silentTTS.synthesizeSpeech({ text: '', language: 'es-ES' });
+      const result = await browserTTS.synthesizeSpeech({
+        text: 'Test speech',
+        languageCode: 'en-US'
+      });
       
-      // All should return empty buffers
-      expect(Buffer.isBuffer(result1)).toBe(true);
-      expect(result1.length).toBe(0);
-      expect(Buffer.isBuffer(result2)).toBe(true);
-      expect(result2.length).toBe(0);
-      expect(Buffer.isBuffer(result3)).toBe(true);
-      expect(result3.length).toBe(0);
+      const parsed = JSON.parse(result.toString());
+      expect(parsed.speed).toBe(1.0);
     });
   });
   
   describe('OpenAITextToSpeechService', () => {
-    let openAiTTS: any;
-    
-    beforeEach(() => {
-      openAiTTS = new OpenAITextToSpeechService();
+    it('should ensure cache directory exists on initialization', async () => {
+      // Get access to the mocked access and mkdir functions
+      const accessSpy = vi.mocked(await import('fs/promises')).access;
+      const mkdirSpy = vi.mocked(await import('fs/promises')).mkdir;
+      
+      // Create a new instance to trigger directory creation
+      const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+      
+      // Verify cache directory existence check was called
+      expect(accessSpy).toHaveBeenCalled();
+      
+      // Since our mock access rejects for any non-recognized path,
+      // mkdir should have been called to create the directories
+      expect(mkdirSpy).toHaveBeenCalled();
+      expect(mkdirSpy.mock.calls[0][0]).toContain('audio-cache');
     });
     
-    it('should initialize with default options', () => {
-      expect(openAiTTS.model).toBe('tts-1');
-      expect(openAiTTS.voice).toBe('alloy');
-      expect(openAiTTS.useCaching).toBe(true);
+    describe('generateCacheKey method', () => {
+      it('should create consistent cache keys for the same input', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        
+        // Access the private method using type assertion
+        const generateCacheKey = (service as any).generateCacheKey.bind(service);
+        
+        const options1 = {
+          text: 'Hello world',
+          languageCode: 'en-US',
+          voice: 'echo',
+          speed: 1.0
+        };
+        
+        const options2 = { ...options1 };
+        
+        const key1 = generateCacheKey(options1);
+        const key2 = generateCacheKey(options2);
+        
+        // Same input should produce same key
+        expect(key1).toBe(key2);
+        
+        // Different input should produce different key
+        const key3 = generateCacheKey({ ...options1, text: 'Different text' });
+        expect(key1).not.toBe(key3);
+      });
     });
     
-    it('should synthesize speech using OpenAI', async () => {
-      // Mock the selectVoice method to avoid undefined language error
-      vi.spyOn(openAiTTS, 'selectVoice').mockReturnValue('alloy');
+    describe('getCachedAudio method', () => {
+      it('should return cached audio if it exists and is not expired', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const getCachedAudio = (service as any).getCachedAudio.bind(service);
+        
+        // Setup spy on readFile
+        const readFileSpy = vi.mocked(await import('fs/promises')).readFile;
+        readFileSpy.mockResolvedValueOnce(Buffer.from('cached audio data'));
+        
+        // Call with a key that will resolve in our mock
+        const result = await getCachedAudio('exists');
+        
+        // Should return the cached buffer
+        expect(Buffer.isBuffer(result)).toBe(true);
+        expect(result.toString()).toBe('cached audio data');
+      });
       
-      const options = { text: 'Hello world', language: 'en-US' };
-      const result = await openAiTTS.synthesizeSpeech(options);
+      it('should return null for expired cache', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const getCachedAudio = (service as any).getCachedAudio.bind(service);
+        
+        // Call with a key that will be marked as expired
+        const result = await getCachedAudio('expired');
+        
+        // Should return null for expired cache
+        expect(result).toBeNull();
+      });
       
-      // Verify result is a buffer
-      expect(Buffer.isBuffer(result)).toBe(true);
-      
-      // Verify OpenAI was called
-      expect(mockCreateSpeech).toHaveBeenCalled();
-      
-      const callOptions = mockCreateSpeech.mock.calls[0][0];
-      expect(callOptions.model).toBe('tts-1');
-      expect(callOptions.input).toBe('Hello world');
+      it('should return null when cache file does not exist', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const getCachedAudio = (service as any).getCachedAudio.bind(service);
+        
+        // Call with a key that will not exist in our mock
+        const result = await getCachedAudio('nonexistent');
+        
+        // Should return null
+        expect(result).toBeNull();
+      });
     });
     
-    it('should handle empty text input', async () => {
-      // No need to mock selectVoice for empty text as it won't reach that code
+    describe('cacheAudio method', () => {
+      it('should save audio to the cache directory', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const cacheAudio = (service as any).cacheAudio.bind(service);
+        
+        // Setup spy on writeFile
+        const writeFileSpy = vi.mocked(await import('fs/promises')).writeFile;
+        
+        // Cache some audio
+        const audioBuffer = Buffer.from('test audio data');
+        await cacheAudio('test-key', audioBuffer);
+        
+        // Verify writeFile was called with correct parameters
+        expect(writeFileSpy).toHaveBeenCalledWith(
+          expect.stringContaining('test-key'),
+          audioBuffer
+        );
+      });
       
-      const options = { text: '', language: 'en-US' };
-      const result = await openAiTTS.synthesizeSpeech(options);
-      
-      // Should return empty buffer
-      expect(Buffer.isBuffer(result)).toBe(true);
-      expect(result.length).toBe(0);
-      
-      // Should not call OpenAI
-      expect(mockCreateSpeech).not.toHaveBeenCalled();
-    });
-    
-    it('should use cache for repeated requests', async () => {
-      // Mock the selectVoice method to avoid undefined language error
-      vi.spyOn(openAiTTS, 'selectVoice').mockReturnValue('alloy');
-      
-      // Set up fs.access to simulate cache hit
-      const fs = await import('fs/promises');
-      (fs.access as any).mockResolvedValueOnce(undefined);
-      (fs.access as any).mockResolvedValueOnce(undefined);
-      
-      // Mock getCacheKey to return a consistent value
-      vi.spyOn(openAiTTS, 'getCacheKey').mockReturnValue('test-cache-key');
-      
-      const options = { text: 'Cached response', language: 'en-US' };
-      
-      // First call should create the file
-      await openAiTTS.synthesizeSpeech(options);
-      
-      // Subsequent requests should use cache
-      await openAiTTS.synthesizeSpeech(options);
-      
-      // OpenAI should be called only once
-      expect(mockCreateSpeech).toHaveBeenCalledTimes(1);
-      
-      // readFile should be called for the second request
-      expect(fs.readFile).toHaveBeenCalled();
-    });
-    
-    it('should handle errors from OpenAI', async () => {
-      // Mock the selectVoice method to avoid undefined language error
-      vi.spyOn(openAiTTS, 'selectVoice').mockReturnValue('alloy');
-      
-      // Make OpenAI throw an error
-      mockCreateSpeech.mockRejectedValueOnce(new Error('API error'));
-      
-      // Mock console.error to avoid noise in test output
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      const options = { text: 'Error test', language: 'en-US' };
-      
-      // The method will throw an error which we need to catch
-      try {
-        await openAiTTS.synthesizeSpeech(options);
-        // If we get here, it means no error was thrown
-        expect(true).toBe(false); // This will fail the test
-      } catch (error) {
-        // Error should be thrown
-        expect(error.message).toContain('Speech synthesis failed');
+      it('should handle errors gracefully', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const cacheAudio = (service as any).cacheAudio.bind(service);
+        
+        // Setup spy on writeFile to throw an error
+        const writeFileSpy = vi.mocked(await import('fs/promises')).writeFile;
+        writeFileSpy.mockRejectedValueOnce(new Error('Write error'));
+        
+        // Mock console.error to verify it was called
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        
+        // Cache should handle error gracefully
+        await cacheAudio('error-key', Buffer.from('test'));
+        
+        // Verify error was logged
         expect(consoleErrorSpy).toHaveBeenCalled();
-      }
+        
+        // Restore console.error
+        consoleErrorSpy.mockRestore();
+      });
     });
     
-    it('should generate proper cache keys', () => {
-      const options1 = { text: 'Test', language: 'en-US', voice: 'alloy' };
-      const options2 = { text: 'Test', language: 'en-US', voice: 'nova' };
+    describe('detectEmotions method', () => {
+      it('should detect emotions in text with confidence scores', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const detectEmotions = (service as any).detectEmotions.bind(service);
+        
+        // Test with excited text
+        const excitedResult = detectEmotions('This is amazing!!! I am so excited! 😄');
+        expect(excitedResult.length).toBeGreaterThan(0);
+        expect(excitedResult[0].emotion).toBe('excited');
+        expect(excitedResult[0].confidence).toBeGreaterThan(0.5);
+        
+        // Test with serious text
+        const seriousResult = detectEmotions('Warning: This is a critical and important message. ⚠️');
+        expect(seriousResult.length).toBeGreaterThan(0);
+        expect(seriousResult[0].emotion).toBe('serious');
+        
+        // Test with calm text
+        const calmResult = detectEmotions('Relax and breathe deeply. Listen to the peaceful sounds. 😌');
+        expect(calmResult.length).toBeGreaterThan(0);
+        expect(calmResult[0].emotion).toBe('calm');
+        
+        // Test with sad text
+        const sadResult = detectEmotions('I am so sorry and disappointed with the results. 😢');
+        expect(sadResult.length).toBeGreaterThan(0);
+        expect(sadResult[0].emotion).toBe('sad');
+        
+        // Test with neutral text
+        const neutralResult = detectEmotions('This is a regular sentence without emotion.');
+        expect(neutralResult.length).toBe(0);
+      });
+    });
+    
+    describe('selectVoice method', () => {
+      it('should select appropriate voice based on language code', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const selectVoice = (service as any).selectVoice.bind(service);
+        
+        // Test with various language codes
+        expect(selectVoice('en-US')).toBeDefined();
+        expect(selectVoice('es-ES')).toBeDefined();
+        expect(selectVoice('fr-FR')).toBeDefined();
+        expect(selectVoice('de-DE')).toBeDefined();
+        
+        // Test with language code that doesn't have specific voices
+        expect(selectVoice('unknown-LANG')).toBeDefined();
+      });
       
-      const key1 = openAiTTS.getCacheKey(options1);
-      const key2 = openAiTTS.getCacheKey(options2);
+      it('should select emotion-appropriate voices', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const selectVoice = (service as any).selectVoice.bind(service);
+        
+        // Check that emotions map to expected voices when available
+        expect(selectVoice('en-US', 'excited')).toBe('echo');
+        expect(selectVoice('en-US', 'serious')).toBe('onyx');
+        expect(selectVoice('en-US', 'calm')).toBe('nova');
+        expect(selectVoice('en-US', 'sad')).toBe('shimmer');
+      });
+    });
+    
+    describe('adjustSpeechParams method', () => {
+      it('should adjust parameters for excited emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const adjustSpeechParams = (service as any).adjustSpeechParams.bind(service);
+        
+        const options = {
+          text: 'This is amazing! Wow!',
+          languageCode: 'en-US',
+          speed: 1.0
+        };
+        
+        const adjusted = adjustSpeechParams('excited', options);
+        
+        // Excited should increase speed
+        expect(adjusted.speed).toBeGreaterThan(options.speed);
+        // And modify text
+        expect(adjusted.input).not.toBe(options.text);
+        expect(adjusted.input.toUpperCase()).toContain('WOW');
+      });
       
-      // Different options should generate different keys
-      expect(key1).not.toBe(key2);
+      it('should adjust parameters for serious emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const adjustSpeechParams = (service as any).adjustSpeechParams.bind(service);
+        
+        const options = {
+          text: 'This is an important warning.',
+          languageCode: 'en-US',
+          speed: 1.0
+        };
+        
+        const adjusted = adjustSpeechParams('serious', options);
+        
+        // Serious should decrease speed
+        expect(adjusted.speed).toBeLessThan(options.speed);
+        // And emphasize text
+        expect(adjusted.input).toContain('IMPORTANT');
+      });
       
-      // Same options should generate same key
-      const key3 = openAiTTS.getCacheKey(options1);
-      expect(key1).toBe(key3);
+      it('should adjust parameters for calm emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const adjustSpeechParams = (service as any).adjustSpeechParams.bind(service);
+        
+        const options = {
+          text: 'Relax and stay calm.',
+          languageCode: 'en-US',
+          speed: 1.0
+        };
+        
+        const adjusted = adjustSpeechParams('calm', options);
+        
+        // Calm should decrease speed
+        expect(adjusted.speed).toBeLessThan(options.speed);
+      });
+      
+      it('should adjust parameters for sad emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const adjustSpeechParams = (service as any).adjustSpeechParams.bind(service);
+        
+        const options = {
+          text: 'I am sad about this.',
+          languageCode: 'en-US',
+          speed: 1.0
+        };
+        
+        const adjusted = adjustSpeechParams('sad', options);
+        
+        // Sad should decrease speed
+        expect(adjusted.speed).toBeLessThan(options.speed);
+      });
+      
+      it('should handle unknown emotion without crashing', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const adjustSpeechParams = (service as any).adjustSpeechParams.bind(service);
+        
+        const options = {
+          text: 'Test text',
+          languageCode: 'en-US',
+          speed: 1.0
+        };
+        
+        // Should not throw for unknown emotion
+        const adjusted = adjustSpeechParams('unknown', options);
+        
+        // Parameters should be unchanged
+        expect(adjusted.speed).toBe(options.speed);
+        expect(adjusted.input).toBe(options.text);
+      });
+    });
+    
+    describe('formatInputForEmotion method', () => {
+      it('should format text for excited emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const formatInputForEmotion = (service as any).formatInputForEmotion.bind(service);
+        
+        const text = 'This is great! I like it.';
+        const formatted = formatInputForEmotion(text, 'excited');
+        
+        // Should add more exclamation marks
+        expect(formatted).toContain('!!');
+      });
+      
+      it('should format text for serious emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const formatInputForEmotion = (service as any).formatInputForEmotion.bind(service);
+        
+        const text = 'This is important information that you need to know.';
+        const formatted = formatInputForEmotion(text, 'serious');
+        
+        // Should have some words in uppercase
+        expect(formatted).not.toBe(text);
+        expect(formatted).not.toBe(formatted.toLowerCase());
+      });
+      
+      it('should format text for calm emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const formatInputForEmotion = (service as any).formatInputForEmotion.bind(service);
+        
+        const text = 'Stay calm. Listen carefully.';
+        const formatted = formatInputForEmotion(text, 'calm');
+        
+        // Should extend pauses
+        expect(formatted).toContain('... ');
+      });
+      
+      it('should format text for sad emotion', async () => {
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        const formatInputForEmotion = (service as any).formatInputForEmotion.bind(service);
+        
+        const text = 'I am sad. This is unfortunate!';
+        const formatted = formatInputForEmotion(text, 'sad');
+        
+        // Should extend pauses and remove exclamation marks
+        expect(formatted).toContain('... ');
+        expect(formatted).not.toContain('!');
+      });
+    });
+    
+    describe('synthesizeSpeech method', () => {
+      it('should use cached audio when available', async () => {
+        // Prepare mock cachedAudio
+        const mockCachedBuffer = Buffer.from('cached audio data');
+        
+        const service = new ttsModule.OpenAITextToSpeechService({ audio: { speech: { create: vi.fn() } } });
+        
+        // Mock the internal methods
+        vi.spyOn(service as any, 'generateCacheKey').mockReturnValue('exists');
+        vi.spyOn(service as any, 'getCachedAudio').mockResolvedValue(mockCachedBuffer);
+        
+        // Call synthesizeSpeech
+        const result = await service.synthesizeSpeech({
+          text: 'Test text',
+          languageCode: 'en-US'
+        });
+        
+        // Should return the cached buffer without calling OpenAI
+        expect(result).toBe(mockCachedBuffer);
+      });
+      
+      it('should generate speech when cache is not available', async () => {
+        const mockOpenAI = {
+          audio: {
+            speech: {
+              create: vi.fn().mockResolvedValue({
+                arrayBuffer: async () => new TextEncoder().encode('generated audio').buffer
+              })
+            }
+          }
+        };
+        
+        const service = new ttsModule.OpenAITextToSpeechService(mockOpenAI);
+        
+        // Mock the internal methods
+        vi.spyOn(service as any, 'generateCacheKey').mockReturnValue('nonexistent');
+        vi.spyOn(service as any, 'getCachedAudio').mockResolvedValue(null);
+        vi.spyOn(service as any, 'cacheAudio').mockResolvedValue(undefined);
+        
+        // Call synthesizeSpeech
+        const result = await service.synthesizeSpeech({
+          text: 'Test text',
+          languageCode: 'en-US'
+        });
+        
+        // Should call OpenAI
+        expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
+        
+        // Should return generated audio
+        expect(Buffer.isBuffer(result)).toBe(true);
+        expect(result.toString()).toBe('generated audio');
+      });
+      
+      it('should detect and preserve emotions when requested', async () => {
+        const mockOpenAI = {
+          audio: {
+            speech: {
+              create: vi.fn().mockResolvedValue({
+                arrayBuffer: async () => new TextEncoder().encode('generated audio').buffer
+              })
+            }
+          }
+        };
+        
+        const service = new ttsModule.OpenAITextToSpeechService(mockOpenAI);
+        
+        // Mock the internal methods
+        vi.spyOn(service as any, 'generateCacheKey').mockReturnValue('nonexistent');
+        vi.spyOn(service as any, 'getCachedAudio').mockResolvedValue(null);
+        vi.spyOn(service as any, 'detectEmotions').mockReturnValue([
+          { emotion: 'excited', confidence: 0.8 }
+        ]);
+        vi.spyOn(service as any, 'adjustSpeechParams').mockReturnValue({
+          voice: 'echo',
+          speed: 1.2,
+          input: 'MODIFIED TEXT!!!'
+        });
+        vi.spyOn(service as any, 'cacheAudio').mockResolvedValue(undefined);
+        
+        // Call synthesizeSpeech with emotion preservation
+        await service.synthesizeSpeech({
+          text: 'Exciting text!!!',
+          languageCode: 'en-US',
+          preserveEmotions: true
+        });
+        
+        // Should call OpenAI with modified parameters
+        expect(mockOpenAI.audio.speech.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            voice: 'echo',
+            speed: 1.2,
+            input: 'MODIFIED TEXT!!!'
+          })
+        );
+      });
+      
+      it('should handle errors during speech synthesis', async () => {
+        const mockOpenAI = {
+          audio: {
+            speech: {
+              create: vi.fn().mockRejectedValue(new Error('OpenAI error'))
+            }
+          }
+        };
+        
+        const service = new ttsModule.OpenAITextToSpeechService(mockOpenAI);
+        
+        // Mock the internal methods
+        vi.spyOn(service as any, 'generateCacheKey').mockReturnValue('nonexistent');
+        vi.spyOn(service as any, 'getCachedAudio').mockResolvedValue(null);
+        
+        // Mock console.error
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        
+        // Call synthesizeSpeech - should throw
+        await expect(service.synthesizeSpeech({
+          text: 'Test text',
+          languageCode: 'en-US'
+        })).rejects.toThrow('Speech synthesis failed');
+        
+        // Should have logged the error
+        expect(consoleErrorSpy).toHaveBeenCalled();
+        
+        // Restore console.error
+        consoleErrorSpy.mockRestore();
+      });
     });
   });
   
-  describe('TextToSpeechFactory', () => {
-    it('should be implemented as a singleton', () => {
-      const instance1 = TTSFactory;
-      const instance2 = ttsModule.ttsFactory;
+  describe('textToSpeechService exported function', () => {
+    it('should use the service type specified in environment', async () => {
+      // Setup environment
+      process.env.TTS_SERVICE_TYPE = 'silent';
       
-      expect(instance1).toBe(instance2);
+      // Spy on the factory
+      const factorySpy = vi.spyOn(ttsModule.ttsFactory, 'getService');
+      
+      // Call the exported function
+      await ttsModule.textToSpeechService.synthesizeSpeech({
+        text: 'Test',
+        languageCode: 'en-US'
+      });
+      
+      // Should use the specified service type
+      expect(factorySpy).toHaveBeenCalledWith('silent');
+      
+      // Reset environment
+      process.env.TTS_SERVICE_TYPE = 'openai';
     });
     
-    it('should create services based on type', () => {
-      const silentService = TTSFactory.getService('silent');
-      const openaiService = TTSFactory.getService('openai');
+    it('should default to openai service when environment variable is not set', async () => {
+      // Setup environment
+      delete process.env.TTS_SERVICE_TYPE;
       
-      expect(silentService).toBeInstanceOf(SilentTextToSpeechService);
-      expect(openaiService).toBeInstanceOf(OpenAITextToSpeechService);
-    });
-    
-    it('should return openai service as default when type is unknown', () => {
-      const defaultService = TTSFactory.getService('unknown');
+      // Spy on the factory
+      const factorySpy = vi.spyOn(ttsModule.ttsFactory, 'getService');
       
-      expect(defaultService).toBeInstanceOf(OpenAITextToSpeechService);
-    });
-    
-    it('should return the same instance when requesting the same service', () => {
-      const openaiService1 = TTSFactory.getService('openai');
-      const openaiService2 = TTSFactory.getService('openai');
+      // Call the exported function
+      await ttsModule.textToSpeechService.synthesizeSpeech({
+        text: 'Test',
+        languageCode: 'en-US'
+      });
       
-      // Should be same instance (singleton per service type)
-      expect(openaiService1).toBe(openaiService2);
-    });
-    
-    it('should allow custom options when creating a service', () => {
-      const options = { model: 'tts-2', voice: 'custom-voice' };
-      const service = TTSFactory.getService('openai', options);
+      // Should use the default service type
+      expect(factorySpy).toHaveBeenCalledWith('openai');
       
-      expect(service.model).toBe('tts-2');
-      expect(service.voice).toBe('custom-voice');
-    });
-  });
-  
-  describe('Cache functionality', () => {
-    let openAiTTS: any;
-    
-    beforeEach(() => {
-      openAiTTS = new OpenAITextToSpeechService();
-      // Mock the selectVoice method to avoid undefined language error
-      vi.spyOn(openAiTTS, 'selectVoice').mockReturnValue('alloy');
-      // Mock getCacheKey to return a consistent value
-      vi.spyOn(openAiTTS, 'getCacheKey').mockReturnValue('test-cache-key');
-    });
-    
-    it('should create cache directory if it does not exist', async () => {
-      const fs = await import('fs/promises');
-      
-      // Mock access to fail first, then succeed
-      (fs.access as any).mockRejectedValueOnce(new Error('ENOENT'));
-      
-      // Mock console.error to avoid noise
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      try {
-        const options = { text: 'Create directory test', language: 'en-US' };
-        await openAiTTS.synthesizeSpeech(options);
-        
-        // Should create directory
-        expect(fs.mkdir).toHaveBeenCalled();
-      } catch (error) {
-        // Even if synthesis fails, mkdir should be called
-        expect(fs.mkdir).toHaveBeenCalled();
-      }
-    });
-    
-    it('should attempt to write audio to cache', async () => {
-      const fs = await import('fs/promises');
-      
-      // Mock console.error to avoid noise
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      // Ensure directory exists check passes
-      (fs.access as any).mockResolvedValueOnce(undefined);
-      
-      try {
-        const options = { text: 'Cache write test', language: 'en-US' };
-        await openAiTTS.synthesizeSpeech(options);
-      } catch (error) {
-        // Even if synthesis fails, the code should attempt to write to cache
-        // But we can't easily verify this without modifying the source code
-        // So we'll just pass this test
-      }
-    });
-    
-    it('should attempt to read audio from cache when available', async () => {
-      const fs = await import('fs/promises');
-      
-      // Simulate cache hit
-      (fs.access as any).mockResolvedValueOnce(undefined);
-      
-      // Mock console.error to avoid noise
-      vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      try {
-        const options = { text: 'Cache read test', language: 'en-US' };
-        const result = await openAiTTS.synthesizeSpeech(options);
-        
-        // Should read from file
-        expect(fs.readFile).toHaveBeenCalled();
-        
-        // Result should be the cached audio
-        expect(result.toString()).toBe('mock cached audio');
-      } catch (error) {
-        // Even if there's an error, readFile should be called
-        expect(fs.readFile).toHaveBeenCalled();
-      }
-    });
-  });
-  
-  describe('TextToSpeechService module exports', () => {
-    it('should export textToSpeechService instance', () => {
-      expect(ttsModule.textToSpeechService).toBeDefined();
-      expect(ttsModule.textToSpeechService.synthesizeSpeech).toBeInstanceOf(Function);
-    });
-    
-    it('should verify the type of the exported service', () => {
-      // Get the actual textToSpeechService instance
-      const ttsService = ttsModule.textToSpeechService;
-      
-      // Check its properties to verify it's likely the right type
-      expect(ttsService).toHaveProperty('synthesizeSpeech');
-      
-      // We can't easily check which specific implementation without modifying the source code
-      // But we can verify it's not an instance of SilentTextToSpeechService by checking prototype chain
-      const isSilent = ttsService instanceof SilentTextToSpeechService;
-      const isOpenAI = ttsService instanceof OpenAITextToSpeechService;
-      
-      // In the actual implementation, ttsService is an OpenAITextToSpeechService,
-      // but we can't guarantee that in tests without source code modifications.
-      // If either condition is true, the test passes 
-      expect(isSilent || isOpenAI).toBeTruthy();
+      // Reset environment
+      process.env.TTS_SERVICE_TYPE = 'openai';
     });
   });
 });
