@@ -2,7 +2,30 @@ import { WebSocketService } from '../../../server/websocket';
 import { Server } from 'http';
 import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
-import { vi, beforeEach, describe, it, expect } from 'vitest';
+import { vi, beforeEach, afterEach, afterAll, describe, it, expect } from 'vitest';
+
+// Define interfaces for our mock objects
+interface MockWebSocketClient {
+  on: ReturnType<typeof vi.fn>;
+  send: ReturnType<typeof vi.fn>;
+  close: ReturnType<typeof vi.fn>;
+  terminate: ReturnType<typeof vi.fn>;
+  readyState: number;
+}
+
+interface MockWebSocketServer {
+  on: ReturnType<typeof vi.fn>;
+  handleUpgrade: ReturnType<typeof vi.fn>;
+  emit: ReturnType<typeof vi.fn>;
+  clients: Set<any>;
+  close: ReturnType<typeof vi.fn>;
+}
+
+// Track mock instances for cleanup
+const mockServers = new Set<MockWebSocketServer>();
+const mockClients = new Set<MockWebSocketClient>();
+// Create a cleanup function that will be set later
+let removeUpgradeListener = vi.fn();
 
 // CORRECT: Only mock external dependencies, not the SUT
 vi.mock('ws', () => {
@@ -13,24 +36,49 @@ vi.mock('ws', () => {
     // This simulates the 'ws' package's behavior of adding an 'upgrade' listener
     // to the HTTP server when a new WebSocketServer is created
     if (options.server && typeof options.server.on === 'function') {
-      options.server.on('upgrade', vi.fn());
+      const upgradeListener = vi.fn();
+      options.server.on('upgrade', upgradeListener);
+      
+      // Replace the cleanup function with a specific one for this server
+      removeUpgradeListener = vi.fn(() => {
+        if (options.server && typeof options.server.removeListener === 'function') {
+          options.server.removeListener('upgrade', upgradeListener);
+        }
+      });
     }
     
-    return {
+    const serverInstance: MockWebSocketServer = {
       on: mockOn,
       handleUpgrade: vi.fn(),
       emit: vi.fn(),
-      clients: new Set()
+      clients: new Set(),
+      close: vi.fn().mockImplementation((callback?: () => void) => {
+        if (callback) callback();
+        return true;
+      })
     };
+    
+    // Track the server for cleanup
+    mockServers.add(serverInstance);
+    
+    return serverInstance;
   };
   
   // Note the use of WebSocketServer to match the actual import
-  const MockWebSocket = vi.fn().mockImplementation(() => ({
-    on: vi.fn(),
-    send: vi.fn(),
-    close: vi.fn(),
-    readyState: 1
-  }));
+  const MockWebSocket = vi.fn().mockImplementation(() => {
+    const wsInstance: MockWebSocketClient = {
+      on: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn().mockImplementation(() => true),
+      readyState: 1,
+      terminate: vi.fn().mockImplementation(() => true)
+    };
+    
+    // Track client for cleanup
+    mockClients.add(wsInstance);
+    
+    return wsInstance;
+  });
 
   return {
     WebSocketServer: mockWebSocketServer,
@@ -58,6 +106,42 @@ describe('WebSocketService', () => {
     
     // IMPORTANT: Use the real WebSocketService, not a mock or test double
     webSocketService = new WebSocketService(mockServer);
+  });
+  
+  afterEach(() => {
+    // Clean up all mock clients
+    mockClients.forEach(client => {
+      client.close();
+      client.terminate();
+    });
+    mockClients.clear();
+    
+    // Clean up all mock servers
+    mockServers.forEach(server => {
+      server.close();
+    });
+    mockServers.clear();
+    
+    // Remove any listeners
+    removeUpgradeListener?.();
+    
+    // Reset all mocks
+    vi.clearAllMocks();
+  });
+  
+  afterAll(() => {
+    // Final cleanup after all tests
+    mockClients.clear();
+    mockServers.clear();
+    vi.restoreAllMocks();
+    
+    // Make absolutely sure port 5000 is released for the actual app
+    process.nextTick(() => {
+      // This runs after the test completes
+      mockClients.clear();
+      mockServers.clear();
+      removeUpgradeListener?.();
+    });
   });
   
   it('should initialize correctly', () => {
