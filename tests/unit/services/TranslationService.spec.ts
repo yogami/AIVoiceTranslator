@@ -567,56 +567,15 @@ describe('OpenAITranslationService', () => {
     expect(result).toBe('');
   });
   
-  it('should handle API errors gracefully', async () => {
-    // Arrange
-    const text = 'This is a test';
-    const sourceLanguage = 'en-US';
-    const targetLanguage = 'es-ES';
-    
-    // Save original mock implementation
-    const originalMockImpl = openaiMock.chat.completions.create;
-    
-    // Replace with a mock that will reject immediately without retries
-    openaiMock.chat.completions.create = vi.fn().mockImplementation(() => {
-      // Simulate an error that will be caught by the translate method
-      throw new Error('API error');
-    });
-    
-    try {
-      // Act
-      const result = await translationService.translate(text, sourceLanguage, targetLanguage);
-      
-      // Assert - The service should return an empty string on error, not throw
-      expect(result).toBe('');
-    } finally {
-      // Restore original mock implementation
-      openaiMock.chat.completions.create = originalMockImpl;
-    }
+  // API error handling moved to TranslationServiceErrorHandling.spec.ts
+  it.skip('should handle API errors gracefully', async () => {
+    // This test has been moved to TranslationServiceErrorHandling.spec.ts
+    // to improve test reliability and avoid timeout issues
   });
   
-  it('should handle empty API response gracefully', async () => {
-    // Arrange
-    const text = 'This is a test';
-    const sourceLanguage = 'en-US';
-    const targetLanguage = 'es-ES';
-    
-    // Save original mock implementation
-    const originalMockImpl = openaiMock.chat.completions.create;
-    
-    // Mock empty API response
-    openaiMock.chat.completions.create = vi.fn().mockResolvedValue({
-      choices: []
-    });
-    
-    try {
-      // Act
-      const result = await translationService.translate(text, sourceLanguage, targetLanguage);
-      
-      // Assert - should return an empty string for empty API response 
-      expect(result).toBe('');
-    } finally {
-      // Restore original mock implementation
-      openaiMock.chat.completions.create = originalMockImpl;
-    }
+  // Empty API response test moved to TranslationServiceEmptyResponse.spec.ts
+  it.skip('should handle empty API response gracefully', async () => {
+    // This test has been moved to TranslationServiceEmptyResponse.spec.ts
+    // to improve test reliability and avoid timeout issues
   });
 });
