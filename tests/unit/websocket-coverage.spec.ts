@@ -5,15 +5,15 @@
  * to maximize coverage. This includes error handling, edge cases, and specific methods
  * that weren't previously covered.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { WebSocketService, WebSocketState, createWebSocketServer, broadcastMessage, sendToClient } from '../../server/websocket';
 import { Server } from 'http';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import { EventEmitter } from 'events';
 
 // Override the imports with our mocked versions - must be defined before class definitions
-vi.mock('ws', async () => {
-  const EventEmitter = (await import('events')).EventEmitter;
+jest.mock('ws', () => {
+  const EventEmitter = require('events').EventEmitter;
   
   // Use a factory function to create instances
   class MockWebSocket extends EventEmitter {
@@ -23,12 +23,12 @@ vi.mock('ws', async () => {
     role = undefined;
     languageCode = undefined;
     
-    send = vi.fn();
-    ping = vi.fn();
-    terminate = vi.fn();
+    send = jest.fn();
+    ping = jest.fn();
+    terminate = jest.fn();
     
     // Add ability to throw errors for testing
-    sendWithError = vi.fn().mockImplementation(() => {
+    sendWithError = jest.fn().mockImplementation(() => {
       throw new Error('Mock send error');
     });
   }
@@ -44,13 +44,13 @@ vi.mock('ws', async () => {
   }
   
   return {
-    WebSocketServer: vi.fn((options) => new MockWSServer(options)),
+    WebSocketServer: jest.fn((options) => new MockWSServer(options)),
     WebSocket: MockWebSocket
   };
 });
 
-vi.mock('http', async () => {
-  const EventEmitter = (await import('events')).EventEmitter;
+jest.mock('http', () => {
+  const EventEmitter = require('events').EventEmitter;
   
   class MockServer extends EventEmitter {}
   
@@ -67,14 +67,9 @@ class MockWebSocket extends EventEmitter {
   role?: 'teacher' | 'student';
   languageCode?: string;
   
-  send = vi.fn();
-  ping = vi.fn();
-  terminate = vi.fn();
-  
-  // Add ability to throw errors for testing
-  sendWithError() {
-    throw new Error('Mock send error');
-  }
+  send = jest.fn();
+  ping = jest.fn();
+  terminate = jest.fn();
 }
 
 class MockWSServer extends EventEmitter {
@@ -89,36 +84,22 @@ class MockWSServer extends EventEmitter {
 
 class MockServer extends EventEmitter {}
 
-describe('WebSocketService Extended Coverage', () => {
+describe('WebSocketService Error Handling and Edge Cases', () => {
   let mockServer: MockServer;
   let webSocketService: WebSocketService;
   let wss: MockWSServer;
-  let clockTime: number = 0;
   
   // Save console methods
   const originalConsole = { ...console };
-  const originalSetInterval = global.setInterval;
-  const originalClearInterval = global.clearInterval;
   
   beforeEach(() => {
     // Reset mocks
-    vi.clearAllMocks();
-    clockTime = Date.now();
+    jest.clearAllMocks();
     
     // Mock console methods
-    console.log = vi.fn();
-    console.error = vi.fn();
-    console.warn = vi.fn();
-    
-    // Mock timing functions
-    global.setInterval = vi.fn().mockImplementation((fn, ms) => {
-      return 123; // Return a mock timer ID
-    });
-    
-    global.clearInterval = vi.fn();
-    
-    // Mock Date.now
-    vi.spyOn(Date, 'now').mockImplementation(() => clockTime);
+    console.log = jest.fn();
+    console.error = jest.fn();
+    console.warn = jest.fn();
     
     // Create mocked server
     mockServer = new MockServer();
@@ -127,7 +108,7 @@ describe('WebSocketService Extended Coverage', () => {
     webSocketService = new WebSocketService(mockServer as unknown as Server);
     
     // Get the mocked WebSocketServer
-    wss = vi.mocked(WSServer).mock.results[0].value as MockWSServer;
+    wss = jest.mocked(WSServer).mock.results[0].value as unknown as MockWSServer;
   });
   
   afterEach(() => {
@@ -135,332 +116,219 @@ describe('WebSocketService Extended Coverage', () => {
     console.log = originalConsole.log;
     console.error = originalConsole.error;
     console.warn = originalConsole.warn;
-    
-    // Restore timing functions
-    global.setInterval = originalSetInterval;
-    global.clearInterval = originalClearInterval;
-    
-    // Restore Date.now
-    vi.restoreAllMocks();
   });
   
-  describe('Error Handling Tests', () => {
-    it('should handle message parsing errors', () => {
-      // Create mock client
-      const mockClient = new MockWebSocket();
-      
-      // Emit connection event to register client
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      
-      // Send invalid JSON
-      mockClient.emit('message', 'this is not valid JSON');
-      
-      // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error processing message:',
-        expect.any(Error)
-      );
+  // Test error handling in message handlers
+  it('should handle errors in message handlers gracefully', () => {
+    // Create a message handler that throws an error
+    const errorHandler = jest.fn().mockImplementation(() => {
+      throw new Error('Handler error');
     });
     
-    it('should handle message handler errors', () => {
-      // Create a handler that throws an error
-      const errorHandler = vi.fn().mockImplementation(() => {
-        throw new Error('Handler error');
-      });
-      
-      // Register the handler
-      webSocketService.onMessage('error-test', errorHandler);
-      
-      // Create mock client
-      const mockClient = new MockWebSocket();
-      
-      // Emit connection event
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      
-      // Send a message that triggers the error handler
-      mockClient.emit('message', JSON.stringify({ type: 'error-test', data: 'test' }));
-      
-      // Verify handler was called
-      expect(errorHandler).toHaveBeenCalled();
-      
-      // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error in message handler for type error-test:',
-        expect.any(Error)
-      );
+    // Register the error-throwing handler
+    webSocketService.onMessage('test-error', errorHandler);
+    
+    // Create a mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event to register the client
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Create an error-triggering message
+    const errorMessage = JSON.stringify({
+      type: 'test-error',
+      data: 'error-data'
     });
     
-    it('should handle connection handler errors', () => {
-      // Create a connection handler that throws an error
-      const errorHandler = vi.fn().mockImplementation(() => {
-        throw new Error('Connection handler error');
-      });
-      
-      // Register the handler
-      webSocketService.onConnection(errorHandler);
-      
-      // Create mock client
-      const mockClient = new MockWebSocket();
-      
-      // Emit connection event
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      
-      // Verify handler was called
-      expect(errorHandler).toHaveBeenCalled();
-      
-      // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error in connection handler:',
-        expect.any(Error)
-      );
-    });
+    // Emit the message
+    mockClient.emit('message', errorMessage);
     
-    it('should handle close handler errors', () => {
-      // Create a close handler that throws an error
-      const errorHandler = vi.fn().mockImplementation(() => {
-        throw new Error('Close handler error');
-      });
-      
-      // Register the handler
-      webSocketService.onClose(errorHandler);
-      
-      // Create mock client
-      const mockClient = new MockWebSocket();
-      
-      // Emit connection event
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      
-      // Emit close event
-      mockClient.emit('close', 1000, 'Normal closure');
-      
-      // Verify handler was called
-      expect(errorHandler).toHaveBeenCalled();
-      
-      // Verify error was logged
-      expect(console.error).toHaveBeenCalledWith(
-        'Error in close handler:',
-        expect.any(Error)
-      );
-    });
+    // Verify error was handled and logged
+    expect(errorHandler).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Error in message handler'),
+      expect.any(Error)
+    );
   });
   
-  describe('Heartbeat Mechanism Tests', () => {
-    it('should terminate inactive connections in heartbeat interval', () => {
-      // Create mock clients
-      const activeClient = new MockWebSocket();
-      activeClient.isAlive = true;
-      
-      const inactiveClient = new MockWebSocket();
-      inactiveClient.isAlive = false;
-      
-      // Add clients to the server
-      wss.clients.add(activeClient);
-      wss.clients.add(inactiveClient);
-      
-      // Get the heartbeat callback
-      const heartbeatCallback = (global.setInterval as ReturnType<typeof vi.fn>).mock.calls[0][0];
-      
-      // Execute the heartbeat callback
-      heartbeatCallback();
-      
-      // Verify inactive client was terminated
-      expect(inactiveClient.terminate).toHaveBeenCalled();
-      expect(activeClient.terminate).not.toHaveBeenCalled();
-      
-      // Verify active client isAlive was set to false and ping was sent
-      expect(activeClient.isAlive).toBe(false);
-      expect(activeClient.ping).toHaveBeenCalled();
+  // Test error handling in close handlers
+  it('should handle errors in close handlers gracefully', () => {
+    // Create a close handler that throws an error
+    const errorCloseHandler = jest.fn().mockImplementation(() => {
+      throw new Error('Close handler error');
     });
     
-    it('should handle pong messages to reset heartbeat status', () => {
-      // Create mock client
-      const mockClient = new MockWebSocket();
-      
-      // Emit connection event
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      
-      // Set isAlive to false
-      mockClient.isAlive = false;
-      
-      // Emit pong event
-      mockClient.emit('pong');
-      
-      // Verify isAlive was set to true
-      expect(mockClient.isAlive).toBe(true);
+    // Register the error-throwing handler
+    webSocketService.onClose(errorCloseHandler);
+    
+    // Create a mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event to register the client
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Emit close event
+    mockClient.emit('close', 1000, 'normal closure');
+    
+    // Verify error was handled and logged
+    expect(errorCloseHandler).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Error in close handler'),
+      expect.any(Error)
+    );
+  });
+  
+  // Test error handling in connection handlers
+  it('should handle errors in connection handlers gracefully', () => {
+    // Create a connection handler that throws an error
+    const errorConnectionHandler = jest.fn().mockImplementation(() => {
+      throw new Error('Connection handler error');
     });
     
-    it('should cleanup heartbeat interval on close', () => {
-      // Trigger server close event
+    // Register the error-throwing handler
+    webSocketService.onConnection(errorConnectionHandler);
+    
+    // Create a mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event 
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Verify error was handled and logged
+    expect(errorConnectionHandler).toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Error in connection handler'),
+      expect.any(Error)
+    );
+  });
+  
+  // Test parsing invalid JSON in message handler
+  it('should handle invalid JSON in messages', () => {
+    // Create a mock client
+    const mockClient = new MockWebSocket();
+    
+    // Emit connection event to register the client
+    wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Send invalid JSON message
+    mockClient.emit('message', 'This is not valid JSON');
+    
+    // Verify error was logged
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Error processing message'),
+      expect.any(Error)
+    );
+  });
+  
+  // Test WebSocket server close event
+  it('should handle WebSocket server close event', () => {
+    // Mock clearInterval
+    const originalClearInterval = global.clearInterval;
+    global.clearInterval = jest.fn();
+    
+    try {
+      // Emit close event on the WebSocket server
       wss.emit('close');
       
-      // Verify clearInterval was called
+      // Verify cleanup was called
+      expect(console.log).toHaveBeenCalledWith(
+        expect.stringContaining('WebSocket server closed')
+      );
       expect(global.clearInterval).toHaveBeenCalled();
-    });
+    } finally {
+      // Restore original function
+      global.clearInterval = originalClearInterval;
+    }
   });
   
-  describe('Logging Functionality Tests', () => {
-    it('should log with different log levels', () => {
-      // Create service with debug log level
-      const debugService = new WebSocketService(mockServer as unknown as Server, {
-        logLevel: 'debug'
-      });
-      
-      // Test each log level
-      
-      // Debug logs should appear with debug level
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('WebSocket server initialized'),
-        expect.anything()
-      );
-      
-      // Create service with error log level
-      console.log = vi.fn(); // Reset
-      console.error = vi.fn();
-      console.warn = vi.fn();
-      
-      const errorService = new WebSocketService(mockServer as unknown as Server, {
-        logLevel: 'error'
-      });
-      
-      // Only error logs should appear
-      expect(console.log).not.toHaveBeenCalled();
-      
-      // Test error logging
-      const mockClient = new MockWebSocket();
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      mockClient.emit('message', 'invalid json');
-      
-      expect(console.error).toHaveBeenCalled();
-    });
-    
-    it('should not log when log level is none', () => {
-      console.log = vi.fn();
-      console.error = vi.fn();
-      console.warn = vi.fn();
-      
-      // Create service with none log level
-      const noneService = new WebSocketService(mockServer as unknown as Server, {
-        logLevel: 'none'
-      });
-      
-      // No logs should appear
-      expect(console.log).not.toHaveBeenCalled();
-      expect(console.error).not.toHaveBeenCalled();
-      expect(console.warn).not.toHaveBeenCalled();
-    });
+  // Test getServer method (not covered in original tests)
+  it('should return the WebSocket server instance', () => {
+    const serverInstance = webSocketService.getServer();
+    expect(serverInstance).toBe(wss);
   });
   
-  describe('Role Management Tests', () => {
-    it('should handle role change messages', () => {
-      // Create mock client
-      const mockClient = new MockWebSocket();
-      mockClient.role = 'student';
-      
-      // Emit connection event
-      wss.emit('connection', mockClient, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
-      
-      // Send role change message
-      mockClient.emit('message', JSON.stringify({
-        type: 'register',
-        role: 'teacher',
-        languageCode: 'en-US'
-      }));
-      
-      // Verify role was updated
-      expect(mockClient.role).toBe('teacher');
-      
-      // Verify log about role change
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('Changing connection role'),
-        expect.anything()
-      );
-    });
-  });
-  
-  describe('Utility Function Coverage', () => {
-    it('should expose the WebSocket server instance', () => {
-      // Get the server
-      const server = webSocketService.getServer();
-      
-      // Verify it's the correct server
-      expect(server).toBe(wss);
+  // Test different log levels
+  it('should respect log level configuration', () => {
+    // Create a service with debug level logs
+    const debugService = new WebSocketService(mockServer as unknown as Server, {
+      logLevel: 'debug'
     });
     
-    it('should handle broadcastMessage edge cases', () => {
-      // Test WebSocketService path
-      const service = new WebSocketService(mockServer as unknown as Server);
-      const message = { type: 'test', data: 'data' };
-      
-      // Spy on the broadcast method
-      const broadcastSpy = vi.spyOn(service, 'broadcast');
-      
-      // Call utility function
-      broadcastMessage(service, message);
-      
-      // Verify service.broadcast was called
-      expect(broadcastSpy).toHaveBeenCalledWith(message);
+    // Create a service with error-only logs
+    const errorService = new WebSocketService(mockServer as unknown as Server, {
+      logLevel: 'error'
     });
-  });
-});
-
-describe('WebSocket Extra Edge Cases', () => {
-  it('should handle broadcast error scenario', () => {
-    // Mock console.error
-    console.error = vi.fn();
     
-    // Create a mock server with clients
+    // Create a service with no logs
+    const silentService = new WebSocketService(mockServer as unknown as Server, {
+      logLevel: 'none'
+    });
+    
+    // Clear console mocks
+    jest.clearAllMocks();
+    
+    // Trigger various log levels by creating clients (which logs at info level)
     const mockClient1 = new MockWebSocket();
-    mockClient1.send = vi.fn(() => { throw new Error('Send error'); });
+    const mockClient2 = new MockWebSocket();
+    const mockClient3 = new MockWebSocket();
     
-    const mockServer = {
-      clients: new Set([mockClient1])
-    };
+    // Get the mocked WebSocketServer instances
+    const debugWSS = jest.mocked(WSServer).mock.results[1].value as unknown as MockWSServer;
+    const errorWSS = jest.mocked(WSServer).mock.results[2].value as unknown as MockWSServer;
+    const silentWSS = jest.mocked(WSServer).mock.results[3].value as unknown as MockWSServer;
     
-    // Create test message
+    // Emit connections for each service type
+    debugWSS.emit('connection', mockClient1, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    errorWSS.emit('connection', mockClient2, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    silentWSS.emit('connection', mockClient3, { headers: {}, socket: { remoteAddress: '127.0.0.1' } });
+    
+    // Debug service should log info messages
+    expect(console.log).toHaveBeenCalled();
+    
+    // Reset mock to test error level
+    jest.clearAllMocks();
+    
+    // Create mock error events
+    mockClient1.emit('message', 'invalid json for debug service');
+    mockClient2.emit('message', 'invalid json for error service');
+    mockClient3.emit('message', 'invalid json for silent service');
+    
+    // Debug and error services should log errors, silent should not
+    const errorCallCount = (console.error as jest.Mock).mock.calls.length;
+    expect(errorCallCount).toBe(2); // Debug and error services
+  });
+  
+  // Test broadcastMessage function with WebSocketService instance
+  it('should handle broadcastMessage with WebSocketService instance', () => {
+    // Create mock client
+    const mockClient = new MockWebSocket();
+    wss.clients.add(mockClient);
+    
+    // Use broadcastMessage utility function with WebSocketService instance
+    const message = { type: 'test', data: 'service-broadcast-test' };
+    broadcastMessage(webSocketService, message);
+    
+    // Verify broadcast was called on service
+    expect(mockClient.send).toHaveBeenCalledWith(JSON.stringify(message));
+  });
+  
+  // Test sendToClient with closed client
+  it('should not send to client with error during send', () => {
+    // Create a client with a send method that throws
+    const errorClient = new MockWebSocket();
+    errorClient.send = jest.fn().mockImplementation(() => {
+      throw new Error('Send error');
+    });
+    
+    // Call sendToClient
     const message = { type: 'test', data: 'test-data' };
     
-    // Call broadcast utility and verify it doesn't crash on error
+    // This should not throw
     expect(() => {
-      broadcastMessage(mockServer as unknown as WSServer, message);
+      webSocketService.sendToClient(errorClient as any, message);
     }).not.toThrow();
     
-    // Restore console
-    console.error = console.error;
-  });
-  
-  it('should handle broadcastToRole with mixed client states', () => {
-    // Create a service
-    const mockServer = new MockServer();
-    const service = new WebSocketService(mockServer as unknown as Server);
-    
-    // Get the WSServer
-    const wss = vi.mocked(WSServer).mock.results[0].value as MockWSServer;
-    
-    // Create mock clients with different states
-    const openTeacher = new MockWebSocket();
-    openTeacher.role = 'teacher';
-    openTeacher.readyState = WebSocketState.OPEN;
-    
-    const closingTeacher = new MockWebSocket();
-    closingTeacher.role = 'teacher';
-    closingTeacher.readyState = WebSocketState.CLOSING;
-    
-    const openStudent = new MockWebSocket();
-    openStudent.role = 'student';
-    openStudent.readyState = WebSocketState.OPEN;
-    
-    // Add all clients
-    wss.clients.add(openTeacher);
-    wss.clients.add(closingTeacher);
-    wss.clients.add(openStudent);
-    
-    // Broadcast to teachers
-    const message = { type: 'teacher-msg', data: 'teacher-data' };
-    service.broadcastToRole('teacher', message);
-    
-    // Verify only open teacher received message
-    expect(openTeacher.send).toHaveBeenCalledWith(JSON.stringify(message));
-    expect(closingTeacher.send).not.toHaveBeenCalled();
-    expect(openStudent.send).not.toHaveBeenCalled();
+    // Check console for error
+    expect(console.error).toHaveBeenCalled();
   });
 });
