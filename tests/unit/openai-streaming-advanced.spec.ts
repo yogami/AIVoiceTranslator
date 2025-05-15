@@ -1073,79 +1073,150 @@ describe('OpenAI Streaming Advanced Tests', () => {
         jest.useRealTimers();
       }
     });
-    it('should test transcription error conditions', async () => {
-      // Access the AudioProcessingService directly to test error handling
-      const originalTranscribeAudio = AudioProcessingService.prototype.transcribeAudio;
+    it('should test error handling in processAudioChunks (line 280-281)', async () => {
+      // Create a test session
+      const sessionId = 'error-handling-test';
       
-      // Replace with a version that throws an error
-      AudioProcessingService.prototype.transcribeAudio = jest.fn().mockImplementation(() => {
-        throw new Error('Test error from mock');
-      });
+      // Create session with initial data
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        Buffer.from('test audio').toString('base64'),
+        true,
+        'en-US'
+      );
       
-      try {
-        // Create a new instance of the service with our mocked method
-        const processor = new AudioProcessingService();
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Set a large buffer to trigger transcription
+        session.audioBuffer = [Buffer.alloc(5000)];
+        session.transcriptionInProgress = false;
         
-        // Set up a spy to capture console errors
+        // Mock OpenAI to throw errors
+        const originalOpenAI = global.OpenAI;
+        global.OpenAI = jest.fn().mockImplementation(() => ({
+          audio: {
+            transcriptions: {
+              create: jest.fn().mockImplementation(() => {
+                throw new Error('Mocked API error');
+              })
+            }
+          }
+        }));
+        
+        // Spy on error logging
         const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         
-        // Call the method which should throw
-        try {
-          await processor.transcribeAudio(Buffer.from('test'), 'en-US');
-          // Should not reach here
-          fail('Expected transcribeAudio to throw');
-        } catch (error) {
-          // Verify the correct error format is returned
-          expect(error.message).toContain('Transcription failed:');
-          expect(error.message).toContain('Test error from mock');
-          
-          // Error should be logged
-          expect(errorSpy).toHaveBeenCalled();
-          expect(errorSpy.mock.calls[0][0]).toContain('Transcription error:');
-        }
+        // Spy on WebSocket messages
+        const sendSpy = jest.spyOn(mockWebSocket, 'send');
+        sendSpy.mockClear();
         
-        errorSpy.mockRestore();
-      } finally {
-        // Restore original
-        AudioProcessingService.prototype.transcribeAudio = originalTranscribeAudio;
+        try {
+          // This should trigger the error path
+          await processStreamingAudio(
+            mockWebSocket as unknown as ExtendedWebSocket,
+            sessionId,
+            Buffer.from('more data').toString('base64'),
+            false,
+            'en-US'
+          );
+          
+          // Should sleep a bit to let async operations complete
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Verify error was logged
+          expect(errorSpy).toHaveBeenCalled();
+          
+          // Check if error message was sent
+          const errorMsgs = sendSpy.mock.calls.filter(call => {
+            try {
+              const msg = JSON.parse(call[0] as string);
+              return msg.type === 'error';
+            } catch (e) {
+              return false;
+            }
+          });
+          
+          // There should be at least one error message
+          // (Line 281 sends an error message to the client)
+          expect(errorMsgs.length).toBeGreaterThan(0);
+        } finally {
+          // Restore original implementation
+          global.OpenAI = originalOpenAI;
+          errorSpy.mockRestore();
+          sessionManager.deleteSession(sessionId);
+        }
       }
     });
     
-    it('should test transcription error with non-Error object', async () => {
-      // Access the AudioProcessingService directly to test error handling
-      const originalTranscribeAudio = AudioProcessingService.prototype.transcribeAudio;
+    it('should test error formatting with Error objects (line 239)', async () => {
+      // Create a test session
+      const sessionId = 'error-format-test';
       
-      // Replace with a version that throws a non-Error
-      AudioProcessingService.prototype.transcribeAudio = jest.fn().mockImplementation(() => {
-        throw 'String error';  // Not an Error object
-      });
+      // Create session with initial data
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        Buffer.from('test audio').toString('base64'),
+        true,
+        'en-US'
+      );
       
-      try {
-        // Create a new instance of the service with our mocked method
-        const processor = new AudioProcessingService();
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Prepare for testing error handling
+        session.audioBuffer = [Buffer.alloc(5000)];
+        session.transcriptionInProgress = false;
         
-        // Set up a spy to capture console errors
+        // Override OpenAI to throw an error
+        const originalOpenAI = global.OpenAI;
+        global.OpenAI = jest.fn().mockImplementation(() => ({
+          audio: {
+            transcriptions: {
+              create: jest.fn().mockImplementation(() => {
+                // This error should be formatted with its message
+                throw new Error('Test error message');
+              })
+            }
+          }
+        }));
+        
+        // Spy on console.error
         const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         
-        // Call the method which should throw
         try {
-          await processor.transcribeAudio(Buffer.from('test'), 'en-US');
-          // Should not reach here
-          fail('Expected transcribeAudio to throw');
-        } catch (error) {
-          // Verify the correct error format is returned
-          expect(error.message).toContain('Transcription failed:');
-          expect(error.message).toContain('Unknown error');
+          // Should trigger error in processAudioChunks
+          await finalizeStreamingSession(
+            mockWebSocket as unknown as ExtendedWebSocket,
+            sessionId
+          );
           
-          // Error should be logged
+          // Give time for async operations
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Verify error was logged
           expect(errorSpy).toHaveBeenCalled();
-          expect(errorSpy.mock.calls[0][0]).toContain('Transcription error:');
+          
+          // Check error message format - should contain the actual error message
+          const specificErrorMsgs = errorSpy.mock.calls.filter(call => {
+            return (typeof call[0] === 'string') && 
+                  call[0].includes('Test error message');
+          });
+          
+          // Should have our specific error message
+          expect(specificErrorMsgs.length).toBeGreaterThan(0);
+        } finally {
+          // Restore original implementation
+          global.OpenAI = originalOpenAI;
+          errorSpy.mockRestore();
+          sessionManager.deleteSession(sessionId);
         }
-        
-        errorSpy.mockRestore();
-      } finally {
-        // Restore original
-        AudioProcessingService.prototype.transcribeAudio = originalTranscribeAudio;
       }
     });
     
