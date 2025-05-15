@@ -624,4 +624,83 @@ describe('WebSocketService Error Handling and Edge Cases', () => {
     // Verify the type of the returned object
     expect(wsServer).toBeDefined();
   });
+  
+  // Test the broadcastMessage utility on a raw WSServer
+  it('should use the broadcastMessage utility with a raw WSServer', () => {
+    // Create mock WSServer with clients
+    const mockRawWss = {
+      clients: new Set()
+    };
+    
+    // Create mock clients
+    const client1 = new MockWebSocket();
+    client1.readyState = WebSocketState.OPEN;
+    const client2 = new MockWebSocket();
+    client2.readyState = WebSocketState.OPEN;
+    
+    // Add clients to the set
+    mockRawWss.clients.add(client1);
+    mockRawWss.clients.add(client2);
+    
+    // Create test message
+    const message = { type: 'raw-server-test', data: 'test-data' };
+    
+    // Call the utility function with a raw server
+    broadcastMessage(mockRawWss as any, message);
+    
+    // Verify both clients received the message
+    expect(client1.send).toHaveBeenCalledWith(JSON.stringify(message));
+    expect(client2.send).toHaveBeenCalledWith(JSON.stringify(message));
+  });
+  
+  // Test the sendToClient utility function directly
+  it('should use the sendToClient utility function directly', () => {
+    // Create mock client
+    const mockClient = new MockWebSocket();
+    mockClient.readyState = WebSocketState.OPEN;
+    
+    // Create test message
+    const message = { type: 'direct-client-test', data: 'direct-test' };
+    
+    // Call the utility function
+    sendToClient(mockClient as any, message);
+    
+    // Verify the client received the message
+    expect(mockClient.send).toHaveBeenCalledWith(JSON.stringify(message));
+  });
+  
+  // Test getClientsByRole method
+  it('should get clients by role', () => {
+    // Create clients with different roles
+    const teacherClient = new MockWebSocket();
+    teacherClient.readyState = WebSocketState.OPEN;
+    teacherClient.role = 'teacher';
+    
+    const studentClient = new MockWebSocket();
+    studentClient.readyState = WebSocketState.OPEN;
+    studentClient.role = 'student';
+    
+    const unsetClient = new MockWebSocket();
+    unsetClient.readyState = WebSocketState.OPEN;
+    // role not set
+    
+    // Add clients to server
+    wss.clients.add(teacherClient);
+    wss.clients.add(studentClient);
+    wss.clients.add(unsetClient);
+    
+    // Get teacher clients
+    const teachers = webSocketService.getClientsByRole('teacher');
+    
+    // Verify results
+    expect(teachers.length).toBe(1);
+    expect(teachers[0]).toBe(teacherClient);
+    
+    // Get student clients
+    const students = webSocketService.getClientsByRole('student');
+    
+    // Verify results
+    expect(students.length).toBe(1);
+    expect(students[0]).toBe(studentClient);
+  });
 });
