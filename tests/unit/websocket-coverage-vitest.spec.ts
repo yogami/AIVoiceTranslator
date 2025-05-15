@@ -149,113 +149,220 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
   });
   
   describe('WebSocketService Class', () => {
-    it('should initialize with default values', () => {
-      expect(wsService.clients.size).toBe(0);
-      expect(wsService.teachers.size).toBe(0);
-      expect(wsService.students.size).toBe(0);
+    it('should initialize with default parameters', () => {
+      const service = new WebSocketService(mockServer);
+      expect(service).toBeDefined();
+      expect(service.getServer()).toBeDefined();
     });
     
-    it('should add clients with addClient method', () => {
+    it('should initialize with custom parameters', () => {
+      const service = new WebSocketService(mockServer, {
+        path: '/custom',
+        heartbeatInterval: 5000,
+        logLevel: 'debug'
+      });
+      expect(service).toBeDefined();
+    });
+    
+    it('should handle onMessage registration', () => {
+      const handler = vi.fn();
+      
+      // Register handler
+      wsService.onMessage('test', handler);
+      
+      // Get the WebSocket server
+      const wss = wsService.getServer();
+      
+      // Create a mock connection
       const mockWs = new WebSocket();
-      const sessionId = 'test-session';
-      const role = 'teacher';
-      const language = 'en-US';
+      (mockWs as any).readyState = WebSocketState.OPEN;
       
-      wsService.addClient(mockWs, sessionId, role, language);
+      // Trigger a connection
+      wss.emit('connection', mockWs, {} as IncomingMessage);
       
-      expect(wsService.clients.size).toBe(1);
-      expect(wsService.teachers.size).toBe(1);
-      expect(wsService.students.size).toBe(0);
-      expect(mockWs.sessionId).toBe(sessionId);
-      expect(mockWs.role).toBe(role);
-      expect(mockWs.languageCode).toBe(language);
+      // Now trigger a message event with our type
+      const mockMessage = { type: 'test', data: 'test data' };
+      mockWs.emit('message', Buffer.from(JSON.stringify(mockMessage)));
+      
+      // Handler should have been called
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          readyState: WebSocketState.OPEN
+        }),
+        mockMessage
+      );
     });
     
-    it('should add student clients correctly', () => {
+    it('should handle onConnection registration', () => {
+      const handler = vi.fn();
+      
+      // Register handler
+      wsService.onConnection(handler);
+      
+      // Get the WebSocket server
+      const wss = wsService.getServer();
+      
+      // Create a mock connection
       const mockWs = new WebSocket();
-      wsService.addClient(mockWs, 'student-session', 'student', 'es-ES');
+      const mockRequest = {} as IncomingMessage;
       
-      expect(wsService.clients.size).toBe(1);
-      expect(wsService.teachers.size).toBe(0);
-      expect(wsService.students.size).toBe(1);
+      // Trigger a connection
+      wss.emit('connection', mockWs, mockRequest);
+      
+      // Handler should have been called
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          readyState: WebSocketState.OPEN
+        }),
+        mockRequest
+      );
     });
     
-    it('should remove clients with removeClient method', () => {
+    it('should handle onClose registration', () => {
+      const handler = vi.fn();
+      
+      // Register handler
+      wsService.onClose(handler);
+      
+      // Get the WebSocket server
+      const wss = wsService.getServer();
+      
+      // Create a mock connection
       const mockWs = new WebSocket();
-      wsService.addClient(mockWs, 'test-session', 'teacher', 'en-US');
       
-      expect(wsService.clients.size).toBe(1);
+      // Trigger a connection
+      wss.emit('connection', mockWs, {} as IncomingMessage);
       
-      wsService.removeClient(mockWs);
+      // Now close the connection
+      mockWs.emit('close', 1000, 'Normal closure');
       
-      expect(wsService.clients.size).toBe(0);
-      expect(wsService.teachers.size).toBe(0);
-    });
-
-    it('should handle removing a client that is not in the collections', () => {
-      const mockWs = new WebSocket();
-      
-      // Client not added to service
-      wsService.removeClient(mockWs);
-      
-      // Should not throw and collections should be empty
-      expect(wsService.clients.size).toBe(0);
+      // Handler should have been called
+      expect(handler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          readyState: WebSocketState.OPEN
+        }),
+        1000,
+        'Normal closure'
+      );
     });
     
-    it('should broadcast messages to teachers', () => {
-      // Add multiple teacher clients
-      const teacher1 = new WebSocket();
-      const teacher2 = new WebSocket();
+    it('should broadcast messages to all clients', () => {
+      // Get server instance and add clients
+      const wss = wsService.getServer();
       
-      wsService.addClient(teacher1, 'teacher-1', 'teacher', 'en-US');
-      wsService.addClient(teacher2, 'teacher-2', 'teacher', 'fr-FR');
+      // Create mock clients
+      const client1 = new WebSocket();
+      const client2 = new WebSocket();
       
-      const message = { type: 'test', data: 'test-data' };
-      wsService.broadcastToTeachers(message);
+      // Add them to clients set
+      wss.clients.clear();
+      wss.clients.add(client1);
+      wss.clients.add(client2);
       
-      expect(teacher1.send).toHaveBeenCalledWith(JSON.stringify(message));
-      expect(teacher2.send).toHaveBeenCalledWith(JSON.stringify(message));
+      // Send broadcast
+      const message = { type: 'broadcast', data: 'test' };
+      wsService.broadcast(message);
+      
+      // Both clients should receive the message
+      expect(client1.send).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(client2.send).toHaveBeenCalledWith(JSON.stringify(message));
     });
     
-    it('should broadcast messages to students with language filtering', () => {
-      // Add multiple student clients with different languages
-      const student1 = new WebSocket();
-      const student2 = new WebSocket();
-      const student3 = new WebSocket();
+    it('should broadcast messages to clients with specific role', () => {
+      // Get server instance and add clients
+      const wss = wsService.getServer();
       
-      wsService.addClient(student1, 'student-1', 'student', 'en-US');
-      wsService.addClient(student2, 'student-2', 'student', 'fr-FR');
-      wsService.addClient(student3, 'student-3', 'student', 'en-US');
+      // Create mock clients with roles
+      const teacher = new WebSocket() as any;
+      teacher.role = 'teacher';
       
-      const message = { type: 'test', data: 'test-data' };
+      const student = new WebSocket() as any;
+      student.role = 'student';
       
-      // Broadcast only to English students
-      wsService.broadcastToStudentsByLanguage(message, 'en-US');
+      const noRole = new WebSocket() as any;
       
-      expect(student1.send).toHaveBeenCalledWith(JSON.stringify(message));
-      expect(student2.send).not.toHaveBeenCalled();
-      expect(student3.send).toHaveBeenCalledWith(JSON.stringify(message));
+      // Add them to clients set
+      wss.clients.clear();
+      wss.clients.add(teacher);
+      wss.clients.add(student);
+      wss.clients.add(noRole);
+      
+      // Send targeted broadcast
+      const message = { type: 'rolecast', data: 'test' };
+      wsService.broadcastToRole('teacher', message);
+      
+      // Only teacher should receive the message
+      expect(teacher.send).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(student.send).not.toHaveBeenCalled();
+      expect(noRole.send).not.toHaveBeenCalled();
     });
     
-    it('should handle errors when broadcasting to students by language', () => {
-      const student = new WebSocket();
-      student.throwOnSend = true;
-      wsService.addClient(student, 'student-error', 'student', 'en-US');
+    it('should get clients by role', () => {
+      // Get server instance
+      const wss = wsService.getServer();
+      
+      // Create mock clients with roles
+      const teacher1 = new WebSocket() as any;
+      teacher1.role = 'teacher';
+      
+      const teacher2 = new WebSocket() as any;
+      teacher2.role = 'teacher';
+      
+      const student = new WebSocket() as any;
+      student.role = 'student';
+      
+      // Add them to clients set
+      wss.clients.clear();
+      wss.clients.add(teacher1);
+      wss.clients.add(teacher2);
+      wss.clients.add(student);
+      
+      // Get teachers
+      const teachers = wsService.getClientsByRole('teacher');
+      
+      // Should find 2 teachers
+      expect(teachers.length).toBe(2);
+      expect(teachers).toContain(teacher1);
+      expect(teachers).toContain(teacher2);
+      expect(teachers).not.toContain(student);
+    });
+    
+    it('should get all clients', () => {
+      // Get server instance and add clients
+      const wss = wsService.getServer();
+      
+      // Create mock clients
+      const client1 = new WebSocket();
+      const client2 = new WebSocket();
+      
+      // Add them to clients set
+      wss.clients.clear();
+      wss.clients.add(client1);
+      wss.clients.add(client2);
+      
+      // Get all clients
+      const clients = wsService.getClients();
+      
+      // Should have 2 clients
+      expect(clients.size).toBe(2);
+      expect(clients.has(client1)).toBe(true);
+      expect(clients.has(client2)).toBe(true);
+    });
+    
+    it('should handle send errors during broadcast', () => {
+      // Get server instance
+      const wss = wsService.getServer();
+      
+      // Create a client that will throw when sending
+      const client = new WebSocket();
+      client.throwOnSend = true;
+      
+      // Add to clients set
+      wss.clients.clear();
+      wss.clients.add(client);
       
       // Should not throw when a client's send method throws
-      wsService.broadcastToStudentsByLanguage({ type: 'test' }, 'en-US');
-      
-      // Function completes without error
-      expect(true).toBeTruthy();
-    });
-    
-    it('should handle errors when broadcasting to teachers', () => {
-      const teacher = new WebSocket();
-      teacher.throwOnSend = true;
-      wsService.addClient(teacher, 'teacher-error', 'teacher', 'en-US');
-      
-      // Should not throw when a client's send method throws
-      wsService.broadcastToTeachers({ type: 'test' });
+      wsService.broadcast({ type: 'test' });
       
       // Function completes without error
       expect(true).toBeTruthy();
@@ -288,59 +395,22 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
     });
   });
   
-  describe('WebSocket Server Creation', () => {
-    it('should create a WebSocket server and attach event handlers', () => {
+  describe('createWebSocketServer', () => {
+    it('should create a WebSocketService instance', () => {
       const httpServer = new Server();
-      const wsService = new WebSocketService();
+      const service = createWebSocketServer(httpServer);
       
-      const wss = createWebSocketServer(httpServer, wsService);
-      
-      // Check if server has connection handler
-      expect(wss.on).toHaveBeenCalledWith('connection', expect.any(Function));
-      
-      // Trigger connection and error events to test handlers
-      const mockWs = new WebSocket();
-      wss.triggerConnection(mockWs);
-      
-      // Verify event listeners were added to the socket
-      expect(mockWs.on).toHaveBeenCalledWith('message', expect.any(Function));
-      expect(mockWs.on).toHaveBeenCalledWith('close', expect.any(Function));
-      expect(mockWs.on).toHaveBeenCalledWith('error', expect.any(Function));
-      
-      // Trigger error event
-      const testError = new Error('Test server error');
-      wss.triggerError(testError);
-      
-      // Verify server is handling errors (no assertion needed - just checking it doesn't throw)
-      expect(true).toBeTruthy();
+      expect(service).toBeInstanceOf(WebSocketService);
     });
     
-    it('should handle connection message events correctly', () => {
+    it('should create WebSocketService with custom path', () => {
       const httpServer = new Server();
-      const wsService = new WebSocketService();
+      const service = createWebSocketServer(httpServer, '/custom-ws');
       
-      // Create server and capture connection handler
-      const wss = createWebSocketServer(httpServer, wsService);
-      const connectionHandler = wss.on.mock.calls.find(call => call[0] === 'connection')[1];
-      
-      // Create client and attach message handler
-      const mockWs = new WebSocket();
-      connectionHandler(mockWs);
-      
-      // Extract message handler
-      const messageHandler = mockWs.on.mock.calls.find(call => call[0] === 'message')[1];
-      
-      // Test join message handling - teacher
-      const teacherJoin = {
-        type: 'join',
-        sessionId: 'teacher-session',
-        role: 'teacher',
-        language: 'en-US'
-      };
-      
-      messageHandler(JSON.stringify(teacherJoin));
-      
-      // Verify client was added
+      expect(service).toBeInstanceOf(WebSocketService);
+    });
+    
+
       expect(wsService.clients.size).toBe(1);
       expect(wsService.teachers.size).toBe(1);
       
