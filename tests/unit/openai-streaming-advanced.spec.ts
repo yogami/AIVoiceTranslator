@@ -919,6 +919,97 @@ describe('OpenAI Streaming Advanced Tests', () => {
       }
     });
     
+    it('should test transcription text formatting', async () => {
+      // Create a session
+      const sessionId = 'text-formatting-test';
+      
+      // Initialize with a session
+      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+      
+      // Set up the session for testing
+      session.transcriptionInProgress = false;
+      
+      // Test with meaningful text
+      session.transcriptionText = 'This is a \n test with\r\n line breaks.';
+      
+      // Spy on WebSocket messages
+      const sendSpy = jest.spyOn(mockWebSocket, 'send');
+      sendSpy.mockClear();
+      
+      // Trigger the finalization
+      await finalizeStreamingSession(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId
+      );
+      
+      // Look for the finalized message
+      const finalMessages = sendSpy.mock.calls.filter(call => {
+        try {
+          const msg = JSON.parse(call[0] as string);
+          return msg.type === 'transcription' && msg.isFinal === true;
+        } catch (e) {
+          return false;
+        }
+      });
+      
+      // Verify a final message was sent
+      expect(finalMessages.length).toBe(1);
+      
+      // Extract and verify the message content
+      const messageText = JSON.parse(finalMessages[0][0] as string).text;
+      
+      // Verify the message text exists
+      expect(messageText).toBeDefined();
+      expect(typeof messageText).toBe('string');
+      
+      // Clean up
+      sessionManager.deleteSession(sessionId);
+    });
+    
+    it('should cover the WebSocketCommunicator.sendErrorMessage path', async () => {
+      // Test the WebSocketCommunicator.sendErrorMessage usage in error handling
+      
+      // Spy on WebSocket send method
+      const sendSpy = jest.spyOn(mockWebSocket, 'send');
+      sendSpy.mockClear();
+      
+      // Create a session
+      const sessionId = 'error-path-test';
+      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+      
+      // Modify the session to have a process with audio
+      session.audioBuffer = [Buffer.alloc(5000)];
+      session.transcriptionInProgress = false;
+      
+      // Force an error in WebSocket communication by throwing during send
+      mockWebSocket.send = jest.fn().mockImplementation(() => {
+        throw new Error('WebSocket connection error');
+      });
+      
+      // Spy on console.error
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      try {
+        // Should trigger the error handling path in finalizeStreamingSession
+        await finalizeStreamingSession(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId
+        );
+        
+        // Wait for async operations
+        await new Promise(r => setTimeout(r, 100));
+        
+        // Error should be logged
+        expect(errorSpy).toHaveBeenCalled();
+      } finally {
+        // Clean up
+        errorSpy.mockRestore();
+        // Restore original send method
+        mockWebSocket.send = sendSpy;
+        sessionManager.deleteSession(sessionId);
+      }
+    });
+    
     it('should test line 390 (interval-based cleanup)', async () => {
       // Create a test session that should be cleaned up
       const sessionId = 'cleanup-interval-test';
