@@ -10,50 +10,91 @@ import { WebSocketService, WebSocketState, createWebSocketServer, broadcastMessa
 import { Server } from 'http';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import { EventEmitter } from 'events';
+import type { IncomingMessage } from 'http';
 
 // Mock WebSocket implementation
 vi.mock('ws', () => {
   const EventEmitter = require('events').EventEmitter;
   
-  // Use a factory function to create instances
+  // Define types to match the actual WebSocket implementation
   class MockWebSocket extends EventEmitter {
+    binaryType = 'arraybuffer';
+    bufferedAmount = 0;
+    extensions = '';
+    protocol = '';
     readyState = WebSocketState.OPEN;
+    url = 'ws://localhost:8080/ws';
+    
+    // Custom properties for our testing
     isAlive = true;
     sessionId = undefined;
     role = undefined;
     languageCode = undefined;
-    
-    send = vi.fn();
-    ping = vi.fn();
-    terminate = vi.fn();
-    
-    // Add ability to throw errors for testing
     throwOnSend = false;
     
-    constructor() {
-      super();
-      this.send.mockImplementation((data) => {
-        if (this.throwOnSend) {
-          throw new Error('Mock send error');
-        }
-        return true;
-      });
-    }
-
+    // Mock methods
+    send = vi.fn().mockImplementation((data) => {
+      if (this.throwOnSend) {
+        throw new Error('Mock send error');
+      }
+      return true;
+    });
+    
+    ping = vi.fn();
+    terminate = vi.fn();
     close = vi.fn();
+    
+    // Event handlers
+    onclose = null;
+    onerror = null;
+    onmessage = null;
+    onopen = null;
+    
+    // Required WebSocket methods
+    addEventListener = vi.fn((event, listener) => {
+      super.on(event, listener);
+    });
+    
+    removeEventListener = vi.fn((event, listener) => {
+      super.off(event, listener);
+    });
+    
+    dispatchEvent = vi.fn();
   }
   
   class MockWSServer extends EventEmitter {
     clients = new Set();
     
-    constructor() {
+    constructor(options = {}) {
       super();
       this.clients.add(new MockWebSocket());
+      this.path = options.path || '/ws';
+      
+      // Handle options.server if provided
+      if (options.server) {
+        options.server.on('upgrade', (request, socket, head) => {
+          this.handleUpgrade(request, socket, head, (ws) => {
+            this.emit('connection', ws, request);
+          });
+        });
+      }
     }
     
+    // Mock methods
     on = vi.fn((event, callback) => {
       super.on(event, callback);
       return this;
+    });
+    
+    handleUpgrade = vi.fn();
+    
+    // Broadcast to all clients
+    broadcast = vi.fn((data) => {
+      this.clients.forEach(client => {
+        if (client.readyState === WebSocketState.OPEN) {
+          client.send(typeof data === 'string' ? data : JSON.stringify(data));
+        }
+      });
     });
     
     // Allow direct access for test verification
@@ -85,9 +126,8 @@ vi.mock('http', () => {
 
 describe('WebSocket Module - 100% Coverage Tests', () => {
   // Initialize objects needed for tests
-  let wsService;
-  let mockServer;
-  let mockWSServer;
+  let wsService: WebSocketService;
+  let mockServer: Server;
   
   beforeEach(() => {
     // Reset mocks between tests
@@ -95,8 +135,12 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
     
     // Create new instances
     mockServer = new Server();
-    mockWSServer = new WSServer({ server: mockServer });
-    wsService = new WebSocketService();
+    
+    // Create WebSocketService with our mock server
+    wsService = new WebSocketService(mockServer, { 
+      path: '/ws',
+      logLevel: 'none' // Suppress logs during tests
+    });
   });
   
   afterEach(() => {
@@ -395,25 +439,30 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
   
   describe('Utility Functions', () => {
     it('should broadcast messages to all clients', () => {
-      // Create a mock service with a broadcastToAll method
-      const mockWsService = {
-        broadcastToAll: vi.fn()
-      };
+      // Create a proper WSS instance with clients
+      const mockWSS = new WSServer({ noServer: true });
       
-      // Test broadcast
+      // Create real WebSocket instances for the client set
+      const client1 = new WebSocket();
+      const client2 = new WebSocket();
+      
+      // Clear the existing Set and add our clients
+      mockWSS.clients.clear();
+      mockWSS.clients.add(client1);
+      mockWSS.clients.add(client2);
+      
+      // Test broadcast to this server directly
       const message = { type: 'test', data: 'test' };
-      broadcastMessage(mockWsService, message);
+      broadcastMessage(mockWSS, message);
       
-      // Verify the broadcast method was called
-      expect(mockWsService.broadcastToAll).toHaveBeenCalledWith(message);
+      // Verify messages were sent to clients
+      expect(client1.send).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(client2.send).toHaveBeenCalledWith(JSON.stringify(message));
     });
     
     it('should send messages to a specific client', () => {
-      // Create a mock client
-      const mockClient = {
-        readyState: WebSocketState.OPEN,
-        send: vi.fn()
-      };
+      // Create a mock WebSocket
+      const mockClient = new WebSocket();
       
       // Test send
       const message = { type: 'test', data: 'test' };
@@ -424,13 +473,11 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
     });
     
     it('should handle errors when sending to a specific client', () => {
-      // Create a mock client that throws on send
-      const mockClient = {
-        readyState: WebSocketState.OPEN,
-        send: vi.fn().mockImplementation(() => {
-          throw new Error('Mock send error');
-        })
-      };
+      // Create a mock client
+      const mockClient = new WebSocket();
+      
+      // Force it to throw on send
+      mockClient.throwOnSend = true;
       
       // Should not throw
       sendToClient(mockClient, { type: 'test' });
