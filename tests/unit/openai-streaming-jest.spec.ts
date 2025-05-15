@@ -9,7 +9,7 @@
 import { jest, describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
 import { WebSocket } from 'ws';
 import type { ExtendedWebSocket } from '../../server/websocket';
-import { sessionManager } from '../../server/openai-streaming';
+import { sessionManager, processStreamingAudio, finalizeStreamingSession, cleanupInactiveStreamingSessions } from '../../server/openai-streaming';
 
 // Ensure environment is set up
 beforeAll(() => {
@@ -89,12 +89,6 @@ jest.mock('ws', () => {
   };
 });
 
-// Import the module after mocks are set up
-import {
-  processStreamingAudio,
-  finalizeStreamingSession,
-  cleanupInactiveStreamingSessions
-} from '../../server/openai-streaming';
 
 describe('OpenAI Streaming Module', () => {
   let mockWebSocket;
@@ -250,6 +244,28 @@ describe('OpenAI Streaming Module', () => {
   });
   
   describe('finalizeStreamingSession function', () => {
+    it('should handle session with transcription in progress', async () => {
+      // Create a session with transcriptionInProgress set to true
+      const sessionId = 'session-in-progress';
+      // Create session 
+      sessionManager.createSession(sessionId, 'en-US', Buffer.from('test audio'));
+      
+      // Manually set transcriptionInProgress to true
+      const session = sessionManager.getSession(sessionId);
+      session.transcriptionInProgress = true;
+      
+      // Clear send mock to verify it wasn't called
+      mockWebSocket.send.mockClear();
+      
+      // Call finalizeStreamingSession
+      await finalizeStreamingSession(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId
+      );
+      
+      // Verify no message was sent due to in-progress transcription
+      expect(mockWebSocket.send).not.toHaveBeenCalled();
+    });
     it('should finalize a session and send transcription results', async () => {
       // Set up
       const sessionId = 'test-session-123';
@@ -302,6 +318,23 @@ describe('OpenAI Streaming Module', () => {
     });
   });
   
+  describe('SessionManager class', () => {
+    it('should return all sessions when getAllSessions is called', () => {
+      // Create test sessions
+      sessionManager.createSession('test-all-1', 'en-US', Buffer.from('test audio'));
+      sessionManager.createSession('test-all-2', 'fr-FR', Buffer.from('test audio 2'));
+      
+      // Get all sessions
+      const allSessions = sessionManager.getAllSessions();
+      
+      // Verify sessions are returned
+      expect(allSessions).toBeDefined();
+      expect(allSessions.size).toBeGreaterThan(0);
+      expect(allSessions.has('test-all-1')).toBeTruthy();
+      expect(allSessions.has('test-all-2')).toBeTruthy();
+    });
+  });
+
   describe('cleanupInactiveStreamingSessions function', () => {
     it('should clean up inactive sessions', async () => {
       // Create a few sessions
