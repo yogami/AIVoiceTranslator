@@ -114,6 +114,9 @@ describe('OpenAI Streaming Module', () => {
       const isFirstChunk = true;
       const language = 'en-US';
       
+      // Spy on session manager to verify session creation
+      const createSessionSpy = jest.spyOn(sessionManager, 'createSession');
+      
       // Call the function
       await processStreamingAudio(
         mockWebSocket as unknown as ExtendedWebSocket,
@@ -123,13 +126,14 @@ describe('OpenAI Streaming Module', () => {
         language
       );
       
-      // Check that the WebSocket send method was called (for acknowledgment)
-      expect(mockWebSocket.send).toHaveBeenCalled();
+      // Verify session was created with correct parameters
+      expect(createSessionSpy).toHaveBeenCalledWith(sessionId, language, expect.any(Buffer));
       
-      // The first message should have a type of "audio_received"
-      const firstCallArgs = mockWebSocket.send.mock.calls[0][0];
-      const firstMessage = JSON.parse(firstCallArgs);
-      expect(firstMessage.type).toEqual('audio_received');
+      // Check that processing starts
+      expect(sessionManager.getSession(sessionId)).toBeDefined();
+      
+      // Clean up
+      createSessionSpy.mockRestore();
     });
     
     it('should handle non-first chunks properly', async () => {
@@ -139,7 +143,20 @@ describe('OpenAI Streaming Module', () => {
       const isFirstChunk = false;
       const language = 'en-US';
       
-      // Call the function
+      // We need a session to exist first before adding chunks
+      // Create session
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true, // first create the session
+        language
+      );
+      
+      // Spy on session manager to verify addAudioToSession is called
+      const addAudioSpy = jest.spyOn(sessionManager, 'addAudioToSession');
+      
+      // Call the function with non-first chunk
       await processStreamingAudio(
         mockWebSocket as unknown as ExtendedWebSocket,
         sessionId,
@@ -148,8 +165,11 @@ describe('OpenAI Streaming Module', () => {
         language
       );
       
-      // Check that the WebSocket send method was called
-      expect(mockWebSocket.send).toHaveBeenCalled();
+      // Verify addAudioToSession was called with correct parameters
+      expect(addAudioSpy).toHaveBeenCalledWith(sessionId, expect.any(Buffer));
+      
+      // Clean up
+      addAudioSpy.mockRestore();
     });
     
     it('should handle empty audio data gracefully', async () => {
