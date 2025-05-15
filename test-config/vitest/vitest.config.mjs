@@ -2,18 +2,18 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 
 /**
- * This is a dedicated Vitest configuration solely for tests.
- * It has no impact on the application code or configuration.
+ * Consolidated Vitest configuration file.
+ * This configuration handles all Vitest test settings in one place.
  */
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['**/*.spec.ts'],
+    include: ['tests/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
     testTimeout: 30000,          // 30 seconds per test
     hookTimeout: 15000,          // 15 seconds for hooks 
-    teardownTimeout: 10000,       // 10 seconds for teardown
+    teardownTimeout: 10000,      // 10 seconds for teardown
     maxConcurrency: 1,           // Run tests sequentially
     maxThreads: 1,               // Use only one thread
     minThreads: 1,               // Use at least one thread
@@ -46,6 +46,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@': resolve(process.cwd(), './server'),
       '@server': resolve(process.cwd(), './server'),
       '@shared': resolve(process.cwd(), './shared'),
       '@client': resolve(process.cwd(), './client'),
