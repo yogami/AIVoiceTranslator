@@ -159,6 +159,9 @@ describe('OpenAI Streaming Module', () => {
       const isFirstChunk = true;
       const language = 'en-US';
       
+      // Clear any previous calls
+      mockWebSocket.send.mockClear();
+      
       // Call the function
       await processStreamingAudio(
         mockWebSocket as unknown as ExtendedWebSocket,
@@ -170,9 +173,7 @@ describe('OpenAI Streaming Module', () => {
       
       // Should send an error message
       expect(mockWebSocket.send).toHaveBeenCalled();
-      const callArgs = mockWebSocket.send.mock.calls[0][0];
-      const message = JSON.parse(callArgs);
-      expect(message.type).toEqual('error');
+      expect(mockWebSocket.lastMessage?.type).toEqual('error');
     });
     
     it('should handle invalid base64 data gracefully', async () => {
@@ -182,6 +183,9 @@ describe('OpenAI Streaming Module', () => {
       const isFirstChunk = true;
       const language = 'en-US';
       
+      // Clear any previous calls
+      mockWebSocket.send.mockClear();
+      
       // Call the function
       await processStreamingAudio(
         mockWebSocket as unknown as ExtendedWebSocket,
@@ -193,9 +197,7 @@ describe('OpenAI Streaming Module', () => {
       
       // Should send an error message
       expect(mockWebSocket.send).toHaveBeenCalled();
-      const callArgs = mockWebSocket.send.mock.calls[0][0];
-      const message = JSON.parse(callArgs);
-      expect(message.type).toEqual('error');
+      expect(mockWebSocket.lastMessage?.type).toEqual('error');
     });
   });
   
@@ -203,6 +205,9 @@ describe('OpenAI Streaming Module', () => {
     it('should finalize a session and send transcription results', async () => {
       // Set up
       const sessionId = 'test-session-123';
+      
+      // Clear any previous calls
+      mockWebSocket.send.mockClear();
       
       // Create a session first with a first chunk
       await processStreamingAudio(
@@ -224,10 +229,8 @@ describe('OpenAI Streaming Module', () => {
       
       // Should send the final transcription
       expect(mockWebSocket.send).toHaveBeenCalled();
-      const callArgs = mockWebSocket.send.mock.calls[0][0];
-      const message = JSON.parse(callArgs);
-      expect(message.type).toEqual('transcription_result');
-      expect(message.isFinal).toBe(true);
+      expect(mockWebSocket.lastMessage?.type).toEqual('transcription_result');
+      expect(mockWebSocket.lastMessage?.isFinal).toBe(true);
     });
     
     it('should handle non-existent session gracefully', async () => {
