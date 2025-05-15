@@ -5,15 +5,15 @@
  * to maximize coverage. This includes error handling, edge cases, and specific methods
  * that weren't previously covered.
  */
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WebSocketService, WebSocketState, createWebSocketServer, broadcastMessage, sendToClient } from '../../server/websocket';
 import { Server } from 'http';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import { EventEmitter } from 'events';
 
 // Override the imports with our mocked versions - must be defined before class definitions
-jest.mock('ws', () => {
-  const EventEmitter = require('events').EventEmitter;
+vi.mock('ws', async () => {
+  const EventEmitter = (await import('events')).EventEmitter;
   
   // Use a factory function to create instances
   class MockWebSocket extends EventEmitter {
@@ -23,12 +23,12 @@ jest.mock('ws', () => {
     role = undefined;
     languageCode = undefined;
     
-    send = jest.fn();
-    ping = jest.fn();
-    terminate = jest.fn();
+    send = vi.fn();
+    ping = vi.fn();
+    terminate = vi.fn();
     
     // Add ability to throw errors for testing
-    sendWithError = jest.fn().mockImplementation(() => {
+    sendWithError = vi.fn().mockImplementation(() => {
       throw new Error('Mock send error');
     });
   }
@@ -44,13 +44,13 @@ jest.mock('ws', () => {
   }
   
   return {
-    WebSocketServer: jest.fn((options) => new MockWSServer(options)),
+    WebSocketServer: vi.fn((options) => new MockWSServer(options)),
     WebSocket: MockWebSocket
   };
 });
 
-jest.mock('http', () => {
-  const EventEmitter = require('events').EventEmitter;
+vi.mock('http', async () => {
+  const EventEmitter = (await import('events')).EventEmitter;
   
   class MockServer extends EventEmitter {}
   
@@ -67,9 +67,9 @@ class MockWebSocket extends EventEmitter {
   role?: 'teacher' | 'student';
   languageCode?: string;
   
-  send = jest.fn();
-  ping = jest.fn();
-  terminate = jest.fn();
+  send = vi.fn();
+  ping = vi.fn();
+  terminate = vi.fn();
   
   // Add ability to throw errors for testing
   sendWithError() {
@@ -102,23 +102,23 @@ describe('WebSocketService Extended Coverage', () => {
   
   beforeEach(() => {
     // Reset mocks
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     clockTime = Date.now();
     
     // Mock console methods
-    console.log = jest.fn();
-    console.error = jest.fn();
-    console.warn = jest.fn();
+    console.log = vi.fn();
+    console.error = vi.fn();
+    console.warn = vi.fn();
     
     // Mock timing functions
-    global.setInterval = jest.fn().mockImplementation((fn, ms) => {
+    global.setInterval = vi.fn().mockImplementation((fn, ms) => {
       return 123; // Return a mock timer ID
     });
     
-    global.clearInterval = jest.fn();
+    global.clearInterval = vi.fn();
     
     // Mock Date.now
-    jest.spyOn(Date, 'now').mockImplementation(() => clockTime);
+    vi.spyOn(Date, 'now').mockImplementation(() => clockTime);
     
     // Create mocked server
     mockServer = new MockServer();
@@ -127,7 +127,7 @@ describe('WebSocketService Extended Coverage', () => {
     webSocketService = new WebSocketService(mockServer as unknown as Server);
     
     // Get the mocked WebSocketServer
-    wss = jest.mocked(WSServer).mock.results[0].value as MockWSServer;
+    wss = vi.mocked(WSServer).mock.results[0].value as MockWSServer;
   });
   
   afterEach(() => {
@@ -258,7 +258,7 @@ describe('WebSocketService Extended Coverage', () => {
       wss.clients.add(inactiveClient);
       
       // Get the heartbeat callback
-      const heartbeatCallback = (global.setInterval as jest.Mock).mock.calls[0][0];
+      const heartbeatCallback = (global.setInterval as ReturnType<typeof vi.fn>).mock.calls[0][0];
       
       // Execute the heartbeat callback
       heartbeatCallback();
