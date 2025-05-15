@@ -18,6 +18,7 @@ export default defineConfig({
     maxThreads: 1,               // Use only one thread
     minThreads: 1,               // Use at least one thread
     silent: false,               // Show full output
+    setupFiles: ['./test-config/vitest/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
