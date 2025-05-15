@@ -155,6 +155,9 @@ class SessionManager {
 // Singleton instance of the session manager
 const sessionManager = new SessionManager();
 
+// Export for testing
+export { sessionManager };
+
 /**
  * WebSocket communication utilities
  * Encapsulates message formatting and sending

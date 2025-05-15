@@ -6,9 +6,10 @@
  * 
  * Modified to work with Jest in ESM environment
  */
-import { jest } from '@jest/globals';
+import { jest, describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
 import { WebSocket } from 'ws';
 import type { ExtendedWebSocket } from '../../server/websocket';
+import { sessionManager } from '../../server/openai-streaming';
 
 // Ensure environment is set up
 beforeAll(() => {
