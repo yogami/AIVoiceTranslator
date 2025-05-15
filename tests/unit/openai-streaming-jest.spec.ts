@@ -11,6 +11,12 @@ import { WebSocket } from 'ws';
 import type { ExtendedWebSocket } from '../../server/websocket';
 import { sessionManager, processStreamingAudio, finalizeStreamingSession, cleanupInactiveStreamingSessions } from '../../server/openai-streaming';
 
+// Import internal functions for testing directly
+import * as OpenAIStreamingModule from '../../server/openai-streaming';
+const AudioProcessingService = OpenAIStreamingModule['AudioProcessingService'];
+const OpenAIClientFactory = OpenAIStreamingModule['OpenAIClientFactory'];
+const processAudioChunks = OpenAIStreamingModule['processAudioChunks'];
+
 // Ensure environment is set up
 beforeAll(() => {
   // Set up process.env.OPENAI_API_KEY for testing
