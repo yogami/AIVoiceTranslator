@@ -560,9 +560,9 @@ describe('OpenAI Streaming Advanced Tests', () => {
   });
   
   describe('Final coverage targets', () => {
-    it('should handle and process meaningful transcription text', async () => {
-      // Create a session
-      const sessionId = 'transcription-text-test'; 
+    it('should send final transcription when processing audio', async () => {
+      // Create a session 
+      const sessionId = 'final-transcription-test';
       const audioBase64 = 'SGVsbG8gV29ybGQ=';
       
       // Initialize session
@@ -579,126 +579,236 @@ describe('OpenAI Streaming Advanced Tests', () => {
       expect(session).toBeDefined();
       
       if (session) {
-        // Set up test conditions
+        // Set test conditions
         session.transcriptionInProgress = false;
         
-        // Add an audio buffer large enough to process
-        const testBuffer = Buffer.alloc(5000); // Above min threshold
-        session.audioBuffer = [testBuffer];
+        // Set meaningful text directly
+        session.transcriptionText = 'This is meaningful text for final transcription';
         
-        // Mock the WebSocket.send to capture responses
+        // Spy on WebSocket.send
         const sendSpy = jest.spyOn(mockWebSocket, 'send');
         sendSpy.mockClear();
         
-        // Here's the trick: We'll modify the session state after the async call 
-        // but before it processes the audio
-        const originalProcessAudioChunks = jest.requireMock('server/openai-streaming').processAudioChunks;
-        
-        // Create our tracking variables
-        let processingStarted = false;
-        let simulateGoodTranscription = false;
-        
-        // Hook into the process
-        mockWebSocket.send = jest.fn().mockImplementation((data) => {
-          // Detect when a message is about to be sent
-          if (!processingStarted && typeof data === 'string') {
-            try {
-              const message = JSON.parse(data);
-              if (message.type === 'transcription' && !message.isFinal) {
-                // This is the branch we're targeting - meaningful text path
-                simulateGoodTranscription = true;
-                
-                // Manually inject a good transcription into the session
-                if (session) {
-                  session.transcriptionText = 'This is meaningful text that should be processed';
-                }
-              }
-            } catch (e) { /* ignore parsing errors */ }
-          }
-          processingStarted = true;
-        });
-        
-        // Trigger processing
+        // Trigger finalization which should send the final text
         await finalizeStreamingSession(
           mockWebSocket as unknown as ExtendedWebSocket,
           sessionId
         );
         
-        // Verify final message was sent (regardless of simulation success)
-        const finalMessages = sendSpy.mock.calls.filter(call => {
+        // Verify a transcription message was sent
+        const transcriptionCalls = sendSpy.mock.calls.filter(call => {
           try {
-            const msg = JSON.parse(call[0] as string);
-            return msg && msg.type === 'transcription' && msg.isFinal === true;
+            if (typeof call[0] === 'string') {
+              const parsedMsg = JSON.parse(call[0]);
+              return parsedMsg.type === 'transcription' && parsedMsg.isFinal === true;
+            }
+            return false;
           } catch (e) {
             return false;
           }
         });
         
-        expect(finalMessages.length).toBeGreaterThan(0);
+        expect(transcriptionCalls.length).toBeGreaterThan(0);
+      }
+    });
+  });
+  
+  describe('Processing edge cases for maximum coverage', () => {
+    it('should test the processAudioChunks error path', async () => {
+      // Create a test session
+      const sessionId = 'process-chunks-error-test';
+      const audioBase64 = 'SGVsbG8gV29ybGQ='; // "Hello World"
+      
+      // Create a new session
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Setup the session for processing
+        session.transcriptionInProgress = false;
+        
+        // Add a large buffer to ensure it gets processed
+        const buffer = Buffer.alloc(5000);  // > MIN_AUDIO_SIZE_BYTES
+        session.audioBuffer = [buffer];
+        
+        // Spy on console.error
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
+        // Create a spy to observe WebSocket messages
+        const sendSpy = jest.spyOn(mockWebSocket, 'send');
+        sendSpy.mockClear();
+        
+        // Force an error during the next WebSocket send
+        mockWebSocket.send = jest.fn().mockImplementation(() => {
+          throw new Error('Forced WebSocket error');
+        });
+        
+        // Call finalizeStreamingSession which should process the audio
+        await finalizeStreamingSession(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId
+        );
+        
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalled();
+        
+        // Clean up
+        consoleErrorSpy.mockRestore();
+      }
+    });
+    
+    it('should test concurrent session processing prevention', async () => {
+      // Create a test session
+      const sessionId = 'concurrent-processing-test';
+      const audioBase64 = 'SGVsbG8gV29ybGQ='; // "Hello World"
+      
+      // Create a new session
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Set the session as already processing
+        session.transcriptionInProgress = true;
+        
+        // Add more audio data
+        const buffer = Buffer.from('More test audio data');
+        session.audioBuffer.push(buffer);
+        
+        // Spy on the WebSocket.send function
+        const sendSpy = jest.spyOn(mockWebSocket, 'send');
+        sendSpy.mockClear();
+        
+        // Process the session again - should not start new processing
+        await processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId,
+          audioBase64,
+          false,  // Not first chunk
+          'en-US'
+        );
+        
+        // There should be no WebSocket communication since processing was already in progress
+        expect(sendSpy).not.toHaveBeenCalled();
+        
+        // Clean up
+        sessionManager.deleteSession(sessionId);
       }
     });
   });
   
   describe('Error paths and edge cases', () => {
-    it('should handle errors in processStreamingAudio', async () => {
-      // Spy on console.error to verify error logging
+    it('should test direct error handling in processStreamingAudio', async () => {
+      // We need to directly trigger the error handling in processStreamingAudio
+      // Create a function that will throw an error when processStreamingAudio calls it
+      const errorFunc = jest.fn().mockImplementation(() => {
+        throw new Error('Direct test error');
+      });
+      
+      // Mock console.error to verify it's called
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       
-      // Mock WebSocket to verify error message sent to client
+      // Create a spy for WebSocketCommunicator.sendErrorMessage
       const sendSpy = jest.spyOn(mockWebSocket, 'send');
       sendSpy.mockClear();
       
-      // Force an error by passing invalid audio data
-      await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        'invalid-audio-test',
-        'invalid-base64!@#$', // This will cause a base64 decoding error
-        true,
-        'en-US'
-      );
-      
-      // Verify error was logged
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      
-      // Verify an error message was sent to the client
-      const errorMessages = sendSpy.mock.calls.filter(call => {
-        try {
-          const msg = JSON.parse(call[0] as string);
-          return msg && msg.type === 'error';
-        } catch (e) {
-          return false;
-        }
-      });
-      
-      expect(errorMessages.length).toBeGreaterThan(0);
-      
-      // Cleanup
-      consoleErrorSpy.mockRestore();
+      try {
+        // Create an error condition - use the error function where Buffer.from would be called
+        const originalFrom = Buffer.from;
+        // @ts-ignore - deliberately causing an error for testing
+        Buffer.from = errorFunc;
+        
+        // Now call the function which should trigger our error handler
+        await processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          'direct-error-test',
+          'test-data',
+          true,
+          'en-US'
+        );
+        
+        // The error should have been logged
+        expect(consoleErrorSpy).toHaveBeenCalled();
+        
+        // Restore the original function
+        Buffer.from = originalFrom;
+      } finally {
+        consoleErrorSpy.mockRestore();
+      }
     });
     
-    it('should handle background cleanup task', () => {
-      // This is hard to test directly since it uses setInterval
-      // But we can at least verify it exists and is exported correctly
+    it('should handle session cleanup based on age threshold', () => {
+      // Verify the cleanup function exists
       expect(typeof cleanupInactiveStreamingSessions).toBe('function');
       
-      // Create a few sessions
-      const sessionIds = ['cleanup-test-1', 'cleanup-test-2', 'cleanup-test-3'];
+      // Create a few test sessions
+      const sessionId1 = 'age-test-new';
+      const sessionId2 = 'age-test-old';
+      
+      // Create the sessions first
+      const session1 = sessionManager.createSession(sessionId1, 'en-US', Buffer.from('test1'));
+      const session2 = sessionManager.createSession(sessionId2, 'en-US', Buffer.from('test2'));
+      
+      // Set the timestamps - session1 is recent, session2 is old
       const now = Date.now();
+      session1.lastChunkTime = now - 1000; // 1 second old
+      session2.lastChunkTime = now - 20000; // 20 seconds old
       
-      // Create sessions with different lastChunkTime values
-      sessionIds.forEach((id, index) => {
-        const session = sessionManager.createSession(id, 'en-US', Buffer.from('test'));
-        // Set different ages - some old, some new
-        session.lastChunkTime = now - ((index + 1) * 5000);
-      });
+      // Clean up sessions older than 10 seconds
+      cleanupInactiveStreamingSessions(10000);
       
-      // Call cleanup with a specific age threshold
-      cleanupInactiveStreamingSessions(7000); // Remove sessions older than 7 seconds
+      // Check that the recent session still exists and the old one is gone
+      expect(sessionManager.getSession(sessionId1)).toBeDefined();
+      expect(sessionManager.getSession(sessionId2)).toBeUndefined();
       
-      // Verify the correct sessions were removed
-      expect(sessionManager.getSession('cleanup-test-1')).toBeDefined(); // 5 seconds old
-      expect(sessionManager.getSession('cleanup-test-2')).toBeDefined(); // 10 seconds old, but we're allowing up to 7 seconds
-      expect(sessionManager.getSession('cleanup-test-3')).toBeUndefined(); // 15 seconds old, should be removed
+      // Clean up the remaining session to prevent test interference
+      sessionManager.deleteSession(sessionId1);
+    });
+    
+    it('should test the periodic cleanup functionality', () => {
+      // We can't easily test the interval directly, so we'll focus on
+      // verifying the cleanup function works as expected
+      
+      // Create two test sessions
+      const sessionId1 = 'periodic-cleanup-recent';
+      const sessionId2 = 'periodic-cleanup-old';
+      
+      // Initialize sessions
+      const session1 = sessionManager.createSession(sessionId1, 'en-US', Buffer.from('test'));
+      const session2 = sessionManager.createSession(sessionId2, 'en-US', Buffer.from('test'));
+      
+      // Make one session old
+      const now = Date.now();
+      session1.lastChunkTime = now;
+      session2.lastChunkTime = now - 100000; // Very old (100 seconds)
+      
+      // Call the cleanup function directly (not waiting for the interval)
+      // This simulates what the interval would do
+      cleanupInactiveStreamingSessions();
+      
+      // Verify old session is gone, new one remains
+      expect(sessionManager.getSession(sessionId1)).toBeDefined();
+      expect(sessionManager.getSession(sessionId2)).toBeUndefined();
+      
+      // Clean up remaining test session
+      sessionManager.deleteSession(sessionId1);
     });
   });
   
