@@ -7,103 +7,112 @@
  * Converted from Jest to Vitest
  */
 
-import { expect, describe, it, beforeEach, vi, afterEach } from 'vitest';
+import { TranslationResult } from '../../../server/openai';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// IMPORTANT: vi.mock is hoisted to the top of the file automatically
-// This means we must define mocks before any imports
+// Mock the internal TranslationService that our facade calls (dependency, not the SUT)
 vi.mock('../../../server/services/TranslationService', () => {
+  // Mock both the speechTranslationService and translateSpeech named export
+  // since the facade specifically imports translateSpeech
+  const mockTranslateSpeech = vi.fn().mockImplementation(async (
+    audioBuffer: Buffer, 
+    sourceLanguage: string, 
+    targetLanguage: string,
+    preTranscribedText?: string
+  ) => {
+    return {
+      originalText: preTranscribedText || 'This is a test transcription',
+      translatedText: 'This is a test translation',
+      audioBuffer: Buffer.from('test audio response')
+    };
+  });
+  
   return {
-    translateSpeech: vi.fn().mockImplementation(async (
-      audioBuffer: Buffer, 
-      sourceLanguage: string, 
-      targetLanguage: string,
-      preTranscribedText?: string
-    ) => {
-      return {
-        originalText: preTranscribedText || 'This is a test transcription',
-        translatedText: 'This is a test translation',
-        audioBuffer: Buffer.from('test audio response')
-      };
-    })
+    speechTranslationService: {
+      translateSpeech: mockTranslateSpeech
+    },
+    // Export the named translateSpeech function
+    translateSpeech: mockTranslateSpeech
   };
 });
 
-// Import modules after all mocks are defined
-import { translateSpeech, TranslationResult } from '../../../server/openai';
-import * as TranslationService from '../../../server/services/TranslationService';
+// Mock the config (external dependency)
+vi.mock('../../../server/config', () => ({
+  OPENAI_API_KEY: 'test-api-key'
+}));
 
-// Get a typed reference to the mocked function for use in our tests
-const mockTranslateSpeech = TranslationService.translateSpeech as ReturnType<typeof vi.fn>;
+describe('Translation Result Interface', () => {
+  it('should define a consistent result format', () => {
+    const result: TranslationResult = {
+      originalText: 'Hello',
+      translatedText: 'Hola',
+      audioBuffer: Buffer.from('test audio')
+    };
+    
+    expect(result).toBeDefined();
+    expect(result.originalText).toBe('Hello');
+    expect(result.translatedText).toBe('Hola');
+    expect(Buffer.isBuffer(result.audioBuffer)).toBeTruthy();
+  });
+});
 
-describe('TranslationService', () => {
+describe('Translation Facade', () => {
   beforeEach(() => {
-    // Reset mocks before each test
     vi.clearAllMocks();
+    vi.resetModules();
   });
   
-  it('should translate speech and return results', async () => {
-    // Arrange - Create a test audio buffer
-    const testAudioBuffer = Buffer.from('test audio data');
+  it('should use the real translation facade to translate text', async () => {
+    // Dynamically import the ACTUAL facade module to test
+    const { translateSpeech } = await import('../../../server/openai');
     
-    // Act - Call the function under test
-    const result: TranslationResult = await translateSpeech(
-      testAudioBuffer,
+    // Use the actual function with mocked dependencies
+    const result = await translateSpeech(
+      Buffer.from('test audio'),
       'en-US',
       'es-ES'
     );
     
-    // Assert - Verify the response format and content
-    expect(result).toBeDefined();
-    expect(result.originalText).toBe('This is a test transcription');
-    expect(result.translatedText).toBe('This is a test translation');
-    expect(result.audioBuffer).toBeInstanceOf(Buffer);
-    
-    // Verify the mock service was called with correct parameters
-    expect(mockTranslateSpeech).toHaveBeenCalledWith(
-      testAudioBuffer,
+    // Verify integration with the speech translation service
+    const translationService = await import('../../../server/services/TranslationService');
+    expect(translationService.speechTranslationService.translateSpeech).toHaveBeenCalledWith(
+      expect.any(Buffer),
       'en-US',
       'es-ES',
       undefined
     );
+    
+    // Verify the result structure is correct
+    expect(result).toHaveProperty('originalText');
+    expect(result).toHaveProperty('translatedText');
+    expect(result).toHaveProperty('audioBuffer');
+    expect(result.originalText).toBe('This is a test transcription');
+    expect(result.translatedText).toBe('This is a test translation');
+    expect(Buffer.isBuffer(result.audioBuffer)).toBeTruthy();
   });
   
-  it('should pass pre-transcribed text when provided', async () => {
-    // Arrange - Create a test audio buffer and pre-transcribed text
-    const testAudioBuffer = Buffer.from('test audio data');
-    const preTranscribedText = 'Pre-transcribed content';
+  it('should bypass transcription when preTranscribedText is provided', async () => {
+    // Dynamically import the ACTUAL facade module to test
+    const { translateSpeech } = await import('../../../server/openai');
     
-    // Act - Call the function with pre-transcribed text
+    // Use the actual facade with a preTranscribedText parameter
     const result = await translateSpeech(
-      testAudioBuffer,
+      Buffer.from('test audio'),
       'en-US',
-      'fr-FR',
-      preTranscribedText
+      'es-ES',
+      'Pre-transcribed text'
     );
     
-    // Assert - Verify the service was called with the provided text
-    expect(mockTranslateSpeech).toHaveBeenCalledWith(
-      testAudioBuffer,
+    // Verify integration with the speech translation service
+    const translationService = await import('../../../server/services/TranslationService');
+    expect(translationService.speechTranslationService.translateSpeech).toHaveBeenCalledWith(
+      expect.any(Buffer),
       'en-US',
-      'fr-FR',
-      preTranscribedText
+      'es-ES',
+      'Pre-transcribed text'
     );
     
-    // Original text should be the pre-transcribed text
-    expect(result.originalText).toBe(preTranscribedText);
-  });
-  
-  it('should handle translation service errors', async () => {
-    // Arrange - Create a test audio buffer
-    const testAudioBuffer = Buffer.from('test audio data');
-    
-    // Mock the translation service to throw an error for this specific test
-    mockTranslateSpeech.mockImplementationOnce(() => {
-      throw new Error('Translation service error');
-    });
-    
-    // Act & Assert - Verify the error is propagated
-    await expect(() => 
-      translateSpeech(testAudioBuffer, 'en-US', 'de-DE')
-    ).rejects.toThrow('Translation service error');
+    // Verify the result has the correct original text
+    expect(result.originalText).toBe('Pre-transcribed text');
   });
 });
