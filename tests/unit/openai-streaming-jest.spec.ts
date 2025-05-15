@@ -4,9 +4,9 @@
  * These tests cover the streaming audio transcription functionality
  * in openai-streaming.ts
  * 
- * Modified to work with Jest in ESM environment
+ * Converted from Jest to Vitest
  */
-import { jest, describe, it, expect, beforeEach, beforeAll } from '@jest/globals';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { WebSocket } from 'ws';
 import type { ExtendedWebSocket } from '../../server/websocket';
 import { sessionManager, processStreamingAudio, finalizeStreamingSession, cleanupInactiveStreamingSessions } from '../../server/openai-streaming';
@@ -24,11 +24,11 @@ beforeAll(() => {
 });
 
 // Mock OpenAI
-jest.mock('openai', () => {
-  const mockOpenAI = jest.fn().mockImplementation(() => ({
+vi.mock('openai', () => {
+  const mockOpenAI = vi.fn().mockImplementation(() => ({
     audio: {
       transcriptions: {
-        create: jest.fn().mockResolvedValue({
+        create: vi.fn().mockResolvedValue({
           text: 'This is a mock transcription',
         }),
       },
@@ -41,7 +41,7 @@ jest.mock('openai', () => {
 });
 
 // Mock WebSocket
-jest.mock('ws', () => {
+vi.mock('ws', () => {
   // Create a mock WebSocket class with necessary implementation
   class MockWebSocket {
     static OPEN = 1;
@@ -49,30 +49,41 @@ jest.mock('ws', () => {
     static CLOSING = 2;
     static CLOSED = 3;
     
-    send = jest.fn(function(data) {
-      // Auto-parse the data to help with testing
-      try {
-        const parsed = JSON.parse(data);
-        this.lastMessage = parsed;
-      } catch (e) {
-        // Ignore parsing errors
-      }
-      return true;
-    });
-    
-    on = jest.fn();
-    removeListener = jest.fn();
-    close = jest.fn();
-    terminate = jest.fn();
-    ping = jest.fn();
-    pong = jest.fn();
-    
-    readyState = MockWebSocket.OPEN;
-    lastMessage = null;
+    send: ReturnType<typeof vi.fn>;
+    on: ReturnType<typeof vi.fn>;
+    removeListener: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof vi.fn>;
+    terminate: ReturnType<typeof vi.fn>;
+    ping: ReturnType<typeof vi.fn>;
+    pong: ReturnType<typeof vi.fn>;
+    readyState: number;
+    lastMessage: any;
+    messageHandler?: (data: any) => void;
     
     constructor() {
+      this.readyState = MockWebSocket.OPEN;
+      this.lastMessage = null;
+      
+      this.send = vi.fn(function(this: MockWebSocket, data: string) {
+        // Auto-parse the data to help with testing
+        try {
+          const parsed = JSON.parse(data);
+          this.lastMessage = parsed;
+        } catch (e) {
+          // Ignore parsing errors
+        }
+        return true;
+      });
+      
+      this.on = vi.fn();
+      this.removeListener = vi.fn();
+      this.close = vi.fn();
+      this.terminate = vi.fn();
+      this.ping = vi.fn();
+      this.pong = vi.fn();
+      
       // Set up default behavior for on() method to capture event handlers
-      this.on.mockImplementation((event, handler) => {
+      this.on = vi.fn().mockImplementation((event: string, handler: any) => {
         if (event === 'message') {
           this.messageHandler = handler;
         }
@@ -81,7 +92,7 @@ jest.mock('ws', () => {
     }
     
     // Helper to simulate incoming messages
-    simulateMessage(data) {
+    simulateMessage(data: any) {
       if (this.messageHandler) {
         this.messageHandler({
           data: typeof data === 'string' ? data : JSON.stringify(data),
@@ -104,7 +115,7 @@ describe('OpenAI Streaming Module', () => {
     mockWebSocket.readyState = WebSocket.OPEN;
     
     // Clear all mocks before each test
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
   
   describe('processAudioChunks function (internal)', () => {
