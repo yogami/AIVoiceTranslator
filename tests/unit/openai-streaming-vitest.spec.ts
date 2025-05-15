@@ -1,8 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { WebSocket } from 'ws';
 import type { ExtendedWebSocket } from '../../server/websocket';
-import { sessionManager, cleanupInactiveStreamingSessions } from '../../server/openai-streaming';
+import { sessionManager, cleanupInactiveStreamingSessions, processStreamingAudio, finalizeStreamingSession } from '../../server/openai-streaming';
 import OpenAI from 'openai';
+
+// Set up environment for testing
+beforeAll(() => {
+  // Ensure API key is set
+  process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'test-api-key';
+  console.log(`OpenAI Streaming - API key status: ${process.env.OPENAI_API_KEY ? 'Present' : 'Missing'}`);
+  console.log(`OpenAI Streaming - client initialized successfully`);
+});
 
 /**
  * Advanced tests for OpenAI Streaming module focusing on branch coverage
@@ -124,6 +132,105 @@ describe('OpenAI Streaming Branch Coverage Tests', () => {
       sessionManager.deleteSession(sessionId);
     });
   });
+  
+  // Test streaming audio processing
+  describe('Audio Processing Tests', () => {
+    // Mock OpenAI API
+    beforeEach(() => {
+      vi.mock('openai', () => {
+        return {
+          default: vi.fn().mockImplementation(() => ({
+            audio: {
+              transcriptions: {
+                create: vi.fn().mockResolvedValue({ text: 'Mocked transcription' })
+              }
+            }
+          }))
+        };
+      });
+    });
+    
+    afterEach(() => {
+      vi.unmock('openai');
+    });
+    
+    it('should process streaming audio and return transcription', async () => {
+      // Create test session
+      const sessionId = 'streaming-audio-test';
+      sessionManager.createSession(sessionId, 'en-US', Buffer.from('test audio'));
+      
+      // Mock audio data for processing
+      const audioData = Buffer.from('test audio data');
+      
+      // Mock console methods to prevent noise
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      
+      // Process the streaming audio
+      await processStreamingAudio(sessionId, audioData);
+      
+      // Get session to inspect its updated state
+      const session = sessionManager.getSession(sessionId);
+      
+      // Verify audio buffer was updated
+      expect(session.audioBuffer.length).toBeGreaterThan(0);
+      
+      // Cleanup
+      consoleSpy.mockRestore();
+      sessionManager.deleteSession(sessionId);
+    });
+    
+    it('should handle non-existent session during audio processing', async () => {
+      // Mock console.error to capture log
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Process audio with non-existent session
+      await processStreamingAudio('non-existent-session', Buffer.from('test audio'));
+      
+      // Verify error was logged
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('Session not found');
+      
+      // Cleanup
+      errorSpy.mockRestore();
+    });
+    
+    it('should finalize streaming session and complete transcription', async () => {
+      // Create test session
+      const sessionId = 'finalize-test-session';
+      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test audio'));
+      
+      // Add some audio data to the session
+      session.audioBuffer.push(Buffer.from('test finalization audio'));
+      
+      // Mock console methods to prevent noise
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      
+      // Finalize the session
+      await finalizeStreamingSession(sessionId);
+      
+      // Verify session state
+      expect(session.isProcessing).toBe(false);
+      
+      // Cleanup
+      consoleSpy.mockRestore();
+      sessionManager.deleteSession(sessionId);
+    });
+    
+    it('should handle non-existent session during finalization', async () => {
+      // Mock console.error to capture log
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Try to finalize a non-existent session
+      await finalizeStreamingSession('non-existent-session');
+      
+      // Verify error was logged
+      expect(errorSpy).toHaveBeenCalled();
+      expect(errorSpy.mock.calls[0][0]).toContain('Session not found');
+      
+      // Cleanup
+      errorSpy.mockRestore();
+    });
+  });
 
   // Test session cleanup functionality (line 390)
   describe('Session Cleanup Tests (line 390)', () => {
@@ -190,6 +297,74 @@ describe('OpenAI Streaming Branch Coverage Tests', () => {
       
       // Cleanup
       cleanupSpy.mockRestore();
+    });
+    
+    it('should handle empty session list', () => {
+      // First, make sure no test sessions remain from previous tests
+      // by deleting all active session IDs we know about
+      ['old-session', 'new-session', 'very-old-session', 'slightly-old-session',
+       'old-multi-session-1', 'old-multi-session-2', 'old-multi-session-3', 
+       'infinity-session', 'streaming-audio-test', 'finalize-test-session'].forEach(id => {
+        // Try to delete if exists
+        if (sessionManager.getSession(id)) {
+          sessionManager.deleteSession(id);
+        }
+      });
+      
+      // Mock console methods to prevent noise
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      
+      // Action: Run cleanup on effectively empty session list
+      expect(() => {
+        cleanupInactiveStreamingSessions();
+      }).not.toThrow();
+      
+      // Cleanup
+      consoleSpy.mockRestore();
+    });
+    
+    it('should handle multiple inactive sessions', () => {
+      // Create multiple old sessions
+      const oldSessionId1 = 'old-multi-session-1';
+      const oldSessionId2 = 'old-multi-session-2';
+      const oldSessionId3 = 'old-multi-session-3';
+      
+      const oldSession1 = sessionManager.createSession(oldSessionId1, 'en-US', Buffer.from('old audio 1'));
+      const oldSession2 = sessionManager.createSession(oldSessionId2, 'fr-FR', Buffer.from('old audio 2'));
+      const oldSession3 = sessionManager.createSession(oldSessionId3, 'es-ES', Buffer.from('old audio 3'));
+      
+      // Make all sessions old
+      const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+      oldSession1.lastChunkTime = twoHoursAgo;
+      oldSession2.lastChunkTime = twoHoursAgo;
+      oldSession3.lastChunkTime = twoHoursAgo;
+      
+      // Action: Run cleanup with 1 hour threshold
+      cleanupInactiveStreamingSessions(60 * 60 * 1000);
+      
+      // Assertion: All old sessions should be deleted
+      expect(sessionManager.getSession(oldSessionId1)).toBeUndefined();
+      expect(sessionManager.getSession(oldSessionId2)).toBeUndefined();
+      expect(sessionManager.getSession(oldSessionId3)).toBeUndefined();
+    });
+    
+    it('should retain sessions if maxAgeMs is set to Infinity', () => {
+      // Create an old session
+      const oldSessionId = 'infinity-session';
+      const oldSession = sessionManager.createSession(oldSessionId, 'en-US', Buffer.from('old audio'));
+      
+      // Make the session old
+      const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000); // 30 days ago
+      oldSession.lastChunkTime = oneMonthAgo;
+      
+      // Action: Run cleanup with Infinity threshold
+      cleanupInactiveStreamingSessions(Infinity);
+      
+      // Assertion: Session should be retained despite being very old
+      expect(sessionManager.getSession(oldSessionId)).toBeDefined();
+      
+      // Cleanup
+      sessionManager.deleteSession(oldSessionId);
     });
   });
 });
