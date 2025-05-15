@@ -155,13 +155,7 @@ class SessionManager {
 // Singleton instance of the session manager
 const sessionManager = new SessionManager();
 
-// Export for testing purposes
-export { 
-  sessionManager, 
-  WebSocketCommunicator, 
-  AudioProcessingService, 
-  OpenAIClientFactory
-};
+export { sessionManager };
 
 /**
  * WebSocket communication utilities
@@ -299,7 +293,7 @@ export async function processStreamingAudio(
  * @param ws WebSocket connection
  * @param sessionId Session ID
  */
-export async function processAudioChunks(ws: WebSocket, sessionId: string): Promise<void> {
+async function processAudioChunks(ws: WebSocket, sessionId: string): Promise<void> {
   const session = sessionManager.getSession(sessionId);
   if (!session || session.audioBuffer.length === 0) return;
   
