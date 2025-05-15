@@ -1019,12 +1019,136 @@ describe('OpenAI Streaming Advanced Tests', () => {
       const oneHourAgo = Date.now() - (60 * 60 * 1000);
       session.lastChunkTime = oneHourAgo;
       
+      // Create a spy to monitor cleanupInactiveSessions
+      const cleanupSpy = jest.spyOn(sessionManager, 'cleanupInactiveSessions');
+      
       // Call the cleanup function directly - this simulates the scheduled task
       cleanupInactiveStreamingSessions();
       
+      // Verify cleanup was called
+      expect(cleanupSpy).toHaveBeenCalled();
+      
       // Verify the session was cleaned up
       expect(sessionManager.getSession(sessionId)).toBeUndefined();
+      
+      // Clean up
+      cleanupSpy.mockRestore();
     });
+    
+    it('should test the timer-based cleanup on line 390', async () => {
+      // Mock setInterval to test the timer-based cleanup
+      jest.useFakeTimers();
+      
+      // Spy on the cleanup function
+      const cleanupSpy = jest.spyOn(global, 'cleanupInactiveStreamingSessions')
+        .mockImplementation(() => {}); // Mock to prevent actual cleanup
+      
+      // Create a module-level reference to the cleanup interval
+      const originalSetInterval = global.setInterval;
+      const mockSetInterval = jest.fn().mockReturnValue(123); // Mock interval ID
+      global.setInterval = mockSetInterval;
+      
+      try {
+        // Re-initialize the module to trigger the setInterval
+        jest.isolateModules(() => {
+          require('../../server/openai-streaming');
+        });
+        
+        // Verify setInterval was called with the cleanup function
+        expect(mockSetInterval).toHaveBeenCalledWith(
+          expect.any(Function),
+          expect.any(Number)
+        );
+        
+        // Trigger the interval callback manually
+        const intervalCallback = mockSetInterval.mock.calls[0][0];
+        intervalCallback();
+        
+        // Verify the cleanup function was called
+        expect(cleanupSpy).toHaveBeenCalled();
+      } finally {
+        // Restore mocks
+        global.setInterval = originalSetInterval;
+        cleanupSpy.mockRestore();
+        jest.useRealTimers();
+      }
+    });
+    it('should test transcription error conditions', async () => {
+      // Access the AudioProcessingService directly to test error handling
+      const originalTranscribeAudio = AudioProcessingService.prototype.transcribeAudio;
+      
+      // Replace with a version that throws an error
+      AudioProcessingService.prototype.transcribeAudio = jest.fn().mockImplementation(() => {
+        throw new Error('Test error from mock');
+      });
+      
+      try {
+        // Create a new instance of the service with our mocked method
+        const processor = new AudioProcessingService();
+        
+        // Set up a spy to capture console errors
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
+        // Call the method which should throw
+        try {
+          await processor.transcribeAudio(Buffer.from('test'), 'en-US');
+          // Should not reach here
+          fail('Expected transcribeAudio to throw');
+        } catch (error) {
+          // Verify the correct error format is returned
+          expect(error.message).toContain('Transcription failed:');
+          expect(error.message).toContain('Test error from mock');
+          
+          // Error should be logged
+          expect(errorSpy).toHaveBeenCalled();
+          expect(errorSpy.mock.calls[0][0]).toContain('Transcription error:');
+        }
+        
+        errorSpy.mockRestore();
+      } finally {
+        // Restore original
+        AudioProcessingService.prototype.transcribeAudio = originalTranscribeAudio;
+      }
+    });
+    
+    it('should test transcription error with non-Error object', async () => {
+      // Access the AudioProcessingService directly to test error handling
+      const originalTranscribeAudio = AudioProcessingService.prototype.transcribeAudio;
+      
+      // Replace with a version that throws a non-Error
+      AudioProcessingService.prototype.transcribeAudio = jest.fn().mockImplementation(() => {
+        throw 'String error';  // Not an Error object
+      });
+      
+      try {
+        // Create a new instance of the service with our mocked method
+        const processor = new AudioProcessingService();
+        
+        // Set up a spy to capture console errors
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
+        // Call the method which should throw
+        try {
+          await processor.transcribeAudio(Buffer.from('test'), 'en-US');
+          // Should not reach here
+          fail('Expected transcribeAudio to throw');
+        } catch (error) {
+          // Verify the correct error format is returned
+          expect(error.message).toContain('Transcription failed:');
+          expect(error.message).toContain('Unknown error');
+          
+          // Error should be logged
+          expect(errorSpy).toHaveBeenCalled();
+          expect(errorSpy.mock.calls[0][0]).toContain('Transcription error:');
+        }
+        
+        errorSpy.mockRestore();
+      } finally {
+        // Restore original
+        AudioProcessingService.prototype.transcribeAudio = originalTranscribeAudio;
+      }
+    });
+    
     it('should test the processAudioChunks error path', async () => {
       // Create a test session
       const sessionId = 'process-chunks-error-test';
