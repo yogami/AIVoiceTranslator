@@ -31,6 +31,18 @@ run_coverage() {
   npx vitest run $VITEST_CONFIG --coverage
 }
 
+# Function to run tests with coverage for a specific file
+run_file_coverage() {
+  echo -e "${YELLOW}Running test coverage for specific file: $1${NC}"
+  echo -e "${YELLOW}Coverage target: $2${NC}"
+  
+  # Set coverage reporter and provider
+  COVERAGE_REPORTER="text" COVERAGE_PROVIDER="v8" npx vitest run $VITEST_CONFIG "$1" --coverage
+  
+  echo -e "${GREEN}Detailed coverage summary:${NC}"
+  cat coverage/coverage-summary.json | grep -A 15 "$2" || echo "Coverage summary not found for $2"
+}
+
 # Function to run tests in watch mode
 run_watch() {
   echo -e "${YELLOW}Running tests in watch mode...${NC}"
@@ -64,13 +76,21 @@ case "$1" in
     fi
     run_specific_test "$2"
     ;;
+  "file-coverage")
+    if [ -z "$2" ]; then
+      echo -e "${RED}Error: You must specify a test file path${NC}"
+      exit 1
+    fi
+    run_file_coverage "$2" "$3"
+    ;;
   *)
-    echo -e "${GREEN}Usage: $0 {unit|coverage|watch|clean|file}${NC}"
-    echo "  unit       - Run unit tests"
-    echo "  coverage   - Run tests with coverage"
-    echo "  watch      - Run tests in watch mode"
-    echo "  clean      - Clean test output"
-    echo "  file <path> - Run a specific test file"
+    echo -e "${GREEN}Usage: $0 {unit|coverage|watch|clean|file|file-coverage}${NC}"
+    echo "  unit                      - Run unit tests"
+    echo "  coverage                  - Run tests with coverage"
+    echo "  watch                     - Run tests in watch mode"
+    echo "  clean                     - Clean test output"
+    echo "  file <path>               - Run a specific test file"
+    echo "  file-coverage <test> <target> - Run coverage for specific file"
     exit 1
     ;;
 esac
