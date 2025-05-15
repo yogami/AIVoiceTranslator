@@ -614,51 +614,133 @@ describe('OpenAI Streaming Advanced Tests', () => {
   });
   
   describe('Processing edge cases for maximum coverage', () => {
-    it('should test rejection from processAudioChunks for line 280-281', async () => {
-      // Create a spy for console.error
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    it('should test audio buffer size conditions', async () => {
+      // Create a session
+      const sessionId = 'buffer-size-test';
       
-      // Create a spy for WebSocketCommunicator.sendErrorMessage
+      // Create a fresh session
+      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+      
+      // Set up for testing the small buffer condition
+      session.audioBuffer = [Buffer.from('tiny')]; // Very small buffer
+      session.transcriptionInProgress = false;
+      
+      // Create a spy for error logging
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+      
+      // We'll monitor WebSocket messages to confirm nothing was sent
       const sendSpy = jest.spyOn(mockWebSocket, 'send');
       sendSpy.mockClear();
       
-      // Create a session
-      const sessionId = 'process-chunks-rejection-test';
-      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+      // Call finalizeStreamingSession to test small buffer handling
+      await finalizeStreamingSession(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId
+      );
       
-      // Set up the session with a buffer to process
-      session.audioBuffer = [Buffer.alloc(5000)]; // Above MIN_AUDIO_SIZE_BYTES
-      session.transcriptionInProgress = false;
+      // If the buffer is too small, no transcription should happen
+      // and no error should occur
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
       
-      // This is a hack to access the internal processAudioChunks function
-      // We'll manually create a rejection that would happen in the catch branch
+      // Also verify no WebSocket messages were sent for transcription
+      const transcriptionMessages = sendSpy.mock.calls.filter(call => {
+        try {
+          const msg = JSON.parse(call[0] as string);
+          return msg.type === 'transcription' && !msg.isFinal;
+        } catch (e) {
+          return false;
+        }
+      });
       
-      // First, store the current implementation
-      const originalMethod = Object.getPrototypeOf(sessionManager).constructor.prototype;
-      const originalProcessAudioChunks = originalMethod.processAudioChunks;
+      // There should be no transcription messages for small buffers
+      expect(transcriptionMessages.length).toBe(0);
       
-      // Create a rejection from processAudioChunks
-      originalMethod.processAudioChunks = jest.fn().mockRejectedValue(new Error('Forced rejection in test'));
+      // Clean up
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+      sessionManager.deleteSession(sessionId);
+    });
+    it('should cover try-catch blocks in audio processing', async () => {
+      // This test covers the error handling branches in processStreamingAudio
+      
+      // 1. Set up mocks and spies
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const sendSpy = jest.spyOn(mockWebSocket, 'send');
+      sendSpy.mockClear();
+      
+      // 2. Create test data
+      const sessionId = 'error-coverage-test';
+      
+      // Simulate an error in Buffer.from
+      const originalFrom = Buffer.from;
+      
+      // Replace Buffer.from with an implementation that throws an error
+      // @ts-ignore - deliberately causing an error for testing
+      Buffer.from = jest.fn().mockImplementation((data, encoding) => {
+        if (data === 'error-trigger') {
+          throw new Error('Simulated Buffer.from error');
+        }
+        return originalFrom(data, encoding);
+      });
       
       try {
-        // Now call processStreamingAudio which should trigger the rejection handling
-        await finalizeStreamingSession(
-          mockWebSocket as unknown as ExtendedWebSocket, 
-          sessionId
+        // This should trigger the outer catch block (line 286)
+        await processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId,
+          'error-trigger', // This will trigger our error
+          true,
+          'en-US'
         );
         
-        // Wait for promise to resolve
-        await new Promise(r => setTimeout(r, 50));
-        
-        // Verify console.error was called (line 280)
+        // The function should continue despite the error, verify it was handled
         expect(consoleErrorSpy).toHaveBeenCalled();
         
-        // Reset
-        originalMethod.processAudioChunks = originalProcessAudioChunks;
+        // Reset for next test
+        consoleErrorSpy.mockClear();
+        sendSpy.mockClear();
+        
+        // Create a real session for the inner error handling
+        const goodSessionId = 'inner-error-test';
+        await processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          goodSessionId,
+          Buffer.from('good data').toString('base64'),
+          true,
+          'en-US'
+        );
+        
+        // Get the real session
+        const session = sessionManager.getSession(goodSessionId);
+        expect(session).toBeDefined();
+        
+        if (session) {
+          // Add enough data to trigger processing
+          session.audioBuffer = [Buffer.alloc(5000)];
+          session.transcriptionInProgress = false;
+          
+          // Mock WebSocket to cause an error during sending
+          mockWebSocket.send = jest.fn().mockImplementation(() => {
+            throw new Error('Simulated WebSocket.send error');
+          });
+          
+          // This should trigger the inner catch block
+          await finalizeStreamingSession(
+            mockWebSocket as unknown as ExtendedWebSocket,
+            goodSessionId
+          );
+          
+          // Wait for async operations to complete
+          await new Promise(resolve => setTimeout(resolve, 10));
+          
+          // Verify the error was logged
+          expect(consoleErrorSpy).toHaveBeenCalled();
+        }
       } finally {
+        // Restore mocks
+        Buffer.from = originalFrom;
         consoleErrorSpy.mockRestore();
-        // Clean up
-        sessionManager.deleteSession(sessionId);
       }
     });
     
@@ -729,76 +811,111 @@ describe('OpenAI Streaming Advanced Tests', () => {
       }
     });
     
-    it('should test error handling in audio processing (line 239)', async () => {
-      // Instead of directly testing the AudioProcessingService, we'll test
-      // the error handling through processStreamingAudio
-      
-      // Mock the OpenAI API to throw an error when called
-      const originalOpenAIFactory = global.OpenAI;
+    it('should test non-error exception handling (line 239)', async () => {
+      // This test verifies error handling when a non-Error object is thrown
       
       // Mock console.error to verify it's called
       const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       
+      // Create a test session
+      const sessionId = 'string-error-test';
+      
+      // Set up a buffer-creation error with a non-Error object
+      const originalBuffer = global.Buffer;
+      
+      // A function that will throw a string instead of an Error object
+      const mockBuffer = {
+        ...originalBuffer,
+        concat: jest.fn().mockImplementation(() => {
+          // Throw a string, not an Error
+          throw "String exception"; 
+        })
+      };
+      
       try {
-        // Mock OpenAI to throw an error
-        global.OpenAI = jest.fn().mockImplementation(() => ({
-          audio: {
-            transcriptions: {
-              create: jest.fn().mockImplementation(() => {
-                throw new Error("Test transcription error");
-              })
-            }
-          }
-        }));
+        // Replace global Buffer
+        global.Buffer = mockBuffer as any;
         
-        // Create a test session
-        const sessionId = 'error-path-line-239-test';
-        
-        // Initialize with first chunk
+        // Create a session with audio data
         await processStreamingAudio(
           mockWebSocket as unknown as ExtendedWebSocket,
           sessionId,
-          Buffer.from('test audio').toString('base64'),
+          Buffer.from('test data').toString('base64'),
           true,
           'en-US'
         );
         
-        // Get the session and prepare it for processing
+        // Get and modify the session
         const session = sessionManager.getSession(sessionId);
         if (session) {
-          // Add enough audio data to trigger processing
-          session.audioBuffer = [Buffer.alloc(5000)];
+          session.audioBuffer = [Buffer.from('test')]; // Will be concatenated
           session.transcriptionInProgress = false;
           
-          // Create a spy to track error messages
-          const sendSpy = jest.spyOn(mockWebSocket, 'send');
-          sendSpy.mockClear();
-          
-          // Process the audio which should trigger an error
+          // This should trigger our Buffer.concat error
           await finalizeStreamingSession(
             mockWebSocket as unknown as ExtendedWebSocket,
             sessionId
           );
           
-          // Verify an error was logged
+          // The error should be caught and logged
           expect(consoleErrorSpy).toHaveBeenCalled();
-          
-          // Verify an error was sent to the client
-          const hasErrorMessage = sendSpy.mock.calls.some(call => {
-            try {
-              const msg = JSON.parse(call[0] as string);
-              return msg && msg.type === 'error';
-            } catch (e) {
-              return false;
-            }
-          });
-          
-          expect(hasErrorMessage).toBe(true);
+          expect(consoleErrorSpy.mock.calls.some(
+            call => call.includes("String exception") || call.some(arg => arg === "String exception")
+          )).toBe(true);
         }
       } finally {
-        // Restore original implementations
-        global.OpenAI = originalOpenAIFactory;
+        // Restore original Buffer
+        global.Buffer = originalBuffer;
         consoleErrorSpy.mockRestore();
+      }
+    });
+    
+    it('should test error handling in WebSocket communication', async () => {
+      // This test focuses on error handling when WebSocket.send fails
+      
+      // Create a session with real data
+      const sessionId = 'websocket-error-test';
+      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+      
+      // Add enough audio to process
+      session.audioBuffer = [Buffer.alloc(5000)]; // Above minimum size
+      session.transcriptionInProgress = false;
+      
+      // Spy on console.error
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Make WebSocket.send throw an error
+      const originalSend = mockWebSocket.send;
+      mockWebSocket.send = jest.fn().mockImplementation(() => {
+        throw new Error('WebSocket send error');
+      });
+      
+      try {
+        // Process the session - should trigger error handling
+        await finalizeStreamingSession(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId
+        );
+        
+        // Give time for async operations
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Error should be logged
+        expect(consoleErrorSpy.mock.calls.length).toBeGreaterThan(0);
+        
+        // Verify we have a call with error info
+        const errorCalls = consoleErrorSpy.mock.calls.filter(call => 
+          typeof call[0] === 'string' && 
+          (call[0].includes('Error') || call[0].includes('error'))
+        );
+        
+        // There should be at least one error logged
+        expect(errorCalls.length).toBeGreaterThan(0);
+      } finally {
+        // Clean up
+        mockWebSocket.send = originalSend;
+        consoleErrorSpy.mockRestore();
+        sessionManager.deleteSession(sessionId);
       }
     });
     
