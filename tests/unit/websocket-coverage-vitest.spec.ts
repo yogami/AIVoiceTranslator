@@ -6,7 +6,7 @@
  * that weren't previously covered.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { WebSocketService, WebSocketState, createWebSocketServer, broadcastMessage, sendToClient } from '../../server/websocket';
+import { WebSocketService, WebSocketState, ExtendedWebSocket, createWebSocketServer, broadcastMessage, sendToClient } from '../../server/websocket';
 import { Server } from 'http';
 import { WebSocket, WebSocketServer as WSServer } from 'ws';
 import { EventEmitter } from 'events';
@@ -269,17 +269,20 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
     });
     
     it('should broadcast messages to clients with specific role', () => {
-      // Get server instance and add clients
+      // Get server instance
       const wss = wsService.getServer();
       
       // Create mock clients with roles
-      const teacher = new WebSocket() as any;
+      const teacher = new WebSocket() as ExtendedWebSocket;
       teacher.role = 'teacher';
+      teacher.readyState = WebSocketState.OPEN;
       
-      const student = new WebSocket() as any;
+      const student = new WebSocket() as ExtendedWebSocket;
       student.role = 'student';
+      student.readyState = WebSocketState.OPEN;
       
-      const noRole = new WebSocket() as any;
+      const noRole = new WebSocket() as ExtendedWebSocket;
+      noRole.readyState = WebSocketState.OPEN;
       
       // Add them to clients set
       wss.clients.clear();
@@ -302,13 +305,13 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
       const wss = wsService.getServer();
       
       // Create mock clients with roles
-      const teacher1 = new WebSocket() as any;
+      const teacher1 = new WebSocket() as ExtendedWebSocket;
       teacher1.role = 'teacher';
       
-      const teacher2 = new WebSocket() as any;
+      const teacher2 = new WebSocket() as ExtendedWebSocket;
       teacher2.role = 'teacher';
       
-      const student = new WebSocket() as any;
+      const student = new WebSocket() as ExtendedWebSocket;
       student.role = 'student';
       
       // Add them to clients set
@@ -368,30 +371,45 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
       expect(true).toBeTruthy();
     });
 
-    it('should handle errors when broadcasting to all clients', () => {
+    it('should handle errors when sending messages to clients', () => {
+      // Get server instance and add client
+      const wss = wsService.getServer();
+      
+      // Create a client that will throw when sending
       const client = new WebSocket();
       client.throwOnSend = true;
-      wsService.addClient(client, 'client-error', 'student', 'en-US');
+      
+      // Add to clients set
+      wss.clients.clear();
+      wss.clients.add(client);
       
       // Should not throw when a client's send method throws
-      wsService.broadcastToAll({ type: 'test' });
+      wsService.broadcast({ type: 'test' });
       
       // Function completes without error
       expect(true).toBeTruthy();
     });
     
     it('should broadcast messages to all clients', () => {
-      const teacher = new WebSocket();
-      const student = new WebSocket();
+      // Get server instance and add clients
+      const wss = wsService.getServer();
       
-      wsService.addClient(teacher, 'teacher-1', 'teacher', 'en-US');
-      wsService.addClient(student, 'student-1', 'student', 'fr-FR');
+      // Create clients
+      const client1 = new WebSocket();
+      const client2 = new WebSocket();
       
+      // Add them to clients set
+      wss.clients.clear();
+      wss.clients.add(client1);
+      wss.clients.add(client2);
+      
+      // Send broadcast
       const message = { type: 'test', data: 'test-data' };
-      wsService.broadcastToAll(message);
+      wsService.broadcast(message);
       
-      expect(teacher.send).toHaveBeenCalledWith(JSON.stringify(message));
-      expect(student.send).toHaveBeenCalledWith(JSON.stringify(message));
+      // Both clients should receive the message
+      expect(client1.send).toHaveBeenCalledWith(JSON.stringify(message));
+      expect(client2.send).toHaveBeenCalledWith(JSON.stringify(message));
     });
   });
   
