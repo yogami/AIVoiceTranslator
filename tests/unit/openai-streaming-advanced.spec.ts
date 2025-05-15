@@ -459,6 +459,204 @@ describe('OpenAI Streaming Advanced Tests', () => {
         }
       }
     });
+    
+    it('should handle processing errors gracefully', async () => {
+      // Create a session with a proper audio buffer
+      const sessionId = 'error-handling-test';
+      const audioBase64 = 'SGVsbG8gV29ybGQ=';
+      
+      // Initialize session
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      // Spy on error handling
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const sendSpy = jest.spyOn(mockWebSocket, 'send');
+      sendSpy.mockClear();
+      
+      // Mock WebSocket to throw error on send
+      sendSpy.mockImplementationOnce(() => {
+        throw new Error('Simulated WebSocket send error');
+      });
+      
+      // Process audio which should trigger the error path
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        false,
+        'en-US'
+      );
+      
+      // Error should have been caught and logged
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      
+      // Cleanup
+      consoleErrorSpy.mockRestore();
+    });
+    
+    it('should handle errors during processing', async () => {
+      // Create a session with audio data
+      const sessionId = 'processing-error-test';
+      const audioBase64 = 'SGVsbG8gV29ybGQ=';
+      
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session and verify it exists
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Ensure the session can be processed
+        session.transcriptionInProgress = false;
+        
+        // Add meaningful audio
+        const testBuffer = Buffer.from(new Array(3000).fill('a').join(''));
+        session.audioBuffer.push(testBuffer);
+        
+        // Spy on console.error
+        const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        
+        // Spy on WebSocket.send
+        const sendSpy = jest.spyOn(mockWebSocket, 'send');
+        const originalSend = sendSpy.getMockImplementation();
+        
+        // Make WebSocket.send throw error
+        sendSpy.mockImplementation(() => {
+          throw new Error('Simulated WebSocket error');
+        });
+        
+        // Process should still work without crashing
+        await finalizeStreamingSession(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId
+        );
+        
+        // Verify error was logged
+        expect(consoleErrorSpy).toHaveBeenCalled();
+        
+        // Restore mocks
+        consoleErrorSpy.mockRestore();
+        if (originalSend) {
+          sendSpy.mockImplementation(originalSend);
+        }
+      }
+    });
+  });
+  
+  describe('Buffer management behavior', () => {
+    it('should handle large audio buffers by trimming', async () => {
+      // Create a session with a very large buffer
+      const sessionId = 'large-buffer-test';
+      
+      // Create a buffer slightly larger than MAX_AUDIO_BUFFER_BYTES (640000)
+      const largeBuffer = Buffer.alloc(650000);
+      const largeBase64 = largeBuffer.toString('base64');
+      
+      // Initialize session with large buffer
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        largeBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      // Force process the audio chunks
+      // This should trigger the buffer management code path
+      if (session) {
+        // Ensure transcriptionInProgress is false so we can start processing
+        session.transcriptionInProgress = false;
+        
+        // Access the processAudioChunks function through the export system
+        const globals = global as any;
+        
+        // Directly reference and spy on session.audioBuffer 
+        const originalBufferLength = session.audioBuffer.length;
+        
+        // We need to trigger processing of the buffer
+        await processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId,
+          'SGVsbG8=', // Small chunk to trigger processing
+          false,
+          'en-US'
+        );
+        
+        // Buffer should have been managed
+        expect(session.audioBuffer.length).toBeLessThanOrEqual(originalBufferLength);
+      }
+    });
+    
+    it('should skip processing small audio buffers', async () => {
+      // Create a session with a very small buffer
+      const sessionId = 'small-buffer-test';
+      const smallBuffer = Buffer.alloc(100); // Much less than MIN_AUDIO_SIZE_BYTES (2000)
+      const smallBase64 = smallBuffer.toString('base64');
+      
+      // Initialize session with small buffer
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        smallBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      // Spy on WebSocketCommunicator.sendTranscriptionResult
+      const sendSpy = jest.spyOn(mockWebSocket, 'send');
+      sendSpy.mockClear(); // Clear previous calls
+      
+      if (session) {
+        // Ensure transcriptionInProgress is false so we can start processing
+        session.transcriptionInProgress = false;
+        
+        // Process the small audio chunk
+        await processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId,
+          smallBase64,
+          false,
+          'en-US'
+        );
+        
+        // No transcription message should have been sent due to small buffer
+        const transcriptionMessages = sendSpy.mock.calls.filter(call => {
+          try {
+            const msg = JSON.parse(call[0]);
+            return msg && msg.type === 'transcription';
+          } catch (e) {
+            return false;
+          }
+        });
+        
+        // We expect no transcription messages for small buffers
+        expect(transcriptionMessages.length).toBe(0);
+      }
+    });
   });
   
   describe('Audio processing service behavior', () => {
@@ -558,6 +756,105 @@ describe('OpenAI Streaming Advanced Tests', () => {
         
         // The important thing is that finalizing doesn't throw errors
         expect(true).toBe(true);
+      }
+    });
+  });
+  
+  describe('Transcription text handling', () => {
+    it('should handle meaningful transcription text', async () => {
+      const sessionId = 'meaningful-text-test';
+      const audioBase64 = 'SGVsbG8gV29ybGQ=';
+      
+      // Create a new session
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Set up a spy for the WebSocket.send method
+        const sendSpy = jest.spyOn(mockWebSocket, 'send');
+        sendSpy.mockClear(); // Clear previous calls
+        
+        // Manually set transcription text to simulate successful transcription
+        session.transcriptionText = 'Hello World';
+        session.transcriptionInProgress = false;
+        
+        // Force session finalization which should send the transcription text
+        await finalizeStreamingSession(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId
+        );
+        
+        // Check that a transcription message with the text was sent
+        const transcriptionMessages = sendSpy.mock.calls.filter(call => {
+          try {
+            const msg = JSON.parse(call[0]);
+            return msg && msg.type === 'transcription' && msg.text === 'Hello World';
+          } catch (e) {
+            return false;
+          }
+        });
+        
+        // We expect one transcription message with our text
+        expect(transcriptionMessages.length).toBe(1);
+        
+        // Verify the session was deleted
+        expect(sessionManager.getSession(sessionId)).toBeUndefined();
+      }
+    });
+    
+    it('should handle empty transcription text during finalization', async () => {
+      const sessionId = 'empty-text-test';
+      const audioBase64 = 'SGVsbG8gV29ybGQ=';
+      
+      // Create a new session
+      await processStreamingAudio(
+        mockWebSocket as unknown as ExtendedWebSocket,
+        sessionId,
+        audioBase64,
+        true,
+        'en-US'
+      );
+      
+      // Get the session
+      const session = sessionManager.getSession(sessionId);
+      expect(session).toBeDefined();
+      
+      if (session) {
+        // Set up a spy for the WebSocket.send method
+        const sendSpy = jest.spyOn(mockWebSocket, 'send');
+        sendSpy.mockClear(); // Clear previous calls
+        
+        // Ensure the transcription text is empty (default state)
+        session.transcriptionText = '';
+        session.audioBuffer = []; // No remaining audio
+        
+        // Force session finalization
+        await finalizeStreamingSession(
+          mockWebSocket as unknown as ExtendedWebSocket,
+          sessionId
+        );
+        
+        // Check that a transcription message was sent even with empty text
+        const transcriptionMessages = sendSpy.mock.calls.filter(call => {
+          try {
+            const msg = JSON.parse(call[0]);
+            return msg && msg.type === 'transcription' && msg.isFinal === true;
+          } catch (e) {
+            return false;
+          }
+        });
+        
+        // We expect one transcription message (empty but final)
+        expect(transcriptionMessages.length).toBe(1);
       }
     });
   });
