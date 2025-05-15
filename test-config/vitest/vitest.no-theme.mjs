@@ -9,7 +9,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['tests/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    testMatch: ['**/tests/unit/**/*.{test,spec}.{js,jsx,ts,tsx}'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
     testTimeout: 30000,          // 30 seconds per test
     hookTimeout: 15000,          // 15 seconds for hooks 
@@ -18,7 +18,6 @@ export default defineConfig({
     maxThreads: 1,               // Use only one thread
     minThreads: 1,               // Use at least one thread
     silent: false,               // Show full output
-    setupFiles: ['./test-config/vitest/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
