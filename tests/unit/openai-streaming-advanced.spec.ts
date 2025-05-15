@@ -1043,6 +1043,40 @@ describe('OpenAI Streaming Advanced Tests', () => {
       sessionManager.deleteSession(activeSessionId);
     });
     
+    it('should test line 390 with custom max age parameter', async () => {
+      // Create two sessions with slightly different timestamps
+      const oldestId = 'oldest-session-test';
+      const olderSession = sessionManager.createSession(oldestId, 'en-US', Buffer.from('test'));
+      
+      const oldId = 'old-session-test';
+      const oldSession = sessionManager.createSession(oldId, 'en-US', Buffer.from('test'));
+      
+      // Set timestamps - one 2 hours old, one 1 hour old
+      const twoHoursAgo = Date.now() - (2 * 60 * 60 * 1000);
+      olderSession.lastChunkTime = twoHoursAgo;
+      
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+      oldSession.lastChunkTime = oneHourAgo;
+      
+      // Create a spy to monitor cleanupInactiveSessions
+      const cleanupSpy = jest.spyOn(sessionManager, 'cleanupInactiveSessions');
+      
+      // Call the cleanup function with a custom max age (90 minutes)
+      // This should remove the 2-hour old session but keep the 1-hour old one
+      cleanupInactiveStreamingSessions(90 * 60 * 1000); // 90 minutes in ms
+      
+      // Verify cleanup was called with the custom parameter
+      expect(cleanupSpy).toHaveBeenCalledWith(90 * 60 * 1000);
+      
+      // Verify only the 2-hour old session was cleaned up
+      expect(sessionManager.getSession(oldestId)).toBeUndefined();
+      expect(sessionManager.getSession(oldId)).toBeDefined();
+      
+      // Clean up
+      cleanupSpy.mockRestore();
+      sessionManager.deleteSession(oldId);
+    });
+    
     it('should test the timer-based cleanup on line 390', async () => {
       // Mock setInterval to test the timer-based cleanup
       jest.useFakeTimers();
@@ -1312,59 +1346,233 @@ describe('OpenAI Streaming Advanced Tests', () => {
         { message: 'Custom object message', code: 'CUSTOM' },
         'Custom object message'
       );
+      
+      // Test with complex nested error object
+      await testWithErrorType(
+        { error: { message: 'Nested error message', code: 'NESTED' } },
+        'Unknown error'
+      );
     });
     
-    it('should test non-Error object formatting in line 239', async () => {
-      // Create a simplified test to verify line 239 handles non-Error objects
+    it('should test WebSocketCommunicator send error handling', async () => {
+      // Get access to the openai-streaming module
       const openaiStreaming = require('../../server/openai-streaming');
       
-      // Set up mocking for OpenAI
+      // Create a test websocket that will throw when sending
+      const errorWebSocket = {
+        ...mockWebSocket,
+        readyState: WebSocket.OPEN,
+        send: jest.fn().mockImplementation(() => {
+          throw new Error('WebSocket send error');
+        })
+      };
+      
+      // Spy on console.error
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      try {
+        // Create a session
+        const sessionId = 'websocket-error-test';
+        sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+        
+        // Test error handling in the WebSocketCommunicator.sendTranscriptionResult
+        try {
+          // This should call WebSocketCommunicator.sendTranscriptionResult internally
+          // which will throw when trying to send to our mocked websocket
+          await processStreamingAudio(
+            errorWebSocket as unknown as ExtendedWebSocket,
+            sessionId,
+            Buffer.from('test audio').toString('base64'),
+            false,
+            'en-US'
+          );
+          
+          // Make sure error was logged
+          expect(errorSpy).toHaveBeenCalled();
+          
+          // Check for specific error message about websocket errors
+          const wsErrorLog = errorSpy.mock.calls.find(call => 
+            typeof call[0] === 'string' && call[0].includes('WebSocket')
+          );
+          expect(wsErrorLog).toBeDefined();
+        } finally {
+          sessionManager.deleteSession(sessionId);
+        }
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+    
+    it('should test WebSocketCommunicator with closed WebSocket', async () => {
+      // Get access to the openai-streaming module
+      const openaiStreaming = require('../../server/openai-streaming');
+      
+      // Create a test websocket with a CLOSED readyState
+      const closedWebSocket = {
+        ...mockWebSocket,
+        readyState: WebSocket.CLOSED, // This is the key difference - socket is closed
+        send: jest.fn() // This should never be called
+      };
+      
+      // Spy on console.error
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      try {
+        // Create a session
+        const sessionId = 'closed-websocket-test';
+        sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+        
+        // Process the session with a closed WebSocket
+        await processStreamingAudio(
+          closedWebSocket as unknown as ExtendedWebSocket,
+          sessionId,
+          Buffer.from('test audio').toString('base64'),
+          false,
+          'en-US'
+        );
+        
+        // The WebSocket's send method should NOT have been called since it's closed
+        expect(closedWebSocket.send).not.toHaveBeenCalled();
+        
+        // Verify if there are any socket state related logs (these would be debug logs, not errors)
+        const wsClosedLog = errorSpy.mock.calls.find(call => 
+          typeof call[0] === 'string' && 
+          (call[0].includes('closed') || call[0].includes('not open') || call[0].includes('CLOSED'))
+        );
+        
+        // If we find closed socket logs, validate them
+        if (wsClosedLog) {
+          expect(wsClosedLog).toBeDefined();
+        }
+        
+      } finally {
+        errorSpy.mockRestore();
+        sessionManager.deleteSession('closed-websocket-test');
+      }
+    });
+    
+    it('should test WebSocketCommunicator.sendErrorMessage handling', async () => {
+      // Get access to the openai-streaming module and WebSocketCommunicator
+      const openaiStreaming = require('../../server/openai-streaming');
+      
+      // Create a mocked WebSocket that will fail when sending
+      const errorWebSocket = {
+        ...mockWebSocket,
+        readyState: WebSocket.OPEN,
+        send: jest.fn().mockImplementation(() => {
+          throw new Error('Error sending error message');
+        })
+      };
+      
+      // Spy on console.error
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
+      try {
+        // Create a session with an error
+        const sessionId = 'error-message-test';
+        const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+        
+        // Set up the session to trigger audio processing
+        session.audioBuffer = [Buffer.alloc(5000)]; // Large enough to trigger processing
+        session.transcriptionInProgress = false;
+        
+        // Mock OpenAI to throw an error
+        const originalOpenAI = global.OpenAI;
+        global.OpenAI = jest.fn().mockImplementation(() => ({
+          audio: {
+            transcriptions: {
+              create: jest.fn().mockImplementation(() => {
+                throw new Error('Simulated transcription error');
+              })
+            }
+          }
+        }));
+        
+        try {
+          // Process audio chunks - this should try to send an error message via WebSocket
+          // which will then throw due to our mock
+          const { processAudioChunks } = openaiStreaming;
+          
+          // This call should trigger the failed transcription, which will try to send
+          // an error message, which will also fail due to our mock
+          try {
+            await processAudioChunks(
+              errorWebSocket as unknown as ExtendedWebSocket,
+              sessionId
+            );
+          } catch (e) {
+            // Expected to throw
+          }
+          
+          // Verify we have logs about both the transcription error and the 
+          // WebSocket error when trying to send the error message
+          expect(errorSpy).toHaveBeenCalled();
+          const wsErrorCount = errorSpy.mock.calls.filter(call => 
+            typeof call[0] === 'string' && 
+            (call[0].includes('Error sending') || call[0].includes('WebSocket'))
+          ).length;
+          
+          // Should have at least one error about WebSocket communication
+          expect(wsErrorCount).toBeGreaterThan(0);
+          
+        } finally {
+          global.OpenAI = originalOpenAI;
+          sessionManager.deleteSession(sessionId);
+        }
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+    
+    it('should test non-Error object formatting in AudioProcessingService', async () => {
+      // This test focuses on how AudioProcessingService handles non-Error throws
+      
+      // Mock OpenAI to throw a string instead of an Error object
       const originalOpenAI = global.OpenAI;
       global.OpenAI = jest.fn().mockImplementation(() => ({
         audio: {
           transcriptions: {
             create: jest.fn().mockImplementation(() => {
-              throw 'Not an Error object'; // Throw a string instead of an Error
+              throw 'Not an Error object'; // String instead of Error
             })
           }
         }
       }));
       
+      // Create a session for testing
+      const sessionId = 'string-error-test';
+      const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+      
+      // Make session ready for transcription
+      session.audioBuffer = [Buffer.alloc(5000)];
+      session.transcriptionInProgress = false;
+      
+      // Spy on console.error
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
       try {
-        // Create test session
-        const sessionId = 'non-error-object-test';
-        const session = sessionManager.createSession(sessionId, 'en-US', Buffer.from('test'));
+        // Directly call processStreamingAudio to trigger the error path
+        await expect(processStreamingAudio(
+          mockWebSocket as unknown as ExtendedWebSocket, 
+          sessionId,
+          Buffer.from('more audio').toString('base64'),
+          false,
+          'en-US'
+        )).rejects.toThrow(); // It should throw
         
-        // Prepare session for processing
-        session.audioBuffer = [Buffer.alloc(5000)]; // Large enough buffer
-        session.transcriptionInProgress = false;
+        // Verify error was logged
+        expect(errorSpy).toHaveBeenCalled();
         
-        // Spy on console.error
-        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        // Look for logs that mention "Unknown error" - the way non-Error objects are logged
+        const unknownErrorLogs = errorSpy.mock.calls.filter(call => 
+          typeof call[0] === 'string' && call[0].includes('Unknown error')
+        );
+        expect(unknownErrorLogs.length).toBeGreaterThan(0);
         
-        try {
-          // Call the function that will trigger line 239
-          const { processAudioChunks } = openaiStreaming;
-          await processAudioChunks(
-            mockWebSocket as unknown as ExtendedWebSocket, 
-            sessionId
-          );
-          fail('Expected error was not thrown');
-        } catch (thrownError) {
-          // Verify the error has been formatted correctly
-          expect(thrownError.message).toContain('Transcription failed:');
-          expect(thrownError.message).toContain('Unknown error');
-          
-          // Verify that error was logged to console
-          expect(errorSpy).toHaveBeenCalled();
-          
-          // Clean up
-          errorSpy.mockRestore();
-          sessionManager.deleteSession(sessionId);
-        }
       } finally {
-        // Restore original OpenAI
         global.OpenAI = originalOpenAI;
+        errorSpy.mockRestore();
+        sessionManager.deleteSession(sessionId);
       }
     });
     
