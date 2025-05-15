@@ -18,7 +18,7 @@ vi.mock('ws', () => {
   
   // Define types to match the actual WebSocket implementation
   class MockWebSocket extends EventEmitter {
-    binaryType = 'arraybuffer';
+    binaryType = 'arraybuffer' as const;
     bufferedAmount = 0;
     extensions = '';
     protocol = '';
@@ -27,9 +27,9 @@ vi.mock('ws', () => {
     
     // Custom properties for our testing
     isAlive = true;
-    sessionId = undefined;
-    role = undefined;
-    languageCode = undefined;
+    sessionId?: string = undefined;
+    role?: 'teacher' | 'student' = undefined;
+    languageCode?: string = undefined;
     throwOnSend = false;
     
     // Mock methods
@@ -275,14 +275,12 @@ describe('WebSocket Module - 100% Coverage Tests', () => {
       // Create mock clients with roles
       const teacher = new WebSocket() as ExtendedWebSocket;
       teacher.role = 'teacher';
-      teacher.readyState = WebSocketState.OPEN;
+      // Note: readyState is already WebSocketState.OPEN in the mock
       
       const student = new WebSocket() as ExtendedWebSocket;
       student.role = 'student';
-      student.readyState = WebSocketState.OPEN;
       
       const noRole = new WebSocket() as ExtendedWebSocket;
-      noRole.readyState = WebSocketState.OPEN;
       
       // Add them to clients set
       wss.clients.clear();
