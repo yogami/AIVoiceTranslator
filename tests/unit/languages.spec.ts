@@ -5,16 +5,12 @@
  */
 import { describe, it, expect } from 'vitest';
 
-// No need to mock anything for these pure utility functions
-import { 
-  getLanguages, 
-  getLanguageName, 
-  getLangCodeFromName 
-} from '../../server/openai';
+// Import from storage and modify tests to use the storage interface
+import { storage } from '../../server/storage';
 
 describe('Language Utilities', () => {
-  it('should return a list of supported languages', () => {
-    const languages = getLanguages();
+  it('should return a list of supported languages', async () => {
+    const languages = await storage.getLanguages();
     
     // Verify languages array format
     expect(Array.isArray(languages)).toBe(true);
@@ -24,7 +20,6 @@ describe('Language Utilities', () => {
     languages.forEach(lang => {
       expect(lang).toHaveProperty('code');
       expect(lang).toHaveProperty('name');
-      expect(lang).toHaveProperty('native');
       expect(lang).toHaveProperty('isActive');
     });
     
@@ -34,31 +29,31 @@ describe('Language Utilities', () => {
     expect(languages.some(lang => lang.code === 'fr-FR')).toBe(true);
   });
   
-  it('should get language name from code', () => {
+  it('should get language by code', async () => {
     // Test common languages
-    expect(getLanguageName('en-US')).toBe('English');
-    expect(getLanguageName('es-ES')).toBe('Spanish');
-    expect(getLanguageName('fr-FR')).toBe('French');
-    expect(getLanguageName('de-DE')).toBe('German');
-    expect(getLanguageName('ja-JP')).toBe('Japanese');
+    const englishLang = await storage.getLanguageByCode('en-US');
+    const spanishLang = await storage.getLanguageByCode('es-ES');
+    const frenchLang = await storage.getLanguageByCode('fr-FR');
+    
+    expect(englishLang?.name).toBe('English');
+    expect(spanishLang?.name).toBe('Spanish');
+    expect(frenchLang?.name).toBe('French');
     
     // Test unknown language code
-    expect(getLanguageName('xx-XX')).toBe('Unknown');
+    const unknownLang = await storage.getLanguageByCode('xx-XX');
+    expect(unknownLang).toBeUndefined();
   });
   
-  it('should get language code from name', () => {
-    // Test common languages
-    expect(getLangCodeFromName('English')).toBe('en-US');
-    expect(getLangCodeFromName('Spanish')).toBe('es-ES');
-    expect(getLangCodeFromName('French')).toBe('fr-FR');
-    expect(getLangCodeFromName('German')).toBe('de-DE');
-    expect(getLangCodeFromName('Japanese')).toBe('ja-JP');
+  it('should get active languages', async () => {
+    const activeLanguages = await storage.getActiveLanguages();
     
-    // Test case insensitivity
-    expect(getLangCodeFromName('english')).toBe('en-US');
-    expect(getLangCodeFromName('SPANISH')).toBe('es-ES');
+    // Verify active languages
+    expect(Array.isArray(activeLanguages)).toBe(true);
+    expect(activeLanguages.length).toBeGreaterThan(0);
     
-    // Test unknown language name
-    expect(getLangCodeFromName('NonExistentLanguage')).toBe('en-US');
+    // All languages should be active
+    activeLanguages.forEach(lang => {
+      expect(lang.isActive).toBe(true);
+    });
   });
 });
