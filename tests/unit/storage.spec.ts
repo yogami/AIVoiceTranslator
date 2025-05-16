@@ -48,12 +48,12 @@ describe('Storage Services', () => {
       
       // Verify it contains expected languages
       const english = result.find(lang => lang.code === 'en-US');
-      const spanish = result.find(lang => lang.code === 'es-ES');
+      const spanish = result.find(lang => lang.code === 'es');
       
       expect(english).toBeDefined();
       expect(spanish).toBeDefined();
       
-      if (english) expect(english.name).toBe('English');
+      if (english) expect(english.name).toBe('English (United States)');
       if (spanish) expect(spanish.name).toBe('Spanish');
     });
 
@@ -302,7 +302,9 @@ describe('Storage Services', () => {
       (dbMock.select as any).mockReturnValue({
         from: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
-            limit: vi.fn().mockResolvedValue(mockRetrievedTranslations)
+            orderBy: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue(mockRetrievedTranslations)
+            })
           })
         })
       });
