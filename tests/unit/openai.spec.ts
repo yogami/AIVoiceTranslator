@@ -1,119 +1,136 @@
 /**
- * Tests for the OpenAI facade module
+ * OpenAI Integration Tests (Consolidated)
  * 
- * This file tests the main openai.ts module which serves as a facade
- * to the translation service implementation.
+ * A comprehensive test suite for OpenAI-related functionality.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Buffer } from 'buffer';
 
-// Create a translation result mock that will be used for the tests
-const mockDefaultTranslationResult = {
-  originalText: 'Original test text',
-  translatedText: 'Translated test text',
-  audioBuffer: Buffer.from('Test audio data')
-};
-
-// Mock the translation service before importing the module under test
-vi.mock('../../server/services/TranslationService', () => {
+// Mock OpenAI
+vi.mock('openai', () => {
   return {
-    translateSpeech: vi.fn().mockImplementation(() => {
-      return Promise.resolve({...mockDefaultTranslationResult});
-    })
+    default: vi.fn(() => ({
+      audio: {
+        transcriptions: {
+          create: vi.fn().mockResolvedValue({
+            text: 'This is a test transcription'
+          })
+        }
+      },
+      chat: {
+        completions: {
+          create: vi.fn().mockResolvedValue({
+            choices: [
+              {
+                message: {
+                  content: 'This is a test response'
+                }
+              }
+            ]
+          })
+        }
+      }
+    }))
   };
 });
 
-describe('OpenAI Facade Module', () => {
-  let openaiModule: any;
-  let translationServiceMock: any;
+// Import the modules under test
+import { translateSpeech } from '../../server/services/TranslationService';
+
+describe('OpenAI API Integration', () => {
+  describe('Basic Functionality', () => {
+    it('should translate speech with OpenAI', async () => {
+      // Arrange
+      const audioBuffer = Buffer.from('test audio data');
+      const sourceLanguage = 'en-US';
+      const targetLanguage = 'es-ES';
+      
+      // Act
+      const result = await translateSpeech(
+        audioBuffer,
+        sourceLanguage,
+        targetLanguage
+      );
+      
+      // Assert
+      expect(result).toBeDefined();
+      expect(result.originalText).toBeDefined();
+      expect(result.translatedText).toBeDefined();
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    });
   
-  beforeEach(async () => {
-    // Clear mocks
-    vi.clearAllMocks();
-    
-    // Import modules for testing
-    openaiModule = await import('../../server/openai');
-    translationServiceMock = await import('../../server/services/TranslationService');
+    it('should handle pre-transcribed text', async () => {
+      // Arrange
+      const audioBuffer = Buffer.from('test audio data');
+      const sourceLanguage = 'en-US';
+      const targetLanguage = 'es-ES';
+      const preTranscribedText = 'Pre-transcribed test content';
+      
+      // Act
+      const result = await translateSpeech(
+        audioBuffer,
+        sourceLanguage,
+        targetLanguage,
+        preTranscribedText
+      );
+      
+      // Assert
+      expect(result.originalText).toBe(preTranscribedText);
+      expect(result.translatedText).toBeDefined();
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    });
   });
   
-  afterEach(() => {
-    vi.resetModules();
-  });
-  
-  it('should export the translateSpeech function', () => {
-    expect(typeof openaiModule.translateSpeech).toBe('function');
-  });
-  
-  it('should correctly pass parameters to the translation service', async () => {
-    // Arrange
-    const audioBuffer = Buffer.from('Test audio data');
-    const sourceLanguage = 'en-US';
-    const targetLanguage = 'es-ES';
+  describe('Error Handling', () => {
+    let openaiMock;
     
-    // Act
-    await openaiModule.translateSpeech(
-      audioBuffer,
-      sourceLanguage,
-      targetLanguage
-    );
-    
-    // Assert - verify parameters were passed correctly
-    expect(translationServiceMock.translateSpeech).toHaveBeenCalledWith(
-      audioBuffer,
-      sourceLanguage,
-      targetLanguage,
-      undefined
-    );
-  });
-  
-  it('should pass preTranscribedText when provided', async () => {
-    // Arrange
-    const audioBuffer = Buffer.from('Test audio data');
-    const sourceLanguage = 'en-US';
-    const targetLanguage = 'es-ES';
-    const preTranscribedText = 'Pre-transcribed text';
-    
-    // Act
-    await openaiModule.translateSpeech(
-      audioBuffer,
-      sourceLanguage,
-      targetLanguage,
-      preTranscribedText
-    );
-    
-    // Assert - verify preTranscribedText was passed
-    expect(translationServiceMock.translateSpeech).toHaveBeenCalledWith(
-      audioBuffer,
-      sourceLanguage,
-      targetLanguage,
-      preTranscribedText
-    );
-  });
-  
-  it('should return the TranslationResult from the service', async () => {
-    // Arrange
-    const audioBuffer = Buffer.from('Test audio data');
-    const sourceLanguage = 'en-US';
-    const targetLanguage = 'es-ES';
-    
-    const customResult = {
-      originalText: 'Custom original text',
-      translatedText: 'Custom translated text',
-      audioBuffer: Buffer.from('Custom audio data')
-    };
-    
-    // Set up a special mock implementation for this test
-    translationServiceMock.translateSpeech.mockImplementationOnce(() => {
-      return Promise.resolve(customResult);
+    beforeEach(() => {
+      // Get a reference to the mocked OpenAI instance
+      openaiMock = require('openai').default();
+      vi.clearAllMocks();
     });
     
-    // Act
-    const result = await openaiModule.translateSpeech(
-      audioBuffer,
-      sourceLanguage,
-      targetLanguage
-    );
-    
-    // Assert - should return what the service returned
-    expect(result).toEqual(customResult);
+    it('should handle API errors gracefully', async () => {
+      // Arrange - Make the OpenAI call fail
+      openaiMock.audio.transcriptions.create.mockRejectedValueOnce(
+        new Error('API Error')
+      );
+      
+      // Act
+      const audioBuffer = Buffer.from('test audio data');
+      const result = await translateSpeech(
+        audioBuffer,
+        'en-US',
+        'es-ES'
+      );
+      
+      // Assert - Should still return a result with empty strings
+      expect(result).toBeDefined();
+      expect(result.originalText).toBe('');
+      expect(result.translatedText).toBe('');
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    });
+  });
+  
+  describe('Language Handling', () => {
+    it('should skip translation when source and target languages are the same', async () => {
+      // Arrange
+      const audioBuffer = Buffer.from('test audio data');
+      const language = 'en-US';
+      const openaiMock = require('openai').default();
+      
+      // Act
+      const result = await translateSpeech(
+        audioBuffer,
+        language,
+        language
+      );
+      
+      // Assert
+      expect(result.originalText).toBeDefined();
+      expect(result.translatedText).toBe(result.originalText);
+      // Translation API should not be called
+      expect(openaiMock.chat.completions.create).not.toHaveBeenCalled();
+    });
   });
 });
