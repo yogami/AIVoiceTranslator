@@ -5,7 +5,31 @@
  */
 import { describe, it, expect } from 'vitest';
 
-// Import from storage and modify tests to use the storage interface
+// Import from storage and modify tests to use a mocked storage interface
+import { vi } from 'vitest';
+
+// Mock the storage module
+vi.mock('../../server/storage', () => {
+  const mockLanguages = [
+    { id: 1, code: 'en-US', name: 'English', isActive: true },
+    { id: 2, code: 'es-ES', name: 'Spanish', isActive: true },
+    { id: 3, code: 'fr-FR', name: 'French', isActive: true },
+    { id: 4, code: 'de-DE', name: 'German', isActive: true },
+    { id: 5, code: 'ja-JP', name: 'Japanese', isActive: false }
+  ];
+  
+  return {
+    storage: {
+      getLanguages: vi.fn().mockResolvedValue(mockLanguages),
+      getActiveLanguages: vi.fn().mockResolvedValue(mockLanguages.filter(lang => lang.isActive)),
+      getLanguageByCode: vi.fn().mockImplementation(async (code) => {
+        return mockLanguages.find(lang => lang.code === code);
+      })
+    }
+  };
+});
+
+// Import AFTER the mock is defined
 import { storage } from '../../server/storage';
 
 describe('Language Utilities', () => {

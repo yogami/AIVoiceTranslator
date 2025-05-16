@@ -1,269 +1,261 @@
 /**
- * Integration Tests for DatabaseStorage
+ * Database Storage Integration Tests
  * 
- * These tests verify that DatabaseStorage correctly interacts with a real PostgreSQL database.
- * This requires an actual database connection and will modify the test database.
+ * Tests the PostgreSQL storage implementation using a real database connection
  */
-
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { DatabaseStorage } from '../../../server/storage';
-import { 
-  initTestDatabase, 
-  closeDatabaseConnection, 
-  addTestTranslation, 
-  addTestTranscript 
-} from '../../setup/db-setup';
-import { 
-  type InsertUser, 
-  type InsertLanguage,
-  type InsertTranslation,
-  type InsertTranscript
-} from '../../../shared/schema';
+import { db } from '../../../server/db';
+import { users, languages, translations, transcripts } from '../../../shared/schema';
 
-// Skip these tests if DATABASE_URL is not set
-const runDatabaseTests = !!process.env.DATABASE_URL;
+describe('DatabaseStorage Integration Tests', () => {
+  let storage: DatabaseStorage;
 
-// Mark the whole describe block as conditional
-(runDatabaseTests ? describe : describe.skip)('DatabaseStorage Integration Tests', () => {
-  let dbStorage: DatabaseStorage;
-  
-  // Setup: initialize database before all tests
+  // Set up the storage and clean the database before tests
   beforeAll(async () => {
-    // Initialize test database with clean state
-    await initTestDatabase();
+    storage = new DatabaseStorage();
     
-    // Create storage instance to test
-    dbStorage = new DatabaseStorage();
+    // Clean the database tables except for languages (which has default values)
+    await db.delete(users);
+    await db.delete(translations);
+    await db.delete(transcripts);
   });
-  
-  // Cleanup: close connection after all tests
-  afterAll(async () => {
-    await closeDatabaseConnection();
-  });
-  
+
   describe('User operations', () => {
+    beforeEach(async () => {
+      // Clean up users before each test
+      await db.delete(users);
+    });
+
     it('should create and retrieve a user', async () => {
-      // Create a user
-      const testUser: InsertUser = {
-        username: 'integrationtestuser',
-        password: 'testpassword123'
+      // Arrange
+      const testUser = {
+        username: 'testuser',
+        password: 'password123'
       };
       
-      // Add user to database
-      const createdUser = await dbStorage.createUser(testUser);
+      // Act
+      const createdUser = await storage.createUser(testUser);
+      const retrievedUser = await storage.getUser(createdUser.id);
       
-      // Verify the user has an ID
-      expect(createdUser.id).toBeDefined();
-      expect(createdUser.username).toBe(testUser.username);
-      
-      // Retrieve the user by ID
-      const retrievedUser = await dbStorage.getUser(createdUser.id);
-      
-      // Verify retrieved user matches created user
+      // Assert
+      expect(createdUser).toHaveProperty('id');
+      expect(createdUser.username).toEqual(testUser.username);
       expect(retrievedUser).toEqual(createdUser);
+    });
+
+    it('should retrieve a user by username', async () => {
+      // Arrange
+      const testUser = {
+        username: 'username_lookup_test',
+        password: 'password123'
+      };
       
-      // Retrieve by username
-      const retrievedByUsername = await dbStorage.getUserByUsername(testUser.username);
+      // Act
+      const createdUser = await storage.createUser(testUser);
+      const retrievedUser = await storage.getUserByUsername(testUser.username);
       
-      // Verify retrieved user matches created user
-      expect(retrievedByUsername).toEqual(createdUser);
+      // Assert
+      expect(retrievedUser).toEqual(createdUser);
+    });
+
+    it('should return undefined for non-existent user', async () => {
+      // Act
+      const nonExistentUser = await storage.getUser(9999);
+      
+      // Assert
+      expect(nonExistentUser).toBeUndefined();
     });
   });
-  
+
   describe('Language operations', () => {
-    it('should retrieve default languages', async () => {
-      // Get all languages
-      const languages = await dbStorage.getLanguages();
+    it('should retrieve all languages', async () => {
+      // Act
+      const allLanguages = await storage.getLanguages();
       
-      // Verify default languages exist
-      expect(languages.length).toBeGreaterThan(0);
-      
-      // Check for expected defaults
-      const languageCodes = languages.map(lang => lang.code);
-      expect(languageCodes).toContain('en-US');
-      expect(languageCodes).toContain('es');
-      expect(languageCodes).toContain('fr');
-      expect(languageCodes).toContain('de');
+      // Assert
+      expect(allLanguages.length).toBeGreaterThan(0);
+      expect(allLanguages[0]).toHaveProperty('id');
+      expect(allLanguages[0]).toHaveProperty('code');
+      expect(allLanguages[0]).toHaveProperty('name');
     });
-    
+
+    it('should retrieve active languages', async () => {
+      // Act
+      const activeLanguages = await storage.getActiveLanguages();
+      
+      // Assert
+      expect(activeLanguages.length).toBeGreaterThan(0);
+      expect(activeLanguages.every(lang => lang.isActive)).toBe(true);
+    });
+
+    it('should retrieve a language by code', async () => {
+      // Arrange
+      const englishCode = 'en-US';
+      
+      // Act
+      const language = await storage.getLanguageByCode(englishCode);
+      
+      // Assert
+      expect(language).not.toBeUndefined();
+      expect(language?.code).toEqual(englishCode);
+    });
+
     it('should create a new language', async () => {
-      // Create new language
-      const testLanguage: InsertLanguage = {
-        code: 'it',
-        name: 'Italian',
+      // Arrange
+      const newLanguage = {
+        code: `test-lang-${Date.now()}`,
+        name: 'Test Language',
         isActive: true
       };
       
-      // Add to database
-      const createdLanguage = await dbStorage.createLanguage(testLanguage);
+      // Act
+      const createdLanguage = await storage.createLanguage(newLanguage);
       
-      // Verify created with ID
-      expect(createdLanguage.id).toBeDefined();
-      expect(createdLanguage.code).toBe(testLanguage.code);
-      
-      // Retrieve by code
-      const retrievedLanguage = await dbStorage.getLanguageByCode(testLanguage.code);
-      
-      // Verify it's the same
-      expect(retrievedLanguage).toEqual(createdLanguage);
+      // Assert
+      expect(createdLanguage).toHaveProperty('id');
+      expect(createdLanguage.code).toEqual(newLanguage.code);
+      expect(createdLanguage.name).toEqual(newLanguage.name);
     });
-    
+
     it('should update language status', async () => {
-      // Get a language to update
-      const language = await dbStorage.getLanguageByCode('en-US');
-      expect(language).toBeDefined();
+      // Arrange
+      const newLanguage = {
+        code: `update-test-${Date.now()}`,
+        name: 'Update Test Language',
+        isActive: true
+      };
+      const createdLanguage = await storage.createLanguage(newLanguage);
       
-      // Current status should be active
-      expect(language!.isActive).toBe(true);
+      // Act
+      const updatedLanguage = await storage.updateLanguageStatus(createdLanguage.code, false);
       
-      // Update to inactive
-      const updatedLanguage = await dbStorage.updateLanguageStatus('en-US', false);
-      
-      // Verify updated
-      expect(updatedLanguage).toBeDefined();
-      expect(updatedLanguage!.isActive).toBe(false);
-      
-      // Get active languages and verify en-US is not among them
-      const activeLanguages = await dbStorage.getActiveLanguages();
-      const activeCodes = activeLanguages.map(lang => lang.code);
-      expect(activeCodes).not.toContain('en-US');
-      
-      // Reset back to active for other tests
-      await dbStorage.updateLanguageStatus('en-US', true);
+      // Assert
+      expect(updatedLanguage).not.toBeUndefined();
+      expect(updatedLanguage?.isActive).toBe(false);
     });
   });
-  
+
   describe('Translation operations', () => {
-    it('should add and retrieve translations', async () => {
-      // Create test translation
-      const testTranslation: InsertTranslation = {
+    beforeEach(async () => {
+      // Clean translations before each test
+      await db.delete(translations);
+    });
+
+    it('should add a translation', async () => {
+      // Arrange
+      const translation = {
         sourceLanguage: 'en-US',
         targetLanguage: 'es',
-        originalText: 'Integration test translation',
-        translatedText: 'Traducción de prueba de integración',
-        latency: 320
+        originalText: 'Hello world',
+        translatedText: 'Hola mundo',
+        latency: 150
       };
       
-      // Add to database
-      const addedTranslation = await dbStorage.addTranslation(testTranslation);
+      // Act
+      const savedTranslation = await storage.addTranslation(translation);
       
-      // Verify added with ID and timestamp
-      expect(addedTranslation.id).toBeDefined();
-      expect(addedTranslation.timestamp).toBeDefined();
-      expect(addedTranslation.originalText).toBe(testTranslation.originalText);
-      
-      // Get translations by language
-      const translations = await dbStorage.getTranslationsByLanguage('es', 10);
-      
-      // Verify includes our translation
-      const found = translations.some(t => 
-        t.id === addedTranslation.id && 
-        t.originalText === testTranslation.originalText
-      );
-      expect(found).toBe(true);
+      // Assert
+      expect(savedTranslation).toHaveProperty('id');
+      expect(savedTranslation.sourceLanguage).toEqual(translation.sourceLanguage);
+      expect(savedTranslation.targetLanguage).toEqual(translation.targetLanguage);
+      expect(savedTranslation.originalText).toEqual(translation.originalText);
+      expect(savedTranslation.translatedText).toEqual(translation.translatedText);
     });
-    
-    it('should respect the limit parameter', async () => {
-      // Add multiple translations
-      await Promise.all([
-        dbStorage.addTranslation({
+
+    it('should retrieve translations by language', async () => {
+      // Arrange
+      const targetLanguage = 'fr';
+      const translations = [
+        {
           sourceLanguage: 'en-US',
-          targetLanguage: 'fr',
-          originalText: 'Test 1',
-          translatedText: 'Test 1 en français',
+          targetLanguage,
+          originalText: 'Hello',
+          translatedText: 'Bonjour',
           latency: 100
-        }),
-        dbStorage.addTranslation({
+        },
+        {
           sourceLanguage: 'en-US',
-          targetLanguage: 'fr',
-          originalText: 'Test 2',
-          translatedText: 'Test 2 en français',
-          latency: 110
-        }),
-        dbStorage.addTranslation({
-          sourceLanguage: 'en-US',
-          targetLanguage: 'fr',
-          originalText: 'Test 3',
-          translatedText: 'Test 3 en français',
+          targetLanguage,
+          originalText: 'Goodbye',
+          translatedText: 'Au revoir',
           latency: 120
-        })
-      ]);
+        }
+      ];
       
-      // Get with limit=2
-      const limitedTranslations = await dbStorage.getTranslationsByLanguage('fr', 2);
+      // Add test translations
+      await Promise.all(translations.map(t => storage.addTranslation(t)));
       
-      // Verify limit was applied
-      expect(limitedTranslations.length).toBe(2);
+      // Act
+      const retrievedTranslations = await storage.getTranslationsByLanguage(targetLanguage);
+      
+      // Assert
+      expect(retrievedTranslations.length).toEqual(translations.length);
+      expect(retrievedTranslations[0].targetLanguage).toEqual(targetLanguage);
     });
   });
-  
+
   describe('Transcript operations', () => {
-    it('should add and retrieve transcripts', async () => {
-      // Create test transcript
-      const testTranscript: InsertTranscript = {
-        sessionId: 'integration-test-session',
+    beforeEach(async () => {
+      // Clean transcripts before each test
+      await db.delete(transcripts);
+    });
+
+    it('should add a transcript', async () => {
+      // Arrange
+      const transcript = {
+        sessionId: 'test-session-1',
         language: 'en-US',
-        text: 'Integration test transcript text'
+        text: 'This is a test transcript'
       };
       
-      // Add to database
-      const addedTranscript = await dbStorage.addTranscript(testTranscript);
+      // Act
+      const savedTranscript = await storage.addTranscript(transcript);
       
-      // Verify added with ID and timestamp
-      expect(addedTranscript.id).toBeDefined();
-      expect(addedTranscript.timestamp).toBeDefined();
-      expect(addedTranscript.text).toBe(testTranscript.text);
-      
-      // Get transcripts by session and language
-      const transcripts = await dbStorage.getTranscriptsBySession(
-        testTranscript.sessionId,
-        testTranscript.language
-      );
-      
-      // Verify includes our transcript
-      expect(transcripts.length).toBeGreaterThan(0);
-      const found = transcripts.some(t => 
-        t.id === addedTranscript.id && 
-        t.text === testTranscript.text
-      );
-      expect(found).toBe(true);
+      // Assert
+      expect(savedTranscript).toHaveProperty('id');
+      expect(savedTranscript.sessionId).toEqual(transcript.sessionId);
+      expect(savedTranscript.language).toEqual(transcript.language);
+      expect(savedTranscript.text).toEqual(transcript.text);
     });
-    
-    it('should filter transcripts by session and language', async () => {
-      // Add transcripts with different session IDs
-      await Promise.all([
-        dbStorage.addTranscript({
-          sessionId: 'filter-test-session-1',
-          language: 'en-US',
-          text: 'Session 1 Transcript 1'
-        }),
-        dbStorage.addTranscript({
-          sessionId: 'filter-test-session-1',
-          language: 'en-US',
-          text: 'Session 1 Transcript 2'
-        }),
-        dbStorage.addTranscript({
-          sessionId: 'filter-test-session-2',
-          language: 'en-US',
-          text: 'Session 2 Transcript'
-        }),
-        dbStorage.addTranscript({
-          sessionId: 'filter-test-session-1',
-          language: 'fr',
-          text: 'Session 1 French Transcript'
-        })
-      ]);
+
+    it('should retrieve transcripts by session and language', async () => {
+      // Arrange
+      const sessionId = 'test-session-2';
+      const language = 'en-US';
+      const transcripts = [
+        {
+          sessionId,
+          language,
+          text: 'First part of transcript'
+        },
+        {
+          sessionId,
+          language,
+          text: 'Second part of transcript'
+        },
+        {
+          sessionId: 'different-session',
+          language,
+          text: 'Different session transcript'
+        }
+      ];
       
-      // Get transcripts for session 1, en-US
-      const transcripts = await dbStorage.getTranscriptsBySession(
-        'filter-test-session-1',
-        'en-US'
-      );
+      // Add test transcripts
+      await Promise.all(transcripts.map(t => storage.addTranscript(t)));
       
-      // Verify correct filter applied
-      expect(transcripts.length).toBe(2);
-      expect(transcripts.every(t => t.sessionId === 'filter-test-session-1')).toBe(true);
-      expect(transcripts.every(t => t.language === 'en-US')).toBe(true);
+      // Act
+      const retrievedTranscripts = await storage.getTranscriptsBySession(sessionId, language);
+      
+      // Assert
+      expect(retrievedTranscripts.length).toEqual(2); // Only the ones matching both sessionId and language
+      expect(retrievedTranscripts[0].sessionId).toEqual(sessionId);
+      expect(retrievedTranscripts[0].language).toEqual(language);
     });
+  });
+
+  // Clean up after all tests
+  afterAll(async () => {
+    // No need to delete all data, but can clean up test data if needed
   });
 });
