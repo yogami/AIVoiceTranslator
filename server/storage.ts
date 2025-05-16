@@ -107,7 +107,11 @@ export class MemStorage implements IStorage {
   
   async createLanguage(insertLanguage: InsertLanguage): Promise<Language> {
     const id = this.languageId++;
-    const language: Language = { ...insertLanguage, id };
+    const language: Language = { 
+      ...insertLanguage, 
+      id, 
+      isActive: insertLanguage.isActive ?? true 
+    };
     this.languages.set(id, language);
     return language;
   }
@@ -125,7 +129,12 @@ export class MemStorage implements IStorage {
   async addTranslation(insertTranslation: InsertTranslation): Promise<Translation> {
     const id = this.translationId++;
     const timestamp = new Date();
-    const translation: Translation = { ...insertTranslation, id, timestamp };
+    const translation: Translation = { 
+      ...insertTranslation, 
+      id, 
+      timestamp,
+      latency: insertTranslation.latency ?? null
+    };
     this.translations.set(id, translation);
     return translation;
   }
@@ -133,7 +142,12 @@ export class MemStorage implements IStorage {
   async getTranslationsByLanguage(targetLanguage: string, limit = 10): Promise<Translation[]> {
     return Array.from(this.translations.values())
       .filter(t => t.targetLanguage === targetLanguage)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .sort((a, b) => {
+        // Handle possible null timestamps
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return b.timestamp.getTime() - a.timestamp.getTime();
+      })
       .slice(0, limit);
   }
   
@@ -149,7 +163,12 @@ export class MemStorage implements IStorage {
   async getTranscriptsBySession(sessionId: string, language: string): Promise<Transcript[]> {
     return Array.from(this.transcripts.values())
       .filter(t => t.sessionId === sessionId && t.language === language)
-      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      .sort((a, b) => {
+        // Handle possible null timestamps
+        if (!a.timestamp) return -1;
+        if (!b.timestamp) return 1;
+        return a.timestamp.getTime() - b.timestamp.getTime();
+      });
   }
 }
 
@@ -249,7 +268,5 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Use MemStorage for development and DatabaseStorage for production
-export const storage = process.env.NODE_ENV === 'production' 
-  ? new DatabaseStorage() 
-  : new MemStorage();
+// Always use DatabaseStorage since we've set up the database
+export const storage = new DatabaseStorage();
