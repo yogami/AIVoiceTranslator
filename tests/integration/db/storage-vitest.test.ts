@@ -3,13 +3,11 @@
  * 
  * This file tests the integration between the storage interface and the database.
  * Note: We're using a mocked DB in this example instead of a real PostgreSQL instance.
- * 
- * Converted from Jest to Vitest
  */
 
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { IStorage, MemStorage } from '../../../server/storage';
 import { User, Language, Translation, Transcript } from '../../../shared/schema';
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 
 describe('Storage Integration', () => {
   let storage: IStorage;
