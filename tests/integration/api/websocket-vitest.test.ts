@@ -7,12 +7,12 @@
  * Converted from Jest to Vitest
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import * as WebSocket from 'ws';
 import { createServer } from 'http';
 import express from 'express';
 import { WebSocketService } from '../../../server/websocket';
 import { AddressInfo } from 'net';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 
 // Using a mocked WebSocketService to test the integration
 describe('WebSocket Integration', () => {
@@ -48,7 +48,7 @@ describe('WebSocket Integration', () => {
       })
     };
     
-    // Mock the WebSocketService prototype methods
+    // Mock the WebSocketService constructor
     vi.spyOn(WebSocketService.prototype, 'onMessage').mockImplementation(mockWsService.onMessage);
     vi.spyOn(WebSocketService.prototype, 'sendToClient').mockImplementation(mockWsService.sendToClient);
   });
@@ -137,7 +137,7 @@ describe('WebSocket Integration', () => {
   // Setup the WebSocketService to respond to register messages
   beforeEach(() => {
     // Reset mocks before each test
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     
     // Initialize mocks by creating a new WebSocketService with HTTP server
     const server = createServer();

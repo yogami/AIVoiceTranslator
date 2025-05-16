@@ -7,81 +7,23 @@
  * Converted from Jest to Vitest
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express, { Express } from 'express';
 import { apiRoutes } from '../../../server/routes';
-import { storage as originalStorage, MemStorage } from '../../../server/storage';
-import { InsertUser, User } from '../../../shared/schema';
+import { storage } from '../../../server/storage';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // Simple wrapper function to wait for promises
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('API Routes', () => {
   let app: Express;
-  let mockStorage: MemStorage;
   
   beforeEach(() => {
-    // Create a new MemStorage instance for each test
-    mockStorage = new MemStorage();
-    
-    // Set up a clean Express app for each test
+    // IMPORTANT: Use the actual Express app and routes
     app = express();
     app.use(express.json());
-    
-    // Setup a route handler that will use our mock storage
-    const setupRoutes = () => {
-      // Override the actual routes with routes that use our mock storage
-      const routes = express.Router();
-      
-      routes.get('/languages', async (req, res) => {
-        try {
-          const languages = await mockStorage.getLanguages();
-          res.json(languages);
-        } catch (error) {
-          res.status(500).json({ error: 'Failed to retrieve languages' });
-        }
-      });
-      
-      routes.get('/languages/active', async (req, res) => {
-        try {
-          const activeLanguages = await mockStorage.getActiveLanguages();
-          res.json(activeLanguages);
-        } catch (error) {
-          res.status(500).json({ error: 'Failed to retrieve active languages' });
-        }
-      });
-      
-      routes.get('/health', (req, res) => {
-        res.json({ 
-          status: 'ok', 
-          timestamp: new Date().toISOString(),
-          version: '1.0.0', // Hardcoded for test
-          database: 'connected',
-          environment: 'test'
-        });
-      });
-      
-      routes.get('/user', async (req, res) => {
-        try {
-          const user = await mockStorage.getUser(1);
-          
-          if (!user) {
-            return res.status(404).json({ error: 'User not found' });
-          }
-          
-          // Return user without password for security
-          const { password, ...userWithoutPassword } = user;
-          res.json(userWithoutPassword);
-        } catch (error) {
-          res.status(500).json({ error: 'Failed to retrieve user' });
-        }
-      });
-      
-      return routes;
-    };
-    
-    app.use('/api', setupRoutes());
+    app.use('/api', apiRoutes);
   });
   
   it('should handle health check endpoint', async () => {
@@ -127,11 +69,14 @@ describe('API Routes', () => {
   
   // Test getting user information from the API
   it('should get user information', async () => {
-    // Create a test user directly in the mock storage
-    await mockStorage.createUser({
+    // Create a test user first - only include fields that match our schema
+    const testUser = await storage.createUser({
       username: 'testuser',
-      password: 'password123' // In a real app, this would be hashed
+      password: 'password123'
     });
+    
+    // Verify user was created with ID 1 (first user in the system)
+    expect(testUser.id).toBe(1);
     
     // Now test the API endpoint
     const response = await request(app)
