@@ -47,15 +47,14 @@ vi.mock('openai', () => {
   };
 });
 
-// Set up mocks before imports
-const mockTTSService = {
-  synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
-};
-
-// Mock Text-to-Speech service
-vi.mock('../../../server/services/TextToSpeechService', () => ({
-  textToSpeechService: mockTTSService
-}));
+// Mock Text-to-Speech service - creating mock directly in the factory function
+vi.mock('../../../server/services/TextToSpeechService', () => {
+  return {
+    textToSpeechService: {
+      synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
+    }
+  };
+});
 
 // Import the module under test
 import { translateSpeech } from '../../../server/services/TranslationService';
@@ -67,7 +66,6 @@ describe('TranslationService', () => {
     vi.clearAllMocks();
     (global.mockTranslationTranscribe as any).mockClear();
     (global.mockTranslationCompletion as any).mockClear();
-    mockTTSService.synthesizeSpeech.mockClear();
   });
   
   describe('Basic Translation', () => {
@@ -97,7 +95,7 @@ describe('TranslationService', () => {
       expect(global.mockTranslationCompletion).toHaveBeenCalled();
       
       // Verify text-to-speech was called for the translated text
-      expect(mockTTSService.synthesizeSpeech).toHaveBeenCalledWith(
+      expect(require('../../../server/services/TextToSpeechService').textToSpeechService.synthesizeSpeech).toHaveBeenCalledWith(
         expect.objectContaining({
           text: 'This is a translated test response',
           languageCode: targetLanguage
@@ -154,7 +152,7 @@ describe('TranslationService', () => {
       expect(result.audioBuffer).toBeInstanceOf(Buffer);
       
       // Verify TTS was still called (with empty string)
-      expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalledWith(
+      expect(mockTTSService.synthesizeSpeech).toHaveBeenCalledWith(
         expect.objectContaining({
           text: '',
           languageCode: 'es-ES'
@@ -183,7 +181,7 @@ describe('TranslationService', () => {
       expect(result.audioBuffer).toBeInstanceOf(Buffer);
       
       // Verify TTS was still called (with empty string)
-      expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalledWith(
+      expect(mockTTSService.synthesizeSpeech).toHaveBeenCalledWith(
         expect.objectContaining({
           text: '',
           languageCode: 'es-ES'
@@ -193,7 +191,7 @@ describe('TranslationService', () => {
     
     it('should handle TTS errors gracefully', async () => {
       // Arrange - Make the TTS call fail
-      ttsServiceMock.synthesizeSpeech.mockRejectedValueOnce(
+      mockTTSService.synthesizeSpeech.mockRejectedValueOnce(
         new Error('TTS API Error')
       );
       
@@ -234,7 +232,7 @@ describe('TranslationService', () => {
       expect(global.mockTranslationCompletion).not.toHaveBeenCalled();
       
       // TTS should still be called
-      expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalledWith(
+      expect(mockTTSService.synthesizeSpeech).toHaveBeenCalledWith(
         expect.objectContaining({
           text: 'This is a test transcription',
           languageCode: language
