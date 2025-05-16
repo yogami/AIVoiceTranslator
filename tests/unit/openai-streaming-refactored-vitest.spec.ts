@@ -1,16 +1,12 @@
 /**
- * Minimal tests for OpenAI Streaming Audio Transcription Service
+ * Refactored tests for OpenAI Streaming Audio Transcription Service
  *
- * Using only dependency mocking without modifying source code
- * Converted from Jest to Vitest
+ * Using a simpler approach with Vitest mocking
  */
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// First modify the WebSocket implementation
-// This needs to be at the top so it's hoisted before the module loads
+// Mock dependencies
 vi.mock('ws', () => {
-  // Standardize WebSocket constants for the module
   return {
     CONNECTING: 0,
     OPEN: 1,
@@ -19,44 +15,47 @@ vi.mock('ws', () => {
   };
 });
 
-// Manual mock for OpenAI
-vi.mock('openai', () => {
-  // Return a default export function
+// Create a factory function to get consistent mocks
+const createMockOpenAI = () => {
+  const mockCreate = vi.fn().mockResolvedValue({
+    text: 'Test transcription result', 
+    duration: 2.5
+  });
+  
+  // Return the mock structure
   return {
-    default: vi.fn().mockImplementation(() => {
-      // Return object with audio.transcriptions.create method
-      return {
-        audio: {
-          transcriptions: {
-            create: vi.fn().mockResolvedValue({
-              text: 'Test transcription result', 
-              duration: 2.5
-            })
-          }
+    default: vi.fn().mockImplementation(() => ({
+      audio: {
+        transcriptions: {
+          create: mockCreate
         }
-      };
-    })
+      }
+    })),
+    // Store reference to the mock function for assertions
+    mockCreate
   };
-});
+};
 
-// Track all function calls for verification
-const mockCreateTranscription = vi.mocked(
-  (await import('openai')).default.prototype?.audio?.transcriptions?.create
-);
+// Set up the mock
+const openAIMock = createMockOpenAI();
+vi.mock('openai', () => openAIMock);
 
 // Now import the SUT - this is after mocks to ensure they're applied
 import { processStreamingAudio, finalizeStreamingSession } from '../../server/openai-streaming';
 
-describe('OpenAI Streaming - Minimal Test Suite', () => {
+describe('OpenAI Streaming - Refactored Test Suite', () => {
   // Mock websocket for testing
-  const mockWebSocket = {
-    send: vi.fn(),
-    readyState: 1 // OPEN
-  };
+  let mockWebSocket;
   
-  // Reset mocks before each test
   beforeEach(() => {
+    // Reset all mocks
     vi.clearAllMocks();
+    
+    // Create a fresh mock websocket for each test
+    mockWebSocket = {
+      send: vi.fn(),
+      readyState: 1 // OPEN
+    };
   });
   
   // Test the process streaming function
@@ -69,7 +68,7 @@ describe('OpenAI Streaming - Minimal Test Suite', () => {
     
     // Act - Call the function with our test data
     await processStreamingAudio(
-      mockWebSocket, 
+      mockWebSocket as any, 
       sessionId, 
       audioBase64, 
       isFirstChunk, 
@@ -93,9 +92,22 @@ describe('OpenAI Streaming - Minimal Test Suite', () => {
   it('should handle finalizing a streaming session', async () => {
     // Arrange
     const sessionId = 'test-session-123';
+    const audioBase64 = 'dGVzdCBhdWRpbw=='; // "test audio" in base64
+    
+    // First create a session
+    await processStreamingAudio(
+      mockWebSocket as any, 
+      sessionId, 
+      audioBase64, 
+      true, 
+      'en-US'
+    );
+    
+    // Clear the mock to isolate the finalize call
+    mockWebSocket.send.mockClear();
     
     // Act - Call the function with our test data
-    await finalizeStreamingSession(mockWebSocket, sessionId);
+    await finalizeStreamingSession(mockWebSocket as any, sessionId);
     
     // Assert - WebSocket send should be called
     expect(mockWebSocket.send).toHaveBeenCalled();
