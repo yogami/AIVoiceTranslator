@@ -7,11 +7,11 @@
  * Converted from Jest to Vitest
  */
 
-import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { WebSocketMessage } from '../../../server/websocket';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock the ws module
-vi.mock('ws', async () => {
+vi.mock('ws', () => {
   const mockClients = new Set();
   
   // Create a mock WebSocket implementation
@@ -23,7 +23,7 @@ vi.mock('ws', async () => {
   }));
   
   // Create a mock WebSocket.Server implementation
-  const MockServer = vi.fn().mockImplementation((options = { noServer: true }) => ({
+  const MockServer = vi.fn().mockImplementation(() => ({
     on: vi.fn(),
     clients: mockClients,
     handleUpgrade: vi.fn(),
@@ -32,9 +32,8 @@ vi.mock('ws', async () => {
   }));
   
   return {
-    __esModule: true,
-    WebSocketServer: MockServer,
-    default: MockWebSocket
+    Server: MockServer,
+    WebSocket: MockWebSocket
   };
 });
 
@@ -67,12 +66,12 @@ describe('WebSocket Message Interface', () => {
 describe('WebSocket Service Without Implementation', () => {
   // This test is a placeholder to validate our test environment
   // We'll implement the actual WebSocketService tests later
-  it('should properly mock WebSocket dependencies', () => {
-    const ws = require('ws');
-    expect(ws.WebSocketServer).toBeDefined();
-    expect(typeof ws.WebSocketServer).toBe('function');
+  it('should properly mock WebSocket dependencies', async () => {
+    const ws = await import('ws');
+    expect(ws.Server).toBeDefined();
+    expect(typeof ws.Server).toBe('function');
     
-    const mockServer = new ws.WebSocketServer({ noServer: true });
+    const mockServer = new ws.Server();
     expect(mockServer.on).toBeDefined();
     expect(mockServer.clients).toBeDefined();
   });
