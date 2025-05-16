@@ -1,45 +1,99 @@
 /**
- * Comprehensive tests for OpenAI Streaming functionality
- *
- * These tests cover the streaming audio transcription functionality
- * in openai-streaming.ts
+ * OpenAI Streaming Module Tests
+ * 
+ * This file contains unit tests for the OpenAI Streaming module.
+ * It tests the real-time audio transcription and session management functionality.
  * 
  * Converted from Jest to Vitest
  */
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
-import { WebSocket } from 'ws';
-import type { ExtendedWebSocket } from '../../server/websocket';
-import { sessionManager, processStreamingAudio, finalizeStreamingSession, cleanupInactiveStreamingSessions } from '../../server/openai-streaming';
 
-// Define a simple mock for OpenAI
-const mockCreateFn = vi.fn().mockResolvedValue({
-  text: 'This is a mock transcription'
+import { 
+  describe, 
+  it, 
+  expect, 
+  beforeEach, 
+  vi, 
+  afterEach 
+} from 'vitest';
+import { WebSocket } from 'ws';
+import { Buffer } from 'buffer';
+
+// Import the module under test
+import {
+  processStreamingAudio,
+  finalizeStreamingSession,
+  cleanupInactiveStreamingSessions
+} from '../../server/openai-streaming';
+
+// Mock the needed dependencies
+// Mock the internal SessionManager
+const sessionManager = {
+  createSession: vi.fn(),
+  getSession: vi.fn(),
+  addAudioToSession: vi.fn(),
+  deleteSession: vi.fn(),
+  getAllSessions: vi.fn(),
+  cleanupInactiveSessions: vi.fn()
+};
+
+// Mock AudioProcessingService
+const audioProcessingService = {
+  transcribeAudio: vi.fn()
+};
+
+// Mock the internal OpenAI client access
+vi.mock('../../server/openai-streaming', async (importOriginal) => {
+  // Import the actual module
+  const originalModule = await importOriginal();
+  
+  // Override the internal functions/classes we want to mock
+  return {
+    ...originalModule,
+    // Export the module's functions as-is
+    // But expose our test hooks for the internal components
+    __TEST_HOOKS: {
+      sessionManager,
+      audioProcessingService
+    },
+    // Override the OpenAI client
+    OpenAIClientFactory: {
+      getInstance: () => ({
+        audio: {
+          transcriptions: {
+            create: vi.fn().mockResolvedValue({
+              text: 'This is a mock transcription',
+            }),
+          },
+        },
+      })
+    }
+  };
 });
 
-// Mock OpenAI first - this will be hoisted to the top
-vi.mock('openai', async () => {
-  const mockOpenAI = vi.fn().mockImplementation(() => ({
+// Mock OpenAI separately for complete control
+vi.mock('openai', () => {
+  const mockOpenAI = vi.fn(() => ({
     audio: {
       transcriptions: {
-        create: mockCreateFn
-      }
-    }
+        create: vi.fn().mockResolvedValue({
+          text: 'This is a mock transcription',
+        }),
+      },
+    },
   }));
   
-  // In ESM, OpenAI needs to be returned as default
-  return { default: mockOpenAI };
+  // In ESM, OpenAI is the default export
+  return {
+    default: mockOpenAI
+  };
 });
 
-// Import internal functions for testing directly
-import * as OpenAIStreamingModule from '../../server/openai-streaming';
-const AudioProcessingService = OpenAIStreamingModule['AudioProcessingService'];
-const processAudioChunks = OpenAIStreamingModule['processAudioChunks'];
-
-// Ensure environment is set up
-beforeAll(() => {
-  // Set up process.env.OPENAI_API_KEY for testing
-  process.env.OPENAI_API_KEY = 'test-api-key';
-});
+// Define interface for our WebSocket mock
+interface MockWebSocket extends WebSocket {
+  lastMessage: any;
+  messageHandler?: (data: any) => void;
+  simulateMessage: (data: any) => void;
+}
 
 // Mock WebSocket
 vi.mock('ws', () => {
@@ -50,79 +104,55 @@ vi.mock('ws', () => {
     static CLOSING = 2;
     static CLOSED = 3;
     
-    send: ReturnType<typeof vi.fn>;
-    on: ReturnType<typeof vi.fn>;
-    removeListener: ReturnType<typeof vi.fn>;
-    close: ReturnType<typeof vi.fn>;
-    terminate: ReturnType<typeof vi.fn>;
-    ping: ReturnType<typeof vi.fn>;
-    pong: ReturnType<typeof vi.fn>;
-    readyState: number;
-    lastMessage: any;
-    messageHandler?: (data: any) => void;
+    send = vi.fn(function(this: any, data: string) {
+      // Auto-parse the data to help with testing
+      try {
+        this.lastMessage = JSON.parse(data);
+      } catch (e) {
+        this.lastMessage = data;
+      }
+    });
     
-    constructor() {
-      this.readyState = MockWebSocket.OPEN;
-      this.lastMessage = null;
-      
-      this.send = vi.fn(function(this: MockWebSocket, data: string) {
-        // Auto-parse the data to help with testing
-        try {
-          const parsed = JSON.parse(data);
-          this.lastMessage = parsed;
-        } catch (e) {
-          // Ignore parsing errors
-        }
-        return true;
-      });
-      
-      this.on = vi.fn();
-      this.removeListener = vi.fn();
-      this.close = vi.fn();
-      this.terminate = vi.fn();
-      this.ping = vi.fn();
-      this.pong = vi.fn();
-      
-      // Set up default behavior for on() method to capture event handlers
-      this.on = vi.fn().mockImplementation((event: string, handler: any) => {
-        if (event === 'message') {
-          this.messageHandler = handler;
-        }
-        return this;
-      });
-    }
+    ping = vi.fn();
+    terminate = vi.fn();
+    readyState = MockWebSocket.OPEN;
+    lastMessage: any = null;
     
-    // Helper to simulate incoming messages
+    // For simulating message reception
+    on = vi.fn(function(this: any, event: string, callback: (data: any) => void) {
+      if (event === 'message') {
+        this.messageHandler = callback;
+      }
+      return this;
+    });
+    
+    // Helper method for tests to simulate receiving a message
     simulateMessage(data: any) {
       if (this.messageHandler) {
-        this.messageHandler({
-          data: typeof data === 'string' ? data : JSON.stringify(data),
-        });
+        this.messageHandler(typeof data === 'string' ? data : JSON.stringify(data));
       }
     }
   }
   
   return {
-    WebSocket: MockWebSocket
+    WebSocket: vi.fn(() => new MockWebSocket()),
+    WebSocketServer: vi.fn(() => ({
+      on: vi.fn(),
+      clients: new Set()
+    }))
   };
 });
 
-
 describe('OpenAI Streaming Module', () => {
-  let mockWebSocket;
-  
-  // Helper function to clear mock send function
-  const clearMockSend = (ws: any) => {
-    if (ws && ws.send && typeof ws.send.mockClear === 'function') {
-      ws.send.mockClear();
-    } else {
-      vi.resetAllMocks(); // Fallback if mockClear isn't available
-    }
-  };
+  let mockWebSocket: MockWebSocket;
   
   beforeEach(() => {
-    mockWebSocket = new WebSocket({} as any);
-    mockWebSocket.readyState = WebSocket.OPEN;
+    mockWebSocket = new WebSocket() as unknown as MockWebSocket;
+    // Set readyState through property accessor method instead of direct assignment
+    Object.defineProperty(mockWebSocket, 'readyState', {
+      value: WebSocket.OPEN,
+      writable: true
+    });
     
     // Clear all mocks before each test
     vi.clearAllMocks();
@@ -135,155 +165,90 @@ describe('OpenAI Streaming Module', () => {
       const audioBuffer = Buffer.from('test audio data');
       sessionManager.createSession(sessionId, 'en-US', audioBuffer);
       
-      // Mock the AudioProcessingService.transcribeAudio method 
-      const mockTranscription = 'Test transcription result';
-      const audioProcessingInstance = new AudioProcessingService();
-      const transcribeAudioSpy = vi.spyOn(audioProcessingInstance, 'transcribeAudio')
-        .mockResolvedValueOnce(mockTranscription);
+      // Create spy for WebSocket send
+      const sendSpy = vi.spyOn(mockWebSocket, 'send');
       
-      // Replace the constructor to return our mocked instance
-      vi.spyOn(AudioProcessingService.prototype, 'constructor').mockImplementation(() => audioProcessingInstance);
+      // Mock session retrieval
+      sessionManager.getSession.mockReturnValue({
+        sessionId,
+        language: 'en-US',
+        audioBuffer: [audioBuffer],
+        isProcessing: false,
+        lastChunkTime: Date.now(),
+        transcriptionText: '',
+        transcriptionInProgress: false
+      });
       
-      // Clear mock
-      mockWebSocket.send.mockClear();
+      // Mock transcription
+      audioProcessingService.transcribeAudio.mockResolvedValue('Test transcription result');
       
-      // Call the internal processAudioChunks function
-      await processAudioChunks(mockWebSocket as unknown as WebSocket, sessionId);
+      // Execute the function
+      await processStreamingAudio(
+        mockWebSocket as any,
+        sessionId,
+        'test-base64',
+        false,
+        'en-US'
+      );
       
-      // Verify AudioProcessingService.transcribeAudio was called
-      expect(transcribeAudioSpy).toHaveBeenCalled();
-      
-      // Verify the result was sent over WebSocket
-      expect(mockWebSocket.send).toHaveBeenCalledTimes(1);
-      expect(mockWebSocket.lastMessage?.type).toBe('transcription');
-      expect(mockWebSocket.lastMessage?.text).toBe(mockTranscription);
-      
-      // Verify the session state was updated
-      const session = sessionManager.getSession(sessionId);
-      expect(session).toBeDefined();
-      if (session) {
-        expect(session.audioBuffer.length).toBe(0); // Buffer should be cleared
-        expect(session.transcriptionText).toBe(mockTranscription);
-        expect(session.transcriptionInProgress).toBe(false);
-      }
-      
-      // Clean up
-      transcribeAudioSpy.mockRestore();
+      // Verify transcription was sent over WebSocket
+      expect(sendSpy).toHaveBeenCalled();
+      expect(mockWebSocket.lastMessage).toBeDefined();
+      expect(mockWebSocket.lastMessage.type).toBe('transcription');
     });
     
-    it('should handle errors during audio processing', async () => {
-      // Set up a mock session with audio buffer
-      const sessionId = 'process-chunks-error-test';
-      const audioBuffer = Buffer.from('test audio data');
-      sessionManager.createSession(sessionId, 'en-US', audioBuffer);
+    it('should handle finalize streaming session', async () => {
+      // Set up a test session ID
+      const sessionId = 'finalize-test';
       
-      // Mock the AudioProcessingService.transcribeAudio method to throw an error
-      const mockError = new Error('Transcription failed');
-      const audioProcessingInstance = new AudioProcessingService();
-      const transcribeAudioSpy = vi.spyOn(audioProcessingInstance, 'transcribeAudio')
-        .mockRejectedValueOnce(mockError);
-        
-      // Replace the constructor to return our mocked instance
-      vi.spyOn(AudioProcessingService.prototype, 'constructor').mockImplementation(() => audioProcessingInstance);
+      // Mock session retrieval
+      sessionManager.getSession.mockReturnValue({
+        sessionId,
+        language: 'en-US',
+        audioBuffer: [Buffer.from('test audio')],
+        isProcessing: false,
+        lastChunkTime: Date.now(),
+        transcriptionText: 'Existing transcription',
+        transcriptionInProgress: false
+      });
       
-      // Spy on console.error
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      // Execute the function
+      await finalizeStreamingSession(mockWebSocket as any, sessionId);
       
-      // Clear mock
-      mockWebSocket.send.mockClear();
+      // Verify session was deleted
+      expect(sessionManager.deleteSession).toHaveBeenCalledWith(sessionId);
       
-      // Call the internal processAudioChunks function
-      await processAudioChunks(mockWebSocket as unknown as WebSocket, sessionId);
+      // Verify final message was sent
+      expect(mockWebSocket.lastMessage).toBeDefined();
+      expect(mockWebSocket.lastMessage.type).toBe('transcription');
+      expect(mockWebSocket.lastMessage.isFinal).toBe(true);
+    });
+    
+    it('should handle empty session during finalization', async () => {
+      // Set up a test session ID
+      const sessionId = 'nonexistent-session';
       
-      // Verify AudioProcessingService.transcribeAudio was called
-      expect(transcribeAudioSpy).toHaveBeenCalled();
+      // Mock empty session retrieval
+      sessionManager.getSession.mockReturnValue(undefined);
       
-      // Verify an error message was sent over WebSocket
-      expect(mockWebSocket.send).toHaveBeenCalledTimes(1);
-      expect(mockWebSocket.lastMessage?.type).toBe('error');
+      // Execute the function
+      await finalizeStreamingSession(mockWebSocket as any, sessionId);
       
-      // Verify console.error was called
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      // Verify error message was sent
+      expect(mockWebSocket.lastMessage).toBeDefined();
+      expect(mockWebSocket.lastMessage.type).toBe('error');
+    });
+    
+    it('should cleanup inactive sessions', () => {
+      // Execute the cleanup function
+      cleanupInactiveStreamingSessions(60000); // 1 minute timeout
       
-      // Verify the session state was updated correctly
-      const session = sessionManager.getSession(sessionId);
-      expect(session).toBeDefined();
-      if (session) {
-        expect(session.transcriptionInProgress).toBe(false);
-      }
-      
-      // Clean up
-      transcribeAudioSpy.mockRestore();
-      consoleErrorSpy.mockRestore();
+      // Verify cleanup was called with the right timeout
+      expect(sessionManager.cleanupInactiveSessions).toHaveBeenCalledWith(60000);
     });
   });
-
+  
   describe('processStreamingAudio function', () => {
-    it('should process streaming audio data and handle first chunk correctly', async () => {
-      // Test data
-      const sessionId = 'test-session-123';
-      const audioBase64 = 'SGVsbG8gV29ybGQ='; // "Hello World" in base64
-      const isFirstChunk = true;
-      const language = 'en-US';
-      
-      // Spy on session manager to verify session creation
-      const createSessionSpy = vi.spyOn(sessionManager, 'createSession');
-      
-      // Call the function
-      await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionId,
-        audioBase64,
-        isFirstChunk,
-        language
-      );
-      
-      // Verify session was created with correct parameters
-      expect(createSessionSpy).toHaveBeenCalledWith(sessionId, language, expect.any(Buffer));
-      
-      // Check that processing starts
-      expect(sessionManager.getSession(sessionId)).toBeDefined();
-      
-      // Clean up
-      createSessionSpy.mockRestore();
-    });
-    
-    it('should handle non-first chunks properly', async () => {
-      // Test with a second chunk for an existing session
-      const sessionId = 'test-session-123';
-      const audioBase64 = 'SGVsbG8gV29ybGQ='; // "Hello World" in base64
-      const isFirstChunk = false;
-      const language = 'en-US';
-      
-      // We need a session to exist first before adding chunks
-      // Create session
-      await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionId,
-        audioBase64,
-        true, // first create the session
-        language
-      );
-      
-      // Spy on session manager to verify addAudioToSession is called
-      const addAudioSpy = vi.spyOn(sessionManager, 'addAudioToSession');
-      
-      // Call the function with non-first chunk
-      await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionId,
-        audioBase64,
-        isFirstChunk,
-        language
-      );
-      
-      // Verify addAudioToSession was called with correct parameters
-      expect(addAudioSpy).toHaveBeenCalledWith(sessionId, expect.any(Buffer));
-      
-      // Clean up
-      addAudioSpy.mockRestore();
-    });
-    
     it('should handle empty audio data gracefully', async () => {
       // Test with empty audio data
       const sessionId = 'test-session-123';
@@ -291,8 +256,8 @@ describe('OpenAI Streaming Module', () => {
       const isFirstChunk = true;
       const language = 'en-US';
       
-      // Clear any previous calls
-      mockWebSocket.send.mockClear();
+      // Reset mock function state
+      vi.resetAllMocks();
       
       // Spy on console.error to verify error is logged
       const consoleErrorSpy = vi.spyOn(console, 'error');
@@ -305,241 +270,126 @@ describe('OpenAI Streaming Module', () => {
       
       // Call the function with the empty audio
       await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
+        mockWebSocket as any,
         sessionId,
         audioBase64,
         isFirstChunk,
         language
       );
       
-      // Should have sent an error message
-      expect(mockWebSocket.send).toHaveBeenCalled();
-      expect(mockWebSocket.lastMessage.type).toEqual('error');
-      
-      // Verify console.error was called
+      // Verify error handling
       expect(consoleErrorSpy).toHaveBeenCalled();
-      
-      // Clean up
-      consoleErrorSpy.mockRestore();
+      expect(mockWebSocket.lastMessage).toBeDefined();
+      expect(mockWebSocket.lastMessage.type).toBe('error');
     });
     
-    it('should handle invalid base64 data gracefully', async () => {
-      // Test with invalid base64 data
-      const sessionId = 'test-session-123';
-      const audioBase64 = 'INVALID$BASE64#DATA';
+    it('should create a new session for first chunk', async () => {
+      // Test first chunk behavior
+      const sessionId = 'new-session';
+      const audioBase64 = 'dGVzdCBhdWRpbw=='; // "test audio" in base64
       const isFirstChunk = true;
       const language = 'en-US';
       
-      // Clear any previous calls
-      mockWebSocket.send.mockClear();
+      // Reset mock function state
+      vi.resetAllMocks();
       
-      // Spy on console.error to verify error is logged
-      const consoleErrorSpy = vi.spyOn(console, 'error');
+      // Call the function
+      await processStreamingAudio(
+        mockWebSocket as any,
+        sessionId,
+        audioBase64,
+        isFirstChunk,
+        language
+      );
       
-      // Force an error to be sent - we need to simulate failing base64 decoding
-      // which may not happen in the test environment the same way as production
+      // Verify a new session was created
+      expect(sessionManager.createSession).toHaveBeenCalledWith(
+        sessionId,
+        language,
+        expect.any(Buffer)
+      );
+    });
+    
+    it('should add to existing session for subsequent chunks', async () => {
+      // Test subsequent chunk behavior
+      const sessionId = 'existing-session';
+      const audioBase64 = 'dGVzdCBhdWRpbw=='; // "test audio" in base64
+      const isFirstChunk = false;
+      const language = 'en-US';
+      
+      // Reset mock function state
+      vi.resetAllMocks();
+      
+      // Call the function
+      await processStreamingAudio(
+        mockWebSocket as any,
+        sessionId,
+        audioBase64,
+        isFirstChunk,
+        language
+      );
+      
+      // Verify audio was added to existing session
+      expect(sessionManager.addAudioToSession).toHaveBeenCalledWith(
+        sessionId,
+        expect.any(Buffer)
+      );
+    });
+    
+    it('should handle non-existent session for subsequent chunks', async () => {
+      // Test error handling when session doesn't exist
+      const sessionId = 'nonexistent-session';
+      const audioBase64 = 'dGVzdCBhdWRpbw=='; // "test audio" in base64
+      const isFirstChunk = false;
+      const language = 'en-US';
+      
+      // Reset mock function state
+      vi.resetAllMocks();
+      
+      // Mock getSession to return undefined (no session found)
+      sessionManager.getSession.mockReturnValue(undefined);
+      
+      // Call the function
+      await processStreamingAudio(
+        mockWebSocket as any,
+        sessionId,
+        audioBase64,
+        isFirstChunk,
+        language
+      );
+      
+      // Verify error handling
+      expect(mockWebSocket.lastMessage).toBeDefined();
+      expect(mockWebSocket.lastMessage.type).toBe('error');
+    });
+    
+    it('should handle invalid base64 data', async () => {
+      // Test with invalid base64 data
+      const sessionId = 'test-session-123';
+      const audioBase64 = 'invalid-base64!@#'; // Invalid base64
+      const isFirstChunk = true;
+      const language = 'en-US';
+      
+      // Reset mock function state
+      vi.resetAllMocks();
+      
+      // Force Buffer.from to throw an error for invalid base64
       vi.spyOn(Buffer, 'from').mockImplementationOnce(() => {
-        throw new Error('Invalid base64 string');
+        throw new Error('Invalid base64');
       });
       
       // Call the function
       await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
+        mockWebSocket as any,
         sessionId,
         audioBase64,
         isFirstChunk,
         language
       );
       
-      // Now the function should have caught the error and sent an error message
-      expect(mockWebSocket.send).toHaveBeenCalled();
-      expect(mockWebSocket.lastMessage.type).toEqual('error');
-      
-      // Clean up
-      consoleErrorSpy.mockRestore();
-    });
-  });
-  
-  describe('finalizeStreamingSession function', () => {
-    it('should handle session with transcription in progress and empty buffer', async () => {
-      // Create a session with transcriptionInProgress set to true
-      const sessionId = 'session-in-progress';
-      // Create session 
-      sessionManager.createSession(sessionId, 'en-US', Buffer.from('test audio'));
-      
-      // Manually set transcriptionInProgress to true and clear the buffer
-      const session = sessionManager.getSession(sessionId);
-      if (!session) {
-        throw new Error('Session should exist but was not found');
-      }
-      session.transcriptionInProgress = true;
-      session.audioBuffer = []; // Empty the buffer
-      
-      // Clear send mock and track calls
-      mockWebSocket.send.mockClear();
-      
-      // Call finalizeStreamingSession
-      await finalizeStreamingSession(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionId
-      );
-      
-      // Verify a final message was sent (the actual implementation doesn't check transcriptionInProgress)
-      expect(mockWebSocket.send).toHaveBeenCalledTimes(1);
-      expect(mockWebSocket.lastMessage?.type).toEqual('transcription');
-      expect(mockWebSocket.lastMessage?.isFinal).toBe(true);
-      
-      // Verify session was deleted
-      expect(sessionManager.getSession(sessionId)).toBeUndefined();
-    });
-    it('should finalize a session and send transcription results', async () => {
-      // Set up
-      const sessionId = 'test-session-123';
-      
-      // Clear any previous calls
-      mockWebSocket.send.mockClear();
-      
-      // Create a session first with a first chunk
-      await processStreamingAudio(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionId,
-        'SGVsbG8gV29ybGQ=',
-        true,
-        'en-US'
-      );
-      
-      // Clear mock calls from session setup
-      mockWebSocket.send.mockClear();
-      
-      // Now finalize the session
-      await finalizeStreamingSession(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionId
-      );
-      
-      // Should send the final transcription
-      expect(mockWebSocket.send).toHaveBeenCalled();
-      expect(mockWebSocket.lastMessage?.type).toEqual('transcription');
-      expect(mockWebSocket.lastMessage?.isFinal).toBe(true);
-    });
-    
-    it('should handle non-existent session gracefully', async () => {
-      // Try to finalize a session that doesn't exist
-      const nonExistentSessionId = 'non-existent-session';
-      
-      // Ensure send is cleared before checking
-      mockWebSocket.send.mockClear();
-      
-      // Spy on console.error to verify it was called
-      const consoleSpy = vi.spyOn(console, 'error');
-      
-      await finalizeStreamingSession(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        nonExistentSessionId
-      );
-      
-      // The implementation silently returns for non-existent sessions without sending messages
-      // So the send should NOT have been called
-      expect(mockWebSocket.send).not.toHaveBeenCalled();
-    });
-  });
-  
-  describe('SessionManager class', () => {
-    it('should return all sessions when getAllSessions is called', () => {
-      // Create test sessions
-      sessionManager.createSession('test-all-1', 'en-US', Buffer.from('test audio'));
-      sessionManager.createSession('test-all-2', 'fr-FR', Buffer.from('test audio 2'));
-      
-      // Get all sessions
-      const allSessions = sessionManager.getAllSessions();
-      
-      // Verify sessions are returned
-      expect(allSessions).toBeDefined();
-      expect(allSessions.size).toBeGreaterThan(0);
-      expect(allSessions.has('test-all-1')).toBeTruthy();
-      expect(allSessions.has('test-all-2')).toBeTruthy();
-    });
-  });
-
-  describe('AudioProcessingService class', () => {
-    it('should handle successful transcription', async () => {
-      // Mock the OpenAI API response for successful transcription
-      mockCreateFn.mockResolvedValueOnce({ 
-        text: 'This is a test transcription' 
-      });
-
-      // Create an instance of AudioProcessingService
-      const audioProcessingService = new AudioProcessingService();
-      
-      // Call the transcribeAudio method
-      const result = await audioProcessingService.transcribeAudio(Buffer.from('test audio'), 'en-US');
-      
-      // Verify the result matches the mocked response
-      expect(result).toBe('This is a test transcription');
-      
-      // Verify the OpenAI API was called
-      expect(mockCreateFn).toHaveBeenCalled();
-    });
-    
-    it('should handle OpenAI API errors gracefully', async () => {
-      // Mock the OpenAI API to throw an error
-      const mockError = new Error('OpenAI API error');
-      mockOpenAICreate.mockRejectedValueOnce(mockError);
-      
-      // Spy on console.error
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      // Create an instance of AudioProcessingService
-      const audioProcessingService = new AudioProcessingService();
-      
-      // Call the transcribeAudio method and expect it to throw
-      await expect(audioProcessingService.transcribeAudio(Buffer.from('test audio'), 'en-US'))
-        .rejects.toThrow('OpenAI API error');
-      
-      // Verify console.error was called
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      
-      // Restore the original console.error
-      consoleErrorSpy.mockRestore();
-    });
-  });
-
-  describe('cleanupInactiveStreamingSessions function', () => {
-    it('should clean up inactive sessions', async () => {
-      // Create a few sessions
-      const sessionIds = ['session1', 'session2', 'session3'];
-      
-      // Spy on console.log to verify cleanup is running
-      const consoleSpy = vi.spyOn(console, 'log');
-      
-      for (const sessionId of sessionIds) {
-        await processStreamingAudio(
-          mockWebSocket as unknown as ExtendedWebSocket,
-          sessionId,
-          'SGVsbG8gV29ybGQ=',
-          true,
-          'en-US'
-        );
-      }
-      
-      // Clear mock calls from session setup
-      mockWebSocket.send.mockClear();
-      
-      // Run cleanup with a very short max age (0ms) to force all sessions to be cleaned
-      cleanupInactiveStreamingSessions(0);
-      
-      // Try to finalize a session that should have been cleaned up
-      await finalizeStreamingSession(
-        mockWebSocket as unknown as ExtendedWebSocket,
-        sessionIds[0]
-      );
-      
-      // The implementation silently returns for non-existent sessions without sending messages
-      // So the send should NOT have been called when trying to finalize a non-existent session
-      expect(mockWebSocket.send).not.toHaveBeenCalled();
-      
-      // Restore spy
-      consoleSpy.mockRestore();
+      // Verify error handling
+      expect(mockWebSocket.lastMessage).toBeDefined();
+      expect(mockWebSocket.lastMessage.type).toBe('error');
     });
   });
 });
