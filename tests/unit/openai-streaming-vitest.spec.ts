@@ -14,7 +14,6 @@ import { sessionManager, processStreamingAudio, finalizeStreamingSession, cleanu
 // Import internal functions for testing directly
 import * as OpenAIStreamingModule from '../../server/openai-streaming';
 const AudioProcessingService = OpenAIStreamingModule['AudioProcessingService'];
-const OpenAIClientFactory = OpenAIStreamingModule['OpenAIClientFactory'];
 const processAudioChunks = OpenAIStreamingModule['processAudioChunks'];
 
 // Create a mock OpenAI client for our tests
@@ -32,9 +31,6 @@ const mockOpenAIClient = {
 beforeAll(() => {
   // Set up process.env.OPENAI_API_KEY for testing
   process.env.OPENAI_API_KEY = 'test-api-key';
-  
-  // Create a mock for the OpenAIClientFactory
-  vi.spyOn(OpenAIClientFactory, 'getInstance').mockImplementation(() => mockOpenAIClient as any);
 });
 
 // Mock OpenAI
@@ -489,7 +485,7 @@ describe('OpenAI Streaming Module', () => {
       expect(result).toBe('This is a test transcription');
       
       // Verify the OpenAI API was called with the correct parameters
-      expect(OpenAIClientFactory.getInstance().audio.transcriptions.create).toHaveBeenCalledWith({
+      expect(mockOpenAIClient.audio.transcriptions.create).toHaveBeenCalledWith({
         file: expect.any(ReadableStream),
         model: expect.any(String),
         language: 'en-US',
@@ -500,7 +496,7 @@ describe('OpenAI Streaming Module', () => {
     it('should handle OpenAI API errors gracefully', async () => {
       // Mock the OpenAI API to throw an error
       const mockError = new Error('OpenAI API error');
-      (OpenAIClientFactory.getInstance().audio.transcriptions.create as any).mockRejectedValueOnce(mockError);
+      mockOpenAIClient.audio.transcriptions.create.mockRejectedValueOnce(mockError);
       
       // Spy on console.error
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
