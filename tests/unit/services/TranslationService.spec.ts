@@ -6,31 +6,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Buffer } from 'buffer';
 
-// Mock OpenAI
+// Mock OpenAI implementation using inline mock functions
 vi.mock('openai', () => {
-  return {
-    default: vi.fn(() => ({
-      audio: {
-        transcriptions: {
-          create: vi.fn().mockResolvedValue({
-            text: 'This is a test transcription'
-          })
-        }
-      },
-      chat: {
-        completions: {
-          create: vi.fn().mockResolvedValue({
-            choices: [
-              {
-                message: {
-                  content: 'This is a translated test response'
-                }
-              }
-            ]
-          })
+  const mockTranscribe = vi.fn().mockResolvedValue({
+    text: 'This is a test transcription'
+  });
+  
+  const mockCompletion = vi.fn().mockResolvedValue({
+    choices: [
+      {
+        message: {
+          content: 'This is a translated test response'
         }
       }
-    }))
+    ]
+  });
+  
+  // Expose the mocks so tests can access them
+  vi.stubGlobal('mockTranslationTranscribe', mockTranscribe);
+  vi.stubGlobal('mockTranslationCompletion', mockCompletion);
+  
+  return {
+    default: class MockOpenAI {
+      audio: any;
+      chat: any;
+      
+      constructor() {
+        this.audio = {
+          transcriptions: {
+            create: mockTranscribe
+          }
+        };
+        this.chat = {
+          completions: {
+            create: mockCompletion
+          }
+        };
+      }
+    }
   };
 });
 
@@ -42,20 +55,14 @@ vi.mock('../../../server/services/TextToSpeechService', () => ({
 }));
 
 // Import the module under test
-import { translateSpeech } from '../../../server/services/TranslationService';
-import { textToSpeechService } from '../../../server/services/TextToSpeechService';
+import { translateSpeech } from '../../server/services/TranslationService';
 
 describe('TranslationService', () => {
-  let openaiMock;
-  let ttsServiceMock;
-  
   beforeEach(() => {
-    // Get references to the mocked services
-    openaiMock = require('openai').default();
-    ttsServiceMock = require('../../../server/services/TextToSpeechService').textToSpeechService;
-    
     // Clear all mocks before each test
     vi.clearAllMocks();
+    (global.mockTranslationTranscribe as any).mockClear();
+    (global.mockTranslationCompletion as any).mockClear();
   });
   
   describe('Basic Translation', () => {
