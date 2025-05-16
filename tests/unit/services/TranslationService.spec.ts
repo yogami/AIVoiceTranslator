@@ -4,13 +4,13 @@ import { Buffer } from 'buffer';
 // Create simple mock implementations for the components we want to test
 const createMockTranscriptionService = () => {
   return {
-    transcribe: vi.fn().mockResolvedValue('This is a test transcription')
+    transcribe: vi.fn().mockImplementation(() => Promise.resolve('This is a test transcription'))
   };
 };
 
 const createMockTranslationService = () => {
   return {
-    translate: vi.fn().mockResolvedValue('This is a translated test response')
+    translate: vi.fn().mockImplementation(() => Promise.resolve('This is a translated test response'))
   };
 };
 
@@ -32,6 +32,9 @@ describe('TranslationService', () => {
     const audioData = Buffer.from('test audio');
     const sourceLanguage = 'en-US';
     
+    // Mock the return value for this specific call
+    transcriptionService.transcribe.mockResolvedValueOnce('This is a test transcription');
+    
     // Act
     const result = await transcriptionService.transcribe(audioData, sourceLanguage);
     
@@ -45,6 +48,9 @@ describe('TranslationService', () => {
     const text = 'Hello world';
     const sourceLanguage = 'en-US';
     const targetLanguage = 'es-ES';
+    
+    // Mock the return value for this specific call
+    translationService.translate.mockResolvedValueOnce('This is a translated test response');
     
     // Act
     const result = await translationService.translate(text, sourceLanguage, targetLanguage);
