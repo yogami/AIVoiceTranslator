@@ -36,7 +36,7 @@ vi.mock('openai', () => {
   }));
   
   // In ESM, OpenAI is the default export
-  mockOpenAI.default = mockOpenAI;
+  (mockOpenAI as any).default = mockOpenAI;
   return mockOpenAI;
 });
 
@@ -110,8 +110,17 @@ vi.mock('ws', () => {
 describe('OpenAI Streaming Module', () => {
   let mockWebSocket;
   
+  // Helper function to clear mock send function
+  const clearMockSend = (ws: any) => {
+    if (ws && ws.send && typeof ws.send.mockClear === 'function') {
+      ws.send.mockClear();
+    } else {
+      vi.resetAllMocks(); // Fallback if mockClear isn't available
+    }
+  };
+  
   beforeEach(() => {
-    mockWebSocket = new WebSocket();
+    mockWebSocket = new WebSocket({} as any);
     mockWebSocket.readyState = WebSocket.OPEN;
     
     // Clear all mocks before each test
@@ -496,7 +505,7 @@ describe('OpenAI Streaming Module', () => {
       const sessionIds = ['session1', 'session2', 'session3'];
       
       // Spy on console.log to verify cleanup is running
-      const consoleSpy = jest.spyOn(console, 'log');
+      const consoleSpy = vi.spyOn(console, 'log');
       
       for (const sessionId of sessionIds) {
         await processStreamingAudio(
