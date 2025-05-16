@@ -6,7 +6,10 @@
 import { describe, it, expect } from 'vitest';
 import express from 'express';
 import { configureCorsMiddleware } from '../../../server/server';
-import request from 'supertest';
+import supertest from 'supertest';
+
+// Create a properly typed version of supertest
+const request = supertest;
 
 describe('Server Middleware Integration', () => {
   it('should properly set up CORS middleware', async () => {
