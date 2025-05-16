@@ -1,29 +1,21 @@
 /**
- * Vitest tests for OpenAI Streaming Module
+ * OpenAI Streaming Module Tests
  * 
  * This file contains unit tests for the OpenAI Streaming module.
  * It tests the real-time audio transcription and session management functionality.
  * 
- * Following the structure of the successful test file
+ * Converted from Jest to Vitest
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Buffer } from 'buffer';
 
-// Mock WebSocket constants
-vi.mock('ws', () => ({
-  WebSocket: vi.fn(),
-  CONNECTING: 0,
-  OPEN: 1,
-  CLOSING: 2,
-  CLOSED: 3
-}));
-
-// Mock the OpenAI module directly inline
+// Mock OpenAI first since it must be hoisted
 vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
+  default: vi.fn(() => ({
     audio: {
       transcriptions: {
         create: vi.fn().mockResolvedValue({
-          text: 'This is a mock transcription',
+          text: 'Mocked transcription text',
           duration: 2.5
         })
       }
@@ -31,46 +23,58 @@ vi.mock('openai', () => ({
   }))
 }));
 
-// Mock configuration
+// Mock necessary modules
 vi.mock('../../server/config', () => ({
   CONFIG: {
-    OPENAI_API_KEY: 'test-api-key',
+    OPENAI_API_KEY: 'mocked-api-key',
     SESSION_MAX_AGE_MS: 60000,
     MIN_AUDIO_SIZE_BYTES: 100,
-    PROCESSING_INTERVAL_MS: 100
+    PROCESSING_INTERVAL_MS: 100,
+    WHISPER_MODEL: 'whisper-1',
+    LOG_PREFIX: '[OpenAI Streaming]'
   }
 }));
 
-// Import the module under test AFTER all mocks are defined
+// Import after mocks
 import {
   processStreamingAudio,
   finalizeStreamingSession,
-  cleanupInactiveStreamingSessions
+  cleanupInactiveStreamingSessions,
+  sessionManager
 } from '../../server/openai-streaming';
 
-describe('OpenAI Streaming Module Tests', () => {
-  // Test variables
+describe('OpenAI Streaming Module', () => {
+  // Mock WebSocket
   let mockWebSocket;
   
   beforeEach(() => {
-    // Reset all mocks before each test
     vi.clearAllMocks();
     
-    // Create a fresh mockWebSocket for each test
+    // Create mock WebSocket
     mockWebSocket = {
       send: vi.fn(),
-      readyState: 1 // OPEN
+      readyState: 1, // WebSocket.OPEN
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
     };
+    
+    // Spy on sessionManager methods
+    vi.spyOn(sessionManager, 'createSession');
+    vi.spyOn(sessionManager, 'getSession');
+    vi.spyOn(sessionManager, 'addAudioToSession');
+    vi.spyOn(sessionManager, 'deleteSession');
+    vi.spyOn(sessionManager, 'cleanupInactiveSessions');
   });
   
   describe('processStreamingAudio', () => {
-    it('processes audio data for a new session', async () => {
+    it('should create a new session when processing first chunk', async () => {
+      // Arrange
       const sessionId = 'test-session-123';
       const audioBase64 = Buffer.from('test audio data').toString('base64');
       const isFirstChunk = true;
       const language = 'en-US';
       
-      // Process the audio
+      // Act
       await processStreamingAudio(
         mockWebSocket as any,
         sessionId,
@@ -79,17 +83,32 @@ describe('OpenAI Streaming Module Tests', () => {
         language
       );
       
-      // Verify WebSocket send was called
-      expect(mockWebSocket.send).toHaveBeenCalled();
+      // Assert
+      expect(sessionManager.createSession).toHaveBeenCalledWith(
+        sessionId,
+        language,
+        expect.any(Buffer)
+      );
     });
     
-    it('processes additional audio data for an existing session', async () => {
-      const sessionId = 'test-session-456';
-      const audioBase64 = Buffer.from('more test audio data').toString('base64');
+    it('should add to existing session when processing additional chunks', async () => {
+      // Arrange - Mock an existing session
+      const sessionId = 'test-session-123';
+      const audioBase64 = Buffer.from('test audio data').toString('base64');
       const isFirstChunk = false;
       const language = 'en-US';
       
-      // Process the audio
+      vi.mocked(sessionManager.getSession).mockReturnValue({
+        sessionId,
+        language,
+        isProcessing: false,
+        audioBuffer: [],
+        lastChunkTime: Date.now(),
+        transcriptionText: '',
+        transcriptionInProgress: false
+      });
+      
+      // Act
       await processStreamingAudio(
         mockWebSocket as any,
         sessionId,
@@ -98,32 +117,62 @@ describe('OpenAI Streaming Module Tests', () => {
         language
       );
       
-      // Verify WebSocket send was called
-      expect(mockWebSocket.send).toHaveBeenCalled();
+      // Assert
+      expect(sessionManager.addAudioToSession).toHaveBeenCalledWith(
+        sessionId,
+        expect.any(Buffer)
+      );
     });
   });
   
   describe('finalizeStreamingSession', () => {
-    it('finalizes a streaming session', async () => {
-      const sessionId = 'test-session-789';
+    it('should delete session when finalizing', async () => {
+      // Arrange
+      const sessionId = 'test-session-456';
       
-      // Finalize the session
+      // Mock getSession to return a session
+      vi.mocked(sessionManager.getSession).mockReturnValue({
+        sessionId,
+        language: 'en-US',
+        isProcessing: false,
+        audioBuffer: [],
+        lastChunkTime: Date.now(),
+        transcriptionText: 'Final transcription',
+        transcriptionInProgress: false
+      });
+      
+      // Act
       await finalizeStreamingSession(mockWebSocket as any, sessionId);
       
-      // Verify WebSocket send was called
-      expect(mockWebSocket.send).toHaveBeenCalled();
+      // Assert
+      expect(sessionManager.deleteSession).toHaveBeenCalledWith(sessionId);
+    });
+    
+    it('should handle non-existent session gracefully', async () => {
+      // Arrange
+      const sessionId = 'non-existent-session';
+      
+      // Mock getSession to return undefined
+      vi.mocked(sessionManager.getSession).mockReturnValue(undefined);
+      
+      // Act
+      await finalizeStreamingSession(mockWebSocket as any, sessionId);
+      
+      // Assert - Should not throw an error
+      expect(sessionManager.deleteSession).not.toHaveBeenCalled();
     });
   });
   
   describe('cleanupInactiveStreamingSessions', () => {
-    it('cleans up inactive sessions', () => {
-      const maxAgeMs = 30000;
+    it('should call sessionManager.cleanupInactiveSessions', () => {
+      // Arrange
+      const maxAge = 30000;
       
-      // Call the cleanup function
-      cleanupInactiveStreamingSessions(maxAgeMs);
+      // Act
+      cleanupInactiveStreamingSessions(maxAge);
       
-      // No specific assertions needed as the function doesn't return anything
-      // and we're mocking internal dependencies
+      // Assert
+      expect(sessionManager.cleanupInactiveSessions).toHaveBeenCalledWith(maxAge);
     });
   });
 });
