@@ -1,32 +1,55 @@
 /**
- * TranslationService Tests (Consolidated)
+ * TranslationService Tests
  * 
- * A comprehensive test suite for the TranslationService functionality.
+ * This file tests the translation functionality without mocking the SUT.
+ * Following the principles:
+ * - Do NOT modify source code
+ * - Do NOT mock the System Under Test (SUT)
+ * - Only mock external dependencies
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Buffer } from 'buffer';
 
-// Create mock implementations
-const mockSynthesizeSpeech = vi.fn().mockResolvedValue(Buffer.from('mock audio data'));
-const mockTranscribe = vi.fn().mockResolvedValue({
-  text: 'This is a test transcription'
-});
-const mockCompletion = vi.fn().mockResolvedValue({
-  choices: [{ message: { content: 'This is a translated test response' } }]
-});
+// Mock external dependencies only, not the SUT
+vi.mock('path', () => ({
+  dirname: vi.fn(() => '/mocked/dir'),
+  join: vi.fn((...args) => args.join('/')),
+  resolve: vi.fn((...args) => args.join('/'))
+}));
 
-// Mock external dependencies
+vi.mock('url', () => ({
+  fileURLToPath: vi.fn(() => '/mocked/file')
+}));
+
+vi.mock('fs', () => ({
+  createReadStream: vi.fn(() => 'mock-read-stream'),
+  promises: {
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    unlink: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({ size: 1024, mtime: new Date() })
+  }
+}));
+
+vi.mock('dotenv', () => ({
+  config: vi.fn()
+}));
+
+// Mock OpenAI
 vi.mock('openai', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       audio: {
         transcriptions: {
-          create: mockTranscribe
+          create: vi.fn().mockResolvedValue({
+            text: 'This is a test transcription'
+          })
         }
       },
       chat: {
         completions: {
-          create: mockCompletion
+          create: vi.fn().mockResolvedValue({
+            choices: [{ message: { content: 'This is a translated test response' } }]
+          })
         }
       }
     }))
@@ -36,17 +59,12 @@ vi.mock('openai', () => {
 // Mock TextToSpeechService
 vi.mock('../../../server/services/TextToSpeechService', () => ({
   textToSpeechService: {
-    synthesizeSpeech: mockSynthesizeSpeech
-  }
-}));
-
-// Mock file dependencies
-vi.mock('fs', () => ({
-  createReadStream: vi.fn(() => 'mock-read-stream'),
-  promises: {
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    unlink: vi.fn().mockResolvedValue(undefined),
-    stat: vi.fn().mockResolvedValue({ size: 1024, mtime: new Date() })
+    synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
+  },
+  ttsFactory: {
+    getService: vi.fn().mockReturnValue({
+      synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
+    })
   }
 }));
 
@@ -58,22 +76,55 @@ vi.mock('../../../server/storage', () => ({
   }
 }));
 
-// Import the module under test
+// Import the module under test - we import it AFTER setting up mocks
 import { translateSpeech } from '../../../server/services/TranslationService';
 
 describe('TranslationService', () => {
-  let mockTranscribe;
-  let mockCompletion;
-  let mockSynthesizeSpeech;
+  // Create all the mocks inside the test class
+  const mockTranscribe = vi.fn().mockResolvedValue({
+    text: 'This is a test transcription'
+  });
+  
+  const mockCompletion = vi.fn().mockResolvedValue({
+    choices: [{ message: { content: 'This is a translated test response' } }]
+  });
+  
+  const mockSynthesizeSpeech = vi.fn().mockResolvedValue(Buffer.from('mock audio data'));
+  
+  // Mock OpenAI
+  vi.mock('openai', () => {
+    return {
+      default: vi.fn().mockImplementation(() => ({
+        audio: {
+          transcriptions: {
+            create: mockTranscribe
+          }
+        },
+        chat: {
+          completions: {
+            create: mockCompletion
+          }
+        }
+      }))
+    };
+  });
+  
+  // Mock TextToSpeechService
+  vi.mock('../../../server/services/TextToSpeechService', () => ({
+    textToSpeechService: {
+      synthesizeSpeech: mockSynthesizeSpeech
+    }
+  }));
+  
+  // Mock storage
+  vi.mock('../../../server/storage', () => ({
+    storage: {
+      addTranslation: vi.fn().mockResolvedValue({ id: 1 }),
+      getLanguageByCode: vi.fn().mockResolvedValue({ name: 'English', code: 'en-US' })
+    }
+  }));
   
   beforeEach(() => {
-    // Get references to the mocked functions
-    const OpenAIMock = require('openai').default;
-    const openaiInstance = new OpenAIMock();
-    mockTranscribe = openaiInstance.audio.transcriptions.create;
-    mockCompletion = openaiInstance.chat.completions.create;
-    mockSynthesizeSpeech = require('../../../server/services/TextToSpeechService').textToSpeechService.synthesizeSpeech;
-    
     // Clear all mocks before each test
     vi.clearAllMocks();
   });
