@@ -6,31 +6,55 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Buffer } from 'buffer';
 
-// Mock modules - define mocks without referencing external constants
+// Create mock implementations
+const mockSynthesizeSpeech = vi.fn().mockResolvedValue(Buffer.from('mock audio data'));
+const mockTranscribe = vi.fn().mockResolvedValue({
+  text: 'This is a test transcription'
+});
+const mockCompletion = vi.fn().mockResolvedValue({
+  choices: [{ message: { content: 'This is a translated test response' } }]
+});
+
+// Mock external dependencies
 vi.mock('openai', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       audio: {
         transcriptions: {
-          create: vi.fn().mockResolvedValue({
-            text: 'This is a test transcription'
-          })
+          create: mockTranscribe
         }
       },
       chat: {
         completions: {
-          create: vi.fn().mockResolvedValue({
-            choices: [{ message: { content: 'This is a translated test response' } }]
-          })
+          create: mockCompletion
         }
       }
     }))
   };
 });
 
+// Mock TextToSpeechService
 vi.mock('../../../server/services/TextToSpeechService', () => ({
   textToSpeechService: {
-    synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
+    synthesizeSpeech: mockSynthesizeSpeech
+  }
+}));
+
+// Mock file dependencies
+vi.mock('fs', () => ({
+  createReadStream: vi.fn(() => 'mock-read-stream'),
+  promises: {
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    unlink: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({ size: 1024, mtime: new Date() })
+  }
+}));
+
+// Mock storage
+vi.mock('../../../server/storage', () => ({
+  storage: {
+    addTranslation: vi.fn().mockResolvedValue({ id: 1 }),
+    getLanguageByCode: vi.fn().mockResolvedValue({ name: 'English', code: 'en-US' })
   }
 }));
 
