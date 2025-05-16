@@ -11,34 +11,34 @@ import { WebSocket } from 'ws';
 import type { ExtendedWebSocket } from '../../server/websocket';
 import { sessionManager, processStreamingAudio, finalizeStreamingSession, cleanupInactiveStreamingSessions } from '../../server/openai-streaming';
 
+// Define a simple mock for OpenAI
+const mockCreateFn = vi.fn().mockResolvedValue({
+  text: 'This is a mock transcription'
+});
+
+// Mock OpenAI first - this will be hoisted to the top
+vi.mock('openai', async () => {
+  const mockOpenAI = vi.fn().mockImplementation(() => ({
+    audio: {
+      transcriptions: {
+        create: mockCreateFn
+      }
+    }
+  }));
+  
+  // In ESM, OpenAI needs to be returned as default
+  return { default: mockOpenAI };
+});
+
 // Import internal functions for testing directly
 import * as OpenAIStreamingModule from '../../server/openai-streaming';
 const AudioProcessingService = OpenAIStreamingModule['AudioProcessingService'];
 const processAudioChunks = OpenAIStreamingModule['processAudioChunks'];
 
-// Create a mock OpenAI client for our tests
-const mockOpenAIClient = {
-  audio: {
-    transcriptions: {
-      create: vi.fn().mockResolvedValue({
-        text: 'This is a mock transcription'
-      })
-    }
-  }
-};
-
 // Ensure environment is set up
 beforeAll(() => {
   // Set up process.env.OPENAI_API_KEY for testing
   process.env.OPENAI_API_KEY = 'test-api-key';
-});
-
-// Mock OpenAI
-vi.mock('openai', () => {
-  const mockOpenAI = vi.fn().mockImplementation(() => mockOpenAIClient);
-  
-  // In ESM, OpenAI needs to be returned as default
-  return { default: mockOpenAI };
 });
 
 // Mock WebSocket
@@ -464,7 +464,7 @@ describe('OpenAI Streaming Module', () => {
   describe('AudioProcessingService class', () => {
     it('should handle successful transcription', async () => {
       // Mock the OpenAI API response for successful transcription
-      mockOpenAIClient.audio.transcriptions.create.mockResolvedValueOnce({ 
+      mockCreateFn.mockResolvedValueOnce({ 
         text: 'This is a test transcription' 
       });
 
@@ -478,15 +478,13 @@ describe('OpenAI Streaming Module', () => {
       expect(result).toBe('This is a test transcription');
       
       // Verify the OpenAI API was called
-      expect(mockOpenAIClient.audio.transcriptions.create).toHaveBeenCalled();
+      expect(mockCreateFn).toHaveBeenCalled();
     });
     
     it('should handle OpenAI API errors gracefully', async () => {
       // Mock the OpenAI API to throw an error
       const mockError = new Error('OpenAI API error');
-      
-      // Reset the mock implementation to throw an error for this test
-      vi.spyOn(AudioProcessingService.prototype, 'transcribeAudio').mockRejectedValueOnce(mockError);
+      mockOpenAICreate.mockRejectedValueOnce(mockError);
       
       // Spy on console.error
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
