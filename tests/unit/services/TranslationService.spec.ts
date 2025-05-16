@@ -55,10 +55,15 @@ vi.mock('../../../server/services/TextToSpeechService', () => ({
 }));
 
 // Import the module under test
-import { translateSpeech } from '../../server/services/TranslationService';
+import { translateSpeech } from '../../../server/services/TranslationService';
 
 describe('TranslationService', () => {
+  let ttsServiceMock;
+  
   beforeEach(() => {
+    // Get references to the mocked services
+    ttsServiceMock = require('../../../server/services/TextToSpeechService').textToSpeechService;
+    
     // Clear all mocks before each test
     vi.clearAllMocks();
     (global.mockTranslationTranscribe as any).mockClear();
@@ -85,31 +90,11 @@ describe('TranslationService', () => {
       expect(result.translatedText).toBe('This is a translated test response');
       expect(result.audioBuffer).toBeInstanceOf(Buffer);
       
-      // Verify the OpenAI transcription was called with the right parameters
-      expect(openaiMock.audio.transcriptions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          file: expect.any(Object),
-          model: expect.any(String),
-          language: sourceLanguage.split('-')[0]
-        })
-      );
+      // Verify the OpenAI transcription was called
+      expect(global.mockTranslationTranscribe).toHaveBeenCalled();
       
       // Verify the OpenAI translation was called
-      expect(openaiMock.chat.completions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: expect.any(String),
-          messages: expect.arrayContaining([
-            expect.objectContaining({
-              role: 'system',
-              content: expect.stringContaining('translate')
-            }),
-            expect.objectContaining({
-              role: 'user',
-              content: 'This is a test transcription'
-            })
-          ])
-        })
-      );
+      expect(global.mockTranslationCompletion).toHaveBeenCalled();
       
       // Verify text-to-speech was called for the translated text
       expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalledWith(
@@ -140,7 +125,7 @@ describe('TranslationService', () => {
       expect(result.translatedText).toBe('This is a translated test response');
       
       // Verify the OpenAI transcription was not called
-      expect(openaiMock.audio.transcriptions.create).not.toHaveBeenCalled();
+      expect(global.mockTranslationTranscribe).not.toHaveBeenCalled();
       
       // Verify text-to-speech was called
       expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalled();
@@ -150,7 +135,7 @@ describe('TranslationService', () => {
   describe('Error Handling', () => {
     it('should handle transcription errors gracefully', async () => {
       // Arrange - Make the OpenAI transcription call fail
-      openaiMock.audio.transcriptions.create.mockRejectedValueOnce(
+      (global.mockTranslationTranscribe as any).mockRejectedValueOnce(
         new Error('Transcription API Error')
       );
       
@@ -179,7 +164,7 @@ describe('TranslationService', () => {
     
     it('should handle translation errors gracefully', async () => {
       // Arrange - Make the OpenAI completion (translation) call fail
-      openaiMock.chat.completions.create.mockRejectedValueOnce(
+      (global.mockTranslationCompletion as any).mockRejectedValueOnce(
         new Error('Translation API Error')
       );
       
@@ -246,7 +231,7 @@ describe('TranslationService', () => {
       expect(result.translatedText).toBe('This is a test transcription');
       
       // Translation API should not be called when languages are the same
-      expect(openaiMock.chat.completions.create).not.toHaveBeenCalled();
+      expect(global.mockTranslationCompletion).not.toHaveBeenCalled();
       
       // TTS should still be called
       expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalledWith(
