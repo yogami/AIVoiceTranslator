@@ -1,18 +1,18 @@
 /**
- * Simplified tests for the OpenAI Streaming Audio Transcription Service
- * 
- * These tests focus on the public API rather than implementation details
+ * OpenAI Streaming Basic Tests (Vitest Version)
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { Buffer } from 'buffer';
 
-// Mock OpenAI
+// Mock OpenAI module - BEFORE imports
 vi.mock('openai', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       audio: {
         transcriptions: {
           create: vi.fn().mockResolvedValue({
-            text: 'mock transcription text',
+            text: 'Test transcription result',
+            duration: 2.5
           })
         }
       }
@@ -20,55 +20,75 @@ vi.mock('openai', () => {
   };
 });
 
-// Mock WebSocket
+// Mock WebSocket Module
 vi.mock('ws', () => {
   return {
-    WebSocket: {
-      OPEN: 1
-    }
+    WebSocketServer: vi.fn(() => ({
+      on: vi.fn(),
+      clients: new Set()
+    })),
+    CONNECTING: 0,
+    OPEN: 1,
+    CLOSING: 2,
+    CLOSED: 3
   };
 });
 
-// Setup environment variable
-process.env.OPENAI_API_KEY = 'test-api-key';
+// Import the module under test AFTER mocking
+import { processStreamingAudio, finalizeStreamingSession } from '../../server/openai-streaming';
 
-describe('OpenAI Streaming Service Exports', () => {
+describe('OpenAI Streaming Basic Tests', () => {
+  // Mock WebSocket for testing
+  class MockWebSocket {
+    sentMessages = [];
+    readyState = 1; // OPEN
+    
+    send(message) {
+      this.sentMessages.push(JSON.parse(message));
+    }
+  }
+  
+  let mockWs;
+  
   beforeEach(() => {
+    // Reset mocks
     vi.clearAllMocks();
+    
+    // Create a fresh WebSocket
+    mockWs = new MockWebSocket();
   });
   
-  afterEach(() => {
-    vi.resetModules();
+  it('should process streaming audio', async () => {
+    // Arrange
+    const sessionId = 'test-session-123';
+    const audioBase64 = Buffer.from('test audio data').toString('base64');
+    const isFirstChunk = true;
+    const language = 'en-US';
+    
+    // Act
+    await processStreamingAudio(mockWs, sessionId, audioBase64, isFirstChunk, language);
+    
+    // Assert - should have at least one message sent
+    expect(mockWs.sentMessages.length).toBeGreaterThan(0);
   });
   
-  it('should export the required functions', async () => {
-    const streamingModule = await import('../../server/openai-streaming');
+  it('should finalize streaming session', async () => {
+    // Arrange - First create a session
+    const sessionId = 'test-session-456';
+    const audioBase64 = Buffer.from('test audio data').toString('base64');
+    await processStreamingAudio(mockWs, sessionId, audioBase64, true, 'en-US');
     
-    // Check that the module exports the expected functions
-    expect(typeof streamingModule.processStreamingAudio).toBe('function');
-    expect(typeof streamingModule.finalizeStreamingSession).toBe('function');
-    expect(typeof streamingModule.cleanupInactiveStreamingSessions).toBe('function');
-  });
-  
-  it('should initialize the OpenAI client correctly', async () => {
-    // Import the module
-    await import('../../server/openai-streaming');
+    // Clear sent messages for cleaner test
+    mockWs.sentMessages = [];
     
-    // Check that OpenAI was initialized with the API key
-    const OpenAI = await import('openai');
-    expect(OpenAI.default).toHaveBeenCalled();
-  });
-  
-  it('should handle session creation and cleanup operations', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    // Act
+    await finalizeStreamingSession(mockWs, sessionId);
     
-    // Import the module
-    const { cleanupInactiveStreamingSessions } = await import('../../server/openai-streaming');
+    // Assert - Check if we have a final message
+    expect(mockWs.sentMessages.length).toBeGreaterThan(0);
     
-    // Call the cleanup function (should run without errors)
-    expect(() => cleanupInactiveStreamingSessions()).not.toThrow();
-    
-    // Restore console.log
-    consoleSpy.mockRestore();
+    // Check if the last message has isFinal=true
+    const lastMessage = mockWs.sentMessages[mockWs.sentMessages.length - 1];
+    expect(lastMessage.isFinal).toBe(true);
   });
 });
