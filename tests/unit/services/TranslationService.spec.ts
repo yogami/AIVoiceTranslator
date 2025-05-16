@@ -55,14 +55,14 @@ vi.mock('../../../server/services/TextToSpeechService', () => ({
 }));
 
 // Import the module under test
-import { translateSpeech } from '../../../server/services/TranslationService';
+import { translateSpeech } from '@server/services/TranslationService';
 
 describe('TranslationService', () => {
   let ttsServiceMock;
   
   beforeEach(() => {
     // Get references to the mocked services
-    ttsServiceMock = require('../../../server/services/TextToSpeechService').textToSpeechService;
+    ttsServiceMock = require('@server/services/TextToSpeechService').textToSpeechService;
     
     // Clear all mocks before each test
     vi.clearAllMocks();
