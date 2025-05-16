@@ -98,13 +98,13 @@ describe('OpenAI API Integration', () => {
     beforeEach(() => {
       // Clear mocks before each test
       vi.clearAllMocks();
-      mockTranscribe.mockClear();
-      mockCompletion.mockClear();
+      (global.mockOpenAITranscribe as any).mockClear();
+      (global.mockOpenAICompletion as any).mockClear();
     });
     
     it('should handle API errors gracefully', async () => {
       // Arrange - Make the OpenAI call fail
-      mockTranscribe.mockRejectedValueOnce(new Error('API Error'));
+      (global.mockOpenAITranscribe as any).mockRejectedValueOnce(new Error('API Error'));
       
       // Act
       const audioBuffer = Buffer.from('test audio data');
@@ -126,8 +126,8 @@ describe('OpenAI API Integration', () => {
     beforeEach(() => {
       // Clear mocks before each test
       vi.clearAllMocks();
-      mockTranscribe.mockClear();
-      mockCompletion.mockClear();
+      (global.mockOpenAITranscribe as any).mockClear();
+      (global.mockOpenAICompletion as any).mockClear();
     });
     
     it('should skip translation when source and target languages are the same', async () => {
@@ -135,7 +135,7 @@ describe('OpenAI API Integration', () => {
       const audioBuffer = Buffer.from('test audio data');
       const language = 'en-US';
       
-      mockTranscribe.mockResolvedValueOnce({
+      (global.mockOpenAITranscribe as any).mockResolvedValueOnce({
         text: 'Test transcription for same language'
       });
       
@@ -151,7 +151,7 @@ describe('OpenAI API Integration', () => {
       expect(result.translatedText).toBe(result.originalText);
       
       // Verify the translation API was not called
-      expect(mockCompletion).not.toHaveBeenCalled();
+      expect((global.mockOpenAICompletion as any)).not.toHaveBeenCalled();
     });
   });
 });
