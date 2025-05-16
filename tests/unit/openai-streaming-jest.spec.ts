@@ -127,7 +127,7 @@ describe('OpenAI Streaming Module', () => {
       
       // Mock the AudioProcessingService.transcribeAudio method 
       const mockTranscription = 'Test transcription result';
-      const transcribeAudioSpy = jest.spyOn(AudioProcessingService.prototype, 'transcribeAudio')
+      const transcribeAudioSpy = vi.spyOn(AudioProcessingService.prototype, 'transcribeAudio')
         .mockResolvedValueOnce(mockTranscription);
       
       // Clear mock
@@ -165,11 +165,11 @@ describe('OpenAI Streaming Module', () => {
       
       // Mock the AudioProcessingService.transcribeAudio method to throw an error
       const mockError = new Error('Transcription failed');
-      const transcribeAudioSpy = jest.spyOn(AudioProcessingService.prototype, 'transcribeAudio')
+      const transcribeAudioSpy = vi.spyOn(AudioProcessingService.prototype, 'transcribeAudio')
         .mockRejectedValueOnce(mockError);
       
       // Spy on console.error
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       // Clear mock
       mockWebSocket.send.mockClear();
