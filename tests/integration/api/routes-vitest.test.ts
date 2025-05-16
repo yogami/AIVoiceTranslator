@@ -7,7 +7,7 @@
  * Converted from Jest to Vitest
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express, { Express } from 'express';
 import { apiRoutes } from '../../../server/routes';
