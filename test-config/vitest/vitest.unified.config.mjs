@@ -2,14 +2,39 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
 
 /**
- * Simplified Vitest configuration file without theme.json dependency.
- * Use this for running unit tests that don't need UI components.
+ * Unified Vitest configuration.
+ * This single configuration handles all test scenarios with options for customization.
+ * 
+ * Usage examples:
+ * - Run all tests: npx vitest --config test-config/vitest/vitest.unified.config.mjs
+ * - Run unit tests only: npx vitest --config test-config/vitest/vitest.unified.config.mjs --test-mode=unit
+ * - Run integration tests: npx vitest --config test-config/vitest/vitest.unified.config.mjs --test-mode=integration
+ * - Run with coverage: npx vitest --config test-config/vitest/vitest.unified.config.mjs --coverage
  */
+
+// Access test mode from environment or default to 'all'
+const testMode = process.env.TEST_MODE || 'all';
+
+// Configure test patterns based on test mode
+const getTestPattern = (mode) => {
+  switch (mode) {
+    case 'unit':
+      return ['**/tests/unit/**/*.{test,spec}.{js,jsx,ts,tsx}'];
+    case 'integration':
+      return ['**/tests/integration/**/*.{test,spec}.{js,jsx,ts,tsx}'];
+    case 'e2e':
+      return ['**/tests/e2e/**/*.{test,spec}.{js,jsx,ts,tsx}'];
+    case 'all':
+    default:
+      return ['tests/**/*.{test,spec}.?(c|m)[jt]s?(x)'];
+  }
+};
+
 export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    testMatch: ['**/tests/unit/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    testMatch: getTestPattern(testMode),
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
     testTimeout: 30000,          // 30 seconds per test
     hookTimeout: 15000,          // 15 seconds for hooks 
@@ -18,6 +43,7 @@ export default defineConfig({
     maxThreads: 1,               // Use only one thread
     minThreads: 1,               // Use at least one thread
     silent: false,               // Show full output
+    setupFiles: ['./test-config/vitest/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -52,6 +78,5 @@ export default defineConfig({
       '@client': resolve(process.cwd(), './client'),
       '@tests': resolve(process.cwd(), './tests')
     }
-  },
-  plugins: [] // No theme plugin
+  }
 });
