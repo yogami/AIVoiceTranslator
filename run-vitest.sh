@@ -11,24 +11,24 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Define the Vitest config file path
-VITEST_CONFIG="--config=test-config/vitest/vitest.no-theme.mjs"
+VITEST_CONFIG="--config=test-config/vitest/vitest.unified.config.mjs"
 
 # Function to run unit tests
 run_unit_tests() {
   echo -e "${YELLOW}Running unit tests with Vitest...${NC}"
-  npx vitest run $VITEST_CONFIG --testMatch "tests/unit/**/*.{test,spec}.?(c|m)[jt]s?(x)"
+  TEST_MODE=unit npx vitest run $VITEST_CONFIG
 }
 
 # Function to run specific test file
 run_specific_test() {
   echo -e "${YELLOW}Running specific test file: $1${NC}"
-  npx vitest run $VITEST_CONFIG "$@"
+  TEST_MODE=all npx vitest run $VITEST_CONFIG "$@"
 }
 
 # Function to run tests with coverage
 run_coverage() {
   echo -e "${YELLOW}Running tests with coverage...${NC}"
-  npx vitest run $VITEST_CONFIG --coverage
+  TEST_MODE=all npx vitest run $VITEST_CONFIG --coverage
 }
 
 # Function to run tests with coverage for a specific file
@@ -37,7 +37,7 @@ run_file_coverage() {
   echo -e "${YELLOW}Coverage target: $2${NC}"
   
   # Set coverage reporter and provider
-  COVERAGE_REPORTER="text" COVERAGE_PROVIDER="v8" npx vitest run $VITEST_CONFIG "$1" --coverage
+  COVERAGE_REPORTER="text" COVERAGE_PROVIDER="v8" TEST_MODE=all npx vitest run $VITEST_CONFIG "$1" --coverage
   
   echo -e "${GREEN}Detailed coverage summary:${NC}"
   cat coverage/coverage-summary.json | grep -A 15 "$2" || echo "Coverage summary not found for $2"
@@ -46,7 +46,7 @@ run_file_coverage() {
 # Function to run tests in watch mode
 run_watch() {
   echo -e "${YELLOW}Running tests in watch mode...${NC}"
-  npx vitest $VITEST_CONFIG
+  TEST_MODE=all npx vitest $VITEST_CONFIG
 }
 
 # Clean test output
