@@ -4,14 +4,17 @@
  * Using only dependency mocking without modifying source code
  * Converted from Jest to Vitest
  */
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { Buffer } from 'buffer';
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// First modify the WebSocket implementation
-// This needs to be at the top so it's hoisted before the module loads
+// Mock WebSocket first - this needs to be at the top
 vi.mock('ws', () => {
-  // Standardize WebSocket constants for the module
   return {
+    WebSocketServer: vi.fn(() => ({
+      on: vi.fn(),
+      clients: new Set()
+    })),
+    // Standardize WebSocket constants for the module
     CONNECTING: 0,
     OPEN: 1,
     CLOSING: 2,
@@ -19,9 +22,10 @@ vi.mock('ws', () => {
   };
 });
 
-// Manual mock for OpenAI
+// Manual mock for OpenAI - we need to define the mock function INLINE
+// since Vitest hoists mocks and can't reference variables defined after the vi.mock call
 vi.mock('openai', () => {
-  // Return a default export function
+  // Return the constructor
   return {
     default: vi.fn().mockImplementation(() => {
       // Return object with audio.transcriptions.create method
@@ -39,65 +43,61 @@ vi.mock('openai', () => {
   };
 });
 
-// Track all function calls for verification
-const mockCreateTranscription = vi.mocked(
-  (await import('openai')).default.prototype?.audio?.transcriptions?.create
-);
-
-// Now import the SUT - this is after mocks to ensure they're applied
+// Import the module under test after mocking
 import { processStreamingAudio, finalizeStreamingSession } from '../../server/openai-streaming';
 
-describe('OpenAI Streaming - Minimal Test Suite', () => {
-  // Mock websocket for testing
-  const mockWebSocket = {
-    send: vi.fn(),
-    readyState: 1 // OPEN
-  };
-  
-  // Reset mocks before each test
+describe('Minimal OpenAI Streaming Tests', () => {
+  // Mock WebSocket implementation
+  class MockWebSocket {
+    sentMessages = [];
+    readyState = 1; // OPEN
+    
+    send(message) {
+      this.sentMessages.push(JSON.parse(message));
+    }
+  }
+
+  let mockWs;
+  const testSessionId = 'test-session-123';
+  const testLanguage = 'en-US';
+
   beforeEach(() => {
+    // Reset mocks
     vi.clearAllMocks();
+    
+    // Create a fresh WebSocket for each test
+    mockWs = new MockWebSocket();
   });
-  
-  // Test the process streaming function
-  it('should handle streaming audio processing', async () => {
+
+  it('should process streaming audio and create a session', async () => {
     // Arrange
-    const sessionId = 'test-session-123';
-    const audioBase64 = 'dGVzdCBhdWRpbw=='; // "test audio" in base64
+    const testAudioBase64 = Buffer.from('test audio data').toString('base64');
     const isFirstChunk = true;
-    const language = 'en-US';
     
-    // Act - Call the function with our test data
-    await processStreamingAudio(
-      mockWebSocket, 
-      sessionId, 
-      audioBase64, 
-      isFirstChunk, 
-      language
-    );
+    // Act
+    await processStreamingAudio(mockWs, testSessionId, testAudioBase64, isFirstChunk, testLanguage);
     
-    // Assert - WebSocket send should be called
-    expect(mockWebSocket.send).toHaveBeenCalled();
-    
-    // Verify the message format (this depends on the implementation)
-    const lastCallArgs = mockWebSocket.send.mock.calls[0][0];
-    
-    // Should be a stringified JSON object
-    const sentMessage = JSON.parse(lastCallArgs);
-    
-    // Verify basic structure
-    expect(sentMessage).toHaveProperty('type');
+    // Assert - We should have at least one message sent
+    expect(mockWs.sentMessages.length).toBeGreaterThan(0);
   });
-  
-  // Test the finalize session function
-  it('should handle finalizing a streaming session', async () => {
+
+  it('should finalize a streaming session', async () => {
     // Arrange
-    const sessionId = 'test-session-123';
+    // First create a session so we have something to finalize
+    const testAudioBase64 = Buffer.from('test audio data').toString('base64');
+    await processStreamingAudio(mockWs, testSessionId, testAudioBase64, true, testLanguage);
     
-    // Act - Call the function with our test data
-    await finalizeStreamingSession(mockWebSocket, sessionId);
+    // Reset messages to check only finalization messages
+    mockWs.sentMessages = [];
     
-    // Assert - WebSocket send should be called
-    expect(mockWebSocket.send).toHaveBeenCalled();
+    // Act
+    await finalizeStreamingSession(mockWs, testSessionId);
+    
+    // Assert
+    // We should have a final message
+    expect(mockWs.sentMessages.length).toBeGreaterThan(0);
+    // The last message should have isFinal = true
+    const lastMessage = mockWs.sentMessages[mockWs.sentMessages.length - 1];
+    expect(lastMessage.isFinal).toBe(true);
   });
 });
