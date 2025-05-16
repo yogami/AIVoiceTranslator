@@ -1,39 +1,38 @@
 /**
- * WebSocket Module Basic Tests (Vitest Version)
+ * WebSocket Coverage Simple Tests (Vitest Version)
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Server } from 'http';
 
-// Mock the 'ws' module - BEFORE imports
+// Mock the 'ws' module with inline constants
 vi.mock('ws', () => {
-  const MOCK_WS_STATES = {
-    CONNECTING: 0,
-    OPEN: 1,
-    CLOSING: 2,
-    CLOSED: 3
-  };
-  
   return {
     WebSocketServer: vi.fn(() => ({
       on: vi.fn(),
       clients: new Set([
         {
-          send: vi.fn(),
-          readyState: MOCK_WS_STATES.OPEN
+          readyState: 1, // OPEN
+          send: vi.fn()
         }
-      ])
+      ]),
+      emit: vi.fn()
     })),
-    CONNECTING: MOCK_WS_STATES.CONNECTING,
-    OPEN: MOCK_WS_STATES.OPEN,
-    CLOSING: MOCK_WS_STATES.CLOSING,
-    CLOSED: MOCK_WS_STATES.CLOSED
+    // Define WebSocket constants
+    CONNECTING: 0,
+    OPEN: 1,
+    CLOSING: 2,
+    CLOSED: 3
   };
 });
 
-// Import after mocks
-import { createWebSocketServer, broadcastMessage } from '../../server/websocket';
+// Import after mocking
+import { 
+  WebSocketService, 
+  WebSocketState, 
+  createWebSocketServer, 
+  broadcastMessage 
+} from '../../server/websocket';
 
-describe('WebSocket Basic Tests', () => {
+describe('WebSocket Coverage Simple Tests', () => {
   let httpServer;
   let wsService;
   
@@ -41,12 +40,12 @@ describe('WebSocket Basic Tests', () => {
     // Reset mocks
     vi.clearAllMocks();
     
-    // Create mock server
+    // Create mock HTTP server
     httpServer = {
       on: vi.fn()
     };
     
-    // Create service
+    // Create WebSocket service
     wsService = createWebSocketServer(httpServer);
   });
   
@@ -54,20 +53,29 @@ describe('WebSocket Basic Tests', () => {
     vi.resetAllMocks();
   });
   
-  it('should create a WebSocket service', () => {
-    // Check if service was created
-    expect(wsService).toBeDefined();
+  it('should create a WebSocketService instance', () => {
+    // Check service was created correctly
+    expect(wsService).toBeInstanceOf(WebSocketService);
   });
   
-  it('should broadcast to clients', () => {
-    // Get the actual server
+  it('should broadcast messages to clients', () => {
+    // Arrange
     const server = wsService.getServer();
+    const message = { type: 'test', content: 'test message' };
     
-    // Broadcast a message
-    broadcastMessage(server, { type: 'test' });
+    // Act
+    broadcastMessage(server, message);
     
-    // Verify client received message
+    // Assert - Check first client received the message
     const client = Array.from(server.clients)[0];
     expect(client.send).toHaveBeenCalled();
+  });
+  
+  it('should have correctly defined WebSocket states', () => {
+    // Verify WebSocket state constants
+    expect(WebSocketState.CONNECTING).toBe(0);
+    expect(WebSocketState.OPEN).toBe(1);
+    expect(WebSocketState.CLOSING).toBe(2);
+    expect(WebSocketState.CLOSED).toBe(3);
   });
 });
