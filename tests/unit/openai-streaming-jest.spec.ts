@@ -209,7 +209,7 @@ describe('OpenAI Streaming Module', () => {
       const language = 'en-US';
       
       // Spy on session manager to verify session creation
-      const createSessionSpy = jest.spyOn(sessionManager, 'createSession');
+      const createSessionSpy = vi.spyOn(sessionManager, 'createSession');
       
       // Call the function
       await processStreamingAudio(
@@ -248,7 +248,7 @@ describe('OpenAI Streaming Module', () => {
       );
       
       // Spy on session manager to verify addAudioToSession is called
-      const addAudioSpy = jest.spyOn(sessionManager, 'addAudioToSession');
+      const addAudioSpy = vi.spyOn(sessionManager, 'addAudioToSession');
       
       // Call the function with non-first chunk
       await processStreamingAudio(
