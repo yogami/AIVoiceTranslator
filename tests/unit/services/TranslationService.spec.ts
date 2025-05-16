@@ -47,27 +47,27 @@ vi.mock('openai', () => {
   };
 });
 
+// Set up mocks before imports
+const mockTTSService = {
+  synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
+};
+
 // Mock Text-to-Speech service
 vi.mock('../../../server/services/TextToSpeechService', () => ({
-  textToSpeechService: {
-    synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
-  }
+  textToSpeechService: mockTTSService
 }));
 
 // Import the module under test
-import { translateSpeech } from '@server/services/TranslationService';
+import { translateSpeech } from '../../../server/services/TranslationService';
 
 describe('TranslationService', () => {
-  let ttsServiceMock;
   
   beforeEach(() => {
-    // Get references to the mocked services
-    ttsServiceMock = require('@server/services/TextToSpeechService').textToSpeechService;
-    
     // Clear all mocks before each test
     vi.clearAllMocks();
     (global.mockTranslationTranscribe as any).mockClear();
     (global.mockTranslationCompletion as any).mockClear();
+    mockTTSService.synthesizeSpeech.mockClear();
   });
   
   describe('Basic Translation', () => {
@@ -97,7 +97,7 @@ describe('TranslationService', () => {
       expect(global.mockTranslationCompletion).toHaveBeenCalled();
       
       // Verify text-to-speech was called for the translated text
-      expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalledWith(
+      expect(mockTTSService.synthesizeSpeech).toHaveBeenCalledWith(
         expect.objectContaining({
           text: 'This is a translated test response',
           languageCode: targetLanguage
@@ -128,7 +128,7 @@ describe('TranslationService', () => {
       expect(global.mockTranslationTranscribe).not.toHaveBeenCalled();
       
       // Verify text-to-speech was called
-      expect(ttsServiceMock.synthesizeSpeech).toHaveBeenCalled();
+      expect(mockTTSService.synthesizeSpeech).toHaveBeenCalled();
     });
   });
   
