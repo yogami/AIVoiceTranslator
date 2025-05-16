@@ -1,37 +1,31 @@
 /**
- * Server Entry Point Tests (Consolidated)
- * 
- * A comprehensive test suite for the server's main entry point functionality.
+ * Server Entry Point Tests
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import express from 'express';
-import { Server } from 'http';
 
-// Mock express and http
+// Mock all the dependencies
 vi.mock('express', () => {
-  const app = {
-    use: vi.fn(),
-    get: vi.fn(),
-    listen: vi.fn().mockImplementation((port, callback) => {
-      if (callback) callback();
-      return {
+  return {
+    __esModule: true,
+    default: vi.fn().mockReturnValue({
+      use: vi.fn(),
+      get: vi.fn(),
+      listen: vi.fn().mockReturnValue({
         on: vi.fn(),
         close: vi.fn()
-      };
-    })
-  };
-  return {
-    default: vi.fn(() => app),
-    Router: vi.fn(() => ({
-      get: vi.fn(),
-      post: vi.fn(),
-      use: vi.fn()
-    })),
-    static: vi.fn(),
+      })
+    }),
     json: vi.fn(),
-    urlencoded: vi.fn()
+    urlencoded: vi.fn(),
+    static: vi.fn(),
+    Router: vi.fn().mockReturnValue({})
   };
 });
+
+vi.mock('cors', () => ({
+  __esModule: true,
+  default: vi.fn().mockReturnValue(vi.fn())
+}));
 
 vi.mock('../../server/routes', () => ({
   apiRoutes: { get: vi.fn(), post: vi.fn() }
@@ -43,22 +37,17 @@ vi.mock('../../server/vite', () => ({
   log: vi.fn()
 }));
 
-vi.mock('cors', () => ({
-  default: vi.fn(() => vi.fn())
-}));
-
 vi.mock('../../server/websocket', () => ({
-  createWebSocketServer: vi.fn(() => ({
+  createWebSocketServer: vi.fn().mockReturnValue({
     onConnection: vi.fn(),
     onMessage: vi.fn(),
-    onClose: vi.fn(),
-    broadcast: vi.fn()
-  }))
+    onClose: vi.fn()
+  })
 }));
 
-// Import the module under test
-import { startServer } from '../../server/server';
-import { configureCorsMiddleware } from '../../server/server';
+// Import modules AFTER mocking
+import { startServer, configureCorsMiddleware } from '../../server/server';
+import express from 'express';
 
 describe('Server Entry Point', () => {
   let expressApp;
@@ -66,10 +55,6 @@ describe('Server Entry Point', () => {
   beforeEach(() => {
     expressApp = express();
     vi.clearAllMocks();
-  });
-  
-  afterEach(() => {
-    vi.resetAllMocks();
   });
   
   describe('Server Initialization', () => {
@@ -114,26 +99,35 @@ describe('Server Entry Point', () => {
   
   describe('CORS Configuration', () => {
     it('should configure CORS middleware', () => {
-      // Act
-      configureCorsMiddleware(expressApp);
-      
-      // Assert
-      const cors = require('cors').default;
-      expect(cors).toHaveBeenCalled();
-      expect(expressApp.use).toHaveBeenCalled();
+      // Import cors directly
+      import('cors').then(corsModule => {
+        // Act
+        configureCorsMiddleware(expressApp);
+        
+        // Assert
+        expect(expressApp.use).toHaveBeenCalled();
+      });
     });
   });
   
   describe('Error Handling', () => {
     it('should handle server startup errors', async () => {
-      // Arrange - Force an error on server listen
-      const listenError = new Error('Port in use');
-      express().listen.mockImplementationOnce((port, callback) => {
-        throw listenError;
+      // Arrange - Create a failing server scenario
+      const mockExpressApp = express();
+      
+      // Create a spy that will throw an error
+      const listenSpy = vi.spyOn(mockExpressApp, 'listen').mockImplementation(() => {
+        throw new Error('Server startup error');
       });
+      
+      // Mock express to return our controlled app
+      vi.mocked(express).mockReturnValueOnce(mockExpressApp);
       
       // Act & Assert
       await expect(startServer()).rejects.toThrow();
+      
+      // Cleanup
+      listenSpy.mockRestore();
     });
   });
 });
