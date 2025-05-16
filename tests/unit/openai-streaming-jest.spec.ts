@@ -277,11 +277,11 @@ describe('OpenAI Streaming Module', () => {
       mockWebSocket.send.mockClear();
       
       // Spy on console.error to verify error is logged
-      const consoleErrorSpy = jest.spyOn(console, 'error');
+      const consoleErrorSpy = vi.spyOn(console, 'error');
       
       // Force empty audio to be treated as an error 
       // Empty Buffer is normally created without error, we need to force an error
-      jest.spyOn(Buffer, 'from').mockImplementationOnce(() => {
+      vi.spyOn(Buffer, 'from').mockImplementationOnce(() => {
         throw new Error('Empty audio data');
       });
       
@@ -316,11 +316,11 @@ describe('OpenAI Streaming Module', () => {
       mockWebSocket.send.mockClear();
       
       // Spy on console.error to verify error is logged
-      const consoleErrorSpy = jest.spyOn(console, 'error');
+      const consoleErrorSpy = vi.spyOn(console, 'error');
       
       // Force an error to be sent - we need to simulate failing base64 decoding
       // which may not happen in the test environment the same way as production
-      jest.spyOn(Buffer, 'from').mockImplementationOnce(() => {
+      vi.spyOn(Buffer, 'from').mockImplementationOnce(() => {
         throw new Error('Invalid base64 string');
       });
       
@@ -413,7 +413,7 @@ describe('OpenAI Streaming Module', () => {
       mockWebSocket.send.mockClear();
       
       // Spy on console.error to verify it was called
-      const consoleSpy = jest.spyOn(console, 'error');
+      const consoleSpy = vi.spyOn(console, 'error');
       
       await finalizeStreamingSession(
         mockWebSocket as unknown as ExtendedWebSocket,
@@ -447,7 +447,7 @@ describe('OpenAI Streaming Module', () => {
     it('should handle successful transcription', async () => {
       // Mock the OpenAI API response for successful transcription
       const mockTranscriptionResponse = { text: 'This is a test transcription' };
-      (OpenAIClientFactory.getInstance().audio.transcriptions.create as jest.Mock).mockResolvedValueOnce(mockTranscriptionResponse);
+      (OpenAIClientFactory.getInstance().audio.transcriptions.create as any).mockResolvedValueOnce(mockTranscriptionResponse);
 
       // Create an instance of AudioProcessingService
       const audioProcessingService = new AudioProcessingService();
@@ -470,10 +470,10 @@ describe('OpenAI Streaming Module', () => {
     it('should handle OpenAI API errors gracefully', async () => {
       // Mock the OpenAI API to throw an error
       const mockError = new Error('OpenAI API error');
-      (OpenAIClientFactory.getInstance().audio.transcriptions.create as jest.Mock).mockRejectedValueOnce(mockError);
+      (OpenAIClientFactory.getInstance().audio.transcriptions.create as any).mockRejectedValueOnce(mockError);
       
       // Spy on console.error
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       // Create an instance of AudioProcessingService
       const audioProcessingService = new AudioProcessingService();
