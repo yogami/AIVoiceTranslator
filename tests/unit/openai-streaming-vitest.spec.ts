@@ -144,7 +144,11 @@ describe('OpenAI Streaming Module', () => {
   
   beforeEach(() => {
     mockWebSocket = new WebSocket() as unknown as MockWebSocket;
-    mockWebSocket.readyState = WebSocket.OPEN;
+    // Set readyState through property accessor method instead of direct assignment
+    Object.defineProperty(mockWebSocket, 'readyState', {
+      value: WebSocket.OPEN,
+      writable: true
+    });
     
     // Clear all mocks before each test
     vi.clearAllMocks();
