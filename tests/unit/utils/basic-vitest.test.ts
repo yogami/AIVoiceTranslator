@@ -2,6 +2,7 @@
  * Basic test file to verify Vitest is working correctly
  * Converted from Jest to Vitest
  */
+
 import { describe, it, expect } from 'vitest';
 
 describe('Basic test suite', () => {
