@@ -1,3 +1,4 @@
+
 /**
  * OpenAI Integration Tests (Consolidated)
  * 
@@ -47,8 +48,8 @@ vi.mock('openai', () => {
   };
 });
 
-// Import the modules under test
-import { translateSpeech } from '../../server/services/TranslationService';
+// Import the modules under test (use the public API/facade)
+import { translateSpeech } from '../../server/openai';
 
 describe('OpenAI API Integration', () => {
   describe('Basic Functionality', () => {
