@@ -12,12 +12,10 @@ import { createServer } from 'http';
 import express from 'express';
 import { WebSocketService } from '../../../server/websocket';
 import { processStreamingAudio, finalizeStreamingSession } from '../../../server/openai-streaming';
-import * as WebSocket from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 
 describe('WebSocket Live Integration', () => {
-  // This test will be skipped if we're in CI or the environment doesn't support WebSockets
-  it.skipIf(process.env.CI || typeof WebSocket === 'undefined')(
-    'should establish a real connection and process messages', 
+  it('should establish a real connection and process messages', 
     async () => {
       // Create a real HTTP server
       const app = express();
