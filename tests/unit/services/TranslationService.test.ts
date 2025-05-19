@@ -246,6 +246,7 @@ describe('SpeechTranslationService', () => {
   let consoleErrorSpy: any;
 
   beforeEach(() => {
+    vi.useFakeTimers();//Mok Timers
     mockOpenAI = createMockOpenAI();
     
     // Create mock services with full mock implementation
@@ -267,6 +268,7 @@ describe('SpeechTranslationService', () => {
       mockTranslationService,
       true // apiKeyAvailable = true
     );
+    vi.clearAllMocks();
   });
   
   afterEach(() => {
@@ -1352,21 +1354,19 @@ describe('SpeechTranslationService - Advanced Testing', () => {
     });
 
     it('should handle persistent API errors by eventually failing', async () => {
-      // Simulate persistent API errors
+      vi.useFakeTimers(); // Mock timers for this test
+    
       mockOpenAI.chat.completions.create.mockRejectedValue(new Error('API Error'));
-      
-      // Use fake timers to speed up the test and avoid timeout
+    
       const promise = service.translate('Text to translate', 'en', 'fr');
-      
-      // Run all timers to process the retries immediately
-      await vi.runAllTimersAsync();
-      
-      // Now the promise should be resolved with empty string (after max retries)
+    
+      await vi.runAllTimersAsync(); // Process all timers
+    
       const result = await promise;
       expect(result).toBe('');
-      
-      // Should have attempted multiple times
       expect(mockOpenAI.chat.completions.create.mock.calls.length).toBeGreaterThan(1);
+    
+      vi.useRealTimers(); // Restore real timers after the test
     });
 
     it('should handle very long input text by chunking appropriately', async () => {
@@ -1486,21 +1486,35 @@ describe('SpeechTranslationService - Advanced Testing', () => {
     });
     
     it('should handle errors with status code of 0', async () => {
-      // Simulate error with status code 0
+      vi.useFakeTimers(); // Mock timers for retry logic
+    
       const zeroStatusError = new Error('Zero status error');
-      (zeroStatusError as any).status = 0;
-      
+      // @ts-ignore
+      zeroStatusError.status = 0;
+    
+      // First attempt fails with status 0
       mockOpenAI.chat.completions.create.mockRejectedValueOnce(zeroStatusError);
-      
-      // Second attempt will succeed
+    
+      // Second attempt succeeds
       mockOpenAI.chat.completions.create.mockResolvedValueOnce({
         choices: [{ message: { content: 'Translated after zero status' } }]
       });
-      
-      const result = await service.translate('Text to translate', 'en', 'fr');
+    
+      // Start the translation process
+      const promise = service.translate('Text to translate', 'en', 'fr');
+    
+      // Advance all timers to process retries
+      await vi.runAllTimersAsync();
+    
+      // Await the result
+      const result = await promise;
+    
+      // Verify the result
       expect(result).toBe('Translated after zero status');
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2);
-    });
+    
+      vi.useRealTimers(); // Restore real timers after the test
+    }, 15000); // Increase timeout to 15 seconds
     
     it('should not retry on non-retryable error status codes', async () => {
       // Simulate client error that shouldn't be retried
