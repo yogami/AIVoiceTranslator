@@ -386,7 +386,10 @@ describe('WebSocketServer', () => {
       validateTTSRequestSpy.mockReturnValue(true);
       
       const generateTTSAudioSpy = vi.spyOn(wsServerAny, 'generateTTSAudio');
-      generateTTSAudioSpy.mockResolvedValue(Buffer.from('mock audio data'));
+      generateTTSAudioSpy.mockResolvedValue({
+        success: true,
+        audioData: Buffer.from('mock audio data').toString('base64')
+      });
       
       const sendTTSResponseSpy = vi.spyOn(wsServerAny, 'sendTTSResponse');
       sendTTSResponseSpy.mockResolvedValue(undefined);
@@ -407,6 +410,63 @@ describe('WebSocketServer', () => {
       validateTTSRequestSpy.mockRestore();
       generateTTSAudioSpy.mockRestore();
       sendTTSResponseSpy.mockRestore();
+    });
+    
+    it('should handle invalid TTS request params', async () => {
+      // Get access to private method
+      const wsServerAny = wsServer as any;
+      
+      // Create a mock WebSocket
+      const mockClient = createMockWebSocketClient();
+      
+      // Create an invalid TTS request (empty text)
+      const invalidTTSRequest = {
+        type: 'tts_request',
+        text: '', // Invalid empty text
+        languageCode: 'es-ES'
+      };
+      
+      // Spy on console.warn and validateTTSRequest
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const validateTTSRequestSpy = vi.spyOn(wsServerAny, 'validateTTSRequest');
+      validateTTSRequestSpy.mockReturnValue(false); // Validation will fail
+      
+      // Handle the invalid request
+      await wsServerAny.handleTTSRequestMessage(mockClient, invalidTTSRequest);
+      
+      // Should validate and return early without further processing
+      expect(validateTTSRequestSpy).toHaveBeenCalled();
+      
+      // The generateTTSAudio should not be called
+      expect(mockClient.send).not.toHaveBeenCalled();
+      
+      // Clean up
+      consoleSpy.mockRestore();
+      validateTTSRequestSpy.mockRestore();
+    });
+    
+    it('should test the TTS generation success path with proper audio buffer', async () => {
+      // Access the private methods
+      const wsServerAny = wsServer as any;
+      
+      // Mock the translation service to return an actual audio buffer
+      const originalTranslateMethod = speechTranslationService.translateSpeech;
+      speechTranslationService.translateSpeech = vi.fn().mockResolvedValue({
+        originalText: 'Test text',
+        translatedText: 'Translated text',
+        audioBuffer: Buffer.from('actual audio data') // Valid buffer with content
+      });
+      
+      // Call the generateTTSAudio method directly
+      const result = await wsServerAny.generateTTSAudio('Test text', 'es-ES', 'openai');
+      
+      // Verify successful result with audio data
+      expect(result.success).toBe(true);
+      expect(result.audioData).toBeDefined();
+      expect(typeof result.audioData).toBe('string');
+      
+      // Restore the original method
+      speechTranslationService.translateSpeech = originalTranslateMethod;
     });
     
     it('should validate TTS requests', () => {
@@ -626,8 +686,16 @@ describe('WebSocketServer', () => {
       // Create a mock client
       const mockClient = createMockWebSocketClient();
       
-      // Call the method directly
-      await wsServerAny.sendTTSErrorResponse(mockClient, 'Test error message', 'en-US');
+      // Create an error data object matching the expected structure
+      const errorData = {
+        text: 'Test text',
+        languageCode: 'en-US',
+        ttsService: 'openai',
+        errorMsg: 'Test error message'
+      };
+      
+      // Call the method directly with the properly formatted error data
+      await wsServerAny.sendTTSErrorResponse(mockClient, errorData);
       
       // Verify error response was sent
       expect(mockClient.send).toHaveBeenCalled();
@@ -682,6 +750,60 @@ describe('WebSocketServer', () => {
       
       // Verify setInterval was called
       expect(global.setInterval).toHaveBeenCalled();
+    });
+    
+    it('should properly implement heartbeat mechanism to maintain connection health', () => {
+      // Access the private methods
+      const wsServerAny = wsServer as any;
+      
+      // Create test clients
+      const activeClient = createMockWebSocketClient();
+      activeClient.isAlive = true;
+      
+      const inactiveClient = createMockWebSocketClient();
+      inactiveClient.isAlive = false;
+      
+      // Replace clients collection with our test clients
+      const originalClients = wsServerAny.wss.clients;
+      wsServerAny.wss.clients = new Set([activeClient, inactiveClient]);
+      
+      // Spy on the global timer functions
+      vi.spyOn(global, 'setInterval').mockImplementation((fn: any) => {
+        // Store the callback function
+        const intervalFunction = fn;
+        
+        // Execute the callback immediately for testing
+        intervalFunction();
+        
+        return 12345 as any;
+      });
+      
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval').mockImplementation(() => {});
+      
+      // Call the method we're testing
+      wsServerAny.setupHeartbeat();
+      
+      // Verify setInterval was called
+      expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), 30000);
+      
+      // Verify the inactive client was terminated
+      expect(inactiveClient.terminate).toHaveBeenCalled();
+      
+      // Verify the active client was properly updated
+      expect(activeClient.isAlive).toBe(false);
+      expect(activeClient.ping).toHaveBeenCalled();
+      expect(activeClient.send).toHaveBeenCalled();
+      
+      // Get and call the close handler to verify interval cleanup
+      const closeHandler = wsServerAny.wss.on.mock.calls.find(call => call[0] === 'close')[1];
+      closeHandler();
+      
+      // Verify clearInterval was called
+      expect(clearIntervalSpy).toHaveBeenCalled();
+      
+      // Clean up
+      vi.restoreAllMocks();
+      wsServerAny.wss.clients = originalClients;
     });
   });
   
@@ -920,6 +1042,49 @@ describe('WebSocketServer', () => {
       
       // Clean up
       generateTTSAudioSpy.mockRestore();
+    });
+    
+    it('should handle TTS generation when no audio buffer is returned', async () => {
+      // Access the private methods
+      const wsServerAny = wsServer as any;
+      
+      // Mock the translation service to return a result with an empty audio buffer
+      const originalTranslateMethod = speechTranslationService.translateSpeech;
+      speechTranslationService.translateSpeech = vi.fn().mockResolvedValue({
+        originalText: 'Test text',
+        translatedText: 'Translated text',
+        audioBuffer: Buffer.from('') // Empty buffer
+      });
+      
+      // Call the method directly
+      const result = await wsServerAny.generateTTSAudio('Test text', 'es-ES', 'openai');
+      
+      // Verify the result - should indicate failure
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('No audio data generated');
+      
+      // Restore the original method
+      speechTranslationService.translateSpeech = originalTranslateMethod;
+    });
+    
+    it('should test error handling in TTS generation', async () => {
+      // Access the private methods
+      const wsServerAny = wsServer as any;
+      
+      // Mock the translation service to throw an error
+      const originalTranslateMethod = speechTranslationService.translateSpeech;
+      const testError = new Error('Test TTS service error');
+      speechTranslationService.translateSpeech = vi.fn().mockRejectedValue(testError);
+      
+      // Call the method directly
+      const result = await wsServerAny.generateTTSAudio('Test text', 'es-ES', 'openai');
+      
+      // Verify the error was caught and formatted properly
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Test TTS service error');
+      
+      // Restore the original method
+      speechTranslationService.translateSpeech = originalTranslateMethod;
     });
     
     it('should set up error event handlers', () => {
