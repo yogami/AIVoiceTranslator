@@ -1297,10 +1297,16 @@ describe('SpeechTranslationService - Advanced Testing', () => {
   describe('OpenAITranslationService - Additional Coverage', () => {
     let service: OpenAITranslationService;
     let mockOpenAI: any;
+    let consoleErrorSpy: any;
 
     beforeEach(() => {
       mockOpenAI = createMockOpenAI();
       service = new OpenAITranslationService(mockOpenAI);
+      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
     });
 
     it('should handle network timeout errors with retry mechanism', async () => {
@@ -1383,6 +1389,86 @@ describe('SpeechTranslationService - Advanced Testing', () => {
       
       const result = await service.translate(specialText, 'zh', 'fr');
       expect(result).toBe('Texte traduit avec caractères spéciaux 🚀✨');
+    });
+    
+    it('should handle specific OpenAI API errors with status codes', async () => {
+      // Simulate OpenAI API error with status code
+      const apiError = new Error('API Error with status code');
+      (apiError as any).status = 429; // Rate limit status code
+      
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(apiError);
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated after rate limit' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated after rate limit');
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2);
+    });
+    
+    it('should handle OpenAI server errors with status codes >= 500', async () => {
+      // Simulate OpenAI server error
+      const serverError = new Error('Server error');
+      (serverError as any).status = 503; // Service unavailable
+      
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(serverError);
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated after server error' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated after server error');
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2);
+    });
+    
+    it('should handle regular errors without status code', async () => {
+      // Simulate regular error without status code
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(new Error('Regular error'));
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated after error' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated after error');
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2);
+      expect(consoleErrorSpy).toHaveBeenCalled();
+    });
+    
+    it('should handle errors with status code of 0', async () => {
+      // Simulate error with status code 0
+      const zeroStatusError = new Error('Zero status error');
+      (zeroStatusError as any).status = 0;
+      
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(zeroStatusError);
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated after zero status' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated after zero status');
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2);
+    });
+    
+    it('should not retry on non-retryable error status codes', async () => {
+      // Simulate client error that shouldn't be retried
+      const clientError = new Error('Client error');
+      (clientError as any).status = 400; // Bad request
+      
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(clientError);
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Should not reach here' } }]
+      });
+      
+      await expect(service.translate('Text to translate', 'en', 'fr')).rejects.toThrow();
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1); // Should not retry
     });
   });
 

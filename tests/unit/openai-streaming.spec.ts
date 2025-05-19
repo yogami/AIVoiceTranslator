@@ -506,4 +506,156 @@ describe('OpenAI Streaming Error Handling and Edge Cases', () => {
       cleanupInactiveStreamingSessions(1000);
     }).not.toThrow();
   });
+  
+  // Additional tests for improved branch coverage
+  describe('Advanced Branch Coverage Tests', () => {
+    let mockWs;
+    let consoleErrorSpy;
+    let consoleLogSpy;
+    
+    beforeEach(() => {
+      mockWs = {
+        readyState: 1, // OPEN
+        send: vi.fn()
+      };
+      consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    });
+    
+    afterEach(() => {
+      consoleErrorSpy.mockRestore();
+      consoleLogSpy.mockRestore();
+      vi.resetAllMocks();
+    });
+    
+    it('should create a session even with potential processing errors', async () => {
+      // Arrange
+      const sessionId = 'error-handling-session';
+      const audioBase64 = Buffer.from('test audio data').toString('base64');
+      
+      // Act - Create a session
+      await processStreamingAudio(mockWs, sessionId, audioBase64, true, 'en-US');
+      
+      // Assert - At minimum, we should have created a session
+      const sessions = sessionManager.getAllSessions();
+      expect(sessions.has(sessionId)).toBe(true);
+    });
+    
+    it('should handle processing of accumulated chunks with empty audio buffer', async () => {
+      // Arrange - Create a session with no audio chunks
+      const sessionId = 'empty-buffer-session';
+      
+      // Create a session without any audio data
+      await processStreamingAudio(mockWs, sessionId, '', true, 'en-US');
+      
+      // Clear the session's audio buffer to simulate empty accumulated chunks
+      const sessions = sessionManager.getAllSessions();
+      const session = sessions.get(sessionId);
+      if (session) {
+        session.audioBuffer = [];
+      }
+      
+      // Act - Finalize with empty buffer
+      await finalizeStreamingSession(mockWs, sessionId);
+      
+      // Assert - Should handle gracefully without errors
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+    
+    it('should handle non-existent session in finalizeStreamingSession', async () => {
+      // Act - Attempt to finalize a non-existent session
+      await finalizeStreamingSession(mockWs, 'non-existent-session-id');
+      
+      // Assert - Should handle gracefully
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+      // No assertions needed beyond not throwing
+    });
+    
+    it('should handle session deletion properly', async () => {
+      // Arrange - Create a session
+      const sessionId = 'session-to-delete';
+      const audioBase64 = Buffer.from('audio to delete').toString('base64');
+      await processStreamingAudio(mockWs, sessionId, audioBase64, true, 'en-US');
+      
+      // Act - Delete the session
+      const deleted = sessionManager.deleteSession(sessionId);
+      
+      // Assert
+      expect(deleted).toBe(true);
+      
+      // Verify session is gone
+      const sessions = sessionManager.getAllSessions();
+      expect(sessions.has(sessionId)).toBe(false);
+    });
+    
+    it('should handle attempt to delete non-existent session', async () => {
+      // Act - Try to delete a session that doesn't exist
+      const deleted = sessionManager.deleteSession('non-existent-session-id');
+      
+      // Assert
+      expect(deleted).toBe(false);
+    });
+    
+    it('should properly clean up inactive sessions', async () => {
+      // Arrange - Create sessions with different last chunk times
+      const recentSessionId = 'recent-session';
+      const oldSessionId = 'old-session';
+      
+      // Create the sessions
+      await processStreamingAudio(mockWs, recentSessionId, Buffer.from('recent').toString('base64'), true, 'en-US');
+      await processStreamingAudio(mockWs, oldSessionId, Buffer.from('old').toString('base64'), true, 'en-US');
+      
+      // Make the old session inactive by setting lastChunkTime far in the past
+      const sessions = sessionManager.getAllSessions();
+      const oldSession = sessions.get(oldSessionId);
+      if (oldSession) {
+        oldSession.lastChunkTime = Date.now() - (60 * 60 * 1000); // 1 hour ago
+      }
+      
+      // Act - Clean up with a short max age (30 minutes)
+      cleanupInactiveStreamingSessions(30 * 60 * 1000);
+      
+      // Assert - Old session should be removed, recent one should remain
+      const remainingSessions = sessionManager.getAllSessions();
+      expect(remainingSessions.has(recentSessionId)).toBe(true);
+      expect(remainingSessions.has(oldSessionId)).toBe(false);
+    });
+    
+    it('should handle malformed language codes gracefully', async () => {
+      // Arrange
+      const sessionId = 'invalid-lang-session';
+      const audioBase64 = Buffer.from('test audio with bad language').toString('base64');
+      
+      // Act - Send invalid language code
+      await processStreamingAudio(mockWs, sessionId, audioBase64, true, ''); // Empty language code
+      
+      // Assert - Session should exist, even with an empty language
+      const sessions = sessionManager.getAllSessions();
+      const session = sessions.get(sessionId);
+      expect(session).toBeDefined();
+      
+      // The implementation might set a default language or leave it empty,
+      // either way, it shouldn't throw errors
+      if (session) {
+        expect(typeof session.language).toBe('string');
+      }
+    });
+    
+    it('should handle concurrent audio processing requests', async () => {
+      // Arrange - Create multiple sessions
+      const sessionIds = ['concurrent1', 'concurrent2', 'concurrent3'];
+      const audioBase64 = Buffer.from('concurrent audio').toString('base64');
+      
+      // Act - Process multiple audio chunks concurrently
+      await Promise.all(
+        sessionIds.map(id => processStreamingAudio(mockWs, id, audioBase64, true, 'en-US'))
+      );
+      
+      // Assert - All sessions should be created
+      const sessions = sessionManager.getAllSessions();
+      sessionIds.forEach(id => {
+        expect(sessions.has(id)).toBe(true);
+      });
+    });
+  });
 });
