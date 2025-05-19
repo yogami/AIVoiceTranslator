@@ -11,9 +11,11 @@ import {
 
 // Mock the TextToSpeechService module
 vi.mock('../../../server/services/TextToSpeechService', () => ({
-  ttsFactory: vi.fn().mockReturnValue({
-    synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock-audio-buffer'))
-  }),
+  ttsFactory: {
+    getService: vi.fn().mockReturnValue({
+      synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock-audio-buffer'))
+    })
+  },
   textToSpeechService: {
     synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock-audio-buffer'))
   }
