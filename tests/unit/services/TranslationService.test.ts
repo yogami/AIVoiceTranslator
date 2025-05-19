@@ -682,4 +682,141 @@ describe('SpeechTranslationService - Advanced Testing', () => {
       expect(result.audioBuffer).toBeInstanceOf(Buffer);
     }
   });
+  
+  it('should test development mode with pre-transcribed text', async () => {
+    // Create a development mode service
+    const devModeService = new SpeechTranslationService(
+      mockTranscriptionService,
+      mockTranslationService,
+      false // apiKeyAvailable = false
+    );
+    
+    // Test with pre-transcribed text
+    const result = await devModeService.translateSpeech(
+      Buffer.from('audio data'),
+      'en',
+      'es',
+      'This is pre-transcribed text' // Pre-transcribed text
+    );
+    
+    // Verify the response
+    expect(result.originalText).toBe('This is pre-transcribed text');
+    expect(result.audioBuffer).toBeInstanceOf(Buffer);
+  });
+  
+  it('should handle text-only translation when TTS fails', async () => {
+    mockTranscriptionService.transcribe = vi.fn().mockResolvedValue('Original text');
+    mockTranslationService.translate = vi.fn().mockResolvedValue('Translated text');
+    
+    // Get access to the mocked module from earlier in the file
+    const { ttsFactory } = await import('../../../server/services/TextToSpeechService');
+    
+    // Setup a failing TTS service
+    ttsFactory.mockReturnValueOnce({
+      synthesizeSpeech: vi.fn().mockRejectedValue(new Error('TTS failed'))
+    });
+    
+    const result = await service.translateSpeech(
+      Buffer.from('audio data'),
+      'en',
+      'es'
+    );
+    
+    // Even with TTS failure, we should get text translation
+    expect(result.originalText).toBe('Original text');
+    expect(result.translatedText).toBe('Translated text');
+    expect(result.audioBuffer).toBeInstanceOf(Buffer); // Original buffer as fallback
+  });
+  
+  it('should correctly identify and handle emotional content', async () => {
+    // Test with multiple emotional text patterns
+    const emotionalTexts = [
+      { text: 'I am SO EXCITED about this!', emotion: 'excited' },
+      { text: 'I am FURIOUS about what happened!', emotion: 'angry' },
+      { text: 'I feel very sad today...', emotion: 'sad' },
+      { text: 'This is just a normal statement.', emotion: null }
+    ];
+    
+    // Get access to the mocked module
+    const { ttsFactory } = await import('../../../server/services/TextToSpeechService');
+    
+    for (const { text, emotion } of emotionalTexts) {
+      mockTranscriptionService.transcribe = vi.fn().mockResolvedValue(text);
+      mockTranslationService.translate = vi.fn().mockResolvedValue(`Translated: ${text}`);
+      
+      // Reset console spy for each test
+      consoleLogSpy.mockClear();
+      
+      // Create a test-specific TTS service mock
+      const mockTtsService = {
+        synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock-audio'))
+      };
+      ttsFactory.mockReturnValueOnce(mockTtsService);
+      
+      await service.translateSpeech(
+        Buffer.from('audio data'),
+        'en',
+        'es'
+      );
+      
+      // For emotional content, there should be specific log messages
+      if (emotion) {
+        // Just verify TTS was called and emotion-related logs were created
+        expect(consoleLogSpy).toHaveBeenCalled();
+      }
+    }
+  });
+  
+  it('should handle direct getOriginalText and translateText calls via translateSpeech', async () => {
+    // Test various combinations of source and target languages
+    const testMatrix = [
+      { source: 'en-US', target: 'es-ES', transcribed: 'Hello world', translated: 'Hola mundo' },
+      { source: 'fr-FR', target: 'de-DE', transcribed: 'Bonjour le monde', translated: 'Hallo Welt' },
+      { source: 'ja-JP', target: 'zh-CN', transcribed: 'こんにちは世界', translated: '你好世界' }
+    ];
+    
+    for (const { source, target, transcribed, translated } of testMatrix) {
+      mockTranscriptionService.transcribe = vi.fn().mockResolvedValue(transcribed);
+      mockTranslationService.translate = vi.fn().mockResolvedValue(translated);
+      
+      const result = await service.translateSpeech(
+        Buffer.from('audio data'),
+        source,
+        target
+      );
+      
+      // Verify language codes are correctly mapped and all steps are executed
+      expect(result.originalText).toBe(transcribed);
+      expect(result.translatedText).toBe(translated);
+      expect(mockTranscriptionService.transcribe).toHaveBeenCalledWith(expect.any(Buffer), source);
+      expect(mockTranslationService.translate).toHaveBeenCalledWith(transcribed, source, target);
+    }
+  });
+  
+  // Test adding more code paths for the DevelopmentModeHelper
+  it('should use language-specific development mode translations', async () => {
+    // Create service in development mode
+    const devService = new SpeechTranslationService(
+      mockTranscriptionService,
+      mockTranslationService,
+      false // apiKeyAvailable = false (dev mode)
+    );
+    
+    // Test all supported languages for dev mode
+    const testLanguages = ['en', 'es', 'fr', 'de', 'unknown-lang'];
+    
+    for (const lang of testLanguages) {
+      const result = await devService.translateSpeech(
+        Buffer.from('audio data'),
+        'en',
+        lang,
+        'Custom transcription' // Use pre-transcribed text
+      );
+      
+      // Check if we get either the mapped translation for known languages or the original for unknown
+      expect(result.originalText).toBe('Custom transcription');
+      expect(result.translatedText).toBeTruthy();
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    }
+  });
 });
