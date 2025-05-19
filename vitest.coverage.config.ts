@@ -10,6 +10,7 @@ export default defineConfig({
         'server/routes.ts',           // Include API routes
         'server/openai-streaming.ts', // Include streaming functionality
         'server/openai.ts',           // Include OpenAI integration
+        'server/websocket.ts',        // Include WebSocket functionality
       ],
       exclude: [
         'server/vite.ts',             // Exclude infrastructure code
