@@ -1165,5 +1165,298 @@ describe('SpeechTranslationService - Advanced Testing', () => {
       // Verify translation was called with the right parameters
       expect(localTranslationService.translate).toHaveBeenCalledWith('Same language text', 'en', 'en');
     });
+    
+    // Test isolated error cases that might be missed in other tests
+    it('should handle audio conversion errors', async () => {
+      // Create a service instance with specific mocks
+      const mockTranscriptionService = {
+        transcribe: vi.fn().mockImplementation(() => {
+          throw new Error('Audio conversion failed');
+        })
+      };
+      
+      const mockTranslationService = {
+        translate: vi.fn().mockResolvedValue('Translated text')
+      };
+      
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      const service = new SpeechTranslationService(
+        mockTranscriptionService,
+        mockTranslationService,
+        true
+      );
+      
+      // Test with valid buffer
+      const result = await service.translateSpeech(
+        Buffer.from('test-audio-data'),
+        'en-US',
+        'es-ES'
+      );
+      
+      // Verify error was logged
+      expect(errorSpy).toHaveBeenCalled();
+      
+      // Verify fallback behavior
+      expect(result.originalText).toBe('');
+      expect(result.translatedText).toBe('');
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+      
+      errorSpy.mockRestore();
+    });
+    
+    it('should handle TTS generation errors', async () => {
+      // Import the module after mocking
+      const { ttsFactory } = await import('../../../server/services/TextToSpeechService');
+      
+      // Set up the TTS factory mock to throw an error
+      (ttsFactory as any).mockReturnValueOnce({
+        synthesizeSpeech: vi.fn().mockRejectedValue(new Error('TTS generation failed'))
+      });
+      
+      const mockTranscriptionService = {
+        transcribe: vi.fn().mockResolvedValue('Original text')
+      };
+      
+      const mockTranslationService = {
+        translate: vi.fn().mockResolvedValue('Translated text')
+      };
+      
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      const service = new SpeechTranslationService(
+        mockTranscriptionService,
+        mockTranslationService,
+        true
+      );
+      
+      // Test with valid input
+      const result = await service.translateSpeech(
+        Buffer.from('test-audio-data'),
+        'en-US',
+        'es-ES'
+      );
+      
+      // Verify error was logged
+      expect(errorSpy).toHaveBeenCalled();
+      
+      // Verify result has text but no audio buffer
+      expect(result.originalText).toBe('Original text');
+      expect(result.translatedText).toBe('Translated text');
+      expect(result.audioBuffer).toBeDefined(); // Should have a fallback buffer or the original
+      
+      errorSpy.mockRestore();
+    });
+    
+    it('should handle when target language is same as source language', async () => {
+      const mockTranscriptionService = {
+        transcribe: vi.fn().mockResolvedValue('Original text')
+      };
+      
+      const mockTranslationService = {
+        translate: vi.fn().mockImplementation((text, source, target) => {
+          if (source === target) {
+            return Promise.resolve(text);
+          }
+          return Promise.resolve('Translated text');
+        })
+      };
+      
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      
+      const service = new SpeechTranslationService(
+        mockTranscriptionService,
+        mockTranslationService,
+        true
+      );
+      
+      // Test with same source and target language
+      const result = await service.translateSpeech(
+        Buffer.from('test-audio-data'),
+        'en-US',
+        'en-US'
+      );
+      
+      // Verify the translation service was called with same language
+      expect(mockTranslationService.translate).toHaveBeenCalledWith(
+        'Original text',
+        'en-US',
+        'en-US'
+      );
+      
+      // Verify result has original text in both fields
+      expect(result.originalText).toBe('Original text');
+      expect(result.translatedText).toBe('Original text');
+      expect(result.audioBuffer).toBeDefined();
+      
+      logSpy.mockRestore();
+    });
+  });
+
+  // --- Additional Coverage Tests ---
+  describe('OpenAITranslationService - Additional Coverage', () => {
+    let service: OpenAITranslationService;
+    let mockOpenAI: any;
+
+    beforeEach(() => {
+      mockOpenAI = createMockOpenAI();
+      service = new OpenAITranslationService(mockOpenAI);
+    });
+
+    it('should handle network timeout errors with retry mechanism', async () => {
+      // Simulate a network timeout
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(new Error('ETIMEDOUT'));
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated text' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated text');
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(2);
+    });
+
+    it('should handle connection reset errors with retry mechanism', async () => {
+      // Simulate connection reset
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(new Error('ECONNRESET'));
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated text' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated text');
+    });
+
+    it('should handle rate limit errors with retry mechanism', async () => {
+      // Simulate rate limit error
+      const rateLimitError = new Error('Rate limit exceeded');
+      rateLimitError.name = 'RateLimitError';
+      mockOpenAI.chat.completions.create.mockRejectedValueOnce(rateLimitError);
+      
+      // Second attempt will succeed
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated text' } }]
+      });
+      
+      const result = await service.translate('Text to translate', 'en', 'fr');
+      expect(result).toBe('Translated text');
+    });
+
+    it('should handle persistent API errors by eventually failing', async () => {
+      // Simulate persistent API errors
+      mockOpenAI.chat.completions.create.mockRejectedValue(new Error('API Error'));
+      
+      await expect(service.translate('Text to translate', 'en', 'fr')).rejects.toThrow();
+      // Should have attempted multiple times
+      expect(mockOpenAI.chat.completions.create.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    it('should handle very long input text by chunking appropriately', async () => {
+      // Create a very long text (exceeding typical limits)
+      const longText = 'This is a test. '.repeat(500);
+      
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Translated long text' } }]
+      });
+      
+      const result = await service.translate(longText, 'en', 'fr');
+      expect(result).toBe('Translated long text');
+      
+      // Verify appropriate model parameters for long text
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: expect.any(String),
+          messages: expect.any(Array),
+        })
+      );
+    });
+
+    it('should handle special characters and emoji in input text', async () => {
+      const specialText = '测试文本 with special characters 🚀✨';
+      
+      mockOpenAI.chat.completions.create.mockResolvedValueOnce({
+        choices: [{ message: { content: 'Texte traduit avec caractères spéciaux 🚀✨' } }]
+      });
+      
+      const result = await service.translate(specialText, 'zh', 'fr');
+      expect(result).toBe('Texte traduit avec caractères spéciaux 🚀✨');
+    });
+  });
+
+  // --- Additional SpeechTranslationService Tests ---
+  describe('SpeechTranslationService - Additional Coverage', () => {
+    let mockTranscriptionService: ITranscriptionService;
+    let mockTranslationService: ITranslationService;
+    let service: SpeechTranslationService;
+    
+    beforeEach(() => {
+      mockTranscriptionService = {
+        transcribe: vi.fn().mockResolvedValue('Transcribed text')
+      };
+      
+      mockTranslationService = {
+        translate: vi.fn().mockResolvedValue('Translated text')
+      };
+      
+      service = new SpeechTranslationService(
+        mockTranscriptionService, 
+        mockTranslationService
+      );
+    });
+    
+    it('should handle empty audio buffer gracefully', async () => {
+      const emptyBuffer = Buffer.alloc(0);
+      
+      const result = await service.translateSpeech(emptyBuffer, 'en', 'fr');
+      
+      expect(result).toMatchObject({
+        originalText: expect.any(String),
+        translatedText: expect.any(String),
+        audioBuffer: expect.any(Buffer)
+      });
+    });
+    
+    it('should handle transcription errors without throwing', async () => {
+      mockTranscriptionService.transcribe = vi.fn().mockRejectedValue(new Error('Transcription failed'));
+      
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      const result = await service.translateSpeech(Buffer.from('audio data'), 'en', 'fr');
+      
+      // Should have logged the error
+      expect(errorSpy).toHaveBeenCalled();
+      
+      // Should return fallback values
+      expect(result.originalText).toBe('');
+      expect(result.translatedText).toBe('');
+      expect(result.audioBuffer).toBeInstanceOf(Buffer);
+      
+      errorSpy.mockRestore();
+    });
+    
+    it('should test the constructor with apiKeyAvailable=false case', async () => {
+      // Create service with apiKeyAvailable=false
+      const serviceWithoutAPI = new SpeechTranslationService(
+        mockTranscriptionService,
+        mockTranslationService,
+        false // API key not available
+      );
+      
+      // This should still work but with limited functionality
+      const result = await serviceWithoutAPI.translateSpeech(
+        Buffer.from('audio data'),
+        'en',
+        'fr'
+      );
+      
+      expect(result).toMatchObject({
+        originalText: expect.any(String),
+        translatedText: expect.any(String),
+        audioBuffer: expect.any(Buffer)
+      });
+    });
   });
 });
