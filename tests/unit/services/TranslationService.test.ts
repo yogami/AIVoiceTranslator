@@ -19,6 +19,9 @@ vi.mock('../../../server/services/TextToSpeechService', () => ({
   }
 }));
 
+// Import OpenAI type
+import OpenAI from 'openai';
+
 // Helper to create a properly structured OpenAI mock
 function createMockOpenAI() {
   return {
@@ -31,8 +34,12 @@ function createMockOpenAI() {
       transcriptions: {
         create: vi.fn()
       }
-    }
-  };
+    },
+    // Add minimal required properties to satisfy TypeScript
+    apiKey: 'test-api-key',
+    organization: 'test-org',
+    _options: {}
+  } as unknown as OpenAI;
 }
 
 describe('OpenAITranslationService', () => {
@@ -863,78 +870,176 @@ describe('SpeechTranslationService - Advanced Testing', () => {
   
   // Split error handling into separate tests for better reliability
   describe('Error handling in translation', () => {
-    let simpleTranslationService: OpenAITranslationService;
+    // Create completely isolated tests without shared state
     
-    beforeEach(() => {
-      simpleTranslationService = new OpenAITranslationService(mockOpenAI);
-      consoleErrorSpy.mockClear();
-      mockOpenAI.chat.completions.create.mockClear();
-    });
+    // Note: We won't use beforeEach or afterEach hooks to avoid shared state
     
     it('should handle generic errors gracefully', async () => {
-      mockOpenAI.chat.completions.create.mockRejectedValueOnce(new Error('Generic Error'));
+      // Setup fake timers to control delays
+      vi.useFakeTimers();
       
-      const result = await simpleTranslationService.translate('Test text', 'en', 'es');
+      // Re-create console spies just for this test
+      const testConsoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      
+      // Create a completely standalone mock for this test
+      const mockOpenAIForThisTestOnly = {
+        chat: {
+          completions: {
+            create: vi.fn().mockRejectedValue(new Error('Generic Error'))
+          }
+        }
+      } as any;
+      
+      // Create an isolated service instance specific to this test
+      const isolatedService = new OpenAITranslationService(mockOpenAIForThisTestOnly);
+      
+      // Start the translate operation (which will retry and use setTimeout internally)
+      const resultPromise = isolatedService.translate('Test text', 'en', 'es');
+      
+      // Fast forward past all timeouts
+      await vi.runAllTimersAsync();
+      
+      // Now await the result
+      const result = await resultPromise;
       
       expect(result).toBe('');
-      expect(consoleErrorSpy).toHaveBeenCalled();
-    });
+      expect(testConsoleErrorSpy).toHaveBeenCalled();
+      
+      // Clean up after ourselves
+      testConsoleErrorSpy.mockRestore();
+      vi.useRealTimers();
+    }, 10000);
     
     it('should handle rate limit errors (429)', async () => {
-      const rateError = Object.assign(new Error('Rate limit'), { status: 429 });
-      mockOpenAI.chat.completions.create.mockRejectedValueOnce(rateError);
+      // Setup fake timers to control delays
+      vi.useFakeTimers();
       
-      const result = await simpleTranslationService.translate('Test text', 'en', 'es');
+      // Create test-specific console spy
+      const testConsoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
+      // Create completely standalone mock just for this test
+      const mockOpenAIForThisTestOnly = {
+        chat: {
+          completions: {
+            create: vi.fn().mockRejectedValue(
+              Object.assign(new Error('Rate limit'), { status: 429 })
+            )
+          }
+        }
+      } as any;
+      
+      // Create a completely isolated service instance
+      const isolatedService = new OpenAITranslationService(mockOpenAIForThisTestOnly);
+      
+      // Start the translate operation (which will retry and use setTimeout internally)
+      const resultPromise = isolatedService.translate('Test text', 'en', 'es');
+      
+      // Fast forward past all timeouts
+      await vi.runAllTimersAsync();
+      
+      // Now await the result
+      const result = await resultPromise;
+      
+      // Verify expectations
       expect(result).toBe('');
-      expect(consoleErrorSpy).toHaveBeenCalled();
-    });
+      expect(testConsoleErrorSpy).toHaveBeenCalled();
+      
+      // Clean up
+      testConsoleErrorSpy.mockRestore();
+      vi.useRealTimers();
+    }, 10000);
     
     it('should handle bad request errors (400) without retrying', async () => {
-      const badRequestError = Object.assign(new Error('Bad request'), { status: 400 });
-      mockOpenAI.chat.completions.create.mockRejectedValueOnce(badRequestError);
+      // Setup fake timers to control delays
+      vi.useFakeTimers();
       
-      const result = await simpleTranslationService.translate('Test text', 'en', 'es');
+      // Create test-specific console spy
+      const testConsoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
+      // Create completely standalone mock just for this test
+      const mockOpenAIForThisTestOnly = {
+        chat: {
+          completions: {
+            create: vi.fn().mockRejectedValue(
+              Object.assign(new Error('Bad request'), { status: 400 })
+            )
+          }
+        }
+      } as any;
+      
+      // Create a completely isolated service instance
+      const isolatedService = new OpenAITranslationService(mockOpenAIForThisTestOnly);
+      
+      // Start the translate operation
+      const resultPromise = isolatedService.translate('Test text', 'en', 'es');
+      
+      // Fast forward past all timeouts
+      await vi.runAllTimersAsync();
+      
+      // Now await the result
+      const result = await resultPromise;
+      
+      // Verify expectations
       expect(result).toBe('');
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1);
-    });
+      expect(testConsoleErrorSpy).toHaveBeenCalled();
+      
+      // Check our local mock was called just once (no retries for 400 errors)
+      expect(mockOpenAIForThisTestOnly.chat.completions.create).toHaveBeenCalledTimes(1);
+      
+      // Clean up
+      testConsoleErrorSpy.mockRestore();
+      vi.useRealTimers();
+    }, 10000);
   });
   
   // Split into individual test cases to avoid file I/O complications
   describe('OpenAITranscriptionService - focused tests', () => {
-    // Create a focused version of the transcription service just for these tests
-    let transcriptionService: ITranscriptionService;
+    // We will create separate mocks for each test to ensure complete isolation
     
     beforeEach(() => {
-      // Use a simplified mock implementation focused on what we're testing
-      transcriptionService = {
-        transcribe: vi.fn().mockImplementation(async (buffer: Buffer, lang: string) => {
-          // Always return consistent results for predictable tests
-          return 'Transcribed text';
-        })
-      };
+      // Reset all mocks before each test to avoid interference
+      vi.resetAllMocks();
+    });
+
+    afterEach(() => {
+      // Clean up after each test
+      vi.resetAllMocks();
     });
     
-    it('should handle different buffer sizes', async () => {
-      // Override the mock for this specific test
-      transcriptionService.transcribe = vi.fn()
-        .mockImplementationOnce(() => 'Small buffer result')
-        .mockImplementationOnce(() => 'Transcribed text');
+    // Create a separate test with a descriptive name to improve isolation
+    it('should verify transcription works with small buffers', async () => {
+      // Simple mock for a specific size 
+      const mockService = {
+        transcribe: vi.fn().mockResolvedValue('Small buffer result')
+      };
       
       const smallBuffer = Buffer.alloc(500);
-      const result1 = await transcriptionService.transcribe(smallBuffer, 'en-US');
-      expect(result1).toBe('Small buffer result');
+      const result = await mockService.transcribe(smallBuffer, 'en-US');
+      expect(result).toBe('Small buffer result');
+      expect(mockService.transcribe).toHaveBeenCalledWith(smallBuffer, 'en-US');
+    });
+    
+    // Separate test for larger buffers to avoid mock call count issues
+    it('should verify transcription works with normal buffers', async () => {
+      // Separate mock to avoid any shared state
+      const mockService = {
+        transcribe: vi.fn().mockResolvedValue('Transcribed text')
+      };
       
       const normalBuffer = Buffer.alloc(16000);
-      const result2 = await transcriptionService.transcribe(normalBuffer, 'en-US');
-      expect(result2).toBe('Transcribed text');
+      const result = await mockService.transcribe(normalBuffer, 'en-US');
+      expect(result).toBe('Transcribed text');
+      expect(mockService.transcribe).toHaveBeenCalledWith(normalBuffer, 'en-US');
     });
     
     it('should be aware of prompt injection patterns', async () => {
       // This is a pattern we want to test for, but in a real implementation the filtering
       // might be implemented in a different way than we expect in tests
+      
+      // Create a dedicated mock service for this test
+      const mockInjectionService = {
+        transcribe: vi.fn().mockResolvedValue('Transcribed text with filtering applied')
+      };
       
       // Let's modify our test to verify injection awareness in a different way
       const suspiciousPatterns = [
@@ -947,11 +1052,15 @@ describe('SpeechTranslationService - Advanced Testing', () => {
       
       // Test the component's awareness of these patterns
       for (const pattern of suspiciousPatterns) {
-        // Check if our code will handle potentially suspicious text
-        const result = await transcriptionService.transcribe(Buffer.alloc(16000), 'en-US');
+        // Create a buffer with the pattern
+        const buffer = Buffer.from(pattern);
+        
+        // Call the mock service
+        const result = await mockInjectionService.transcribe(buffer, 'en-US');
         
         // Just verify that the transcription service is being called properly
-        expect(transcriptionService.transcribe).toHaveBeenCalled();
+        expect(mockInjectionService.transcribe).toHaveBeenCalled();
+        expect(result).toBe('Transcribed text with filtering applied');
       }
     });
   });
@@ -959,8 +1068,17 @@ describe('SpeechTranslationService - Advanced Testing', () => {
   // Break down complex scenarios into smaller, focused tests
   describe('SpeechTranslationService - Complex Scenarios', () => {
     beforeEach(() => {
+      // Reset all mocks before each test
+      vi.resetAllMocks();
+      
+      // Create fresh mock implementations for each test
       mockTranscriptionService.transcribe = vi.fn().mockResolvedValue('Test transcription');
       mockTranslationService.translate = vi.fn().mockResolvedValue('Test translation');
+    });
+    
+    afterEach(() => {
+      // Clean up after each test
+      vi.resetAllMocks();
     });
     
     it('should handle empty transcription correctly', async () => {
@@ -997,30 +1115,28 @@ describe('SpeechTranslationService - Advanced Testing', () => {
     });
     
     it('should handle same source/target language', async () => {
-      // Create local, isolated mocks specifically for this test
-      const localTranscriptMock = {
+      // Use a completely fresh and isolated set of mocks
+      const localTranscriptionService = {
         transcribe: vi.fn().mockResolvedValue('Same language text')
       };
       
-      const localTranslateMock = {
-        translate: vi.fn().mockImplementation(async (text, src, tgt) => {
-          // If source and target are the same, return original text
-          if (src === tgt) {
-            return text;
-          }
-          return 'Translated: ' + text;
-        })
+      const localTranslationService = {
+        translate: vi.fn().mockResolvedValue('Same language text')
       };
       
-      // Create a new service instance with our isolated mocks
-      const sameLanguageService = new SpeechTranslationService(
-        localTranscriptMock,
-        localTranslateMock,
-        true
+      // Create an isolated service instance for this test only
+      const localService = new SpeechTranslationService(
+        localTranscriptionService,
+        localTranslationService,
+        true // API key is available
       );
       
-      const result = await sameLanguageService.translateSpeech(
-        Buffer.from('audio data'),
+      // The TextToSpeechService is already mocked at the module level in vi.mock
+      // So we don't need to explicitly mock it for this test
+      
+      // Test with same source and target language
+      const result = await localService.translateSpeech(
+        Buffer.from('test audio'),
         'en',
         'en'  // Same language
       );
@@ -1028,7 +1144,9 @@ describe('SpeechTranslationService - Advanced Testing', () => {
       // For same language, we expect original and translated text to be identical
       expect(result.originalText).toBe('Same language text');
       expect(result.translatedText).toBe('Same language text');
-      expect(result.originalText).toEqual(result.translatedText);
+      
+      // Verify translation was called with the right parameters
+      expect(localTranslationService.translate).toHaveBeenCalledWith('Same language text', 'en', 'en');
     });
   });
 });
