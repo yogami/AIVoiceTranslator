@@ -213,6 +213,125 @@ describe('OpenAI Streaming with Test Doubles', () => {
   });
 });
 
-// We've removed the tests that mock the system under test (sessionManager)
-// Those tests were testing implementation details rather than behavior
-// and provided limited value
+// TEST SECTION 3: Error Handling and Edge Cases
+describe('OpenAI Streaming Error Handling and Edge Cases', () => {
+  // Test double for WebSocket
+  class TestWebSocket {
+    sentMessages = [];
+    readyState = 1; // OPEN by default
+    
+    constructor(readyState = 1) {
+      this.sentMessages = [];
+      this.readyState = readyState;
+    }
+    
+    send(message) {
+      try {
+        this.sentMessages.push(JSON.parse(message));
+      } catch (e) {
+        this.sentMessages.push(message);
+      }
+    }
+  }
+  
+  // Spy on console methods
+  let consoleErrorSpy;
+  let mockWs;
+  
+  beforeEach(() => {
+    // Reset state and mocks
+    vi.clearAllMocks();
+    mockWs = new TestWebSocket();
+    
+    // Spy on console.error for error assertions
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+  
+  // Test processStreamingAudio with WebSocket send failure
+  it('should handle WebSocket send failures', async () => {
+    // Arrange
+    const sessionId = 'test-websocket-error';
+    const audioBase64 = Buffer.from('test audio data').toString('base64');
+    
+    // Make the WebSocket.send method throw an error
+    mockWs.send = vi.fn().mockImplementation(() => {
+      throw new Error('Network error');
+    });
+    
+    // Act - Even with the error, this should not throw
+    await processStreamingAudio(mockWs, sessionId, audioBase64, true, 'en-US');
+    
+    // Assert - No crash means the test passes
+    expect(true).toBe(true);
+  });
+  
+  // Test processStreamingAudio with closed WebSocket
+  it('should handle closed WebSocket connection', async () => {
+    // Arrange
+    const closedWs = new TestWebSocket(3); // CLOSED state
+    const sessionId = 'test-closed-connection';
+    const audioBase64 = Buffer.from('test audio data').toString('base64');
+    
+    // Act
+    await processStreamingAudio(closedWs, sessionId, audioBase64, true, 'en-US');
+    
+    // Assert
+    // Should not have sent anything since connection is closed
+    expect(closedWs.sentMessages.length).toBe(0);
+  });
+  
+  // Test buffer size management in processAudioChunks
+  it('should handle very small audio buffers', async () => {
+    // Arrange - Create a session with a tiny buffer
+    const sessionId = 'test-small-buffer';
+    const tinyBuffer = Buffer.from('tiny').toString('base64');
+    
+    // Act - Process the tiny buffer
+    await processStreamingAudio(mockWs, sessionId, tinyBuffer, true, 'en-US');
+    
+    // The test passes if no exception is thrown
+    // The actual behavior is that small buffers are skipped for processing
+    expect(true).toBe(true);
+  });
+  
+  // Test finalizeStreamingSession with non-existent session
+  it('should handle finalizing a non-existent session', async () => {
+    // Act
+    await finalizeStreamingSession(mockWs, 'non-existent-session-id');
+    
+    // Assert - should not throw and should not add messages
+    expect(mockWs.sentMessages.length).toBe(0);
+  });
+  
+  // Test finalizeStreamingSession with error during processing
+  it('should handle errors during session finalization', async () => {
+    // Arrange - Create a valid session
+    const sessionId = 'test-finalize-error';
+    const audioBase64 = Buffer.from('some audio data').toString('base64');
+    await processStreamingAudio(mockWs, sessionId, audioBase64, true, 'en-US');
+    
+    // Force an error in the WebSocket.send method
+    mockWs.send = vi.fn().mockImplementation(() => {
+      throw new Error('Send failed');
+    });
+    
+    // Act
+    await finalizeStreamingSession(mockWs, sessionId);
+    
+    // Assert - Check that it ran without crashing
+    expect(true).toBe(true);
+  });
+  
+  // Test cleanupInactiveStreamingSessions function
+  it('should clean up inactive sessions safely', () => {
+    // Act - Call the function with a custom age parameter
+    cleanupInactiveStreamingSessions(1000);
+    
+    // Assert - Should not throw an error
+    expect(true).toBe(true);
+  });
+});
