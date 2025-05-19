@@ -6,7 +6,9 @@ import {
   ITranscriptionService, 
   OpenAITranscriptionService,
   SpeechTranslationService,
-  TranslationResult
+  TranslationResult,
+  translateSpeech,
+  speechTranslationService
 } from '../../../server/services/TranslationService';
 
 // Mock the TextToSpeechService module
@@ -43,6 +45,140 @@ function createMockOpenAI() {
     _options: {}
   } as unknown as OpenAI;
 }
+
+// Test the exported translateSpeech facade function
+describe('translateSpeech Function', () => {
+  let translateSpeechSpy: any;
+  let consoleLogSpy: any;
+  
+  beforeEach(() => {
+    translateSpeechSpy = vi.spyOn(speechTranslationService, 'translateSpeech');
+    translateSpeechSpy.mockResolvedValue({
+      originalText: 'Original text',
+      translatedText: 'Translated text',
+      audioBuffer: Buffer.from('mock-audio-buffer')
+    });
+    
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+  
+  afterEach(() => {
+    translateSpeechSpy.mockRestore();
+    consoleLogSpy.mockRestore();
+  });
+  
+  it('should handle string service type parameter', async () => {
+    const result = await translateSpeech(
+      Buffer.from('audio-data'),
+      'en',
+      'es',
+      undefined,
+      'openai'
+    );
+    
+    expect(result.originalText).toBe('Original text');
+    expect(result.translatedText).toBe('Translated text');
+    expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Using TTS service 'openai'")
+    );
+    
+    expect(translateSpeechSpy).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'en',
+      'es',
+      undefined,
+      { ttsServiceType: 'openai' }
+    );
+  });
+  
+  it('should handle object service type parameter', async () => {
+    const options = { ttsServiceType: 'browser' };
+    
+    const result = await translateSpeech(
+      Buffer.from('audio-data'),
+      'en',
+      'es',
+      'Pre-transcribed text',
+      options
+    );
+    
+    expect(result.originalText).toBe('Original text');
+    expect(result.translatedText).toBe('Translated text');
+    expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Using TTS service options:',
+      options
+    );
+    
+    expect(translateSpeechSpy).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'en',
+      'es',
+      'Pre-transcribed text',
+      options
+    );
+  });
+  
+  it('should handle undefined service type parameter', async () => {
+    const result = await translateSpeech(
+      Buffer.from('audio-data'),
+      'en',
+      'es'
+    );
+    
+    expect(result.originalText).toBe('Original text');
+    expect(result.translatedText).toBe('Translated text');
+    expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      'Using TTS service options:',
+      {}
+    );
+    
+    expect(translateSpeechSpy).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'en',
+      'es',
+      undefined,
+      {}
+    );
+  });
+});
+
+// Test the OpenAI initialization code
+describe('Facade Function Coverage', () => {
+  // Test the exported facade function further
+  it('should add coverage for the exported translateSpeech function', async () => {
+    const mockBuffer = Buffer.from('test-audio');
+    const mockResult = {
+      originalText: 'Original',
+      translatedText: 'Translated',
+      audioBuffer: Buffer.from('audio')
+    };
+    
+    // Spy on the speechTranslationService
+    const spy = vi.spyOn(speechTranslationService, 'translateSpeech');
+    spy.mockResolvedValue(mockResult);
+    
+    // With undefined TTS options
+    await translateSpeech(mockBuffer, 'en', 'fr');
+    expect(spy).toHaveBeenCalledWith(mockBuffer, 'en', 'fr', undefined, {});
+    
+    // With string TTS type
+    await translateSpeech(mockBuffer, 'en', 'es', undefined, 'openai');
+    expect(spy).toHaveBeenCalledWith(mockBuffer, 'en', 'es', undefined, { ttsServiceType: 'openai' });
+    
+    // With object TTS options
+    const options = { ttsServiceType: 'test' };
+    await translateSpeech(mockBuffer, 'en', 'de', 'pretext', options);
+    expect(spy).toHaveBeenCalledWith(mockBuffer, 'en', 'de', 'pretext', options);
+    
+    spy.mockRestore();
+  });
+});
 
 describe('OpenAITranslationService', () => {
   let service: ITranslationService;
