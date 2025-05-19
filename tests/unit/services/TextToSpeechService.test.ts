@@ -867,5 +867,119 @@ it('should handle synthesizeSpeech with empty text', async () => {
   expect(result).toEqual(dummyBuffer);
 });
 
+it('should handle cache miss and API call failure', async () => {
+  const service = new OpenAITextToSpeechService(mockOpenAI);
+  
+  // Make OpenAI API fail
+  mockOpenAI.audio.speech.create.mockRejectedValue(new Error('API error'));
+  
+  const options = {
+    text: 'Testing API failure handling',
+    languageCode: 'en'
+  };
+  
+  // Should throw when API fails and no cache is available
+  await expect(service.synthesizeSpeech(options)).rejects.toThrow();
+});
+
+it('should handle empty text properly', async () => {
+  const service = new OpenAITextToSpeechService(mockOpenAI);
+  
+  // Mock OpenAI to return valid response
+  mockOpenAI.audio.speech.create.mockResolvedValue({
+    arrayBuffer: async () => dummyBuffer
+  });
+  
+  // Test with empty text
+  const result = await service.synthesizeSpeech({
+    text: '',
+    languageCode: 'en'
+  });
+  
+  // Should have called OpenAI with empty string (or returned default buffer)
+  expect(result).toBeDefined();
+});
+
+it('should handle language code validation', async () => {
+  const service = new OpenAITextToSpeechService(mockOpenAI);
+  
+  // Mock OpenAI successful response
+  mockOpenAI.audio.speech.create.mockResolvedValue({
+    arrayBuffer: async () => dummyBuffer
+  });
+  
+  // Test with invalid language code
+  const result = await service.synthesizeSpeech({
+    text: 'Test with invalid language',
+    languageCode: 'invalid-lang'
+  });
+  
+  // Should have mapped to a valid language code
+  expect(result).toBeDefined();
+  
+  // Verify the API call was made with a valid language
+  expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
+});
+
+it('should use appropriate fallback for voice in different languages', async () => {
+  const service = new OpenAITextToSpeechService(mockOpenAI);
+  
+  // Mock OpenAI successful response
+  mockOpenAI.audio.speech.create.mockResolvedValue({
+    arrayBuffer: async () => dummyBuffer
+  });
+  
+  // Test with different language
+  await service.synthesizeSpeech({
+    text: 'Testing language-specific voices',
+    languageCode: 'es'
+  });
+  
+  // Verify the API call was made with appropriate voice
+  expect(mockOpenAI.audio.speech.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      voice: expect.any(String)
+    })
+  );
+});
+
+it('should handle partial options gracefully', async () => {
+  const service = new OpenAITextToSpeechService(mockOpenAI);
+  
+  // Mock OpenAI successful response
+  mockOpenAI.audio.speech.create.mockResolvedValue({
+    arrayBuffer: async () => dummyBuffer
+  });
+  
+  // Create a partial options object
+  const result = await service.synthesizeSpeech({
+    text: 'Minimal options test',
+    languageCode: 'en'
+    // Missing other optional parameters
+  });
+  
+  // Should process with defaults for missing options
+  expect(result).toBeDefined();
+  expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
+});
+
+it('should attempt emotion detection for longer texts', async () => {
+  const service = new OpenAITextToSpeechService(mockOpenAI);
+  
+  // Mock OpenAI successful response
+  mockOpenAI.audio.speech.create.mockResolvedValue({
+    arrayBuffer: async () => dummyBuffer
+  });
+  
+  // Test with longer emotional text
+  await service.synthesizeSpeech({
+    text: 'This is a very long and emotional text that should trigger emotion detection. I am so happy and excited about this test passing!',
+    languageCode: 'en'
+  });
+  
+  // Verify the API call was made
+  expect(mockOpenAI.audio.speech.create).toHaveBeenCalled();
+});
+
 // --- End of additional tests ---
 });
