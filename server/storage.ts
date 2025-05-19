@@ -268,5 +268,5 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Always use DatabaseStorage since we've set up the database
+// Replace MemStorage with DatabaseStorage since we've set up the PostgreSQL database
 export const storage = new DatabaseStorage();
