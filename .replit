@@ -7,15 +7,3 @@ packages = ["psmisc", "lsof"]
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 33455
-externalPort = 3002
-
-[[ports]]
-localPort = 41677
-externalPort = 3000
-
-[[ports]]
-localPort = 43733
-externalPort = 3001
