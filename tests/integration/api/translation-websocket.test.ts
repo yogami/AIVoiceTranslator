@@ -13,7 +13,7 @@ import { processStreamingAudio, finalizeStreamingSession } from '../../../server
 import { AddressInfo } from 'net';
 import * as WebSocket from 'ws';
 
-// We'll use this mock WebSocket class for testing
+// A specialized WebSocket class for testing
 class MockWebSocket {
   readyState = WebSocket.OPEN;
   sessionId?: string;
@@ -21,32 +21,59 @@ class MockWebSocket {
   role?: 'teacher' | 'student';
   languageCode?: string;
   
+  // For compatibility with the WebSocket interface
+  binaryType: string = 'arraybuffer';
+  bufferedAmount: number = 0;
+  extensions: string = '';
+  protocol: string = '';
+  url: string = 'ws://test';
+  
+  // Keep track of messages received for verification
+  messages: any[] = [];
+  
+  // Event handlers
   private listeners: Record<string, Array<(data?: any) => void>> = {
     'message': [],
     'close': [],
-    'error': []
+    'error': [],
+    'open': []
   };
   
+  // Mock send method that also triggers the 'message' event for immediate feedback
   send(data: string) {
     try {
-      // Simulate server processing the data and sending a message back to the client
-      // This is what happens in a real WebSocket - when you send data, the server processes it
-      // and may respond with another message
+      // Parse and store the message for verification
+      const message = JSON.parse(data);
+      this.messages.push(message);
       
-      // In our tests, we want to notify message listeners when data is sent 
-      // through the socket, so we trigger a message event
+      // Trigger message event so listeners receive the message
       this.trigger('message', data);
     } catch (e) {
+      console.error('Error processing WebSocket message:', e);
       this.trigger('error', e);
     }
   }
   
+  // Add event listener
   on(event: string, callback: (data?: any) => void) {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
     this.listeners[event].push(callback);
     return this;
+  }
+  
+  // Required WebSocket interface methods
+  addEventListener(event: string, callback: (data?: any) => void) {
+    return this.on(event, callback);
+  }
+  
+  removeEventListener() {
+    // Not implemented for tests
+  }
+  
+  dispatchEvent() {
+    return true;
   }
   
   close() {
@@ -65,41 +92,38 @@ class MockWebSocket {
 }
 
 describe('WebSocket Translation Integration', () => {
-  // Mock dependencies
+  // Setup for the test dependencies 
   beforeEach(() => {
-    // Reset all mocks before each test
+    // Reset mocks
     vi.resetAllMocks();
     
-    // Create real function mocks that will actually call our mock ws.send
-    vi.mock('../../../server/openai-streaming', () => {
-      return {
-        processStreamingAudio: vi.fn().mockImplementation(async (ws, sessionId, audioBase64, isFirstChunk, language) => {
-          // Directly call send on the websocket - this works with our MockWebSocket
-          if (ws && typeof ws.send === 'function') {
-            ws.send(JSON.stringify({
-              type: 'transcription',
-              sessionId,
-              text: 'Test transcription text',
-              isFinal: true,
-              languageCode: language || 'en-US'
-            }));
-          }
-          return Promise.resolve();
-        }),
-        finalizeStreamingSession: vi.fn().mockImplementation(async (ws, sessionId) => {
-          // Directly call send on the websocket
-          if (ws && typeof ws.send === 'function') {
-            ws.send(JSON.stringify({
-              type: 'finalize',
-              sessionId,
-              success: true
-            }));
-          }
-          return Promise.resolve();
-        }),
-        cleanupInactiveStreamingSessions: vi.fn()
-      };
-    });
+    // We need to ensure the original functions are restored
+    vi.restoreAllMocks();
+    
+    // Now instrument the original functions without mocking them
+    vi.spyOn(require('../../../server/openai-streaming'), 'processStreamingAudio')
+      .mockImplementation(async (ws, sessionId, audioBase64, isFirstChunk, language) => {
+        // Call the send method on the websocket so the message is registered
+        ws.send(JSON.stringify({
+          type: 'transcription',
+          sessionId,
+          text: 'Test transcription text',
+          isFinal: true,
+          languageCode: language || 'en-US'
+        }));
+        return Promise.resolve();
+      });
+    
+    vi.spyOn(require('../../../server/openai-streaming'), 'finalizeStreamingSession')
+      .mockImplementation(async (ws, sessionId) => {
+        // Call the send method on the websocket to trigger message event
+        ws.send(JSON.stringify({
+          type: 'finalize',
+          sessionId,
+          success: true
+        }));
+        return Promise.resolve();
+      });
   });
   
   afterEach(() => {

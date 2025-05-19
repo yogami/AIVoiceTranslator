@@ -40,22 +40,44 @@ class TestWebSocket {
   // Messages received
   messages: any[] = [];
   
-  // Simplified send method for testing
+  // Improved send method that actually stores the messages
   send(data: string): void {
     try {
       const message = JSON.parse(data);
       this.messages.push(message);
+      
+      // Also call onmessage if defined
+      if (this.onmessage) {
+        this.onmessage({
+          data: data,
+          type: 'message',
+          target: this
+        });
+      }
     } catch (e) {
       console.error('Failed to parse message:', e);
+      if (this.onerror) {
+        this.onerror({
+          error: e,
+          type: 'error',
+          target: this
+        });
+      }
     }
   }
   
   // Required WebSocket interface methods
   close(): void { 
-    if (this.onclose) this.onclose({ wasClean: true, code: 1000 });
+    if (this.onclose) this.onclose({ wasClean: true, code: 1000, target: this });
   }
   
-  addEventListener(): void { /* Not needed for our tests */ }
+  addEventListener(event: string, callback: any): void {
+    if (event === 'message') this.onmessage = callback;
+    else if (event === 'close') this.onclose = callback;
+    else if (event === 'error') this.onerror = callback;
+    else if (event === 'open') this.onopen = callback;
+  }
+  
   removeEventListener(): void { /* Not needed for our tests */ }
   dispatchEvent(): boolean { return true; }
 }
