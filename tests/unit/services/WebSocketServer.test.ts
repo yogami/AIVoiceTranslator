@@ -1622,20 +1622,20 @@ describe('WebSocketServer', () => {
       // Access the WebSocketServer instance
       const wsServerAny = wsServer as any;
       
-      // Create a client that throws errors on send
+      // Create a client that throws errors on ping
       const errorClient = createMockWebSocketClient();
       errorClient.isAlive = true;
-      errorClient.send = vi.fn().mockImplementation(() => {
+      errorClient.ping = vi.fn().mockImplementation(() => {
         throw new Error('Error sending ping message');
       });
       
-      // Store the client in a set
-      const testClients = new Set<any>();
-      testClients.add(errorClient);
+      // Save original connections
+      const originalConnections = wsServerAny.connections;
       
-      // Save original wss.clients
-      const originalClients = wsServerAny.wss.clients;
-      wsServerAny.wss.clients = testClients;
+      // Create a new connections set with our test client
+      const testConnections = new Set<any>();
+      testConnections.add(errorClient);
+      wsServerAny.connections = testConnections;
       
       // Mock setInterval to capture and execute the callback
       const originalSetInterval = global.setInterval;
@@ -1646,23 +1646,27 @@ describe('WebSocketServer', () => {
       });
       global.setInterval = mockSetInterval as any;
       
+      // Mock console.error to capture error message
+      const consoleErrorSpy = vi.spyOn(console, 'error');
+      
       // Run heartbeat setup - this should mark clients and send pings
       wsServerAny.setupHeartbeat();
       
       // Verify the client was marked as pending inactive
       expect(errorClient.isAlive).toBe(false);
       
-      // Verify ping was called
+      // Verify ping was called and threw an error
       expect(errorClient.ping).toHaveBeenCalled();
       
-      // Verify send was called and threw an error
-      expect(errorClient.send).toHaveBeenCalled();
+      // Verify error was logged
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error sending ping:', expect.any(Error));
       
       // No error should reach the test as it's caught in the try/catch
       
       // Restore original methods and objects
       global.setInterval = originalSetInterval;
-      wsServerAny.wss.clients = originalClients;
+      wsServerAny.connections = originalConnections;
+      consoleErrorSpy.mockRestore();
     });
     
     it('should handle connection errors gracefully', () => {
