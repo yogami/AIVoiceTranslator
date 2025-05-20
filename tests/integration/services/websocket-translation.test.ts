@@ -243,5 +243,4 @@ describe('WebSocket Translation Integration', () => {
         expect(true).toBe(true); // Don't fail the test
       }
     });
-  });
 });
