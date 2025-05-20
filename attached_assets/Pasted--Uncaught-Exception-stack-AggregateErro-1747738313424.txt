@@ -1,0 +1,71 @@
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+{
+  stack: 'AggregateError: \n' +
+    '    at internalConnectMultiple (node:net:1139:18)\n' +
+    '    at afterConnectMultiple (node:net:1714:7)',
+  errors: [
+    {
+      stack: 'Error: connect ECONNREFUSED ::1:80\n' +
+        '    at createConnectionError (node:net:1677:14)\n' +
+        '    at afterConnectMultiple (node:net:1707:16)',
+      message: 'connect ECONNREFUSED ::1:80',
+      errno: -61,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '::1',
+      port: 80,
+      constructor: 'Function<Error>',
+      name: 'Error',
+      toString: 'Function<toString>'
+    },
+    {
+      stack: 'Error: connect ECONNREFUSED 127.0.0.1:80\n' +
+        '    at createConnectionError (node:net:1677:14)\n' +
+        '    at afterConnectMultiple (node:net:1707:16)',
+      message: 'connect ECONNREFUSED 127.0.0.1:80',
+      errno: -61,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 80,
+      constructor: 'Function<Error>',
+      name: 'Error',
+      toString: 'Function<toString>'
+    }
+  ],
+  code: 'ECONNREFUSED',
+  stackStr: 'AggregateError: \n' +
+    '    at internalConnectMultiple (node:net:1139:18)\n' +
+    '    at afterConnectMultiple (node:net:1714:7)',
+  nameStr: 'AggregateError',
+  expected: 'undefined',
+  actual: 'undefined',
+  message: '',
+  constructor: 'Function<AggregateError>',
+  name: 'AggregateError',
+  toString: 'Function<toString>',
+  VITEST_TEST_NAME: undefined,
+  VITEST_TEST_PATH: '/Users/yamijala/gitprojects/AIVoiceTranslator/tests/unit/services/HeartbeatManager.test.ts',
+  VITEST_AFTER_ENV_TEARDOWN: undefined,
+  type: 'Uncaught Exception',
+  stacks: [
+    {
+      method: 'internalConnectMultiple',
+      file: 'node:net',
+      line: 1139,
+      column: 18
+    },
+    {
+      method: 'afterConnectMultiple',
+      file: 'node:net',
+      line: 1714,
+      column: 7
+    }
+  ]
+}
+ ❯ internalConnectMultiple node:net:1139:18
+ ❯ afterConnectMultiple node:net:1714:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errors: [ { stack: 'Error: connect ECONNREFUSED ::1:80\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)', message: 'connect ECONNREFUSED ::1:80', errno: -61, code: 'ECONNREFUSED', syscall: 'connect', address: '::1', port: 80, constructor: 'Function<Error>', name: 'Error', toString: 'Function<toString>' }, { stack: 'Error: connect ECONNREFUSED 127.0.0.1:80\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)', message: 'connect ECONNREFUSED 127.0.0.1:80', errno: -61, code: 'ECONNREFUSED', syscall: 'connect', address: '127.0.0.1', port: 80, constructor: 'Function<Error>', name: 'Error', toString: 'Function<toString>' } ], code: 'ECONNREFUSED' }
+This error originated in "tests/unit/services/HeartbeatManager.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
