@@ -7,7 +7,6 @@ import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
 import { speechTranslationService } from './TranslationService';
 import { URL } from 'url';
-import { HeartbeatManager } from './HeartbeatManager';
 
 // Custom WebSocketClient type for our server
 type WebSocketClient = WebSocket & {
@@ -28,9 +27,6 @@ export class WebSocketServer {
   private languages: Map<WebSocketClient, string> = new Map();
   private sessionIds: Map<WebSocketClient, string> = new Map();
   private clientSettings: Map<WebSocketClient, any> = new Map();
-  
-  // Heartbeat manager for connection health monitoring
-  private heartbeatManager: HeartbeatManager = new HeartbeatManager(30000);
   
   // Stats
   private sessionCounter: number = 0;
@@ -800,16 +796,42 @@ export class WebSocketServer {
   /**
    * Set up heartbeat mechanism to detect dead connections
    */
-  private setupHeartbeat(): void {
-    // Use our HeartbeatManager to handle connection health monitoring
-    this.heartbeatManager.startHeartbeat(
-      this.connections,
-      () => console.log('Heartbeat stopped')
-    );
+  /**
+   * Check if a client is alive and send a ping message
+   * Extracted as a separate method for better testability
+   */
+  private pingClientAndCheckStatus(ws: WebSocketClient): void {
+    if (ws.isAlive === false) {
+      console.log('Terminating inactive WebSocket connection');
+      ws.terminate();
+      return;
+    }
     
-    // Clean up when WebSocket server closes
+    // Mark as inactive first - will be marked active again if pong is received
+    ws.isAlive = false;
+    
+    try {
+      // Send ping to check if client is alive
+      ws.ping();
+    } catch (e) {
+      console.error('Error sending ping:', e);
+      // ws.isAlive remains false, connection will be terminated on next cycle
+    }
+  }
+  
+  /**
+   * Set up heartbeat mechanism to detect dead connections
+   */
+  private setupHeartbeat(): void {
+    const interval = setInterval(() => {
+      this.connections.forEach(ws => {
+        this.pingClientAndCheckStatus(ws);
+      });
+    }, 30000);
+    
+    // Clean up interval when WebSocket server closes
     this.wss.on('close', () => {
-      this.heartbeatManager.stopHeartbeat();
+      clearInterval(interval);
     });
   }
   
