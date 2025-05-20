@@ -247,6 +247,37 @@ describe('StreamingAudioProcessor', () => {
       expect(WebSocketCommunicator.sendTranscriptionResult).toHaveBeenCalled();
       expect(sessionManager.deleteSession).toHaveBeenCalledWith('test-session-1');
     });
+    
+    it('should handle missing session gracefully', async () => {
+      // Mock getSession to return undefined (no session found)
+      vi.spyOn(sessionManager, 'getSession').mockReturnValueOnce(undefined);
+      
+      // Call finalize - should not throw
+      await finalizeStreamingSession(mockWs, 'non-existent-session');
+      
+      // Should not try to process or delete a non-existent session
+      expect(audioTranscriptionService.transcribeAudio).not.toHaveBeenCalled();
+      expect(sessionManager.deleteSession).not.toHaveBeenCalled();
+    });
+    
+    it('should log errors during session finalization', async () => {
+      // Force an error during session deletion
+      vi.spyOn(sessionManager, 'deleteSession').mockImplementationOnce(() => {
+        throw new Error('Delete session error');
+      });
+      
+      // Make sure console.error is called
+      const consoleErrorSpy = vi.spyOn(console, 'error');
+      
+      // Finalize session - should handle the error
+      await finalizeStreamingSession(mockWs, 'test-session-1');
+      
+      // Should log the error
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error finalizing session'),
+        expect.any(Error)
+      );
+    });
   });
   
   describe('cleanupInactiveStreamingSessions', () => {
