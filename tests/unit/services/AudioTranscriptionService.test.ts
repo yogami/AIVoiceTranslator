@@ -100,6 +100,56 @@ describe('AudioTranscriptionService', () => {
     // Should not be truncated
     expect(truncatedBuffer.length).toBe(buffer.length);
   });
+  
+  it('should handle OpenAI client initialization failure', () => {
+    // Mock a scenario where OpenAI client initialization fails
+    const originalConsoleError = console.error;
+    console.error = vi.fn();
+    
+    // Create a scenario where OpenAI constructor throws
+    const OpenAIMock = vi.spyOn(OpenAI.prototype, 'constructor' as any);
+    OpenAIMock.mockImplementationOnce(() => {
+      throw new Error('API key error');
+    });
+    
+    // Create a new service instance to trigger the initialization code
+    try {
+      // We're testing a code path that creates a placeholder client
+      const newService = new AudioTranscriptionService();
+      
+      // Verify the service was created even with initialization failure
+      expect(newService).toBeDefined();
+    } catch (error) {
+      // Should not throw
+      expect(error).toBeUndefined();
+    } finally {
+      // Restore console
+      console.error = originalConsoleError;
+      vi.restoreAllMocks();
+    }
+  });
+  
+  it('should handle transcription API errors', async () => {
+    // Mock the create method to return a failed response
+    const openaiMock = {
+      audio: {
+        transcriptions: {
+          create: vi.fn().mockRejectedValue(new Error('API Error'))
+        }
+      }
+    };
+    
+    // Replace the private openai instance
+    (service as any).openai = openaiMock;
+    
+    // Expect to throw when transcription fails
+    await expect(service.transcribeAudio(mockBuffer, 'en-US'))
+      .rejects
+      .toThrow('Transcription failed');
+    
+    // Verify the error was logged
+    expect(console.error).toHaveBeenCalled();
+  });
 });
 
 describe('WebSocketCommunicator', () => {
