@@ -42,8 +42,8 @@ describe('HeartbeatManager', () => {
   let consoleErrorSpy: any;
   
   // Mock setInterval and clearInterval
-  const originalSetInterval = global.setInterval;
-  const originalClearInterval = global.clearInterval;
+  let originalSetInterval: any;
+  let originalClearInterval: any;
   const mockSetInterval = vi.fn().mockImplementation((cb, ms) => {
     // Execute callback immediately for testing
     cb();
