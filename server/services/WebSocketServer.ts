@@ -280,7 +280,53 @@ export class WebSocketServer {
       return;
     }
     
-    // Get all student connections
+    // Get all student connections and their languages
+    const { studentConnections, studentLanguages } = this.getStudentConnectionsAndLanguages();
+    
+    if (studentConnections.length === 0) {
+      console.log('No students connected, skipping translation');
+      return;
+    }
+    
+    // Translate text to all student languages
+    const teacherLanguage = this.languages.get(ws) || 'en-US';
+    
+    // Perform translations for all required languages
+    const { translations, translationResults, latencyInfo } = 
+      await this.translateToMultipleLanguages(
+        message.text, 
+        teacherLanguage, 
+        studentLanguages,
+        startTime,
+        latencyTracking
+      );
+    
+    // Update latency tracking with the results
+    Object.assign(latencyTracking.components, latencyInfo);
+    
+    // Calculate processing latency before sending translations
+    const processingEndTime = Date.now();
+    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
+    
+    // Send translations to students
+    this.sendTranslationsToStudents(
+      studentConnections,
+      message.text,
+      teacherLanguage,
+      translations,
+      translationResults,
+      startTime,
+      latencyTracking
+    );
+  }
+  
+  /**
+   * Get all student connections and their unique languages
+   */
+  private getStudentConnectionsAndLanguages(): { 
+    studentConnections: WebSocketClient[], 
+    studentLanguages: string[] 
+  } {
     const studentConnections: WebSocketClient[] = [];
     const studentLanguages: string[] = [];
     
@@ -298,42 +344,61 @@ export class WebSocketServer {
       }
     });
     
-    if (studentConnections.length === 0) {
-      console.log('No students connected, skipping translation');
-      return;
+    return { studentConnections, studentLanguages };
+  }
+  
+  /**
+   * Translate text to multiple languages
+   */
+  private async translateToMultipleLanguages(
+    text: string,
+    sourceLanguage: string,
+    targetLanguages: string[],
+    startTime: number,
+    latencyTracking: {
+      start: number;
+      components: {
+        preparation: number;
+        translation: number;
+        tts: number;
+        processing: number;
+      };
     }
-    
-    // Translate text to all student languages
-    const teacherLanguage = this.languages.get(ws) || 'en-US';
-    
-    // Using our new speechTranslationService to perform translations
-    // This is a simplified implementation as we don't have translateTextToMultipleLanguages in the service
+  ): Promise<{
+    translations: Record<string, string>;
+    translationResults: Record<string, { 
+      originalText: string;
+      translatedText: string;
+      audioBuffer: Buffer;
+    }>;
+    latencyInfo: {
+      translation: number;
+      tts: number;
+    };
+  }> {
+    // Storage for translations
     const translations: Record<string, string> = {};
-    
-    // Translate for each language
-    // Define a type for translation results that includes audioBuffer
     const translationResults: Record<string, { 
       originalText: string;
       translatedText: string;
       audioBuffer: Buffer;
     }> = {};
     
-    for (const targetLanguage of studentLanguages) {
+    // Latency tracking
+    const latencyInfo = {
+      translation: 0,
+      tts: 0
+    };
+    
+    // Get the teacher's preferred TTS service type
+    const teacherTtsServiceType = this.getTeacherTTSServiceType();
+    
+    // Always use OpenAI TTS service for best quality
+    const ttsServiceToUse = 'openai';
+    
+    // Translate for each language
+    for (const targetLanguage of targetLanguages) {
       try {
-        // Get the teacher's preferred TTS service type
-        let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
-        
-        // Look for the teacher's TTS service preference
-        this.connections.forEach(client => {
-          if (this.roles.get(client) === 'teacher' &&
-              this.clientSettings.get(client)?.ttsServiceType) {
-            // Use the teacher's preference for all student translations
-            teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
-          }
-        });
-        
-        // Always use OpenAI TTS service for best quality
-        const ttsServiceToUse = 'openai';
         console.log(`Using OpenAI TTS service for language '${targetLanguage}' (overriding teacher's selection)`);
         
         // Measure translation and TTS latency
@@ -342,9 +407,9 @@ export class WebSocketServer {
         // Perform the translation with OpenAI TTS service
         const result = await speechTranslationService.translateSpeech(
           Buffer.from(''), // Empty buffer as we already have the text
-          teacherLanguage,
+          sourceLanguage,
           targetLanguage,
-          message.text, // Use the pre-transcribed text
+          text, // Use the pre-transcribed text
           { ttsServiceType: ttsServiceToUse } // Force OpenAI TTS service
         );
         
@@ -357,13 +422,13 @@ export class WebSocketServer {
         const ttsTime = Math.round(elapsedTime * 0.7);
         const translationTime = elapsedTime - ttsTime;
         
-        latencyTracking.components.translation = Math.max(
-          latencyTracking.components.translation,
+        latencyInfo.translation = Math.max(
+          latencyInfo.translation,
           translationTime
         );
         
-        latencyTracking.components.tts = Math.max(
-          latencyTracking.components.tts,
+        latencyInfo.tts = Math.max(
+          latencyInfo.tts,
           ttsTime
         );
         
@@ -374,25 +439,65 @@ export class WebSocketServer {
         translations[targetLanguage] = result.translatedText;
       } catch (error) {
         console.error(`Error translating to ${targetLanguage}:`, error);
-        translations[targetLanguage] = message.text; // Fallback to original text
+        translations[targetLanguage] = text; // Fallback to original text
         translationResults[targetLanguage] = {
-          originalText: message.text,
-          translatedText: message.text,
+          originalText: text,
+          translatedText: text,
           audioBuffer: Buffer.from('') // Empty buffer for fallback
         };
       }
     }
     
-    // Calculate processing latency before sending translations
-    const processingEndTime = Date.now();
-    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
+    return { translations, translationResults, latencyInfo };
+  }
+  
+  /**
+   * Get the teacher's preferred TTS service type
+   */
+  private getTeacherTTSServiceType(): string {
+    let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
     
-    // Send translations to students
+    // Look for the teacher's TTS service preference
+    this.connections.forEach(client => {
+      if (this.roles.get(client) === 'teacher' &&
+          this.clientSettings.get(client)?.ttsServiceType) {
+        // Use the teacher's preference for all student translations
+        teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
+      }
+    });
+    
+    return teacherTtsServiceType;
+  }
+  
+  /**
+   * Send translations to students
+   */
+  private sendTranslationsToStudents(
+    studentConnections: WebSocketClient[],
+    originalText: string,
+    sourceLanguage: string,
+    translations: Record<string, string>,
+    translationResults: Record<string, { 
+      originalText: string;
+      translatedText: string;
+      audioBuffer: Buffer;
+    }>,
+    startTime: number,
+    latencyTracking: {
+      start: number;
+      components: {
+        preparation: number;
+        translation: number;
+        tts: number;
+        processing: number;
+      };
+    }
+  ): void {
     studentConnections.forEach(client => {
       const studentLanguage = this.languages.get(client);
       if (!studentLanguage) return;
       
-      const translatedText = translations[studentLanguage] || message.text;
+      const translatedText = translations[studentLanguage] || originalText;
       
       // Always use OpenAI TTS service - ignore any other settings
       const ttsServiceType = 'openai';
@@ -401,67 +506,27 @@ export class WebSocketServer {
       const currentTime = Date.now();
       const totalLatency = currentTime - startTime;
       
-      // Create translation message with audio data support and latency metrics
-      const translationMessage: any = {
-        type: 'translation',
-        text: translatedText,
-        originalText: message.text,
-        sourceLanguage: teacherLanguage,
-        targetLanguage: studentLanguage,
-        ttsServiceType: ttsServiceType, // Include the service type for client reference
-        latency: {
-          total: totalLatency,
-          serverCompleteTime: currentTime, // Timestamp when server completed processing
-          components: {
-            translation: latencyTracking.components.translation,
-            tts: latencyTracking.components.tts,
-            processing: latencyTracking.components.processing,
-            network: 0 // Will be calculated on client side
-          }
-        }
-      };
+      // Create translation message
+      const translationMessage = this.createTranslationMessage(
+        translatedText,
+        originalText,
+        sourceLanguage,
+        studentLanguage,
+        ttsServiceType,
+        totalLatency,
+        currentTime,
+        latencyTracking
+      );
       
-      // If we have a translation result with audio buffer, include it
+      // Add audio data if available
       if (translationResults[studentLanguage] && translationResults[studentLanguage].audioBuffer) {
-        try {
-          const audioBuffer = translationResults[studentLanguage].audioBuffer;
-          
-          // Check if this is a special marker for browser speech synthesis
-          const bufferString = audioBuffer.toString('utf8');
-          
-          if (bufferString.startsWith('{"type":"browser-speech"')) {
-            // This is a marker for browser-based speech synthesis
-            console.log(`Using client browser speech synthesis for ${studentLanguage}`);
-            translationMessage.useClientSpeech = true;
-            try {
-              translationMessage.speechParams = JSON.parse(bufferString);
-              console.log(`Successfully parsed speech params for ${studentLanguage}`);
-            } catch (jsonError) {
-              console.error('Error parsing speech params:', jsonError);
-              translationMessage.speechParams = {
-                type: 'browser-speech',
-                text: translatedText,
-                languageCode: studentLanguage,
-                autoPlay: true
-              };
-            }
-          } else if (audioBuffer.length > 0) {
-            // This is actual audio data - encode as base64
-            translationMessage.audioData = audioBuffer.toString('base64');
-            translationMessage.useClientSpeech = false; // Explicitly set to false
-            
-            // Log audio data details for debugging
-            console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
-            console.log(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
-            console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
-          } else {
-            // Log a warning when no audio data is available
-            console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
-          }
-        } catch (error) {
-          console.error('Error processing audio data for translation:', error);
-          translationMessage.error = 'Audio processing failed';
-        }
+        this.addAudioDataToMessage(
+          translationMessage,
+          translationResults[studentLanguage].audioBuffer,
+          studentLanguage,
+          translatedText,
+          ttsServiceType
+        );
       }
       
       // Send the translation message to the student
@@ -472,6 +537,94 @@ export class WebSocketServer {
         console.error('Error sending translation to student:', error);
       }
     });
+  }
+  
+  /**
+   * Create a translation message
+   */
+  private createTranslationMessage(
+    translatedText: string,
+    originalText: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+    ttsServiceType: string,
+    totalLatency: number,
+    currentTime: number,
+    latencyTracking: {
+      components: {
+        translation: number;
+        tts: number;
+        processing: number;
+      };
+    }
+  ): any {
+    return {
+      type: 'translation',
+      text: translatedText,
+      originalText: originalText,
+      sourceLanguage: sourceLanguage,
+      targetLanguage: targetLanguage,
+      ttsServiceType: ttsServiceType, // Include the service type for client reference
+      latency: {
+        total: totalLatency,
+        serverCompleteTime: currentTime, // Timestamp when server completed processing
+        components: {
+          translation: latencyTracking.components.translation,
+          tts: latencyTracking.components.tts,
+          processing: latencyTracking.components.processing,
+          network: 0 // Will be calculated on client side
+        }
+      }
+    };
+  }
+  
+  /**
+   * Add audio data to a translation message
+   */
+  private addAudioDataToMessage(
+    translationMessage: any,
+    audioBuffer: Buffer,
+    studentLanguage: string,
+    translatedText: string,
+    ttsServiceType: string
+  ): void {
+    try {
+      // Check if this is a special marker for browser speech synthesis
+      const bufferString = audioBuffer.toString('utf8');
+      
+      if (bufferString.startsWith('{"type":"browser-speech"')) {
+        // This is a marker for browser-based speech synthesis
+        console.log(`Using client browser speech synthesis for ${studentLanguage}`);
+        translationMessage.useClientSpeech = true;
+        try {
+          translationMessage.speechParams = JSON.parse(bufferString);
+          console.log(`Successfully parsed speech params for ${studentLanguage}`);
+        } catch (jsonError) {
+          console.error('Error parsing speech params:', jsonError);
+          translationMessage.speechParams = {
+            type: 'browser-speech',
+            text: translatedText,
+            languageCode: studentLanguage,
+            autoPlay: true
+          };
+        }
+      } else if (audioBuffer.length > 0) {
+        // This is actual audio data - encode as base64
+        translationMessage.audioData = audioBuffer.toString('base64');
+        translationMessage.useClientSpeech = false; // Explicitly set to false
+        
+        // Log audio data details for debugging
+        console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
+        console.log(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
+        console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+      } else {
+        // Log a warning when no audio data is available
+        console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
+      }
+    } catch (error) {
+      console.error('Error processing audio data for translation:', error);
+      translationMessage.error = 'Audio processing failed';
+    }
   }
   
   /**
@@ -796,36 +949,27 @@ export class WebSocketServer {
   /**
    * Set up heartbeat mechanism to detect dead connections
    */
-  /**
-   * Check if a client is alive and send a ping message
-   * Extracted as a separate method for better testability
-   */
-  private pingClientAndCheckStatus(ws: WebSocketClient): void {
-    if (ws.isAlive === false) {
-      console.log('Terminating inactive WebSocket connection');
-      ws.terminate();
-      return;
-    }
-    
-    // Mark as inactive first - will be marked active again if pong is received
-    ws.isAlive = false;
-    
-    try {
-      // Send ping to check if client is alive
-      ws.ping();
-    } catch (e) {
-      console.error('Error sending ping:', e);
-      // ws.isAlive remains false, connection will be terminated on next cycle
-    }
-  }
-  
-  /**
-   * Set up heartbeat mechanism to detect dead connections
-   */
   private setupHeartbeat(): void {
     const interval = setInterval(() => {
       this.connections.forEach(ws => {
-        this.pingClientAndCheckStatus(ws);
+        if (ws.isAlive === false) {
+          console.log('Terminating inactive WebSocket connection');
+          ws.terminate();
+          return;
+        }
+        
+        // Mark the client as inactive first - this ensures that if an error occurs
+        // during ping() or any subsequent operations, the client will still be
+        // considered inactive and terminated on the next cycle
+        ws.isAlive = false;
+        
+        try {
+          // Send a ping to the client
+          ws.ping();
+        } catch (e) {
+          console.error('Error sending ping:', e);
+          // When ping fails, ws.isAlive remains false so it will be terminated on next cycle
+        }
       });
     }, 30000);
     
