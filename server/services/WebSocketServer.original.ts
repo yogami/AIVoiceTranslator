@@ -1,56 +1,201 @@
 /**
- * WebSocket Message Router
+ * WebSocket Server
  * 
- * Responsible for routing WebSocket messages to appropriate handlers
- * based on message type.
+ * Handles real-time communication between teacher and students
  */
-
-import { WebSocketClient, WebSocketMessage } from './WebSocketTypes';
-import { WebSocketClientManager } from './WebSocketClientManager';
+import { Server } from 'http';
+import { WebSocketServer as WSServer } from 'ws';
 import { speechTranslationService } from './TranslationService';
+import { URL } from 'url';
 
-// Define handler type
-type MessageHandler = (ws: WebSocketClient, message: any) => Promise<void>;
+// Custom WebSocketClient type for our server
+type WebSocketClient = WebSocket & {
+  isAlive: boolean;
+  sessionId: string;
+  on: (event: string, listener: (...args: any[]) => void) => WebSocketClient;
+  terminate: () => void;
+  ping: () => void;
+}
 
-/**
- * WebSocketMessageRouter handles routing messages to appropriate handlers
- */
-export class WebSocketMessageRouter {
-  private handlers: Map<string, MessageHandler> = new Map();
+export class WebSocketServer {
+  private wss: WSServer;
+  // We use the speechTranslationService facade
   
-  constructor(private clientManager: WebSocketClientManager) {
-    this.registerDefaultHandlers();
+  // Connection tracking
+  private connections: Set<WebSocketClient> = new Set();
+  private roles: Map<WebSocketClient, string> = new Map();
+  private languages: Map<WebSocketClient, string> = new Map();
+  private sessionIds: Map<WebSocketClient, string> = new Map();
+  private clientSettings: Map<WebSocketClient, any> = new Map();
+  
+  // Stats
+  private sessionCounter: number = 0;
+  
+  constructor(server: Server) {
+    // Initialize WebSocket server with CORS settings
+    this.wss = new WSServer({ 
+      server,
+      path: '/ws',
+      // Add explicit CORS handling for WebSocket (following the Single Responsibility Principle)
+      verifyClient: (info, callback) => {
+        // Allow all origins for WebSocket connections
+        console.log('WebSocket connection verification, headers:', JSON.stringify(info.req.headers, null, 2));
+        callback(true); // Always accept the connection
+      }
+    });
+    
+    // We now use the imported speechTranslationService instead of creating a new instance
+    
+    // Set up event handlers
+    this.setupEventHandlers();
+    
+    console.log('WebSocket server initialized and listening on path: /ws');
   }
   
   /**
-   * Register a handler for a specific message type
+   * Set up WebSocket server event handlers
    */
-  public registerHandler(type: string, handler: MessageHandler): void {
-    this.handlers.set(type, handler);
+  private setupEventHandlers(): void {
+    // Handle new connections
+    this.wss.on('connection', (ws: WebSocket, request) => {
+      // Cast WebSocket to our custom WebSocketClient type
+      this.handleConnection(ws as unknown as WebSocketClient, request);
+    });
+    
+    // Set up periodic ping to keep connections alive
+    this.setupHeartbeat();
   }
   
   /**
-   * Handle incoming message by routing to appropriate handler
+   * Handle new WebSocket connection
    */
-  public async routeMessage(ws: WebSocketClient, data: string): Promise<void> {
+  private handleConnection(ws: WebSocketClient, request: any): void {
+    try {
+      // Log connection information
+      console.log('New WebSocket connection from', request.socket.remoteAddress, 'path:', request.url);
+      
+      // Log headers for debugging
+      console.log('Headers:', JSON.stringify(request.headers, null, 2));
+      
+      // Parse URL to get query parameters
+      const url = new URL(request.url, `http://${request.headers.host}`);
+      const role = url.searchParams.get('role');
+      const language = url.searchParams.get('language');
+      
+      // Set initial role from URL if provided
+      if (role) {
+        console.log(`Setting initial role to '${role}' from URL query parameter`);
+        this.roles.set(ws, role);
+      }
+      
+      // Set initial language from URL if provided
+      if (language) {
+        this.languages.set(ws, language);
+      }
+      
+      // Generate a unique session ID
+      const sessionId = `session_${Date.now()}_${this.sessionCounter++}`;
+      this.sessionIds.set(ws, sessionId);
+      ws.sessionId = sessionId;
+      
+      // Add to connections set
+      this.connections.add(ws);
+      
+      // Mark as alive for heartbeat
+      ws.isAlive = true;
+      
+      // Set up message handler
+      ws.on('message', (message: Buffer) => {
+        this.handleMessage(ws, message.toString());
+      });
+      
+      // Set up close handler
+      ws.on('close', () => {
+        this.handleClose(ws);
+      });
+      
+      // Set up error handler
+      ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+      });
+      
+      // Set up pong handler for heartbeat
+      ws.on('pong', () => {
+        ws.isAlive = true;
+      });
+      
+      // Send connection confirmation
+      this.sendConnectionConfirmation(ws);
+    } catch (error) {
+      console.error('Error handling new connection:', error);
+    }
+  }
+  
+  /**
+   * Send connection confirmation to client
+   */
+  private sendConnectionConfirmation(ws: WebSocketClient): void {
+    try {
+      const sessionId = this.sessionIds.get(ws);
+      const role = this.roles.get(ws);
+      const language = this.languages.get(ws);
+      
+      const message = {
+        type: 'connection',
+        status: 'connected',
+        sessionId,
+        role,
+        language
+      };
+      
+      ws.send(JSON.stringify(message));
+      console.log('Sending connection confirmation with sessionId:', sessionId);
+      console.log('Connection confirmation sent successfully');
+    } catch (error) {
+      console.error('Error sending connection confirmation:', error);
+    }
+  }
+  
+  /**
+   * Handle incoming WebSocket message
+   */
+  async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
     try {
       // Parse message data
       const message = JSON.parse(data);
       
-      // Validate message has a type
-      if (!message.type) {
-        console.warn('Received message without type:', message);
-        return;
-      }
-      
-      // Get handler for message type
-      const handler = this.handlers.get(message.type);
-      
-      if (handler) {
-        // Execute handler
-        await handler(ws, message);
-      } else {
-        console.warn('Unknown message type:', message.type);
+      // Process message based on type
+      switch (message.type) {
+        case 'register':
+          this.handleRegisterMessage(ws, message);
+          break;
+        
+        case 'transcription':
+          await this.handleTranscriptionMessage(ws, message);
+          break;
+        
+        case 'tts_request':
+          await this.handleTTSRequestMessage(ws, message);
+          break;
+          
+        case 'audio':
+          await this.handleAudioMessage(ws, message);
+          break;
+          
+        case 'settings':
+          this.handleSettingsMessage(ws, message);
+          break;
+          
+        case 'ping':
+          this.handlePingMessage(ws, message);
+          break;
+          
+        case 'pong':
+          // No specific handling needed
+          break;
+          
+        default:
+          console.warn('Unknown message type:', message.type);
       }
     } catch (error) {
       console.error('Error handling message:', error);
@@ -58,70 +203,50 @@ export class WebSocketMessageRouter {
   }
   
   /**
-   * Register default message handlers
-   */
-  private registerDefaultHandlers(): void {
-    this.registerHandler('register', this.handleRegisterMessage.bind(this));
-    this.registerHandler('transcription', this.handleTranscriptionMessage.bind(this));
-    this.registerHandler('tts_request', this.handleTTSRequestMessage.bind(this));
-    this.registerHandler('audio', this.handleAudioMessage.bind(this));
-    this.registerHandler('settings', this.handleSettingsMessage.bind(this));
-    this.registerHandler('ping', this.handlePingMessage.bind(this));
-    this.registerHandler('pong', () => Promise.resolve()); // No-op handler for pong messages
-  }
-  
-  /**
    * Handle registration message
    */
-  private async handleRegisterMessage(ws: WebSocketClient, message: any): Promise<void> {
+  private handleRegisterMessage(ws: WebSocketClient, message: any): void {
     console.log('Processing message type=register from connection:', 
       `role=${message.role}, languageCode=${message.languageCode}`);
     
-    const currentRole = this.clientManager.getRole(ws);
+    const currentRole = this.roles.get(ws);
     
     // Update role if provided
     if (message.role) {
       if (currentRole !== message.role) {
         console.log(`Changing connection role from ${currentRole} to ${message.role}`);
       }
-      this.clientManager.setRole(ws, message.role);
+      this.roles.set(ws, message.role);
     }
     
     // Update language if provided
     if (message.languageCode) {
-      this.clientManager.setLanguage(ws, message.languageCode);
+      this.languages.set(ws, message.languageCode);
     }
     
-    // Update settings if provided
-    if (message.settings) {
-      this.clientManager.updateSettings(ws, message.settings);
-    }
+    // Store client settings
+    const settings: any = this.clientSettings.get(ws) || {};
     
-    // Special handling for ttsServiceType if specified outside settings object
+    // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
-      const settings = this.clientManager.getSettings(ws);
       settings.ttsServiceType = message.settings.ttsServiceType;
-      this.clientManager.updateSettings(ws, settings);
-      
       console.log(`Client requested TTS service type: ${settings.ttsServiceType}`);
-      
-      // Special notification for teacher TTS service preference
-      if (this.clientManager.getRole(ws) === 'teacher') {
-        console.log(`Teacher's TTS service preference set to '${settings.ttsServiceType}'. This will be used for all student translations.`);
-      }
     }
+    
+    // Store updated settings
+    this.clientSettings.set(ws, settings);
     
     console.log('Updated connection:', 
-      `role=${this.clientManager.getRole(ws)}, languageCode=${this.clientManager.getLanguage(ws)}, ttsService=${this.clientManager.getSettings(ws).ttsServiceType || 'default'}`);
+      `role=${this.roles.get(ws)}, languageCode=${this.languages.get(ws)}, ttsService=${settings.ttsServiceType || 'default'}`);
     
     // Send confirmation
     const response = {
       type: 'register',
       status: 'success',
       data: {
-        role: this.clientManager.getRole(ws),
-        languageCode: this.clientManager.getLanguage(ws),
-        settings: this.clientManager.getSettings(ws)
+        role: this.roles.get(ws),
+        languageCode: this.languages.get(ws),
+        settings: settings
       }
     };
     
@@ -132,7 +257,7 @@ export class WebSocketMessageRouter {
    * Handle transcription message
    */
   private async handleTranscriptionMessage(ws: WebSocketClient, message: any): Promise<void> {
-    console.log('Received transcription from', this.clientManager.getRole(ws), ':', message.text);
+    console.log('Received transcription from', this.roles.get(ws), ':', message.text);
     
     // Start tracking latency when transcription is received
     const startTime = Date.now();
@@ -146,8 +271,8 @@ export class WebSocketMessageRouter {
       }
     };
     
-    const role = this.clientManager.getRole(ws);
-    const sessionId = this.clientManager.getSessionId(ws);
+    const role = this.roles.get(ws);
+    const sessionId = this.sessionIds.get(ws);
     
     // Only process transcriptions from teacher
     if (role !== 'teacher') {
@@ -156,48 +281,56 @@ export class WebSocketMessageRouter {
     }
     
     // Get all student connections
-    const studentConnections = this.clientManager.getClientsByRole('student');
+    const studentConnections: WebSocketClient[] = [];
+    const studentLanguages: string[] = [];
+    
+    this.connections.forEach(client => {
+      const clientRole = this.roles.get(client);
+      const clientLanguage = this.languages.get(client);
+      
+      if (clientRole === 'student' && clientLanguage) {
+        studentConnections.push(client);
+        
+        // Only add unique languages
+        if (!studentLanguages.includes(clientLanguage)) {
+          studentLanguages.push(clientLanguage);
+        }
+      }
+    });
     
     if (studentConnections.length === 0) {
       console.log('No students connected, skipping translation');
       return;
     }
     
-    // Get unique student languages
-    const studentLanguages: string[] = [];
-    studentConnections.forEach(client => {
-      const clientLanguage = this.clientManager.getLanguage(client);
-      if (clientLanguage && !studentLanguages.includes(clientLanguage)) {
-        studentLanguages.push(clientLanguage);
-      }
-    });
-    
     // Translate text to all student languages
-    const teacherLanguage = this.clientManager.getLanguage(ws) || 'en-US';
+    const teacherLanguage = this.languages.get(ws) || 'en-US';
     
-    // Storage for translations
+    // Using our new speechTranslationService to perform translations
+    // This is a simplified implementation as we don't have translateTextToMultipleLanguages in the service
     const translations: Record<string, string> = {};
+    
+    // Translate for each language
+    // Define a type for translation results that includes audioBuffer
     const translationResults: Record<string, { 
       originalText: string;
       translatedText: string;
       audioBuffer: Buffer;
     }> = {};
     
-    // Translate for each language
     for (const targetLanguage of studentLanguages) {
       try {
         // Get the teacher's preferred TTS service type
         let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
         
         // Look for the teacher's TTS service preference
-        const teacherConnections = this.clientManager.getClientsByRole('teacher');
-        for (const teacherClient of teacherConnections) {
-          const teacherSettings = this.clientManager.getSettings(teacherClient);
-          if (teacherSettings.ttsServiceType) {
+        this.connections.forEach(client => {
+          if (this.roles.get(client) === 'teacher' &&
+              this.clientSettings.get(client)?.ttsServiceType) {
             // Use the teacher's preference for all student translations
-            teacherTtsServiceType = teacherSettings.ttsServiceType;
+            teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
           }
-        }
+        });
         
         // Always use OpenAI TTS service for best quality
         const ttsServiceToUse = 'openai';
@@ -255,9 +388,9 @@ export class WebSocketMessageRouter {
     latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
     
     // Send translations to students
-    for (const client of studentConnections) {
-      const studentLanguage = this.clientManager.getLanguage(client);
-      if (!studentLanguage) continue;
+    studentConnections.forEach(client => {
+      const studentLanguage = this.languages.get(client);
+      if (!studentLanguage) return;
       
       const translatedText = translations[studentLanguage] || message.text;
       
@@ -338,14 +471,14 @@ export class WebSocketMessageRouter {
       } catch (error) {
         console.error('Error sending translation to student:', error);
       }
-    }
+    });
   }
-
+  
   /**
    * Handle audio message
    */
   private async handleAudioMessage(ws: WebSocketClient, message: any): Promise<void> {
-    const role = this.clientManager.getRole(ws);
+    const role = this.roles.get(ws);
     
     // Only process audio from teacher
     if (role !== 'teacher') {
@@ -382,7 +515,7 @@ export class WebSocketMessageRouter {
       }
       
       // Get teacher language
-      const teacherLanguage = this.clientManager.getLanguage(ws) || 'en-US';
+      const teacherLanguage = this.languages.get(ws) || 'en-US';
       
       // Check the Web Speech API transcription info from the client
       let webSpeechTranscription = '';
@@ -403,9 +536,7 @@ export class WebSocketMessageRouter {
       }
       
       // Get session ID for reference
-      const sessionId = this.clientManager.getSessionId(ws);
-      
-      // Further audio processing would go here in a production implementation
+      const sessionId = this.sessionIds.get(ws);
     } catch (error) {
       console.error('Error processing teacher audio:', error);
     }
@@ -424,7 +555,7 @@ export class WebSocketMessageRouter {
     }
     
     // Get the client's preferred TTS service type or default to OpenAI
-    let ttsServiceType = this.clientManager.getSettings(ws).ttsServiceType || 'openai';
+    let ttsServiceType = this.clientSettings.get(ws)?.ttsServiceType || 'openai';
     
     // Always force OpenAI for best quality
     ttsServiceType = 'openai';
@@ -590,13 +721,13 @@ export class WebSocketMessageRouter {
   /**
    * Handle settings message
    */
-  private async handleSettingsMessage(ws: WebSocketClient, message: any): Promise<void> {
-    const role = this.clientManager.getRole(ws);
+  private handleSettingsMessage(ws: WebSocketClient, message: any): void {
+    const role = this.roles.get(ws);
     
     console.log(`Processing settings update from ${role || 'unknown'}:`, message);
     
-    // Update settings with new values
-    const settings: any = {};
+    // Initialize settings for this client if not already present
+    const settings = this.clientSettings.get(ws) || {};
     
     // Update settings with new values
     if (message.settings) {
@@ -615,13 +746,13 @@ export class WebSocketMessageRouter {
     }
     
     // Store updated settings
-    const updatedSettings = this.clientManager.updateSettings(ws, settings);
+    this.clientSettings.set(ws, settings);
     
     // Send confirmation
     const response = {
       type: 'settings',
       status: 'success',
-      settings: updatedSettings
+      settings
     };
     
     ws.send(JSON.stringify(response));
@@ -630,9 +761,9 @@ export class WebSocketMessageRouter {
   /**
    * Handle ping message
    */
-  private async handlePingMessage(ws: WebSocketClient, message: any): Promise<void> {
+  private handlePingMessage(ws: WebSocketClient, message: any): void {
     // Mark as alive for heartbeat
-    this.clientManager.markAlive(ws);
+    ws.isAlive = true;
     
     // Send pong response
     const response = {
@@ -646,5 +777,80 @@ export class WebSocketMessageRouter {
     } catch (error) {
       console.error('Error sending pong response:', error);
     }
+  }
+  
+  /**
+   * Handle WebSocket close event
+   */
+  private handleClose(ws: WebSocketClient): void {
+    console.log('WebSocket disconnected, sessionId:', ws.sessionId);
+    
+    // Remove from all maps
+    this.connections.delete(ws);
+    this.roles.delete(ws);
+    this.languages.delete(ws);
+    this.sessionIds.delete(ws);
+    this.clientSettings.delete(ws);
+  }
+  
+  /**
+   * Set up heartbeat mechanism to detect dead connections
+   */
+  private setupHeartbeat(): void {
+    const interval = setInterval(() => {
+      this.connections.forEach(ws => {
+        if (ws.isAlive === false) {
+          console.log('Terminating inactive WebSocket connection');
+          ws.terminate();
+          return;
+        }
+        
+        // Mark the client as inactive first - this ensures that if an error occurs
+        // during ping() or any subsequent operations, the client will still be
+        // considered inactive and terminated on the next cycle
+        ws.isAlive = false;
+        
+        try {
+          // Send a ping to the client
+          ws.ping();
+        } catch (e) {
+          console.error('Error sending ping:', e);
+          // When ping fails, ws.isAlive remains false so it will be terminated on next cycle
+        }
+      });
+    }, 30000);
+    
+    // Clean up interval when WebSocket server closes
+    this.wss.on('close', () => {
+      clearInterval(interval);
+    });
+  }
+  
+  /**
+   * Get connections
+   */
+  public getConnections(): Set<WebSocketClient> {
+    return this.connections;
+  }
+  
+  /**
+   * Get connection role
+   */
+  public getRole(client: WebSocketClient): string | undefined {
+    return this.roles.get(client);
+  }
+  
+  /**
+   * Get connection language
+   */
+  public getLanguage(client: WebSocketClient): string | undefined {
+    return this.languages.get(client);
+  }
+  
+  /**
+   * Close WebSocket server
+   */
+  public close(): void {
+    this.wss.close();
   }
 }
