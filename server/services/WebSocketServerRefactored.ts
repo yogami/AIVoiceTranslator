@@ -16,6 +16,9 @@ import { WebSocketMessageRouter } from './WebSocketMessageRouter';
 // Message handlers
 import { RegistrationMessageHandler } from './handlers/RegistrationMessageHandler';
 import { TranscriptionMessageHandler } from './handlers/TranscriptionMessageHandler';
+import { TTSMessageHandler } from './handlers/TTSMessageHandler';
+import { AudioMessageHandler } from './handlers/AudioMessageHandler';
+import { PingMessageHandler } from './handlers/PingMessageHandler';
 
 export class WebSocketServer {
   private wss: WSServer;
@@ -62,7 +65,14 @@ export class WebSocketServer {
     // Transcription handler
     this.messageRouter.registerHandler(new TranscriptionMessageHandler(this.clientManager));
     
-    // Additional handlers will be added as they are implemented
+    // TTS handler
+    this.messageRouter.registerHandler(new TTSMessageHandler(this.clientManager));
+    
+    // Audio handler
+    this.messageRouter.registerHandler(new AudioMessageHandler(this.clientManager));
+    
+    // Ping handler
+    this.messageRouter.registerHandler(new PingMessageHandler(this.clientManager));
   }
   
   /**
