@@ -53,8 +53,14 @@ describe('HeartbeatManager', () => {
   
   beforeEach(() => {
     // Set up spies and mocks
-    consoleLogSpy = vi.spyOn(console, 'log');
-    consoleErrorSpy = vi.spyOn(console, 'error');
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    
+    // Save original timers
+    originalSetInterval = global.setInterval;
+    originalClearInterval = global.clearInterval;
+    
+    // Mock timers
     global.setInterval = mockSetInterval as any;
     global.clearInterval = mockClearInterval as any;
     
