@@ -7,6 +7,7 @@ import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
 import { speechTranslationService } from './TranslationService';
 import { URL } from 'url';
+import { HeartbeatManager } from './HeartbeatManager';
 
 // Custom WebSocketClient type for our server
 type WebSocketClient = WebSocket & {
@@ -27,6 +28,9 @@ export class WebSocketServer {
   private languages: Map<WebSocketClient, string> = new Map();
   private sessionIds: Map<WebSocketClient, string> = new Map();
   private clientSettings: Map<WebSocketClient, any> = new Map();
+  
+  // Heartbeat manager for connection health monitoring
+  private heartbeatManager: HeartbeatManager = new HeartbeatManager(30000);
   
   // Stats
   private sessionCounter: number = 0;
@@ -797,32 +801,15 @@ export class WebSocketServer {
    * Set up heartbeat mechanism to detect dead connections
    */
   private setupHeartbeat(): void {
-    const interval = setInterval(() => {
-      this.connections.forEach(ws => {
-        if (ws.isAlive === false) {
-          console.log('Terminating inactive WebSocket connection');
-          ws.terminate();
-          return;
-        }
-        
-        // Mark the client as inactive first - this ensures that if an error occurs
-        // during ping() or any subsequent operations, the client will still be
-        // considered inactive and terminated on the next cycle
-        ws.isAlive = false;
-        
-        try {
-          // Send a ping to the client
-          ws.ping();
-        } catch (e) {
-          console.error('Error sending ping:', e);
-          // When ping fails, ws.isAlive remains false so it will be terminated on next cycle
-        }
-      });
-    }, 30000);
+    // Use our HeartbeatManager to handle connection health monitoring
+    this.heartbeatManager.startHeartbeat(
+      this.connections,
+      () => console.log('Heartbeat stopped')
+    );
     
-    // Clean up interval when WebSocket server closes
+    // Clean up when WebSocket server closes
     this.wss.on('close', () => {
-      clearInterval(interval);
+      this.heartbeatManager.stopHeartbeat();
     });
   }
   
