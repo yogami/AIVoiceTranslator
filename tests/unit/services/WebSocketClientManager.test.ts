@@ -1,20 +1,16 @@
-/**
- * WebSocketClientManager Unit Tests
- * 
- * Tests the client state management functionality
- */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WebSocketClientManager, WebSocketClient } from '../../../server/services/WebSocketClientManager';
+import { WebSocketClientManager } from '../../../server/services/WebSocketClientManager';
+import { WebSocketClient } from '../../../server/services/WebSocketTypes';
 
-// Mock WebSocket client implementation
-class MockWebSocketClient {
-  isAlive: boolean = true;
-  sessionId?: string;
-  send = vi.fn();
-  on = vi.fn(() => this);
-  terminate = vi.fn();
-  ping = vi.fn();
-}
+// Mock WebSocketClient
+const createMockWebSocketClient = (): any => ({
+  isAlive: false,
+  sessionId: '',
+  on: vi.fn(),
+  terminate: vi.fn(),
+  ping: vi.fn(),
+  send: vi.fn()
+});
 
 describe('WebSocketClientManager', () => {
   let clientManager: WebSocketClientManager;
@@ -22,224 +18,183 @@ describe('WebSocketClientManager', () => {
   
   beforeEach(() => {
     clientManager = new WebSocketClientManager();
-    mockClient = new MockWebSocketClient() as unknown as WebSocketClient;
+    mockClient = createMockWebSocketClient();
   });
   
-  describe('registerClient', () => {
-    it('should register a client and return a session ID', () => {
-      const sessionId = clientManager.registerClient(mockClient, 'teacher', 'en-US');
-      
-      expect(sessionId).toBeDefined();
-      expect(sessionId).toContain('session_');
-      expect(mockClient.sessionId).toBe(sessionId);
-      
-      // Verify client is registered
-      const state = clientManager.getClientState(mockClient);
-      expect(state).toBeDefined();
-      expect(state?.role).toBe('teacher');
-      expect(state?.language).toBe('en-US');
-    });
+  it('should add clients and generate session IDs', () => {
+    const sessionId = clientManager.addClient(mockClient);
     
-    it('should create a unique session ID for each client', () => {
-      const sessionId1 = clientManager.registerClient(mockClient, 'teacher', 'en-US');
-      
-      const mockClient2 = new MockWebSocketClient() as unknown as WebSocketClient;
-      const sessionId2 = clientManager.registerClient(mockClient2, 'student', 'es-ES');
-      
-      expect(sessionId1).not.toBe(sessionId2);
-    });
+    expect(sessionId).toBeDefined();
+    expect(sessionId).toContain('session_');
+    expect(mockClient.isAlive).toBe(true);
+    expect(clientManager.getSessionId(mockClient)).toBe(sessionId);
+    expect(clientManager.getAllConnections().size).toBe(1);
   });
   
-  describe('getClientState', () => {
-    it('should return undefined for unregistered clients', () => {
-      const state = clientManager.getClientState(mockClient);
-      expect(state).toBeUndefined();
-    });
+  it('should add clients with provided session ID', () => {
+    const customId = 'custom_session_123';
+    const sessionId = clientManager.addClient(mockClient, customId);
     
-    it('should return client state for registered clients', () => {
-      clientManager.registerClient(mockClient, 'teacher', 'en-US');
-      const state = clientManager.getClientState(mockClient);
-      
-      expect(state).toBeDefined();
-      expect(state?.role).toBe('teacher');
-    });
+    expect(sessionId).toBe(customId);
+    expect(clientManager.getSessionId(mockClient)).toBe(customId);
   });
   
-  describe('getClientStateBySessionId', () => {
-    it('should return client state by session ID', () => {
-      const sessionId = clientManager.registerClient(mockClient, 'teacher', 'en-US');
-      const state = clientManager.getClientStateBySessionId(sessionId);
-      
-      expect(state).toBeDefined();
-      expect(state?.connection).toBe(mockClient);
-    });
+  it('should remove clients and clean up associated data', () => {
+    // Set up client with various data
+    clientManager.addClient(mockClient);
+    clientManager.setRole(mockClient, 'teacher');
+    clientManager.setLanguage(mockClient, 'en-US');
+    clientManager.updateSettings(mockClient, { ttsServiceType: 'openai' });
     
-    it('should return undefined for unknown session IDs', () => {
-      const state = clientManager.getClientStateBySessionId('non-existent-id');
-      expect(state).toBeUndefined();
-    });
+    // Verify data exists
+    expect(clientManager.getRole(mockClient)).toBe('teacher');
+    expect(clientManager.getLanguage(mockClient)).toBe('en-US');
+    
+    // Remove client
+    clientManager.removeClient(mockClient);
+    
+    // Verify client and data are removed
+    expect(clientManager.getAllConnections().size).toBe(0);
+    expect(clientManager.getRole(mockClient)).toBeUndefined();
+    expect(clientManager.getLanguage(mockClient)).toBeUndefined();
+    expect(clientManager.getSessionId(mockClient)).toBeUndefined();
+    expect(clientManager.getSettings(mockClient)).toEqual({});
   });
   
-  describe('client property updates', () => {
-    beforeEach(() => {
-      clientManager.registerClient(mockClient);
-    });
+  it('should manage client roles', () => {
+    clientManager.addClient(mockClient);
     
-    it('should update client role', () => {
-      const result = clientManager.updateClientRole(mockClient, 'teacher');
-      expect(result).toBe(true);
-      
-      const state = clientManager.getClientState(mockClient);
-      expect(state?.role).toBe('teacher');
-    });
+    // Set role
+    clientManager.setRole(mockClient, 'teacher');
+    expect(clientManager.getRole(mockClient)).toBe('teacher');
     
-    it('should update client language', () => {
-      const result = clientManager.updateClientLanguage(mockClient, 'fr-FR');
-      expect(result).toBe(true);
-      
-      const state = clientManager.getClientState(mockClient);
-      expect(state?.language).toBe('fr-FR');
-    });
-    
-    it('should update client settings', () => {
-      const settings = { ttsServiceType: 'openai', volume: 0.8 };
-      const result = clientManager.updateClientSettings(mockClient, settings);
-      expect(result).toBe(true);
-      
-      const state = clientManager.getClientState(mockClient);
-      expect(state?.settings).toEqual(settings);
-    });
-    
-    it('should merge new settings with existing settings', () => {
-      // Set initial settings
-      clientManager.updateClientSettings(mockClient, { ttsServiceType: 'openai', volume: 0.8 });
-      
-      // Update subset of settings
-      clientManager.updateClientSettings(mockClient, { volume: 0.5 });
-      
-      // Verify merge
-      const state = clientManager.getClientState(mockClient);
-      expect(state?.settings).toEqual({ ttsServiceType: 'openai', volume: 0.5 });
-    });
+    // Change role
+    clientManager.setRole(mockClient, 'student');
+    expect(clientManager.getRole(mockClient)).toBe('student');
   });
   
-  describe('client queries', () => {
-    beforeEach(() => {
-      // Register multiple clients with different roles and languages
-      clientManager.registerClient(mockClient, 'teacher', 'en-US');
-      
-      const student1 = new MockWebSocketClient() as unknown as WebSocketClient;
-      clientManager.registerClient(student1, 'student', 'es-ES');
-      
-      const student2 = new MockWebSocketClient() as unknown as WebSocketClient;
-      clientManager.registerClient(student2, 'student', 'fr-FR');
-    });
+  it('should manage client languages', () => {
+    clientManager.addClient(mockClient);
     
-    it('should return all clients', () => {
-      const clients = clientManager.getAllClients();
-      expect(clients.length).toBe(3);
-    });
+    // Set language
+    clientManager.setLanguage(mockClient, 'en-US');
+    expect(clientManager.getLanguage(mockClient)).toBe('en-US');
     
-    it('should return clients by role', () => {
-      const teachers = clientManager.getClientsByRole('teacher');
-      const students = clientManager.getClientsByRole('student');
-      
-      expect(teachers.length).toBe(1);
-      expect(students.length).toBe(2);
-    });
-    
-    it('should return clients by language', () => {
-      const englishClients = clientManager.getClientsByLanguage('en-US');
-      const spanishClients = clientManager.getClientsByLanguage('es-ES');
-      
-      expect(englishClients.length).toBe(1);
-      expect(spanishClients.length).toBe(1);
-    });
-    
-    it('should return unique languages', () => {
-      const languages = clientManager.getUniqueLanguages();
-      
-      expect(languages.length).toBe(3);
-      expect(languages).toContain('en-US');
-      expect(languages).toContain('es-ES');
-      expect(languages).toContain('fr-FR');
-    });
-    
-    it('should return client count by role', () => {
-      const teacherCount = clientManager.getClientCountByRole('teacher');
-      const studentCount = clientManager.getClientCountByRole('student');
-      
-      expect(teacherCount).toBe(1);
-      expect(studentCount).toBe(2);
-    });
-    
-    it('should return total client count', () => {
-      const count = clientManager.getTotalClientCount();
-      expect(count).toBe(3);
-    });
+    // Change language
+    clientManager.setLanguage(mockClient, 'es-ES');
+    expect(clientManager.getLanguage(mockClient)).toBe('es-ES');
   });
   
-  describe('client messaging', () => {
-    beforeEach(() => {
-      clientManager.registerClient(mockClient, 'teacher', 'en-US');
+  it('should manage client settings', () => {
+    clientManager.addClient(mockClient);
+    
+    // Update settings
+    const settings = clientManager.updateSettings(mockClient, { 
+      ttsServiceType: 'openai', 
+      volume: 0.8 
     });
     
-    it('should send message to a client', () => {
-      const result = clientManager.sendToClient(mockClient, { type: 'test', data: 'hello' });
-      
-      expect(result).toBe(true);
-      expect(mockClient.send).toHaveBeenCalledWith('{"type":"test","data":"hello"}');
-    });
+    expect(settings).toEqual({ ttsServiceType: 'openai', volume: 0.8 });
+    expect(clientManager.getSettings(mockClient)).toEqual({ ttsServiceType: 'openai', volume: 0.8 });
     
-    it('should return false when sending to non-existent client', () => {
-      const unknownClient = new MockWebSocketClient() as unknown as WebSocketClient;
-      const result = clientManager.sendToClient(unknownClient, { type: 'test' });
-      
-      expect(result).toBe(false);
-    });
-    
-    it('should broadcast to all clients', () => {
-      const student = new MockWebSocketClient() as unknown as WebSocketClient;
-      clientManager.registerClient(student, 'student', 'es-ES');
-      
-      const count = clientManager.broadcast({ type: 'broadcast', message: 'hello all' });
-      
-      expect(count).toBe(2);
-      expect(mockClient.send).toHaveBeenCalledWith('{"type":"broadcast","message":"hello all"}');
-      expect(student.send).toHaveBeenCalledWith('{"type":"broadcast","message":"hello all"}');
-    });
-    
-    it('should broadcast to clients with specific role', () => {
-      const student1 = new MockWebSocketClient() as unknown as WebSocketClient;
-      clientManager.registerClient(student1, 'student', 'es-ES');
-      
-      const student2 = new MockWebSocketClient() as unknown as WebSocketClient;
-      clientManager.registerClient(student2, 'student', 'fr-FR');
-      
-      const count = clientManager.broadcastToRole('student', { type: 'student-message' });
-      
-      expect(count).toBe(2);
-      expect(mockClient.send).not.toHaveBeenCalled();
-      expect(student1.send).toHaveBeenCalledWith('{"type":"student-message"}');
-      expect(student2.send).toHaveBeenCalledWith('{"type":"student-message"}');
-    });
+    // Update partial settings
+    clientManager.updateSettings(mockClient, { volume: 0.5 });
+    expect(clientManager.getSettings(mockClient)).toEqual({ ttsServiceType: 'openai', volume: 0.5 });
   });
   
-  describe('client removal', () => {
-    it('should remove a client', () => {
-      clientManager.registerClient(mockClient);
-      
-      const result = clientManager.removeClient(mockClient);
-      expect(result).toBe(true);
-      
-      // Verify client is removed
-      const state = clientManager.getClientState(mockClient);
-      expect(state).toBeUndefined();
-    });
+  it('should get clients by role', () => {
+    const client1 = createMockWebSocketClient();
+    const client2 = createMockWebSocketClient();
+    const client3 = createMockWebSocketClient();
     
-    it('should return false when removing non-existent client', () => {
-      const result = clientManager.removeClient(mockClient);
-      expect(result).toBe(false);
-    });
+    clientManager.addClient(client1);
+    clientManager.addClient(client2);
+    clientManager.addClient(client3);
+    
+    clientManager.setRole(client1, 'teacher');
+    clientManager.setRole(client2, 'student');
+    clientManager.setRole(client3, 'student');
+    
+    const students = clientManager.getClientsByRole('student');
+    const teachers = clientManager.getClientsByRole('teacher');
+    const admins = clientManager.getClientsByRole('admin');
+    
+    expect(students.length).toBe(2);
+    expect(teachers.length).toBe(1);
+    expect(admins.length).toBe(0);
+    expect(students).toContain(client2);
+    expect(students).toContain(client3);
+    expect(teachers).toContain(client1);
+  });
+  
+  it('should get clients by language', () => {
+    const client1 = createMockWebSocketClient();
+    const client2 = createMockWebSocketClient();
+    const client3 = createMockWebSocketClient();
+    
+    clientManager.addClient(client1);
+    clientManager.addClient(client2);
+    clientManager.addClient(client3);
+    
+    clientManager.setLanguage(client1, 'en-US');
+    clientManager.setLanguage(client2, 'es-ES');
+    clientManager.setLanguage(client3, 'en-US');
+    
+    const englishClients = clientManager.getClientsByLanguage('en-US');
+    const spanishClients = clientManager.getClientsByLanguage('es-ES');
+    const frenchClients = clientManager.getClientsByLanguage('fr-FR');
+    
+    expect(englishClients.length).toBe(2);
+    expect(spanishClients.length).toBe(1);
+    expect(frenchClients.length).toBe(0);
+    expect(englishClients).toContain(client1);
+    expect(englishClients).toContain(client3);
+    expect(spanishClients).toContain(client2);
+  });
+  
+  it('should get languages by role', () => {
+    const client1 = createMockWebSocketClient();
+    const client2 = createMockWebSocketClient();
+    const client3 = createMockWebSocketClient();
+    const client4 = createMockWebSocketClient();
+    
+    clientManager.addClient(client1);
+    clientManager.addClient(client2);
+    clientManager.addClient(client3);
+    clientManager.addClient(client4);
+    
+    clientManager.setRole(client1, 'student');
+    clientManager.setRole(client2, 'student');
+    clientManager.setRole(client3, 'student');
+    clientManager.setRole(client4, 'teacher');
+    
+    clientManager.setLanguage(client1, 'en-US');
+    clientManager.setLanguage(client2, 'es-ES');
+    clientManager.setLanguage(client3, 'en-US');
+    clientManager.setLanguage(client4, 'fr-FR');
+    
+    const studentLanguages = clientManager.getLanguagesByRole('student');
+    const teacherLanguages = clientManager.getLanguagesByRole('teacher');
+    
+    expect(studentLanguages.length).toBe(2);
+    expect(teacherLanguages.length).toBe(1);
+    expect(studentLanguages).toContain('en-US');
+    expect(studentLanguages).toContain('es-ES');
+    expect(teacherLanguages).toContain('fr-FR');
+  });
+  
+  it('should handle heartbeat mechanisms', () => {
+    clientManager.addClient(mockClient);
+    
+    // Initial state
+    expect(mockClient.isAlive).toBe(true);
+    
+    // Mark as pending (not responding)
+    clientManager.markPending(mockClient);
+    expect(mockClient.isAlive).toBe(false);
+    
+    // Mark as alive again (responded to ping)
+    clientManager.markAlive(mockClient);
+    expect(mockClient.isAlive).toBe(true);
   });
 });
