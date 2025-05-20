@@ -261,7 +261,15 @@ export class WebSocketServer {
     
     // Start tracking latency when transcription is received
     const startTime = Date.now();
-    const latencyTracking = this.createLatencyTracker(startTime);
+    const latencyTracking = {
+      start: startTime,
+      components: {
+        preparation: 0,
+        translation: 0,
+        tts: 0,
+        processing: 0
+      }
+    };
     
     const role = this.roles.get(ws);
     const sessionId = this.sessionIds.get(ws);
@@ -272,37 +280,7 @@ export class WebSocketServer {
       return;
     }
     
-    // Get student connections and languages
-    const { studentConnections, studentLanguages } = this.getStudentConnectionsAndLanguages();
-    
-    if (studentConnections.length === 0) {
-      console.log('No students connected, skipping translation');
-      return;
-    }
-  }
-  
-  /**
-   * Create a latency tracking object
-   */
-  private createLatencyTracker(startTime: number) {
-    return {
-      start: startTime,
-      components: {
-        preparation: 0,
-        translation: 0,
-        tts: 0,
-        processing: 0
-      }
-    };
-  }
-  
-  /**
-   * Get all student connections and their unique languages
-   */
-  private getStudentConnectionsAndLanguages(): { 
-    studentConnections: WebSocketClient[], 
-    studentLanguages: string[] 
-  } {
+    // Get all student connections
     const studentConnections: WebSocketClient[] = [];
     const studentLanguages: string[] = [];
     
@@ -320,8 +298,10 @@ export class WebSocketServer {
       }
     });
     
-    return { studentConnections, studentLanguages };
-  }
+    if (studentConnections.length === 0) {
+      console.log('No students connected, skipping translation');
+      return;
+    }
     
     // Translate text to all student languages
     const teacherLanguage = this.languages.get(ws) || 'en-US';
@@ -477,12 +457,17 @@ export class WebSocketServer {
           }
         } catch (error) {
           console.error('Error processing audio data for translation:', error);
+          translationMessage.error = 'Audio processing failed';
         }
-      } else {
-        console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
       }
       
-      client.send(JSON.stringify(translationMessage));
+      // Send the translation message to the student
+      try {
+        client.send(JSON.stringify(translationMessage));
+        console.log(`Sent translation to student: "${translatedText.substring(0, 30)}${translatedText.length > 30 ? '...' : ''}"`);
+      } catch (error) {
+        console.error('Error sending translation to student:', error);
+      }
     });
   }
   
@@ -491,16 +476,16 @@ export class WebSocketServer {
    */
   private async handleAudioMessage(ws: WebSocketClient, message: any): Promise<void> {
     const role = this.roles.get(ws);
-    const sessionId = this.sessionIds.get(ws);
     
-    console.log('Processing message type=audio from connection:', 
-      `role=${role}, languageCode=${this.languages.get(ws)}`);
-    
-    if (role === 'teacher') {
-      console.log('Processing teacher audio (detected from role info), data length:', message.data?.length);
-      await this.processTeacherAudio(ws, message.data);
-    } else {
+    // Only process audio from teacher
+    if (role !== 'teacher') {
       console.log('Ignoring audio from non-teacher role:', role);
+      return;
+    }
+    
+    // Process audio data
+    if (message.data) {
+      await this.processTeacherAudio(ws, message.data);
     }
   }
   
@@ -508,243 +493,286 @@ export class WebSocketServer {
    * Process audio from teacher
    */
   private async processTeacherAudio(ws: WebSocketClient, audioData: string): Promise<void> {
+    // Validate audio data
     if (!audioData || audioData.length < 100) {
-      console.log('Received invalid or too small audio data (length:', audioData?.length, ')');
+      console.log('Received invalid or too small audio data (length:', audioData.length, ')');
       return;
     }
     
     console.log('Processing audio data (length:', audioData.length, ') from teacher...');
     
-    const sessionId = this.sessionIds.get(ws);
-    const teacherSessionId = `teacher_${sessionId}`;
-    
-    // In a real implementation, this would process the audio and get transcription
-    // Since we're using Web Speech API on the client side, this is just a fallback
-    
-    console.warn(`⚠️ No Web Speech API transcription found for ${teacherSessionId}, cannot process audio`);
+    try {
+      // Convert base64 to buffer
+      const audioBuffer = Buffer.from(audioData, 'base64');
+      
+      // Skip if buffer is too small
+      if (audioBuffer.length < 100) {
+        console.log('Decoded audio buffer too small:', audioBuffer.length);
+        return;
+      }
+      
+      // Get teacher language
+      const teacherLanguage = this.languages.get(ws) || 'en-US';
+      
+      // Check the Web Speech API transcription info from the client
+      let webSpeechTranscription = '';
+      try {
+        // The first few bytes might be a JSON object with transcription info
+        // from the Web Speech API in the browser
+        const bufferStart = audioBuffer.slice(0, 200).toString('utf8');
+        if (bufferStart.startsWith('{') && bufferStart.includes('transcription')) {
+          const endIndex = bufferStart.indexOf('}') + 1;
+          const jsonStr = bufferStart.substring(0, endIndex);
+          const data = JSON.parse(jsonStr);
+          webSpeechTranscription = data.transcription || '';
+          
+          console.log('Web Speech API transcription from client:', webSpeechTranscription);
+        }
+      } catch (err) {
+        console.warn('No Web Speech API transcription found in audio data');
+      }
+      
+      // Get session ID for reference
+      const sessionId = this.sessionIds.get(ws);
+    } catch (error) {
+      console.error('Error processing teacher audio:', error);
+    }
   }
   
   /**
    * Handle TTS request message
-   * 
-   * Follows SOLID principles - Single Responsibility:
-   * This method only coordinates the TTS request handling,
-   * delegating the actual work to specialized methods
    */
   private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
-    const role = this.roles.get(ws);
-    const languageCode = message.languageCode || this.languages.get(ws);
-    // Always force OpenAI TTS service regardless of what was requested
-    const ttsService = 'openai';
     const text = message.text;
-    
-    console.log(`Received TTS request from ${role} (forcing OpenAI TTS service) in language ${languageCode}`);
+    const languageCode = message.languageCode;
     
     if (!this.validateTTSRequest(text, languageCode)) {
+      await this.sendTTSErrorResponse(ws, 'Invalid TTS request parameters');
       return;
     }
     
+    // Get the client's preferred TTS service type or default to OpenAI
+    let ttsServiceType = this.clientSettings.get(ws)?.ttsServiceType || 'openai';
+    
+    // Always force OpenAI for best quality
+    ttsServiceType = 'openai';
+    console.log(`Using OpenAI TTS service for TTS request`);
+    
     try {
-      const audioResult = await this.generateTTSAudio(text, languageCode, ttsService);
-      await this.sendTTSResponse(ws, {
+      // Generate TTS audio
+      const audioBuffer = await this.generateTTSAudio(
         text,
         languageCode,
-        ttsService,
-        ...audioResult
-      });
+        ttsServiceType,
+        message.voice
+      );
+      
+      if (audioBuffer && audioBuffer.length > 0) {
+        // Send successful response with audio
+        await this.sendTTSResponse(
+          ws,
+          text,
+          languageCode,
+          audioBuffer,
+          ttsServiceType
+        );
+      } else {
+        // Send error if no audio was generated
+        await this.sendTTSErrorResponse(ws, 'Failed to generate audio');
+      }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      await this.sendTTSErrorResponse(ws, {
-        text,
-        languageCode,
-        ttsService,
-        errorMsg
-      });
+      console.error('Error handling TTS request:', error);
+      await this.sendTTSErrorResponse(ws, 'TTS generation error');
     }
   }
   
   /**
    * Validate TTS request parameters
-   * 
-   * @param text The text to synthesize
-   * @param languageCode The language code for synthesis
-   * @returns boolean indicating if the request is valid
    */
   private validateTTSRequest(text: string, languageCode: string): boolean {
-    if (!text || !languageCode) {
-      console.error('Missing required parameters for TTS request');
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      console.error('Invalid TTS text:', text);
       return false;
     }
+    
+    if (!languageCode || typeof languageCode !== 'string') {
+      console.error('Invalid TTS language code:', languageCode);
+      return false;
+    }
+    
     return true;
   }
   
   /**
-   * Generate audio using the specified TTS service
-   * 
-   * @param text The text to synthesize
-   * @param languageCode The language code for synthesis
-   * @param ttsService The TTS service to use
-   * @returns Object containing success status and audio buffer (if successful)
+   * Generate TTS audio
    */
   private async generateTTSAudio(
-    text: string, 
-    languageCode: string, 
-    ttsService: string
-  ): Promise<{ success: boolean; audioData?: string; error?: string }> {
+    text: string,
+    languageCode: string,
+    ttsServiceType: string,
+    voice?: string
+  ): Promise<Buffer> {
     try {
-      // Use the translation service to generate speech audio with specific TTS service
+      console.log(`Generating TTS audio for language '${languageCode}' using service '${ttsServiceType}'`);
+      
+      // Use empty source language as we aren't translating, just doing TTS
       const result = await speechTranslationService.translateSpeech(
-        Buffer.from(''), // Empty buffer since we have the text
-        'en-US',        // Source language doesn't matter for TTS
-        languageCode,
-        text,           // The text to synthesize
-        { ttsServiceType: ttsService } // Pass TTS service directly
+        Buffer.from(''), // Empty buffer as we already have the text
+        languageCode,   // Source language is the same as target for TTS-only
+        languageCode,   // Target language
+        text,           // Text to convert to speech
+        { ttsServiceType } // Force specified TTS service type
       );
       
-      // Check if we have valid audio data
-      if (result && result.audioBuffer && result.audioBuffer.length > 0) {
-        return {
-          success: true,
-          audioData: result.audioBuffer.toString('base64')
-        };
-      } else {
-        console.warn(`No audio data generated for TTS service ${ttsService}`);
-        return {
-          success: false,
-          error: 'No audio data generated'
-        };
-      }
+      console.log(`TTS audio generated successfully, audio buffer size: ${result.audioBuffer.length} bytes`);
+      return result.audioBuffer;
     } catch (error) {
-      console.error(`Error generating audio for TTS service ${ttsService}:`, error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
+      console.error('Error generating TTS audio:', error);
+      return Buffer.from(''); // Return empty buffer on error
     }
   }
   
   /**
-   * Send successful TTS response to client
-   * 
-   * @param ws The WebSocket client to send response to
-   * @param responseData The response data
+   * Send TTS response with audio data
    */
   private async sendTTSResponse(
-    ws: WebSocketClient, 
-    responseData: { 
-      text: string; 
-      languageCode: string; 
-      ttsService: string;
-      success: boolean;
-      audioData?: string;
-      error?: string;
-    }
+    ws: WebSocketClient,
+    text: string,
+    languageCode: string,
+    audioBuffer: Buffer,
+    ttsServiceType: string
   ): Promise<void> {
-    const response = {
-      type: 'tts_response',
-      ...responseData
-    };
-    
-    ws.send(JSON.stringify(response));
+    try {
+      // Create base message
+      const response: any = {
+        type: 'tts_response',
+        status: 'success',
+        text,
+        languageCode,
+        ttsServiceType,
+        timestamp: Date.now()
+      };
+      
+      // Check if this is a browser speech synthesis marker
+      const bufferString = audioBuffer.toString('utf8');
+      
+      if (bufferString.startsWith('{"type":"browser-speech"')) {
+        response.useClientSpeech = true;
+        try {
+          response.speechParams = JSON.parse(bufferString);
+        } catch (error) {
+          console.error('Error parsing speech params:', error);
+          response.speechParams = {
+            type: 'browser-speech',
+            text,
+            languageCode,
+            autoPlay: true
+          };
+        }
+      } else {
+        // Real audio data
+        response.audioData = audioBuffer.toString('base64');
+        response.useClientSpeech = false;
+      }
+      
+      // Send response
+      ws.send(JSON.stringify(response));
+      console.log(`TTS response sent successfully for language '${languageCode}'`);
+    } catch (error) {
+      console.error('Error sending TTS response:', error);
+      // Try to send error message if possible
+      try {
+        await this.sendTTSErrorResponse(ws, 'Failed to send audio data');
+      } catch (sendError) {
+        console.error('Error sending TTS error response:', sendError);
+      }
+    }
   }
   
   /**
-   * Send error TTS response to client
-   * 
-   * @param ws The WebSocket client to send response to
-   * @param errorData The error data
+   * Send TTS error response
    */
   private async sendTTSErrorResponse(
-    ws: WebSocketClient, 
-    errorData: { 
-      text: string; 
-      languageCode: string; 
-      ttsService: string;
-      errorMsg: string;
-    }
+    ws: WebSocketClient,
+    message: string,
+    code: string = 'TTS_ERROR'
   ): Promise<void> {
-    console.error(`Error processing TTS request with service ${errorData.ttsService}:`, errorData.errorMsg);
-    
-    const errorResponse = {
-      type: 'tts_response',
-      text: errorData.text,
-      ttsService: errorData.ttsService,
-      languageCode: errorData.languageCode,
-      success: false,
-      error: errorData.errorMsg
-    };
-    
-    ws.send(JSON.stringify(errorResponse));
+    try {
+      const errorResponse = {
+        type: 'tts_response',
+        status: 'error',
+        error: {
+          message,
+          code
+        },
+        timestamp: Date.now()
+      };
+      
+      ws.send(JSON.stringify(errorResponse));
+      console.error(`TTS error response sent: ${message}`);
+    } catch (error) {
+      console.error('Error sending TTS error response:', error);
+    }
   }
   
   /**
    * Handle settings message
-   * 
-   * Updates client settings such as TTS service type
    */
   private handleSettingsMessage(ws: WebSocketClient, message: any): void {
     const role = this.roles.get(ws);
-    console.log(`Processing settings update from ${role}:`, message);
     
-    // Get existing settings or create new object
-    const settings: any = this.clientSettings.get(ws) || {};
+    console.log(`Processing settings update from ${role || 'unknown'}:`, message);
     
-    // Update TTS service type if provided
+    // Initialize settings for this client if not already present
+    const settings = this.clientSettings.get(ws) || {};
+    
+    // Update settings with new values
+    if (message.settings) {
+      Object.assign(settings, message.settings);
+    }
+    
+    // Special handling for ttsServiceType since it can be specified outside settings object
     if (message.ttsServiceType) {
       settings.ttsServiceType = message.ttsServiceType;
       console.log(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
+      
+      // Special notification for teacher TTS service preference
+      if (role === 'teacher') {
+        console.log(`Teacher's TTS service preference set to '${settings.ttsServiceType}'. This will be used for all student translations.`);
+      }
     }
     
     // Store updated settings
     this.clientSettings.set(ws, settings);
     
-    // If this is a teacher, log that the TTS service preference will be used for all students
-    if (role === 'teacher' && message.ttsServiceType) {
-      console.log(`Teacher's TTS service preference set to '${message.ttsServiceType}'. This will be used for all student translations.`);
-    }
-    
     // Send confirmation
     const response = {
       type: 'settings',
       status: 'success',
-      data: settings
+      settings
     };
     
     ws.send(JSON.stringify(response));
   }
-
+  
   /**
-   * Handle ping message for latency measurement
+   * Handle ping message
    */
   private handlePingMessage(ws: WebSocketClient, message: any): void {
+    // Mark as alive for heartbeat
+    ws.isAlive = true;
+    
+    // Send pong response
+    const response = {
+      type: 'pong',
+      timestamp: Date.now(),
+      originalTimestamp: message.timestamp
+    };
+    
     try {
-      // Get client information
-      const role = this.roles.get(ws) || 'unknown';
-      const language = this.languages.get(ws) || 'unknown';
-      const sessionId = this.sessionIds.get(ws) || 'unknown';
-      
-      // Calculate server processing time
-      const serverReceiveTime = Date.now();
-      
-      // Log ping request for diagnostics
-      console.log(`Received ping request from ${role} (${sessionId}), timestamp: ${message.timestamp}`);
-      
-      // Respond with pong message
-      const response = {
-        type: 'pong',
-        timestamp: message.timestamp,
-        serverReceiveTime: serverReceiveTime,
-        serverSendTime: Date.now(),
-        clientInfo: {
-          role,
-          language,
-          sessionId
-        }
-      };
-      
       ws.send(JSON.stringify(response));
     } catch (error) {
-      console.error('Error handling ping message:', error);
+      console.error('Error sending pong response:', error);
     }
   }
   
@@ -752,70 +780,68 @@ export class WebSocketServer {
    * Handle WebSocket close event
    */
   private handleClose(ws: WebSocketClient): void {
-    console.log('WebSocket disconnected, sessionId:', this.sessionIds.get(ws));
+    console.log('WebSocket disconnected, sessionId:', ws.sessionId);
     
-    // Remove from all tracking maps
+    // Remove from all maps
     this.connections.delete(ws);
     this.roles.delete(ws);
     this.languages.delete(ws);
     this.sessionIds.delete(ws);
+    this.clientSettings.delete(ws);
   }
   
   /**
-   * Set up heartbeat mechanism to detect stale connections
+   * Set up heartbeat mechanism to detect dead connections
    */
   private setupHeartbeat(): void {
     const interval = setInterval(() => {
-      this.wss.clients.forEach((ws: any) => {
-        // Cast the standard WebSocket to our custom type 
-        const client = ws as unknown as WebSocketClient;
-        
-        if (client.isAlive === false) {
+      this.connections.forEach(ws => {
+        if (ws.isAlive === false) {
           console.log('Terminating inactive WebSocket connection');
-          return client.terminate();
+          ws.terminate();
+          return;
         }
         
-        client.isAlive = false;
-        client.ping();
-        
-        // Also send a ping message for clients that don't respond to standard pings
-        const pingMessage = {
-          type: 'ping',
-          timestamp: Date.now()
-        };
-        
+        ws.isAlive = false;
         try {
-          client.send(JSON.stringify(pingMessage));
-        } catch (error) {
-          // Ignore errors during ping
+          ws.ping();
+        } catch (e) {
+          console.error('Error sending ping:', e);
         }
       });
-    }, 30000); // Check every 30 seconds
+    }, 30000);
     
-    // Clear interval on server close
+    // Clean up interval when WebSocket server closes
     this.wss.on('close', () => {
       clearInterval(interval);
     });
   }
   
   /**
-   * Get all active connections
+   * Get connections
    */
   public getConnections(): Set<WebSocketClient> {
     return this.connections;
   }
   
   /**
-   * Get role for a specific connection
+   * Get connection role
    */
-  public getRole(ws: WebSocketClient): string | undefined {
-    return this.roles.get(ws);
+  public getRole(client: WebSocketClient): string | undefined {
+    return this.roles.get(client);
   }
   
   /**
-   * Get language for a specific connection
+   * Get connection language
    */
-  public getLanguage(ws: WebSocketClient): string | undefined {
-    return this.languages.get(ws);
+  public getLanguage(client: WebSocketClient): string | undefined {
+    return this.languages.get(client);
+  }
+  
+  /**
+   * Close WebSocket server
+   */
+  public close(): void {
+    this.wss.close();
   }
 }
