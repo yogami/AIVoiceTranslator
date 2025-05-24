@@ -14,6 +14,7 @@
 
 import fs from 'fs';
 import path from 'path';
+import * as os from 'os';
 
 import OpenAI from 'openai';
 import { storage } from '../storage';
@@ -38,7 +39,7 @@ const unlink = promisify(fs.unlink);
 const stat = promisify(fs.stat);
 
 // Constants for configuration
-const TEMP_DIR = '/home/runner/workspace';
+const TEMP_DIR = os.tmpdir(); // Use OS temp directory instead of hardcoded Linux path
 const DEFAULT_WHISPER_MODEL = 'whisper-1';
 const DEFAULT_CHAT_MODEL = 'gpt-4o'; // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
 

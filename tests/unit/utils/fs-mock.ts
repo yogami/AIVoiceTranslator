@@ -14,6 +14,7 @@ const mockMkdir = vi.fn();
 const mockReaddir = vi.fn();
 const mockStat = vi.fn();
 const mockExists = vi.fn();
+const mockAccess = vi.fn();
 const mockCreateReadStream = vi.fn();
 const mockCreateWriteStream = vi.fn();
 
@@ -67,6 +68,14 @@ mockExists.mockImplementation((path, callback) => {
   callback(true);
 });
 
+mockAccess.mockImplementation((path, mode, callback) => {
+  if (typeof mode === 'function') {
+    mode(null); // No error means file exists and is accessible
+  } else {
+    callback?.(null);
+  }
+});
+
 mockCreateReadStream.mockReturnValue({
   pipe: vi.fn(),
   on: vi.fn()
@@ -89,8 +98,10 @@ const promiseImplementations = {
     isFile: () => true,
     isDirectory: () => false,
     size: 12345,
-    mtime: new Date()
+    mtime: new Date(),
+    mtimeMs: Date.now()
   }),
+  access: vi.fn().mockResolvedValue(undefined),
   exists: vi.fn().mockResolvedValue(true)
 };
 
@@ -106,6 +117,7 @@ export function setupFsMock() {
         readdir: mockReaddir,
         stat: mockStat,
         exists: mockExists,
+        access: mockAccess,
         createReadStream: mockCreateReadStream,
         createWriteStream: mockCreateWriteStream,
         constants: {
@@ -125,6 +137,7 @@ export function setupFsMock() {
       readdir: mockReaddir,
       stat: mockStat,
       exists: mockExists,
+      access: mockAccess,
       createReadStream: mockCreateReadStream,
       createWriteStream: mockCreateWriteStream,
       constants: {
@@ -147,6 +160,7 @@ export const fsMock = {
   readdir: mockReaddir,
   stat: mockStat,
   exists: mockExists,
+  access: mockAccess,
   createReadStream: mockCreateReadStream,
   createWriteStream: mockCreateWriteStream,
   promises: promiseImplementations
