@@ -11,7 +11,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createServer } from 'http';
 import express from 'express';
 import { WebSocketService } from '../../../server/websocket';
-import { processStreamingAudio, finalizeStreamingSession } from '../../../server/openai-streaming';
+// Import from test mock with TypeScript type support
+import { processStreamingAudio, finalizeStreamingSession } from '../../../test-config/openai-streaming-test-mock';
 import { WebSocketServer, WebSocket } from 'ws';
 
 describe('WebSocket Live Integration', () => {

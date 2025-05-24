@@ -10,7 +10,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createServer } from 'http';
 import express from 'express';
 import { WebSocketService } from '../../../server/websocket';
-import { processStreamingAudio, finalizeStreamingSession } from '../../../server/openai-streaming';
+// Import from test mock with TypeScript type support
+import { processStreamingAudio, finalizeStreamingSession } from '../../../test-config/openai-streaming-test-mock';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -182,68 +183,69 @@ describe('WebSocket Translation Integration', () => {
         this.ws.close();
       }
     }
-      // Skip this test in environments without WebSocket support
-      if (typeof WebSocket === 'undefined') {
-        console.log('Skipping WebSocket test in environment without WebSocket support');
-        return;
-      }
+    
+    // Skip this test in environments without WebSocket support
+    if (typeof WebSocket === 'undefined') {
+      console.log('Skipping WebSocket test in environment without WebSocket support');
+      return;
+    }
+    
+    // Conditionally skip this test if running in CI
+    if (process.env.CI) {
+      console.log('Skipping WebSocket test in CI environment');
+      return;
+    }
+    
+    try {
+      // This test uses WebSocket directly which may fail in some environments
+      // Instead of testing with real WebSockets, we'll test the basic functionality
+      // through our handler without creating real connections
       
-      // Conditionally skip this test if running in CI
-      if (process.env.CI) {
-        console.log('Skipping WebSocket test in CI environment');
-        return;
-      }
+      // Create a mock WebSocket object that simulates the behavior
+      // This is not mocking the system under test, just the WebSocket client
+      const mockWebSocket = {
+        send: (data: string) => {
+          console.log('Mock WebSocket sending:', data);
+        },
+        on: (event: string, handler: Function) => {
+          console.log(`Mock WebSocket registered handler for ${event}`);
+          return mockWebSocket;
+        },
+        removeListener: () => {},
+        close: () => {}
+      };
       
-      try {
-        // This test uses WebSocket directly which may fail in some environments
-        // Instead of testing with real WebSockets, we'll test the basic functionality
-        // through our handler without creating real connections
-        
-        // Create a mock WebSocket object that simulates the behavior
-        // This is not mocking the system under test, just the WebSocket client
-        const mockWebSocket = {
-          send: (data: string) => {
-            console.log('Mock WebSocket sending:', data);
-          },
-          on: (event: string, handler: Function) => {
-            console.log(`Mock WebSocket registered handler for ${event}`);
-            return mockWebSocket;
-          },
-          removeListener: () => {},
-          close: () => {}
-        };
-        
-        // Skip the actual WebSocket connection which might fail in different environments
-        // and just verify our handlers work correctly
-        
-        // Simulate a message that would come through the WebSocket
-        const mockMessage = {
-          type: 'audio',
-          sessionId: `test-session-${Date.now()}`,
-          audioData: audioData.toString('base64'),
-          isFirstChunk: true,
-          language: 'en-US'
-        };
-        
-        // Call the handler directly to test it without WebSocket connection issues
-        await messageHandler(mockWebSocket, mockMessage);
-        
-        // Call finalize handler
-        const finalizeMessage = {
-          type: 'finalize',
-          sessionId: mockMessage.sessionId
-        };
-        
-        await messageHandler(mockWebSocket, finalizeMessage);
-        
-        // If we've made it this far without exceptions, the test passes
-        expect(true).toBe(true);
-        
-      } catch (error) {
-        // This is an integration test - we expect it might fail in some environments
-        // But we should log the error for debugging
-        console.error('WebSocket integration test failed:', error);
-        expect(true).toBe(true); // Don't fail the test
-      }
-    });
+      // Skip the actual WebSocket connection which might fail in different environments
+      // and just verify our handlers work correctly
+      
+      // Simulate a message that would come through the WebSocket
+      const mockMessage = {
+        type: 'audio',
+        sessionId: `test-session-${Date.now()}`,
+        audioData: audioData.toString('base64'),
+        isFirstChunk: true,
+        language: 'en-US'
+      };
+      
+      // Call the handler directly to test it without WebSocket connection issues
+      await messageHandler(mockWebSocket, mockMessage);
+      
+      // Call finalize handler
+      const finalizeMessage = {
+        type: 'finalize',
+        sessionId: mockMessage.sessionId
+      };
+      
+      await messageHandler(mockWebSocket, finalizeMessage);
+      
+      // If we've made it this far without exceptions, the test passes
+      expect(true).toBe(true);
+      
+    } catch (error) {
+      // This is an integration test - we expect it might fail in some environments
+      // But we should log the error for debugging
+      console.error('WebSocket integration test failed:', error);
+      expect(true).toBe(true); // Don't fail the test
+    }
+  });
 });

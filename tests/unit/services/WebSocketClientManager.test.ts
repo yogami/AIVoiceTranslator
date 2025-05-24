@@ -1,48 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { WebSocketClientManager, type WebSocketClient } from '../../../server/services/WebSocketClientManager';
-
-// Mock WebSocket client
-const createMockClient = (): WebSocketClient => {
-  return {
-    isAlive: false,
-    send: () => {},
-    close: () => {},
-    terminate: () => {},
-    ping: () => {},
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    dispatchEvent: () => new Event('test'),
-    CLOSED: 3,
-    CLOSING: 2,
-    CONNECTING: 0,
-    OPEN: 1,
-    on: () => ({}),
-    once: () => ({}),
-    off: () => ({}),
-    emit: () => false,
-    addListener: () => ({}),
-    removeListener: () => ({}),
-    removeAllListeners: () => ({}),
-    setMaxListeners: () => ({}),
-    getMaxListeners: () => 0,
-    listeners: () => [],
-    rawListeners: () => [],
-    listenerCount: () => 0,
-    prependListener: () => ({}),
-    prependOnceListener: () => ({}),
-    eventNames: () => [],
-    readyState: 1,
-    protocol: '',
-    url: '',
-    bufferedAmount: 0,
-    extensions: '',
-    binaryType: 'arraybuffer' as const,
-    onopen: null,
-    onerror: null,
-    onclose: null,
-    onmessage: null
-  } as unknown as WebSocketClient;
-};
+import { WebSocketClientManager } from '../../../server/services/managers/WebSocketClientManager';
+import type { WebSocketClient } from '../../../server/services/managers/WebSocketClientManager';
+import { createMockWebSocketClient } from '../utils/test-helpers';
 
 describe('WebSocketClientManager', () => {
   let clientManager: WebSocketClientManager;
@@ -52,9 +11,10 @@ describe('WebSocketClientManager', () => {
   
   beforeEach(() => {
     clientManager = new WebSocketClientManager();
-    mockClient1 = createMockClient();
-    mockClient2 = createMockClient();
-    mockClient3 = createMockClient();
+    // Use our shared helper function to create mock clients
+    mockClient1 = createMockWebSocketClient() as unknown as WebSocketClient;
+    mockClient2 = createMockWebSocketClient() as unknown as WebSocketClient;
+    mockClient3 = createMockWebSocketClient() as unknown as WebSocketClient;
   });
   
   describe('Client Management', () => {

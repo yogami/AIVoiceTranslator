@@ -4,8 +4,11 @@ import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
-// We need to adjust paths to account for the config directory
 const projectRoot = path.resolve(__dirname, '..');
+
+console.log('Alias configuration:', {
+  '@config': path.resolve(projectRoot, 'server/config'),
+});
 
 export default defineConfig({
   plugins: [
@@ -26,6 +29,12 @@ export default defineConfig({
       "@": path.resolve(projectRoot, "client", "src"),
       "@shared": path.resolve(projectRoot, "shared"),
       "@assets": path.resolve(projectRoot, "attached_assets"),
+      "@handlers": path.resolve(projectRoot, "server/services/handlers"),
+      "@services": path.resolve(projectRoot, "server/services"),
+      "@managers": path.resolve(projectRoot, "server/services/managers"),
+      "@helpers": path.resolve(projectRoot, "server/services/helpers"),
+      "@config": path.resolve(projectRoot, "config"),
+      "@websocket": path.resolve(projectRoot, "server/websocket"),
     },
   },
   root: path.resolve(projectRoot, "client"),

@@ -2,7 +2,7 @@
  * Unit tests for HeartbeatManager
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { HeartbeatManager, HeartbeatWebSocket } from '../../../server/services/HeartbeatManager';
+import { HeartbeatManager, HeartbeatWebSocket } from '../../../server/services/managers/HeartbeatManager';
 import { WebSocket } from 'ws';
 
 // Create a mock WebSocket client

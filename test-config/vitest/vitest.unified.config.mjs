@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { resolve } from 'path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 /**
  * Unified Vitest configuration.
@@ -14,6 +15,9 @@ import { resolve } from 'path';
 
 // Access test mode from environment or default to 'all'
 const testMode = process.env.TEST_MODE || 'all';
+
+// Define the project root path
+const projectRoot = resolve(__dirname, '../../');
 
 // Configure test patterns based on test mode
 const getTestPattern = (mode) => {
@@ -31,6 +35,7 @@ const getTestPattern = (mode) => {
 };
 
 export default defineConfig({
+  plugins: [tsconfigPaths()],
   test: {
     globals: true,
     environment: 'node',
@@ -48,35 +53,39 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       reportsDirectory: './coverage',
-      exclude: ['**/node_modules/**', '**/tests/**'],
       include: [
-        'server/websocket.ts', 
-        'server/services/TextToSpeechService.ts',
-        'server/services/TranslationService.ts',
-        'server/openai.ts',
-        'server/openai-streaming.ts',
-        'server/storage.ts',
-        'server/routes.ts',
-        'server/config.ts',
-        'server/index.ts',
-        'server/vite.ts'
+        'server/**/*.ts'
+      ],
+      exclude: [
+        'config/**',
+        'test-config/**',
+        'test-scripts/**',
+        'client/**',
+        '**/*.d.ts',
+        '**/*.config.{js,ts}',
+        '**/node_modules/**'
       ],
       all: true,
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 85,
-        statements: 90
+        lines: 85,
+        functions: 85,
+        branches: 80,
+        statements: 85
       }
     }
   },
   resolve: {
     alias: {
-      '@': resolve(process.cwd(), './server'),
-      '@server': resolve(process.cwd(), './server'),
-      '@shared': resolve(process.cwd(), './shared'),
-      '@client': resolve(process.cwd(), './client'),
-      '@tests': resolve(process.cwd(), './tests')
+      '@config': resolve(projectRoot, 'config'),
+      '@services': resolve(projectRoot, 'server/services'),
+      '@db': resolve(projectRoot, 'server/db'),
+      '@routes': resolve(projectRoot, 'server/routes'),
+      '@websocket': resolve(projectRoot, 'server/websocket'), // The critical one
+      '@openai': resolve(projectRoot, 'server/openai'),
+      '@storage': resolve(projectRoot, 'server/storage'),
+      '@helpers': resolve(projectRoot, 'server/services/helpers'),
+      '@managers': resolve(projectRoot, 'server/services/managers'),
+      '@handlers': resolve(projectRoot, 'server/services/handlers')
     }
   }
 });

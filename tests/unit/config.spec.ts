@@ -17,8 +17,8 @@ vi.mock('fs', () => ({
   readFileSync: vi.fn(),
 }));
 
-vi.mock('path', () => {
-  const originalPath = vi.importActual('path') as typeof path;
+vi.mock('path', async () => {
+  const originalPath = (await vi.importActual('path')) as typeof path;
   return {
     ...originalPath,
     join: vi.fn().mockImplementation((...args: string[]) => args.join('/')),

@@ -2,7 +2,7 @@
  * Unit tests for ConnectionManager
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConnectionManager } from '../../../server/services/ConnectionManager';
+import { ConnectionManager } from '../../../server/services/managers/ConnectionManager';
 import { WebSocket } from 'ws';
 
 class MockWebSocket extends WebSocket {

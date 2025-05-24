@@ -5,7 +5,7 @@
  */
 import OpenAI from 'openai';
 import WebSocket from 'ws';
-import { WebSocketState } from '../websocket';
+import { WebSocketState } from '../../websocket';
 
 // Configuration constants - making magic numbers explicit
 const CONFIG = {
