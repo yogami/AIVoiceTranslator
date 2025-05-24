@@ -32,3 +32,20 @@ try {
 }
 
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+export const PATHS = {
+  services: {
+    handlers: '@handlers',
+    managers: '@managers',
+    transcription: '@services/transcription',
+    textToSpeech: '@services/textToSpeech',
+    processors: '@services/processors',
+    helpers: '@helpers',
+  },
+  config: '@config',
+  db: '@db',
+  routes: '@routes',
+  websocket: '@websocket',
+  openai: '@openai',
+  storage: '@storage',
+};

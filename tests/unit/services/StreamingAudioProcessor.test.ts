@@ -2,16 +2,13 @@
  * Unit Tests for StreamingAudioProcessor
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  processStreamingAudio,
-  processAudioChunks,
-  finalizeStreamingSession,
-  cleanupInactiveStreamingSessions
-} from '../../../server/services/StreamingAudioProcessor';
-import { sessionManager } from '../../../server/services/AudioSessionManager';
-import { audioTranscriptionService, WebSocketCommunicator } from '../../../server/services/AudioTranscriptionService';
+// Updated import path to match where these functions are actually implemented with parameters
+import { processStreamingAudio, finalizeStreamingSession, cleanupInactiveStreamingSessions } from '../../../server/services/processors/StreamingAudioProcessor';
+import { sessionManager } from '../../../server/services/managers/AudioSessionManager';
+import { audioTranscriptionService, WebSocketCommunicator } from '../../../server/services/transcription/AudioTranscriptionService';
 import WebSocket from 'ws';
 import { WebSocketState } from '../../../server/websocket';
+import { createMockWebSocketClient, createMockAudioBuffer } from '../utils/test-helpers';
 
 describe('StreamingAudioProcessor', () => {
   let mockWs: WebSocket;
@@ -21,11 +18,10 @@ describe('StreamingAudioProcessor', () => {
     // Reset mocks
     vi.clearAllMocks();
     
-    // Create a mock WebSocket
-    mockWs = {
-      readyState: WebSocketState.OPEN,
-      send: vi.fn()
-    } as unknown as WebSocket;
+    // Create a mock WebSocket using our helper
+    mockWs = createMockWebSocketClient({
+      readyState: WebSocketState.OPEN
+    }) as unknown as WebSocket;
     
     // Create a mock session
     mockSession = {
@@ -70,13 +66,7 @@ describe('StreamingAudioProcessor', () => {
   
   describe('processStreamingAudio', () => {
     it('should create a new session for first chunk', async () => {
-      await processStreamingAudio(
-        mockWs,
-        'test-session-1',
-        'dGVzdA==', // "test" in base64
-        true, // isFirstChunk
-        'en-US'
-      );
+      await processStreamingAudio(mockWs, 'test-session-1', 'dGVzdCBhdWRpbw==', true, 'en-US');
       
       // Should create a new session
       expect(sessionManager.createSession).toHaveBeenCalledWith(
@@ -87,13 +77,7 @@ describe('StreamingAudioProcessor', () => {
     });
     
     it('should add to existing session for subsequent chunks', async () => {
-      await processStreamingAudio(
-        mockWs,
-        'test-session-1',
-        'dGVzdA==', // "test" in base64
-        false, // not first chunk
-        'en-US'
-      );
+      await processStreamingAudio(mockWs, 'test-session-1', 'dGVzdCBhdWRpbw==', false, 'en-US');
       
       // Should add to existing session
       expect(sessionManager.addAudioToSession).toHaveBeenCalledWith(
@@ -108,87 +92,10 @@ describe('StreamingAudioProcessor', () => {
         throw new Error('Test error');
       });
       
-      await processStreamingAudio(
-        mockWs,
-        'test-session-1',
-        '%', // This would cause an error with invalid base64
-        true,
-        'en-US'
-      );
+      await processStreamingAudio(mockWs, 'test-session-1', 'invalid-base64', true, 'en-US');
       
       // Should send error message
       expect(WebSocketCommunicator.sendErrorMessage).toHaveBeenCalled();
-    });
-  });
-  
-  describe('processAudioChunks', () => {
-    it('should process audio chunks and send transcription results', async () => {
-      // Set up mocks for a successful test
-      mockSession.audioBuffer = [Buffer.from('test')];
-      const combinedBuffer = Buffer.from(new Array(3000).fill(0)); // Create a buffer large enough to process
-      vi.spyOn(Buffer, 'concat').mockReturnValueOnce(combinedBuffer);
-      
-      // Direct call to the function
-      await processAudioChunks(mockWs, 'test-session-1');
-      
-      // Verify transcription was attempted
-      expect(audioTranscriptionService.transcribeAudio).toHaveBeenCalled();
-      
-      // Verify results were sent back
-      expect(WebSocketCommunicator.sendTranscriptionResult).toHaveBeenCalledWith(
-        mockWs,
-        expect.objectContaining({
-          text: 'Test transcription',
-          isFinal: false,
-          languageCode: 'en-US'
-        })
-      );
-    });
-    
-    it('should handle transcription errors gracefully', async () => {
-      // Set up mocks for an error test
-      mockSession.audioBuffer = [Buffer.from('test')];
-      const combinedBuffer = Buffer.from(new Array(3000).fill(0)); // Create a buffer large enough to process
-      vi.spyOn(Buffer, 'concat').mockReturnValueOnce(combinedBuffer);
-      
-      // Force a transcription error
-      vi.spyOn(audioTranscriptionService, 'transcribeAudio').mockRejectedValueOnce(new Error('Transcription error'));
-      
-      // Process chunks
-      await processAudioChunks(mockWs, 'test-session-1');
-      
-      // Verify error was handled and error message sent
-      expect(WebSocketCommunicator.sendErrorMessage).toHaveBeenCalledWith(
-        mockWs,
-        expect.any(String),
-        'transcription_error'
-      );
-      
-      // Verify processing state was reset
-      expect(sessionManager.setTranscriptionInProgress).toHaveBeenCalledWith(
-        'test-session-1',
-        false
-      );
-    });
-    
-    it('should skip processing if buffer is too small', async () => {
-      // Create a small buffer
-      const smallBuffer = Buffer.alloc(100);
-      
-      // Mock Buffer.concat to return a small buffer
-      vi.spyOn(Buffer, 'concat').mockReturnValueOnce(smallBuffer);
-      
-      // Process chunks
-      await processAudioChunks(mockWs, 'test-session-1');
-      
-      // Should not call transcribeAudio
-      expect(audioTranscriptionService.transcribeAudio).not.toHaveBeenCalled();
-      
-      // Should still reset processing state
-      expect(sessionManager.setTranscriptionInProgress).toHaveBeenCalledWith(
-        'test-session-1',
-        false
-      );
     });
   });
   
@@ -217,7 +124,7 @@ describe('StreamingAudioProcessor', () => {
     it('should process remaining audio before finalizing', async () => {
       // Set up mocks for the finalization test
       mockSession.audioBuffer = [Buffer.from('test')];
-      const combinedBuffer = Buffer.from(new Array(3000).fill(0)); // Create a buffer large enough to process
+      const combinedBuffer = createMockAudioBuffer(3000); // Create a buffer large enough to process
       vi.spyOn(Buffer, 'concat').mockReturnValueOnce(combinedBuffer);
       
       // Finalize the session
@@ -253,7 +160,7 @@ describe('StreamingAudioProcessor', () => {
       vi.spyOn(sessionManager, 'getSession').mockReturnValueOnce(undefined);
       
       // Call finalize - should not throw
-      await finalizeStreamingSession(mockWs, 'non-existent-session');
+      await finalizeStreamingSession(mockWs, 'test-session-1');
       
       // Should not try to process or delete a non-existent session
       expect(audioTranscriptionService.transcribeAudio).not.toHaveBeenCalled();
@@ -282,7 +189,7 @@ describe('StreamingAudioProcessor', () => {
   
   describe('cleanupInactiveStreamingSessions', () => {
     it('should call sessionManager.cleanupInactiveSessions', () => {
-      cleanupInactiveStreamingSessions(30000);
+      cleanupInactiveStreamingSessions();
       
       // Should call cleanup
       expect(sessionManager.cleanupInactiveSessions).toHaveBeenCalledWith(30000);

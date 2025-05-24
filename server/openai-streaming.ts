@@ -16,9 +16,9 @@ export {
   processStreamingAudio,
   finalizeStreamingSession,
   cleanupInactiveStreamingSessions
-} from './services/StreamingAudioProcessor';
+} from './services/processors/StreamingAudioProcessor';
 
-export { sessionManager } from './services/AudioSessionManager';
+export { sessionManager } from './services/managers/AudioSessionManager';
 
 // Log API key status (masked for security)
 console.log(`OpenAI Streaming - API key status: ${process.env.OPENAI_API_KEY ? 'Present' : 'Missing'}`);

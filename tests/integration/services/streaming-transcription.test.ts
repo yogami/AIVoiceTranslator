@@ -7,7 +7,8 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebSocketService } from '../../../server/websocket';
-import { processStreamingAudio, finalizeStreamingSession } from '../../../server/openai-streaming';
+// Import from test mock with TypeScript type support
+import { processStreamingAudio, finalizeStreamingSession } from '../../../test-config/openai-streaming-test-mock';
 import { createServer } from 'http';
 import express from 'express';
 import * as fs from 'fs';

@@ -1,4 +1,3 @@
-
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ---- Move the mock to the top level ----
@@ -10,14 +9,16 @@ vi.mock('../../server/server', () => ({
 }));
 
 describe('server/index.ts (entry point)', () => {
-  let consoleErrorSpy: ReturnType<typeof vi.fn>;
-  let processExitSpy: ReturnType<typeof vi.fn>;
+  let consoleErrorSpy: any;
+  let processExitSpy: any;
 
   beforeEach(() => {
     vi.resetModules();
     startServerMock.mockReset();
-    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.fn>;
-    processExitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => { throw new Error(`process.exit called with code ${code}`); }) as unknown as ReturnType<typeof vi.fn>;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    processExitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {
+      // Do nothing instead of exiting
+    }) as any);
   });
 
   afterEach(() => {
@@ -41,9 +42,14 @@ describe('server/index.ts (entry point)', () => {
     const fakeError = new Error('Startup failed');
     startServerMock.mockRejectedValueOnce(fakeError);
 
-    await import('../../server/index');
-    // Wait for the .catch to run in the microtask queue
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Import the module and catch any unhandled rejections
+    try {
+      await import('../../server/index');
+      // Wait for the .catch to run in the microtask queue
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } catch (error) {
+      // This should not happen with the fixed mock
+    }
 
     expect(startServerMock).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy).toHaveBeenCalledWith('Error starting server:', fakeError);

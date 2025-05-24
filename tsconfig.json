@@ -1,3 +1,30 @@
 {
-  "extends": "./config/tsconfig.json"
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": "./",
+    "paths": {
+      "@config/*": ["config/*"],
+      "@services/*": ["server/services/*", "server/services/processors/*"],
+      "@db": ["server/db"],
+      "@routes": ["server/routes"],
+      "@websocket": ["server/websocket"],
+      "@openai": ["server/openai"],
+      "@storage": ["server/storage"],
+      "@helpers/*": ["server/services/helpers/*"],
+      "@managers/*": ["server/services/managers/*"],
+      "@handlers/*": ["server/services/handlers/*"]
+    },
+    "types": ["node", "vitest/globals"],
+    "outDir": "dist/",
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true
+  },
+  "include": ["server/**/*", "shared/**/*", "tests/**/*"],
+  "exclude": ["node_modules", "dist-tests", "coverage"]
 }

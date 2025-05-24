@@ -5,7 +5,7 @@
  * with preserved emotional tone using OpenAI's Text-to-Speech API.
  */
 
-import OpenAI from 'openai';
+import OpenAI, { OpenAIError } from 'openai';
 import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';

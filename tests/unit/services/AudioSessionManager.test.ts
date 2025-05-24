@@ -2,7 +2,7 @@
  * Unit Tests for AudioSessionManager Service
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { AudioSessionManager, AudioStreamingSessionState } from '../../../server/services/AudioSessionManager';
+import { AudioSessionManager } from '../../../server/services/managers/AudioSessionManager';
 
 describe('AudioSessionManager', () => {
   let sessionManager: AudioSessionManager;

@@ -2,7 +2,7 @@
  * Handles incoming WebSocket messages and routes them to appropriate handlers.
  */
 import { WebSocket } from 'ws';
-import { ConnectionManager } from './ConnectionManager';
+import { ConnectionManager } from '@managers/ConnectionManager';
 
 export class MessageHandler {
   constructor(private connectionManager: ConnectionManager) {}
