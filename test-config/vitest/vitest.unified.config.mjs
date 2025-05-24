@@ -34,6 +34,31 @@ const getTestPattern = (mode) => {
   }
 };
 
+// Configure test timeouts based on test mode
+const getTestTimeouts = (mode) => {
+  switch (mode) {
+    case 'integration':
+      return {
+        testTimeout: 60000,          // 60 seconds per integration test
+        hookTimeout: 30000,          // 30 seconds for hooks 
+        teardownTimeout: 15000,      // 15 seconds for teardown
+      };
+    case 'e2e':
+      return {
+        testTimeout: 120000,         // 2 minutes per e2e test
+        hookTimeout: 60000,          // 1 minute for hooks 
+        teardownTimeout: 30000,      // 30 seconds for teardown
+      };
+    case 'unit':
+    default:
+      return {
+        testTimeout: 30000,          // 30 seconds per test
+        hookTimeout: 15000,          // 15 seconds for hooks 
+        teardownTimeout: 10000,      // 10 seconds for teardown
+      };
+  }
+};
+
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
@@ -41,13 +66,18 @@ export default defineConfig({
     environment: 'node',
     testMatch: getTestPattern(testMode),
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
-    testTimeout: 30000,          // 30 seconds per test
-    hookTimeout: 15000,          // 15 seconds for hooks 
-    teardownTimeout: 10000,      // 10 seconds for teardown
-    maxConcurrency: 1,           // Run tests sequentially
-    maxThreads: 1,               // Use only one thread
+    ...getTestTimeouts(testMode),
+    maxConcurrency: testMode === 'integration' ? 1 : 2,  // Sequential for integration tests
+    maxThreads: testMode === 'integration' ? 1 : 2,      // Single thread for integration tests
     minThreads: 1,               // Use at least one thread
     silent: false,               // Show full output
+    isolate: true,               // Isolate test environments
+    pool: 'threads',             // Use thread pool for better isolation
+    poolOptions: {
+      threads: {
+        singleThread: testMode === 'integration', // Force single thread for integration tests
+      }
+    },
     setupFiles: ['./test-config/vitest/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
