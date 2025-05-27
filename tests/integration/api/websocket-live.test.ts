@@ -340,7 +340,7 @@ describe('WebSocket Live Integration (Real Services)', () => {
       }
       throw error;
     }
-  });
+  }, 30000); // Add 30-second timeout for this OpenAI integration test
 
   it('should handle connection errors gracefully', async () => {
     // Test connection to non-existent endpoint

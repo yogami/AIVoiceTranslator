@@ -13,13 +13,13 @@ jobs:
     
     strategy:
       matrix:
-        node-version: [18.x]  # Specify Node.js version
+        node-version: [20.x]  # Updated to Node.js 20
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -50,39 +50,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libasound2 libasound2-plugins alsa-utils alsa-oss
           sudo modprobe snd-dummy || echo "snd-dummy module not available, using alternative approach"
-          # Create a virtual audio device
           echo "options snd-dummy enable=1,1,1,1,1 index=0" | sudo tee -a /etc/modprobe.d/alsa-dummy.conf || true
-          # Print audio devices
           aplay -l || echo "aplay command failed but continuing"
           
       - name: Start Application
         run: |
-          # Set environment variables
           export NODE_ENV=test
           export PORT=5000
           
-          # Start the server in the background
           npm run dev &
-          # Save the PID
           echo $! > server.pid
           
-          # Wait for server to start
           sleep 10
           
-          # Check if server is running
           curl -s http://localhost:5000 || echo "Server may not be fully started, but continuing tests"
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           
       - name: Run Audio E2E Tests
         run: |
-          # Set display for Chrome
           export DISPLAY=:99
           sudo Xvfb :99 -screen 0 1280x1024x24 > /dev/null 2>&1 &
           
-          # Run the tests
-          cd tests/selenium
-          npx mocha audio-e2e-test.js --timeout 60000
+          # Run E2E tests using Vitest
+          npx vitest run --config test-config/vitest/vitest.e2e.config.mjs
         env:
           APP_URL: http://localhost:5000
           NODE_ENV: test
@@ -90,11 +81,9 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          # Kill the server
           if [ -f server.pid ]; then
             kill $(cat server.pid) || true
             rm server.pid
           fi
           
-          # Kill Xvfb
           pkill Xvfb || true
