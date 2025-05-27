@@ -89,6 +89,11 @@ export async function startServer() {
     res.sendFile('feature-tests-dashboard.html', { root: 'client/public' });
   });
   
+  // Route for diagnostics page
+  app.get('/diagnostics', (req, res) => {
+    res.sendFile('diagnostics.html', { root: 'client/public' });
+  });
+  
   // Serve index.html for root route
   app.get('/', (req, res) => {
     res.sendFile('index.html', { root: 'client' });

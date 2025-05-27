@@ -1,52 +1,53 @@
 /**
- * DISABLED: Playwright Configuration for E2E Tests
+ * Playwright Configuration for E2E Tests
  */
 
-// import { PlaywrightTestConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
 
-// const config: PlaywrightTestConfig = {
-//   testDir: './tests/e2e',
-//   timeout: 30000,
-//   expect: {
-//     timeout: 5000
-//   },
-//   forbidOnly: !!process.env.CI,
-//   retries: process.env.CI ? 2 : 0,
-//   workers: process.env.CI ? 1 : undefined,
-//   reporter: [
-//     ['html', { outputFolder: 'playwright-report' }],
-//     ['json', { outputFile: 'playwright-report/test-results.json' }]
-//   ],
-//   use: {
-//     actionTimeout: 10000,
-//     trace: 'on-first-retry',
-//     video: 'on-first-retry',
-//   },
-//   projects: [
-//     {
-//       name: 'chromium',
-//       use: { ...devices['Desktop Chrome'] },
-//     },
-//     {
-//       name: 'firefox',
-//       use: { ...devices['Desktop Firefox'] },
-//     },
-//     {
-//       name: 'webkit',
-//       use: { ...devices['Desktop Safari'] },
-//     },
-//     {
-//       name: 'mobile chrome',
-//       use: { ...devices['Pixel 5'] },
-//     },
-//     {
-//       name: 'mobile safari',
-//       use: { ...devices['iPhone 12'] },
-//     }
-//   ],
-// };
+export default defineConfig({
+  testDir: path.join(__dirname, '../tests/e2e'),
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [
+    ['html', { outputFolder: path.join(__dirname, '../playwright-report') }],
+    ['json', { outputFile: path.join(__dirname, '../playwright-report/test-results.json') }],
+    ['list']
+  ],
+  use: {
+    baseURL: 'http://localhost:5000',
+    trace: 'on-first-retry',
+    video: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    actionTimeout: 10000,
+  },
+  
+  timeout: 30000,
+  expect: {
+    timeout: 5000
+  },
 
-// export default config;
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    }
+  ],
 
-// Placeholder export to keep the TypeScript module valid
-export default {};
+  webServer: {
+    command: 'npm run dev',
+    port: 5000,
+    timeout: 120 * 1000,
+    reuseExistingServer: !process.env.CI,
+  },
+});

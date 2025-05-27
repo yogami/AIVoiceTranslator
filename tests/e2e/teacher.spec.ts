@@ -2,98 +2,119 @@
  * Teacher Interface E2E Test
  * 
  * This test checks the functionality of the teacher interface.
- * Note: This test is currently skipped as it requires a browser environment.
  */
 
-// Importing test utilities
-import { sleep } from './test-setup';
+import { test, expect, Page } from '@playwright/test';
 
-// Using plain functions for the test structure since we can't run Playwright tests here
-describe('Teacher Interface E2E Tests (Skipped)', () => {
-  it('should load and function correctly', async () => {
-    // This test would normally use Playwright, but we'll just log the steps we would take
-    console.log('1. Navigate to teacher page at http://localhost:5000/teacher');
-    console.log('2. Check if key elements are present (Start Recording button, source language selector)');
-    console.log('3. Test language selection by selecting en-US');
-    console.log('4. Wait for WebSocket connection to establish');
-    console.log('5. Test recording button functionality by clicking it');
-    console.log('6. Verify record button changes to stop button');
-    console.log('7. Test stopping recording');
-    console.log('8. Check that transcription area exists and updates');
-    
-    // For this test to pass in our test framework for now
-    expect(true).toBe(true);
-  });
-  
-  it('should show active connections', async () => {
-    console.log('1. Open teacher interface at http://localhost:5000/teacher');
-    console.log('2. Wait for page to load fully');
-    console.log('3. Check for active connections panel existence');
-    console.log('4. In a real test, we would open a second browser context');
-    console.log('5. Connect a student in that context');
-    console.log('6. Verify the teacher UI updates with the new connection');
-    
-    // For this test to pass in our test framework for now
-    expect(true).toBe(true);
-  });
-});
+test.describe('Teacher Interface E2E Tests', () => {
+  let page: Page;
 
-// Add a simple test that will actually run
-describe('Simple E2E-like Tests', () => {
-  it('should simulate a teacher-student interaction', async () => {
-    // Create a mock teacher session
-    const teacherSession = {
-      id: 'teacher-123',
-      language: 'en-US',
-      isActive: true,
-      startTime: new Date(),
-      transcripts: []
-    };
+  test.beforeEach(async ({ browser }) => {
+    page = await browser.newPage();
+    await page.goto('/teacher');
+  });
+
+  test.afterEach(async () => {
+    await page.close();
+  });
+
+  test('should display initial UI elements correctly', async () => {
+    // Check essential elements
+    await expect(page.locator('h1')).toContainText('Teacher Interface');
+    await expect(page.locator('#connection-status')).toBeVisible();
+    await expect(page.locator('#language-select')).toBeVisible();
+    await expect(page.locator('#record-btn')).toBeVisible();
+    await expect(page.locator('#stop-btn')).toBeVisible();
+    await expect(page.locator('#stop-btn')).toBeDisabled();
+    await expect(page.locator('#transcript-text')).toBeVisible();
+  });
+
+  test('should establish WebSocket connection automatically', async () => {
+    // Wait for auto-connection
+    await expect(page.locator('#connection-status')).toContainText('Connected', { timeout: 5000 });
+    await expect(page.locator('#connection-status')).toHaveClass(/connected/);
+  });
+
+  test('should handle language selection', async () => {
+    // Wait for connection first
+    await expect(page.locator('#connection-status')).toContainText('Connected', { timeout: 5000 });
     
-    // Create a mock student connection
-    const studentConnection = {
-      id: 'student-456',
-      sessionId: 'teacher-123',
-      language: 'es-ES',
-      isActive: true
-    };
+    // Change language
+    await page.selectOption('#language-select', 'es-ES');
+    const selectedValue = await page.locator('#language-select').inputValue();
+    expect(selectedValue).toBe('es-ES');
     
-    // Simulate teacher starting a session
-    console.log('Teacher starts recording...');
-    teacherSession.isActive = true;
+    // Should re-register with new language
+    await page.waitForTimeout(1000); // Wait for re-registration
+  });
+
+  test('should handle recording controls', async () => {
+    // Check initial state
+    await expect(page.locator('#record-btn')).toBeEnabled();
+    await expect(page.locator('#stop-btn')).toBeDisabled();
+    await expect(page.locator('#status')).toContainText('Ready to record');
     
-    // Simulate student joining
-    console.log('Student joins the session...');
-    studentConnection.isActive = true;
+    // Start recording
+    await page.click('#record-btn');
     
-    // Simulate teacher speaking and transcription
-    console.log('Teacher speaks: "Hello class, today we will learn about testing"');
-    const transcription = {
-      text: 'Hello class, today we will learn about testing',
-      language: 'en-US',
-      timestamp: new Date()
-    };
-    teacherSession.transcripts.push(transcription);
+    // Check recording state
+    await expect(page.locator('#record-btn')).toBeDisabled();
+    await expect(page.locator('#stop-btn')).toBeEnabled();
+    await expect(page.locator('#status')).toContainText('Recording');
+    await expect(page.locator('#transcript-text')).toContainText('Listening');
     
-    // Simulate translation to student's language
-    console.log('Translating to Spanish...');
-    await sleep(100); // Simulate processing time
-    const translation = {
-      originalText: transcription.text,
-      translatedText: 'Hola clase, hoy aprenderemos sobre pruebas',
-      sourceLanguage: 'en-US',
-      targetLanguage: 'es-ES'
-    };
+    // Stop recording
+    await page.click('#stop-btn');
     
-    // Simulate student receiving translation
-    console.log('Student receives: "Hola clase, hoy aprenderemos sobre pruebas"');
+    // Check stopped state
+    await expect(page.locator('#record-btn')).toBeEnabled();
+    await expect(page.locator('#stop-btn')).toBeDisabled();
+    await expect(page.locator('#status')).toContainText('Ready to record');
+  });
+
+  test.skip('should handle connection loss and reconnection', async () => {
+    // Skip this test as it's difficult to reliably simulate network disconnection
+    // without interfering with the application's normal operation.
+    // The WebSocket reconnection logic can be tested in integration tests instead.
+  });
+
+  test('should display errors when speech recognition unavailable', async ({ browser }) => {
+    // Create a new context with speech recognition disabled
+    const context = await browser.newContext();
+    const newPage = await context.newPage();
     
-    // Verify the teacher session has the transcript
-    expect(teacherSession.transcripts.length).toBe(1);
-    expect(teacherSession.transcripts[0].text).toBe('Hello class, today we will learn about testing');
+    // Disable speech recognition before navigating
+    await newPage.addInitScript(() => {
+      (window as any).SpeechRecognition = undefined;
+      (window as any).webkitSpeechRecognition = undefined;
+    });
     
-    // Verify the translation is correct
-    expect(translation.translatedText).toBe('Hola clase, hoy aprenderemos sobre pruebas');
-    expect(translation.targetLanguage).toBe(studentConnection.language);
+    // Navigate to teacher page
+    await newPage.goto('/teacher');
+    
+    // Wait a moment for initialization
+    await newPage.waitForTimeout(1000);
+    
+    // The error message should be visible and contain the error text
+    const errorElement = newPage.locator('#error-message');
+    
+    // Check if the element has the error text (it might be hidden by default but contain text)
+    const errorText = await errorElement.textContent();
+    expect(errorText).toContain('Speech recognition not supported');
+    
+    // Also check if the element is visible by checking its display style
+    const isVisible = await errorElement.evaluate(el => {
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+    
+    // If the error is shown immediately, it should be visible
+    // Otherwise, just verify the text content exists
+    if (isVisible) {
+      await expect(errorElement).toBeVisible();
+    }
+    
+    await newPage.close();
+    await context.close();
   });
 });

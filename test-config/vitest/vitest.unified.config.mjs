@@ -11,6 +11,8 @@ import tsconfigPaths from 'vite-tsconfig-paths';
  * - Run unit tests only: npx vitest --config test-config/vitest/vitest.unified.config.mjs --test-mode=unit
  * - Run integration tests: npx vitest --config test-config/vitest/vitest.unified.config.mjs --test-mode=integration
  * - Run with coverage: npx vitest --config test-config/vitest/vitest.unified.config.mjs --coverage
+ * 
+ * Note: E2E tests should be run with Playwright using: npx playwright test --config test-config/playwright.config.ts
  */
 
 // Access test mode from environment or default to 'all'
@@ -27,10 +29,12 @@ const getTestPattern = (mode) => {
     case 'integration':
       return ['**/tests/integration/**/*.{test,spec}.{js,jsx,ts,tsx}'];
     case 'e2e':
-      return ['**/tests/e2e/**/*.{test,spec}.{js,jsx,ts,tsx}'];
+      // E2E tests are handled by Playwright, not Vitest
+      console.warn('E2E tests should be run with Playwright: npx playwright test --config test-config/playwright.config.ts');
+      return [];
     case 'all':
     default:
-      // Exclude e2e tests from default 'all' mode
+      // Exclude e2e tests from default 'all' mode (they use Playwright)
       return [
         'tests/unit/**/*.{test,spec}.?(c|m)[jt]s?(x)',
         'tests/integration/**/*.{test,spec}.?(c|m)[jt]s?(x)'
@@ -69,7 +73,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     testMatch: getTestPattern(testMode),
-    exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],
+    exclude: [
+      '**/node_modules/**', 
+      '**/dist/**', 
+      '**/build/**',
+      '**/tests/e2e/**'  // Explicitly exclude E2E tests
+    ],
     ...getTestTimeouts(testMode),
     maxConcurrency: testMode === 'integration' ? 1 : 2,  // Sequential for integration tests
     maxThreads: testMode === 'integration' ? 1 : 2,      // Single thread for integration tests
