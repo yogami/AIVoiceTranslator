@@ -1,15 +1,22 @@
 /**
  * Unit tests for ConnectionManager
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConnectionManager } from '../../../server/services/managers/ConnectionManager';
-import { WebSocket } from 'ws';
 
-class MockWebSocket extends WebSocket {
-  constructor() {
-    super('ws://localhost');
-  }
-}
+// Mock WebSocket to avoid real connections
+vi.mock('ws', () => {
+  return {
+    WebSocket: vi.fn().mockImplementation(() => ({
+      on: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn(),
+      terminate: vi.fn(),
+      ping: vi.fn(),
+      readyState: 1
+    }))
+  };
+});
 
 describe('ConnectionManager', () => {
   let connectionManager: ConnectionManager;
@@ -21,15 +28,23 @@ describe('ConnectionManager', () => {
   });
 
   it('should add a connection', () => {
-    const mockWS = new MockWebSocket();
-    connectionManager.addConnection(mockWS, { socket: { remoteAddress: '127.0.0.1' } } as any);
-    expect(connectionManager.getConnections().has(mockWS)).toBe(true);
+    const mockWS = {
+      on: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn()
+    };
+    connectionManager.addConnection(mockWS as any, { socket: { remoteAddress: '127.0.0.1' } } as any);
+    expect(connectionManager.getConnections().has(mockWS as any)).toBe(true);
   });
 
   it('should remove a connection', () => {
-    const mockWS = new MockWebSocket();
-    connectionManager.addConnection(mockWS, { socket: { remoteAddress: '127.0.0.1' } } as any);
-    connectionManager.removeConnection(mockWS);
-    expect(connectionManager.getConnections().has(mockWS)).toBe(false);
+    const mockWS = {
+      on: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn()
+    };
+    connectionManager.addConnection(mockWS as any, { socket: { remoteAddress: '127.0.0.1' } } as any);
+    connectionManager.removeConnection(mockWS as any);
+    expect(connectionManager.getConnections().has(mockWS as any)).toBe(false);
   });
 });

@@ -1,3 +1,7 @@
+/**
+ * Server Entry Point Tests
+ */
+
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ---- Move the mock to the top level ----

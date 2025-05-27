@@ -8,36 +8,71 @@
 import { Server } from 'http';
 import { vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import OpenAI from 'openai';
+import { WebSocket } from 'ws';
+import { WebSocketState } from '../../../server/websocket';
 
 /**
  * Creates a mock WebSocket client object for testing
  * @param options Optional properties to override default mock values
  * @returns A mock WebSocket client object
  */
-export function createMockWebSocketClient(options: Partial<any> = {}) {
+export function createMockWebSocketClient(options: {
+  readyState?: number;
+  isAlive?: boolean;
+  sessionId?: string;
+} = {}): Partial<WebSocket> & { sentMessages?: any[]; isAlive?: boolean; sessionId?: string } {
+  const sentMessages: any[] = [];
+  
   return {
+    readyState: options.readyState ?? WebSocketState.OPEN,
+    isAlive: options.isAlive ?? true,
+    sessionId: options.sessionId ?? 'test-session',
+    sentMessages,
     on: vi.fn(),
-    send: vi.fn(),
+    send: vi.fn((data: any) => {
+      if (typeof data === 'string') {
+        try {
+          sentMessages.push(JSON.parse(data));
+        } catch (e) {
+          sentMessages.push(data);
+        }
+      } else {
+        sentMessages.push(data);
+      }
+    }),
     close: vi.fn(),
     terminate: vi.fn(),
     ping: vi.fn(),
-    isAlive: true,
-    sessionId: '',
-    readyState: 1, // OPEN state
-    ...options
-  };
-}
-
-/**
- * Creates a mock HTTP server for testing WebSocket integration
- * @returns A mock HTTP server
- */
-export function createMockServer() {
-  return {
-    on: vi.fn(),
+    pong: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn().mockReturnValue(true),
+    emit: vi.fn(),
+    once: vi.fn(),
+    off: vi.fn(),
+    removeAllListeners: vi.fn(),
+    setMaxListeners: vi.fn(),
+    getMaxListeners: vi.fn().mockReturnValue(10),
     listeners: vi.fn().mockReturnValue([]),
-    removeListener: vi.fn()
-  } as unknown as Server;
+    rawListeners: vi.fn().mockReturnValue([]),
+    listenerCount: vi.fn().mockReturnValue(0),
+    prependListener: vi.fn(),
+    prependOnceListener: vi.fn(),
+    eventNames: vi.fn().mockReturnValue([]),
+    binaryType: 'arraybuffer',
+    bufferedAmount: 0,
+    extensions: '',
+    protocol: '',
+    url: '',
+    CLOSED: WebSocket.CLOSED,
+    CLOSING: WebSocket.CLOSING,
+    CONNECTING: WebSocket.CONNECTING,
+    OPEN: WebSocket.OPEN,
+    onerror: null,
+    onmessage: null,
+    onclose: null,
+    onopen: null,
+  } as any;
 }
 
 /**
@@ -46,27 +81,37 @@ export function createMockServer() {
  * @param options Optional properties to override default mock values
  * @returns A mock OpenAI client
  */
-export function createMockOpenAI(options: Partial<any> = {}) {
+export function createMockOpenAI(options: {
+  transcriptionText?: string;
+  completionText?: string;
+} = {}): OpenAI {
   return {
     chat: {
       completions: {
         create: vi.fn().mockResolvedValue({
-          choices: [{ message: { content: 'Mock response' } }]
+          choices: [{ 
+            message: { 
+              content: options.completionText ?? 'Test translation' 
+            } 
+          }]
         })
       }
     },
     audio: {
       transcriptions: {
-        create: vi.fn().mockResolvedValue({ text: 'Mock transcription' })
+        create: vi.fn().mockResolvedValue({
+          text: options.transcriptionText ?? 'Test transcription'
+        })
       },
       speech: {
-        create: vi.fn().mockResolvedValue(Buffer.from('mock audio data'))
+        create: vi.fn().mockResolvedValue({
+          arrayBuffer: async () => Buffer.from('mock-audio-buffer')
+        })
       }
     },
     apiKey: 'test-api-key',
     organization: 'test-org',
-    _options: {},
-    ...options
+    _options: {}
   } as unknown as OpenAI;
 }
 
@@ -76,7 +121,7 @@ export function createMockOpenAI(options: Partial<any> = {}) {
  * @param content Optional content for the buffer
  * @returns A mock Buffer with the specified size
  */
-export function createMockAudioBuffer(size: number, content: string = 'test-audio-data') {
+export function createMockAudioBuffer(size: number = 1000, content: string = 'test-audio-data') {
   return Buffer.alloc(size, content);
 }
 
@@ -110,4 +155,24 @@ export function setupFileSystemTestEnvironment(testDir: string) {
       });
     }
   });
+}
+
+/**
+ * Sets up console spies for tests
+ */
+export function setupConsoleMocks() {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  
+  return {
+    consoleLogSpy,
+    consoleErrorSpy,
+    consoleWarnSpy,
+    restore: () => {
+      consoleLogSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+      consoleWarnSpy.mockRestore();
+    }
+  };
 }

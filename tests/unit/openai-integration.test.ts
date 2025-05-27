@@ -1,7 +1,7 @@
 // This file is empty - add a placeholder test or delete it
 import { describe, it, expect } from 'vitest';
 
-describe('Storage Tests', () => {
+describe('OpenAI Integration Tests', () => {
   it('placeholder', () => {
     expect(true).toBe(true);
   });

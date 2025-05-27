@@ -43,7 +43,7 @@ describe('MessageHandler', () => {
     expect(mockWS.on).toHaveBeenCalledWith('message', expect.any(Function));
     messageHandler_fn = (mockWS.on as any).mock.calls.find((call: MockCall) => call[0] === 'message')[1];
     
-    // Directly call the message handler function with the message data
+    // Call with ping message
     messageHandler_fn(JSON.stringify({ type: 'ping' }));
     
     expect(mockWS.send).toHaveBeenCalledWith(JSON.stringify({ type: 'pong' }));
