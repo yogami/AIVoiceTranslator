@@ -40,8 +40,8 @@ AIVoiceTranslator/
 │   ├── index.html           # Main landing page
 │   └── public/              # Static assets and HTML interfaces
 │       ├── js/              # JavaScript libraries and utilities
-│       ├── simple-student.html  # Simplified student interface
-│       └── websocket-diagnostics.html  # WebSocket connection and diagnostics interface
+│       ├── teacher.html     # Simplified teacher interface
+│       └── student.html     # Simplified student interface
 │
 ├── server/                  # Server-side code
 │   ├── config.ts            # Server configuration

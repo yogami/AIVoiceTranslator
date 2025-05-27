@@ -71,17 +71,12 @@ export async function startServer() {
   
   // Route for student page
   app.get('/student', (req, res) => {
-    res.sendFile('simple-student.html', { root: 'client/public' });
+    res.sendFile('student.html', { root: 'client/public' });
   });
   
   // Route for teacher page
   app.get('/teacher', (req, res) => {
-    // Find the teacher HTML file
-    if (req.query.demo === 'true') {
-      res.sendFile('simple-speech-test.html', { root: 'client/public' });
-    } else {
-      res.sendFile('simple-speech-test.html', { root: 'client/public' });
-    }
+    res.sendFile('teacher.html', { root: 'client/public' });
   });
   
   // Route for metrics dashboard
