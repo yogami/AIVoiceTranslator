@@ -101,6 +101,144 @@ apiRoutes.get('/user', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Save translation
+ * POST /api/translations
+ */
+apiRoutes.post('/translations', async (req: Request, res: Response) => {
+  try {
+    const { sourceLanguage, targetLanguage, originalText, translatedText, latency } = req.body;
+    
+    // Validate required fields
+    if (!sourceLanguage || !targetLanguage || !originalText || !translatedText) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: sourceLanguage, targetLanguage, originalText, translatedText' 
+      });
+    }
+    
+    const translation = await storage.addTranslation({
+      sourceLanguage,
+      targetLanguage,
+      originalText,
+      translatedText,
+      latency: latency || 0
+    });
+    
+    res.status(201).json(translation);
+  } catch (error) {
+    console.error('Error saving translation:', error);
+    res.status(500).json({ 
+      error: 'Failed to save translation',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get translations by language
+ * GET /api/translations/:language
+ */
+apiRoutes.get('/translations/:language', async (req: Request, res: Response) => {
+  try {
+    const { language } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+    
+    const translations = await storage.getTranslationsByLanguage(language, limit);
+    
+    res.json(translations);
+  } catch (error) {
+    console.error('Error fetching translations:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve translations',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Save transcript
+ * POST /api/transcripts
+ */
+apiRoutes.post('/transcripts', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, language, text } = req.body;
+    
+    // Validate required fields
+    if (!sessionId || !language || !text) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: sessionId, language, text' 
+      });
+    }
+    
+    const transcript = await storage.addTranscript({
+      sessionId,
+      language,
+      text
+    });
+    
+    res.status(201).json(transcript);
+  } catch (error) {
+    console.error('Error saving transcript:', error);
+    res.status(500).json({ 
+      error: 'Failed to save transcript',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get transcripts by session and language
+ * GET /api/transcripts/:sessionId/:language
+ */
+apiRoutes.get('/transcripts/:sessionId/:language', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, language } = req.params;
+    
+    const transcripts = await storage.getTranscriptsBySession(sessionId, language);
+    
+    res.json(transcripts);
+  } catch (error) {
+    console.error('Error fetching transcripts:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve transcripts',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Update language status
+ * PUT /api/languages/:code/status
+ */
+apiRoutes.put('/languages/:code/status', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const { isActive } = req.body;
+    
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ 
+        error: 'isActive must be a boolean value' 
+      });
+    }
+    
+    const updatedLanguage = await storage.updateLanguageStatus(code, isActive);
+    
+    if (!updatedLanguage) {
+      return res.status(404).json({ 
+        error: 'Language not found' 
+      });
+    }
+    
+    res.json(updatedLanguage);
+  } catch (error) {
+    console.error('Error updating language status:', error);
+    res.status(500).json({ 
+      error: 'Failed to update language status',
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
 
 
 

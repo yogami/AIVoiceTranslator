@@ -3,6 +3,7 @@
  * 
  * Tests the language code and name utility functions
  */
+
 import { describe, it, expect } from 'vitest';
 
 // Import from storage and modify tests to use a mocked storage interface

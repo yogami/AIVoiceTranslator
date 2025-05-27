@@ -30,26 +30,17 @@ export class WebSocketServer {
   
   // Stats
   private sessionCounter: number = 0;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
   
-  constructor(server: Server) {
-    // Initialize WebSocket server with CORS settings
-    this.wss = new WSServer({ 
-      server,
-      path: '/ws',
-      // Add explicit CORS handling for WebSocket (following the Single Responsibility Principle)
-      verifyClient: (info, callback) => {
-        // Allow all origins for WebSocket connections
-        console.log('WebSocket connection verification, headers:', JSON.stringify(info.req.headers, null, 2));
-        callback(true); // Always accept the connection
-      }
-    });
+  constructor(server: Server) {  // Fixed: Changed from 'wss: WSServer' back to 'server: Server'
+    this.wss = new WSServer({ server }); // Fixed: Create WebSocket server properly
     
     // We now use the imported speechTranslationService instead of creating a new instance
     
     // Set up event handlers
     this.setupEventHandlers();
     
-    console.log('WebSocket server initialized and listening on path: /ws');
+    console.log('WebSocket server initialized');
   }
   
   /**
@@ -69,68 +60,43 @@ export class WebSocketServer {
   /**
    * Handle new WebSocket connection
    */
-  private handleConnection(ws: WebSocketClient, request: any): void {
-    try {
-      // Log connection information
-      console.log('New WebSocket connection from', request.socket.remoteAddress, 'path:', request.url);
-      
-      // Log headers for debugging
-      console.log('Headers:', JSON.stringify(request.headers, null, 2));
-      
-      // Parse URL to get query parameters
-      const url = new URL(request.url, `http://${request.headers.host}`);
-      const role = url.searchParams.get('role');
-      const language = url.searchParams.get('language');
-      
-      // Set initial role from URL if provided
-      if (role) {
-        console.log(`Setting initial role to '${role}' from URL query parameter`);
-        this.roles.set(ws, role);
-      }
-      
-      // Set initial language from URL if provided
-      if (language) {
-        this.languages.set(ws, language);
-      }
-      
-      // Generate a unique session ID
-      const sessionId = `session_${Date.now()}_${this.sessionCounter++}`;
-      this.sessionIds.set(ws, sessionId);
-      ws.sessionId = sessionId;
-      
-      // Add to connections set
-      this.connections.add(ws);
-      
-      // Mark as alive for heartbeat
+  private handleConnection(ws: WebSocketClient, request?: any): void {  // Made request parameter optional
+    console.log('New WebSocket connection established');
+    
+    // Mark as alive
+    ws.isAlive = true;
+    
+    // Generate session ID
+    const sessionId = this.generateSessionId();
+    
+    // Store connection data
+    this.connections.add(ws);
+    this.sessionIds.set(ws, sessionId);
+    
+    // Send immediate connection confirmation
+    this.sendConnectionConfirmation(ws);
+    
+    // Set up message handler
+    ws.on('message', (data: any) => {
+      this.handleMessage(ws, data.toString());
+    });
+    
+    // Set up pong handler for heartbeat
+    ws.on('pong', () => {
       ws.isAlive = true;
-      
-      // Set up message handler
-      ws.on('message', (message: Buffer) => {
-        this.handleMessage(ws, message.toString());
-      });
-      
-      // Set up close handler
-      ws.on('close', () => {
-        this.handleClose(ws);
-      });
-      
-      // Set up error handler
-      ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-      });
-      
-      // Set up pong handler for heartbeat
-      ws.on('pong', () => {
-        ws.isAlive = true;
-      });
-      
-      // Send connection confirmation
-      this.sendConnectionConfirmation(ws);
-    } catch (error) {
-      console.error('Error handling new connection:', error);
-    }
+    });
+    
+    // Set up close handler
+    ws.on('close', () => {
+      this.handleClose(ws);
+    });
+    
+    // Set up error handler
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
   }
-  
+
   /**
    * Send connection confirmation to client
    */
@@ -950,33 +916,27 @@ export class WebSocketServer {
    * Set up heartbeat mechanism to detect dead connections
    */
   private setupHeartbeat(): void {
-    const interval = setInterval(() => {
-      this.connections.forEach(ws => {
-        if (ws.isAlive === false) {
-          console.log('Terminating inactive WebSocket connection');
-          ws.terminate();
-          return;
+    this.heartbeatInterval = setInterval(() => {
+      this.wss.clients.forEach((ws: any) => {
+        const client = ws as WebSocketClient;
+        
+        if (!client.isAlive) {
+          console.log('Terminating dead connection');
+          return client.terminate();
         }
         
-        // Mark the client as inactive first - this ensures that if an error occurs
-        // during ping() or any subsequent operations, the client will still be
-        // considered inactive and terminated on the next cycle
-        ws.isAlive = false;
+        // Mark as not alive and send ping
+        client.isAlive = false;
+        client.ping();
         
+        // Also send a JSON ping message for clients that don't handle ping frames
         try {
-          // Send a ping to the client
-          ws.ping();
-        } catch (e) {
-          console.error('Error sending ping:', e);
-          // When ping fails, ws.isAlive remains false so it will be terminated on next cycle
+          client.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+        } catch (error) {
+          // Ignore send errors
         }
       });
-    }, 30000);
-    
-    // Clean up interval when WebSocket server closes
-    this.wss.on('close', () => {
-      clearInterval(interval);
-    });
+    }, 30000); // 30 seconds
   }
   
   /**
@@ -1005,5 +965,13 @@ export class WebSocketServer {
    */
   public close(): void {
     this.wss.close();
+  }
+  
+  /**
+   * Generate a unique session ID
+   */
+  private generateSessionId(): string {
+    this.sessionCounter++;
+    return `session-${this.sessionCounter}-${Date.now()}`;
   }
 }

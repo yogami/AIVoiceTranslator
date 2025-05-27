@@ -11,9 +11,13 @@
     "db:push": "drizzle-kit push",
     "test": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs",
     "test:unit": "NODE_ENV=test TEST_MODE=unit vitest --config=test-config/vitest/vitest.unified.config.mjs",
-    "test:integration": "NODE_ENV=test TEST_MODE=integration vitest --config=test-config/vitest/vitest.unified.config.mjs",
+    "test:integration": "vitest run --config ./test-config/vitest/vitest.integration.config.mjs",
+    "test:integration:watch": "vitest --config ./test-config/vitest/vitest.integration.config.mjs",
     "test:e2e": "NODE_ENV=test TEST_MODE=e2e vitest --config=test-config/vitest/vitest.unified.config.mjs",
-    "test:coverage": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs --coverage"
+    "test:coverage": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs --coverage",
+    "test:analyze-redundancy": "tsx tests/analyze-test-redundancy.ts",
+    "test:cleanup-redundancy": "tsx tests/cleanup-redundant-tests.ts",
+    "test:all": "npm run test:unit && npm run test:integration"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
@@ -125,10 +129,7 @@
     "@types/passport-local": "^1.0.38",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
-    "@types/ws": "^8.5.13",
-    "@typescript-eslint/eslint-plugin": "^8.32.1",
-    "@typescript-eslint/parser": "^8.32.1",
-    "@vitejs/plugin-react": "^4.3.2",
+    "@types/ws": "^8.5.5",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",

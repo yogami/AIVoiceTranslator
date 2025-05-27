@@ -3,19 +3,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi, beforeAll, afterAll } from 'vitest';
 import { Buffer } from 'node:buffer';
-
-// Create a helper function for audio buffer creation - optimized for performance
-const createMockAudioBuffer = (size: number) => {
-  // For large buffers, use a more efficient approach
-  if (size > 100000) {
-    // Create a smaller buffer and repeat it to avoid memory allocation delays
-    const baseBuffer = Buffer.alloc(1000, 0);
-    const chunks = Math.ceil(size / 1000);
-    const buffers = Array(chunks).fill(baseBuffer);
-    return Buffer.concat(buffers).slice(0, size);
-  }
-  return Buffer.alloc(size);
-};
+import { createMockAudioBuffer } from '../utils/test-helpers';
 
 // Important: Hoist all mocks used in vi.mock() calls
 // Regular mocks
@@ -106,7 +94,7 @@ describe('AudioTranscriptionService', () => {
     AudioTranscriptionServiceModule = await import('../../../server/services/transcription/AudioTranscriptionService');
     service = AudioTranscriptionServiceModule.audioTranscriptionService;
     
-    // Create default buffer
+    // Create default buffer using helper
     mockBuffer = createMockAudioBuffer(3000);
   });
 

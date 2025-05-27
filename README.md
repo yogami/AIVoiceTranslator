@@ -229,6 +229,71 @@ The application includes QR code generation for easy mobile access:
 - QR codes are automatically generated for the student interface
 - Mobile-optimized interface adapts to smaller screens
 
-## License
+## Testing
 
-[MIT License](LICENSE)
+The project includes comprehensive test coverage organized into logical modules:
+
+### Test Structure
+
+```
+tests/
+├── unit/                    # Unit tests
+│   ├── core/               # Core functionality tests
+│   │   ├── websocket.test.ts        # WebSocket integration tests
+│   │   ├── translation.test.ts      # Translation service tests  
+│   │   └── audio-processing.test.ts # Audio processing tests
+│   ├── api/                # API endpoint tests
+│   │   └── routes.test.ts          # HTTP route tests
+│   ├── utils/              # Test utilities
+│   │   └── test-helpers.ts         # Shared test helpers
+│   ├── storage.spec.ts     # Database and storage tests
+│   ├── server.spec.ts      # Server configuration tests
+│   ├── config.spec.ts      # Configuration loading tests
+│   └── languages.spec.ts   # Language utilities tests
+├── integration/            # Integration tests (separate from unit tests)
+│   ├── services/           # Service integration tests
+│   └── workflows/          # End-to-end workflow tests
+```
+
+### Running Tests
+
+```bash
+# Run unit tests only
+npm test
+
+# Run integration tests (requires valid API keys)
+npm run test:integration
+
+# Run all tests
+npm run test:all
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run specific test file
+npm test tests/unit/core/websocket.test.ts
+```
+
+### Integration Test Configuration
+
+Integration tests require longer timeouts and may need real API keys:
+
+1. Create a `.env.test` file for test-specific configuration:
+   ```
+   OPENAI_API_KEY=your_test_api_key
+   DATABASE_URL=postgresql://test_user:test_pass@localhost:5432/aivoicetranslator_test
+   ```
+
+2. Integration tests have a 30-second timeout by default
+3. Tests will skip if no valid API key is provided
+4. WebSocket tests use the `/ws` path for connections
+
+### Test Philosophy
+
+- Tests should be deterministic, running the same way every time
+- Prefer small, focused tests over large, complex ones
+- Use mocks and stubs to isolate code under test
+- Integration tests should cover critical end-to-end scenarios
