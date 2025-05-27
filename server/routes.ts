@@ -11,11 +11,15 @@
  */
 import { Router, Request, Response } from 'express';
 import { storage } from './storage';
+import { DiagnosticsService } from './services/DiagnosticsService.js';
 
 export const apiRoutes = Router();
 
-// SOLID: Single Responsibility - Each handler has one specific task
-// Each route is explicitly typed for better code safety
+// Initialize diagnostics service
+const diagnosticsService = new DiagnosticsService();
+
+// Export diagnostics service for use in other parts of the application
+export { diagnosticsService };
 
 /**
  * Get available languages
@@ -235,6 +239,46 @@ apiRoutes.put('/languages/:code/status', async (req: Request, res: Response) => 
     res.status(500).json({ 
       error: 'Failed to update language status',
       message: error instanceof Error ? error.message : 'Unknown error' 
+    });
+  }
+});
+
+/**
+ * Get application diagnostics
+ * GET /api/diagnostics
+ * Returns comprehensive application metrics in user-friendly format
+ */
+apiRoutes.get('/diagnostics', async (req: Request, res: Response) => {
+  try {
+    const metrics = diagnosticsService.getMetrics();
+    res.json(metrics);
+  } catch (error) {
+    console.error('Error retrieving diagnostics:', error);
+    res.status(500).json({ 
+      error: 'Unable to retrieve diagnostics data',
+      message: 'Diagnostics service is temporarily unavailable. Please try again later.'
+    });
+  }
+});
+
+/**
+ * Export diagnostics data
+ * GET /api/diagnostics/export
+ * Returns diagnostics data as downloadable JSON file
+ */
+apiRoutes.get('/diagnostics/export', async (req: Request, res: Response) => {
+  try {
+    const exportData = diagnosticsService.getExportData();
+    const filename = `diagnostics-${new Date().toISOString().split('T')[0]}.json`;
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.json(exportData);
+  } catch (error) {
+    console.error('Error exporting diagnostics:', error);
+    res.status(500).json({ 
+      error: 'Unable to export diagnostics data',
+      message: 'Export service is temporarily unavailable. Please try again later.'
     });
   }
 });

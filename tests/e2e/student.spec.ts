@@ -2,95 +2,163 @@
  * Student Interface E2E Test
  * 
  * This test checks the functionality of the student interface.
- * Note: This test is currently skipped as it requires a browser environment.
  */
 
-// Importing test utilities
-import { sleep } from './test-setup';
+import { test, expect, Page } from '@playwright/test';
 
-// Using plain functions for the test structure since we can't run Playwright tests here
-describe('Student Interface E2E Tests (Skipped)', () => {
-  it('should load and function correctly', async () => {
-    // This test would normally use Playwright, but we'll just log the steps we would take
-    console.log('1. Navigate to student page at http://localhost:5000/student');
-    console.log('2. Check if key elements are present (target language selector)');
-    console.log('3. Test language selection by selecting es-ES');
-    console.log('4. Wait for WebSocket connection to establish');
-    console.log('5. Verify translation display area is present');
-    console.log('6. Check audio controls are present');
-    
-    // For this test to pass in our test framework for now
-    expect(true).toBe(true);
-  });
-  
-  it('should receive translations', async () => {
-    console.log('1. Navigate to student page at http://localhost:5000/student');
-    console.log('2. Select language es-ES');
-    console.log('3. Wait for connection');
-    console.log('4. In a real test, we would inject a fake translation message using page.evaluate');
-    console.log('5. Check that the translation is displayed correctly');
-    
-    // For this test to pass in our test framework for now
-    expect(true).toBe(true);
-  });
-});
+test.describe('Student Interface E2E Tests', () => {
+  let page: Page;
 
-// Add a simple test that will actually run
-describe('Simple Student Experience Tests', () => {
-  it('should handle receiving multiple translations', async () => {
-    // Create a mock student session
-    const studentSession = {
-      id: 'student-789',
-      teacherSessionId: 'teacher-123',
-      language: 'fr-FR',
-      isActive: true,
-      receivedTranslations: []
-    };
+  test.beforeEach(async ({ browser }) => {
+    page = await browser.newPage();
+    await page.goto('/student');
+  });
+
+  test.afterEach(async () => {
+    await page.close();
+  });
+
+  test('should display initial UI elements correctly', async () => {
+    // Check essential elements
+    await expect(page.locator('h1')).toContainText('Student Translator');
+    await expect(page.locator('#connection-status')).toBeVisible();
+    await expect(page.locator('#connect-btn')).toBeVisible();
+    await expect(page.locator('#connect-btn')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#disconnect-btn')).toHaveClass(/hidden/);
+    await expect(page.locator('#simplified-language-select')).toBeVisible();
+    await expect(page.locator('#translation-box')).toBeVisible();
+    await expect(page.locator('#play-button')).toBeVisible();
+    await expect(page.locator('#play-button')).toBeDisabled();
+  });
+
+  test('should handle connect/disconnect button toggling', async () => {
+    // Initial state
+    await expect(page.locator('#connect-btn')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#disconnect-btn')).toHaveClass(/hidden/);
     
-    // Simulate student joining a session
-    console.log('Student joins the session with language: French');
+    // Click connect
+    await page.click('#connect-btn');
     
-    // Simulate receiving multiple translations
-    const translations = [
-      {
-        originalText: 'Hello, can everyone hear me?',
-        translatedText: 'Bonjour, tout le monde peut-il m\'entendre?',
-        sourceLanguage: 'en-US',
-        targetLanguage: 'fr-FR',
-        timestamp: new Date()
-      },
-      {
-        originalText: 'Today we will discuss quantum physics',
-        translatedText: 'Aujourd\'hui, nous allons discuter de la physique quantique',
-        sourceLanguage: 'en-US',
-        targetLanguage: 'fr-FR',
-        timestamp: new Date(Date.now() + 5000) // 5 seconds later
-      },
-      {
-        originalText: 'Please open your textbooks to page 42',
-        translatedText: 'Veuillez ouvrir vos manuels à la page 42',
-        sourceLanguage: 'en-US',
-        targetLanguage: 'fr-FR',
-        timestamp: new Date(Date.now() + 10000) // 10 seconds later
-      }
-    ];
+    // Should show connecting state
+    await expect(page.locator('#connect-btn')).toContainText('Connecting...');
+    await expect(page.locator('#connect-btn')).toBeDisabled();
     
-    // Process each translation with a small delay to simulate real-time reception
-    for (const translation of translations) {
-      await sleep(50);
-      console.log(`Received translation: "${translation.translatedText}"`);
-      studentSession.receivedTranslations.push(translation);
+    // Wait for connection
+    await expect(page.locator('#connection-text')).toContainText('Connected', { timeout: 5000 });
+    await expect(page.locator('#connect-btn')).toHaveClass(/hidden/);
+    await expect(page.locator('#disconnect-btn')).not.toHaveClass(/hidden/);
+    
+    // Click disconnect
+    await page.click('#disconnect-btn');
+    
+    // Should show disconnecting state
+    await expect(page.locator('#disconnect-btn')).toContainText('Disconnecting...');
+    await expect(page.locator('#disconnect-btn')).toBeDisabled();
+    
+    // Should return to disconnected state
+    await expect(page.locator('#connection-text')).toContainText('Disconnected', { timeout: 5000 });
+    await expect(page.locator('#connect-btn')).not.toHaveClass(/hidden/);
+    await expect(page.locator('#disconnect-btn')).toHaveClass(/hidden/);
+  });
+
+  test('should handle language selection', async () => {
+    // Select a language before connecting
+    await page.selectOption('#simplified-language-select', 'es');
+    
+    // Connect
+    await page.click('#connect-btn');
+    await expect(page.locator('#connection-text')).toContainText('Connected', { timeout: 5000 });
+    
+    // Should register with selected language
+    await expect(page.locator('.success-message')).toContainText('Spanish', { timeout: 3000 });
+    
+    // Change language while connected
+    await page.selectOption('#simplified-language-select', 'fr');
+    await expect(page.locator('.success-message')).toContainText('French', { timeout: 3000 });
+  });
+
+  test('should display received translations', async () => {
+    // Connect first
+    await page.click('#connect-btn');
+    await expect(page.locator('#connection-text')).toContainText('Connected', { timeout: 5000 });
+    
+    // Wait for WebSocket to be ready
+    await page.waitForTimeout(1000);
+    
+    // Check if displayTranslation function exists
+    const hasFunction = await page.evaluate(() => {
+      return typeof (window as any).displayTranslation === 'function';
+    });
+    
+    if (hasFunction) {
+      // Simulate receiving a translation
+      await page.evaluate(() => {
+        (window as any).displayTranslation(
+          'Bonjour le monde',
+          'en-US',
+          'fr-FR',
+          'Hello world',
+          null,
+          false,
+          'openai'
+        );
+      });
+      
+      // Check translation display
+      await expect(page.locator('#translation-box')).toContainText('Hello world');
+      await expect(page.locator('#translation-box')).toContainText('Bonjour le monde');
+      await expect(page.locator('#play-button')).not.toBeDisabled();
+    } else {
+      // If function doesn't exist, just check that we're connected
+      expect(await page.locator('#connection-text').textContent()).toContain('Connected');
     }
+  });
+
+  test('should handle audio playback controls', async () => {
+    // Connect and set up
+    await page.click('#connect-btn');
+    await expect(page.locator('#connection-text')).toContainText('Connected', { timeout: 5000 });
     
-    // Verify translations were received in order
-    expect(studentSession.receivedTranslations.length).toBe(3);
-    expect(studentSession.receivedTranslations[0].translatedText).toContain('Bonjour');
-    expect(studentSession.receivedTranslations[1].translatedText).toContain('physique quantique');
-    expect(studentSession.receivedTranslations[2].translatedText).toContain('page 42');
+    // Simulate receiving translation with audio
+    await page.evaluate(() => {
+      // Create fake audio data
+      const fakeAudioData = btoa('fake audio data');
+      (window as any).displayTranslation(
+        'Hola mundo',
+        'en-US',
+        'es-ES',
+        'Hello world',
+        fakeAudioData,
+        false,
+        'openai'
+      );
+    });
     
-    // Verify all translations match the student's language
-    for (const translation of studentSession.receivedTranslations) {
-      expect(translation.targetLanguage).toBe(studentSession.language);
+    // Play button should be enabled
+    await expect(page.locator('#play-button')).not.toBeDisabled();
+    await expect(page.locator('#play-button')).toContainText('Play Translation');
+  });
+
+  test('should show errors appropriately', async () => {
+    // Check if showError function exists
+    const hasFunction = await page.evaluate(() => {
+      return typeof (window as any).showError === 'function';
+    });
+    
+    if (hasFunction) {
+      // Test error display
+      await page.evaluate(() => {
+        (window as any).showError('Connection failed: Network error');
+      });
+      
+      await expect(page.locator('.error-message')).toBeVisible();
+      await expect(page.locator('.error-message')).toContainText('Connection failed');
+      
+      // Error should disappear after timeout
+      await expect(page.locator('.error-message')).not.toBeVisible({ timeout: 6000 });
+    } else {
+      // Skip this test if function doesn't exist
+      test.skip();
     }
   });
 });
