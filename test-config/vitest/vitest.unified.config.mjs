@@ -30,7 +30,11 @@ const getTestPattern = (mode) => {
       return ['**/tests/e2e/**/*.{test,spec}.{js,jsx,ts,tsx}'];
     case 'all':
     default:
-      return ['tests/**/*.{test,spec}.?(c|m)[jt]s?(x)'];
+      // Exclude e2e tests from default 'all' mode
+      return [
+        'tests/unit/**/*.{test,spec}.?(c|m)[jt]s?(x)',
+        'tests/integration/**/*.{test,spec}.?(c|m)[jt]s?(x)'
+      ];
   }
 };
 

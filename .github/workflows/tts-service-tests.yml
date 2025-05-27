@@ -7,14 +7,14 @@ on:
       - 'client/public/simple-student.html'
       - 'server/services/TextToSpeechService.ts'
       - 'server/services/WebSocketServer.ts'
-      - 'tests/e2e/tts-service-selection.test.js'
+      - 'tests/e2e/**/*.ts'
   pull_request:
     branches: [ main ]
     paths:
       - 'client/public/simple-student.html'
       - 'server/services/TextToSpeechService.ts'
       - 'server/services/WebSocketServer.ts'
-      - 'tests/e2e/tts-service-selection.test.js'
+      - 'tests/e2e/**/*.ts'
   workflow_dispatch:
 
 jobs:
@@ -22,12 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
+        cache: 'npm'
         
     - name: Install dependencies
       run: npm ci
@@ -48,11 +49,13 @@ jobs:
         
     - name: Run TTS service selection tests
       run: |
-        APP_URL=http://localhost:3000 npm test -- tests/e2e/tts-service-selection.test.js
+        # Run E2E tests using Vitest
+        npx vitest run --config test-config/vitest/vitest.e2e.config.mjs
+      env:
+        APP_URL: http://localhost:5000
         
     - name: Update test results metrics
       if: always()
       run: |
-        echo "Updating test metrics dashboard with TTS service selection test results"
-        # This would update the metrics database with test results
-        node test-metrics-api.js --test-type=e2e --test-name=tts-service-selection --update-results
+        echo "TTS service selection test results completed"
+        echo "Test metrics would be updated here in a real implementation"
