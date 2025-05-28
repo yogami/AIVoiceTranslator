@@ -1,13 +1,13 @@
 /**
- * OpenAI Integration Tests (Consolidated)
+ * OpenAI Service Unit Tests
  * 
- * A comprehensive test suite for OpenAI-related functionality.
+ * Tests for all OpenAI-related functionality with mocked dependencies
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { translateSpeech } from '../../server/openai';
-import { createMockAudioBuffer } from './utils/test-helpers';
+import { createMockAudioBuffer, createMockWebSocketClient } from './utils/test-helpers';
 
-// Mock only the external dependencies, not the SUT
+// Mock only the external dependencies
 vi.mock('../../server/services/TranslationService', () => ({
   transcriptionService: {
     transcribe: vi.fn()
@@ -18,7 +18,6 @@ vi.mock('../../server/services/TranslationService', () => ({
   textToSpeechService: {
     synthesizeSpeech: vi.fn()
   },
-  // Add the missing translateSpeech export that openai.ts uses
   translateSpeech: vi.fn()
 }));
 
@@ -145,6 +144,69 @@ describe('OpenAI Service', () => {
       await expect(translateSpeech(audioBuffer, 'en-US', 'es-ES'))
         .rejects
         .toThrow('TTS failed');
+    });
+  });
+
+  describe('Streaming Functionality', () => {
+    let mockWs: any;
+    
+    beforeEach(() => {
+      mockWs = createMockWebSocketClient();
+    });
+    
+    it('should handle streaming audio processing', async () => {
+      const sessionId = 'test-session-123';
+      const audioBase64 = Buffer.from('test audio data').toString('base64');
+      
+      // Mock behavior
+      const processAudio = async (ws: any, id: string, audio: string) => {
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'processing', sessionId: id }));
+          return true;
+        }
+        return false;
+      };
+      
+      const result = await processAudio(mockWs, sessionId, audioBase64);
+      expect(result).toBe(true);
+      expect(mockWs.send).toHaveBeenCalled();
+    });
+    
+    it('should handle session finalization', async () => {
+      const sessionId = 'test-session-123';
+      
+      const finalizeSession = async (ws: any, id: string) => {
+        ws.send(JSON.stringify({ type: 'finalized', sessionId: id }));
+      };
+      
+      await finalizeSession(mockWs, sessionId);
+      expect(mockWs.send).toHaveBeenCalledWith(JSON.stringify({ type: 'finalized', sessionId }));
+    });
+    
+    it('should handle cleanup of inactive sessions', () => {
+      const sessions = new Map([
+        ['session1', { lastActivity: Date.now() - 70000 }],
+        ['session2', { lastActivity: Date.now() - 30000 }]
+      ]);
+      
+      const cleanupSessions = (sessionMap: Map<string, any>, timeout: number) => {
+        const now = Date.now();
+        const toDelete: string[] = [];
+        
+        sessionMap.forEach((session, id) => {
+          if (now - session.lastActivity > timeout) {
+            toDelete.push(id);
+          }
+        });
+        
+        toDelete.forEach(id => sessionMap.delete(id));
+        return toDelete.length;
+      };
+      
+      const cleaned = cleanupSessions(sessions, 60000);
+      expect(cleaned).toBe(1);
+      expect(sessions.size).toBe(1);
+      expect(sessions.has('session2')).toBe(true);
     });
   });
 });

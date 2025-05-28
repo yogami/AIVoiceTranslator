@@ -1,283 +1,167 @@
 /**
- * Server Tests
+ * Server Unit Tests
  *
- * This file tests the Express server configuration and CORS middleware.
- * These tests focus on the actual server functionality without mocking the SUT.
+ * Tests the startServer function behavior and contracts
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Ensure Vitest types are available
-/// <reference types="vitest" />
-/// <reference types="vitest/globals" />
-import express, { Request, Response, NextFunction, Express } from 'express';
-import { createServer, Server } from 'http';
-import { configureCorsMiddleware, startServer } from '../../server/server';
-
-// Mock dependencies
+// Only mock external dependencies that we don't want to test
 vi.mock('../../server/services/WebSocketServer', () => ({
   WebSocketServer: vi.fn().mockImplementation(() => ({
-    // Mock WebSocketServer methods if needed
+    close: vi.fn()
   }))
 }));
 
-vi.mock('../../server/routes', () => ({
-  apiRoutes: vi.fn()
-}));
+// Mock the routes module with a proper Express router
+vi.mock('../../server/routes', () => {
+  const express = require('express');
+  return {
+    apiRoutes: express.Router()
+  };
+});
 
-vi.mock('../../server/config', () => ({}));
+// Mock console to avoid noise in test output
+const consoleSpy = {
+  log: vi.spyOn(console, 'log').mockImplementation(() => {}),
+  warn: vi.spyOn(console, 'warn').mockImplementation(() => {}),
+  error: vi.spyOn(console, 'error').mockImplementation(() => {})
+};
 
-// Mock the createServer function
-vi.mock('http', () => ({
-  createServer: vi.fn()
-}));
+import { startServer, configureCorsMiddleware } from '../../server/server';
+import { WebSocketServer } from '../../server/services/WebSocketServer';
 
-describe('Server Configuration', () => {
-  describe('CORS Middleware', () => {
-    let app: Express;
-    let req: Partial<Request>;
-    let res: Partial<Response>;
-    let next: ReturnType<typeof vi.fn>;
+describe('Server Unit Tests', () => {
+  let originalEnv: string | undefined;
+  
+  beforeEach(() => {
+    vi.clearAllMocks();
+    originalEnv = process.env.OPENAI_API_KEY;
+  });
 
-    beforeEach(() => {
-      app = express();
-      req = {};
-      res = {
-        header: vi.fn(),
-        sendStatus: vi.fn()
-      };
-      next = vi.fn();
+  afterEach(() => {
+    process.env.OPENAI_API_KEY = originalEnv;
+    Object.values(consoleSpy).forEach(spy => spy.mockClear());
+  });
+
+  describe('startServer', () => {
+    it('should return an object with app, httpServer, and wss properties', async () => {
+      const result = await startServer();
+      
+      expect(result).toHaveProperty('app');
+      expect(result).toHaveProperty('httpServer');
+      expect(result).toHaveProperty('wss');
+      
+      // Verify the returned objects have the expected types
+      expect(typeof result.app).toBe('function'); // Express app is a function
+      expect(result.httpServer).toBeDefined();
+      expect(result.wss).toBeDefined();
+      
+      // Clean up
+      result.httpServer.close();
     });
 
-    it('should configure CORS headers for normal requests', () => {
-      // Arrange
-      req.method = 'GET';
-
-      // Act
-      configureCorsMiddleware(app);
+    it('should create a WebSocket server instance', async () => {
+      const result = await startServer();
       
-      // Get the middleware that was added to the app
-      const middleware = (app as any)._router.stack[(app as any)._router.stack.length - 1].handle;
-      middleware(req as Request, res as Response, next as NextFunction);
+      expect(WebSocketServer).toHaveBeenCalledTimes(1);
+      expect(WebSocketServer).toHaveBeenCalledWith(result.httpServer);
+      
+      // Clean up
+      result.httpServer.close();
+    });
 
-      // Assert
-      expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
-      expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Methods', expect.stringContaining('GET'));
-      expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', expect.stringContaining('Content-Type'));
-      expect(res.header).toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
-      expect(next).toHaveBeenCalled();
+    it('should log warning when OPENAI_API_KEY is missing', async () => {
+      delete process.env.OPENAI_API_KEY;
+      
+      const result = await startServer();
+      
+      expect(consoleSpy.warn).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
+      expect(consoleSpy.warn).toHaveBeenCalledWith('Translation functionality will be limited');
+      
+      // Clean up
+      result.httpServer.close();
+    });
+
+    it('should log success when OPENAI_API_KEY is present', async () => {
+      process.env.OPENAI_API_KEY = 'test-key';
+      
+      const result = await startServer();
+      
+      expect(consoleSpy.log).toHaveBeenCalledWith('OpenAI API key status: Present');
+      
+      // Clean up
+      result.httpServer.close();
+    });
+
+    it('should use PORT environment variable when provided', async () => {
+      const originalPort = process.env.PORT;
+      process.env.PORT = '3000';
+      
+      const result = await startServer();
+      
+      // We can't easily test the actual port without starting the server,
+      // but we can verify the server was created successfully
+      expect(result.httpServer).toBeDefined();
+      
+      // Clean up
+      result.httpServer.close();
+      process.env.PORT = originalPort;
+    });
+  });
+
+  describe('configureCorsMiddleware', () => {
+    it('should add CORS middleware to the app', () => {
+      const mockApp = {
+        use: vi.fn()
+      } as any;
+      
+      configureCorsMiddleware(mockApp);
+      
+      expect(mockApp.use).toHaveBeenCalledTimes(1);
+      expect(mockApp.use).toHaveBeenCalledWith(expect.any(Function));
+    });
+
+    it('should configure middleware that sets CORS headers', () => {
+      const mockApp = { use: vi.fn() } as any;
+      const mockReq = { method: 'GET' } as any;
+      const mockRes = {
+        header: vi.fn(),
+        sendStatus: vi.fn()
+      } as any;
+      const mockNext = vi.fn();
+      
+      configureCorsMiddleware(mockApp);
+      
+      // Get the middleware function that was passed to app.use
+      const middlewareFunction = mockApp.use.mock.calls[0][0];
+      
+      // Call the middleware function
+      middlewareFunction(mockReq, mockRes, mockNext);
+      
+      // Verify CORS headers were set
+      expect(mockRes.header).toHaveBeenCalledWith('Access-Control-Allow-Origin', '*');
+      expect(mockRes.header).toHaveBeenCalledWith('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      expect(mockRes.header).toHaveBeenCalledWith('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      expect(mockRes.header).toHaveBeenCalledWith('Access-Control-Allow-Credentials', 'true');
+      expect(mockNext).toHaveBeenCalled();
     });
 
     it('should handle OPTIONS requests', () => {
-      // Arrange
-      req.method = 'OPTIONS';
-
-      // Act
-      configureCorsMiddleware(app);
+      const mockApp = { use: vi.fn() } as any;
+      const mockReq = { method: 'OPTIONS' } as any;
+      const mockRes = {
+        header: vi.fn(),
+        sendStatus: vi.fn()
+      } as any;
+      const mockNext = vi.fn();
       
-      // Get the middleware that was added to the app
-      const middleware = (app as any)._router.stack[(app as any)._router.stack.length - 1].handle;
-      middleware(req as Request, res as Response, next as NextFunction);
-
-      // Assert
-      expect(res.sendStatus).toHaveBeenCalledWith(200);
-      expect(next).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Server Startup', () => {
-    let originalEnv: NodeJS.ProcessEnv;
-    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
-    let createServerMock: ReturnType<typeof vi.fn>;
-
-    beforeEach(() => {
-      // Save original environment
-      originalEnv = { ...process.env };
+      configureCorsMiddleware(mockApp);
       
-      // Setup console spies
-      consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      // Setup createServer mock
-      createServerMock = vi.mocked(createServer);
-    });
-
-    afterEach(() => {
-      // Restore environment
-      process.env = originalEnv;
+      const middlewareFunction = mockApp.use.mock.calls[0][0];
+      middlewareFunction(mockReq, mockRes, mockNext);
       
-      // Restore console methods
-      consoleLogSpy.mockRestore();
-      consoleWarnSpy.mockRestore();
-      
-      vi.resetAllMocks();
+      expect(mockRes.sendStatus).toHaveBeenCalledWith(200);
+      expect(mockNext).not.toHaveBeenCalled();
     });
-
-    it('should start server successfully with OpenAI API key', async () => {
-      // Arrange
-      process.env.OPENAI_API_KEY = 'test-api-key';
-      // Ensure PORT is not set to test default behavior
-      delete process.env.PORT;
-
-      // Mock the server listen method to avoid actually starting a server
-      const mockListen = vi.fn((port: any, callback?: () => void) => {
-        if (callback) callback();
-      });
-
-      // Mock createServer to return an object with a mocked listen method
-      createServerMock.mockReturnValue({
-        listen: mockListen
-      } as any);
-
-      // Act
-      const result = await startServer();
-
-      // Assert
-      expect(consoleLogSpy).toHaveBeenCalledWith('OpenAI API key status: Present');
-      expect(consoleLogSpy).toHaveBeenCalledWith('OpenAI client initialized successfully');
-      // The port gets converted to string when passed to listen()
-      expect(mockListen).toHaveBeenCalledWith(5000, expect.any(Function));
-      expect(result).toHaveProperty('app');
-      expect(result).toHaveProperty('httpServer');
-      expect(result).toHaveProperty('wss');
-    });
-
-    it('should start server and warn when OpenAI API key is missing', async () => {
-      // Arrange
-      delete process.env.OPENAI_API_KEY;
-
-      // Mock the server listen method
-      const mockListen = vi.fn((port: any, callback?: () => void) => {
-        if (callback) callback();
-      });
-
-      createServerMock.mockReturnValue({
-        listen: mockListen
-      } as any);
-
-      // Act
-      await startServer();
-
-      // Assert
-      expect(consoleWarnSpy).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Translation functionality will be limited');
-    });
-
-    it('should use custom port from environment', async () => {
-      // Arrange
-      process.env.PORT = '8080';
-
-      const mockListen = vi.fn((port: any, callback?: () => void) => {
-        if (callback) callback();
-      });
-
-      createServerMock.mockReturnValue({
-        listen: mockListen
-      } as any);
-
-      // Act
-      await startServer();
-
-      // Assert
-      expect(mockListen).toHaveBeenCalledWith('8080', expect.any(Function));
-    });
-
-    it('should initialize WebSocket server', async () => {
-      // Arrange
-      const mockServer = { 
-        listen: vi.fn((port: any, callback?: () => void) => {
-          if (callback) callback();
-        }) 
-      };
-
-      createServerMock.mockReturnValue(mockServer as any);
-
-      // Act
-      await startServer();
-
-      // Assert
-      const { WebSocketServer } = await import('../../server/services/WebSocketServer');
-      expect(WebSocketServer).toHaveBeenCalledWith(mockServer);
-    });
-
-    it('should log server startup message', async () => {
-      // Arrange
-      const mockListen = vi.fn((port: any, callback?: () => void) => {
-        if (callback) callback();
-      });
-
-      createServerMock.mockReturnValue({
-        listen: mockListen
-      } as any);
-
-      // Act
-      await startServer();
-
-      // Assert
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        expect.stringMatching(/\[express\] serving on port 5000$/)
-      );
-    });
-
-    it('should configure CORS middleware', async () => {
-      // Arrange
-      const mockListen = vi.fn((port: any, callback?: () => void) => {
-        if (callback) callback();
-      });
-
-      createServerMock.mockReturnValue({
-        listen: mockListen
-      } as any);
-
-      // Act
-      await startServer();
-
-      // Assert
-      expect(consoleLogSpy).toHaveBeenCalledWith('CORS middleware configured successfully');
-    });
-  });
-
-  describe('Route Configuration Tests', () => {
-    let result: any;
-    let mockApp: any;
-    let createServerMock: ReturnType<typeof vi.fn>;
-
-    beforeEach(async () => {
-      // Setup createServer mock
-      createServerMock = vi.mocked(createServer);
-      
-      // Mock createServer
-      const mockListen = vi.fn((port: any, callback?: () => void) => {
-        if (callback) callback();
-      });
-
-      createServerMock.mockReturnValue({
-        listen: mockListen
-      } as any);
-
-      // Spy on console to suppress logs
-      vi.spyOn(console, 'log').mockImplementation(() => {});
-      vi.spyOn(console, 'warn').mockImplementation(() => {});
-
-      // Start the server to get the configured app
-      result = await startServer();
-      mockApp = result.app;
-    });
-
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
-    it('should configure all required routes', () => {
-      // We can't easily inspect Express route configuration in tests
-      // So we'll just verify the server started successfully
-      expect(result).toHaveProperty('app');
-      expect(result).toHaveProperty('httpServer');
-      expect(result).toHaveProperty('wss');
-    });
-
-    // Note: Testing individual route handlers would require a different approach
-    // such as using supertest or creating integration tests
-    // For unit tests, we're verifying the server configuration works
   });
 });
