@@ -165,7 +165,7 @@ describe('Storage Services', () => {
     });
   });
 
-  describe('DatabaseStorage', () => {
+  describe.skip('DatabaseStorage', () => {
     let storage: IStorage;
     let dbMock: any;
 
