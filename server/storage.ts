@@ -12,6 +12,8 @@ import {
   type Transcript,
   type InsertTranscript
 } from "../shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -169,6 +171,76 @@ export class MemStorage implements IStorage {
         if (!b.timestamp) return 1;
         return a.timestamp.getTime() - b.timestamp.getTime();
       });
+  }
+}
+
+export class DatabaseStorage implements IStorage {
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.id, id));
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(users.username, username));
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+  
+  // Language methods
+  async getLanguages(): Promise<Language[]> {
+    return await db.select().from(languages);
+  }
+  
+  async getActiveLanguages(): Promise<Language[]> {
+    return await db.select().from(languages).where(eq(languages.isActive, true));
+  }
+  
+  async getLanguageByCode(code: string): Promise<Language | undefined> {
+    const result = await db.select().from(languages).where(eq(languages.code, code));
+    return result[0];
+  }
+  
+  async createLanguage(insertLanguage: InsertLanguage): Promise<Language> {
+    const result = await db.insert(languages).values(insertLanguage).returning();
+    return result[0];
+  }
+  
+  async updateLanguageStatus(code: string, isActive: boolean): Promise<Language | undefined> {
+    const result = await db.update(languages)
+      .set({ isActive })
+      .where(eq(languages.code, code))
+      .returning();
+    return result[0];
+  }
+  
+  // Translation methods
+  async addTranslation(insertTranslation: InsertTranslation): Promise<Translation> {
+    const result = await db.insert(translations).values(insertTranslation).returning();
+    return result[0];
+  }
+  
+  async getTranslationsByLanguage(targetLanguage: string, limit = 10): Promise<Translation[]> {
+    return await db.select()
+      .from(translations)
+      .where(eq(translations.targetLanguage, targetLanguage))
+      .limit(limit);
+  }
+  
+  // Transcript methods
+  async addTranscript(insertTranscript: InsertTranscript): Promise<Transcript> {
+    const result = await db.insert(transcripts).values(insertTranscript).returning();
+    return result[0];
+  }
+  
+  async getTranscriptsBySession(sessionId: string, language: string): Promise<Transcript[]> {
+    return await db.select()
+      .from(transcripts)
+      .where(and(eq(transcripts.sessionId, sessionId), eq(transcripts.language, language)));
   }
 }
 
