@@ -117,6 +117,175 @@ The application uses PostgreSQL with Drizzle ORM. The database schema includes:
 - **Translations**: Record of all translations performed
 - **Transcripts**: Historical records of speech transcriptions
 
+## Database & Storage Architecture
+
+### Overview
+
+The application implements a flexible storage architecture that supports both in-memory and persistent database storage through a unified interface. This design allows for easy development (using in-memory storage) and production deployment (using PostgreSQL).
+
+### Core Storage Components
+
+#### 1. Storage Interface (`server/storage.ts`)
+- **`IStorage` Interface**: Defines the contract for all storage operations
+  - User management (create, retrieve)
+  - Language management (get, update status, create)
+  - Translation history (add, retrieve by language)
+  - Transcript management (add, retrieve by session)
+
+#### 2. Storage Implementations
+
+**MemStorage Class** (Currently Active)
+- In-memory storage using JavaScript Maps
+- No database required - perfect for development and testing
+- Automatically initializes with default languages (English, Spanish, German, French)
+- Data persists only while the application is running
+
+**DatabaseStorage Class** (Available but Not Used)
+- PostgreSQL implementation using Drizzle ORM
+- Persistent storage across application restarts
+- Requires DATABASE_URL environment variable
+- Full ACID compliance for data integrity
+
+#### 3. Database Connection (`server/db.ts`)
+- Sets up PostgreSQL connection using Drizzle ORM + Neon
+- Exports `db` (database client) and `pool` (connection pool)
+- Only needed when using DatabaseStorage
+
+#### 4. Database Schema (`shared/schema.ts`)
+- Defines table structures using Drizzle ORM
+- Tables: `users`, `languages`, `translations`, `transcripts`
+- Shared between client and server for type safety
+
+### Current Configuration
+
+```typescript
+// In server/storage.ts
+export const storage = new MemStorage(); // Currently using in-memory storage
+```
+
+**Active Storage**: MemStorage (no database required)
+**Database Ready**: DatabaseStorage implemented but not active
+
+### Switching Between Storage Types
+
+To switch from MemStorage to DatabaseStorage:
+
+1. **Set up environment variables**:
+   ```bash
+   DATABASE_URL=postgresql://username:password@localhost:5432/aivoicetranslator
+   ```
+
+2. **Run database migrations**:
+   ```bash
+   npm run db:push
+   ```
+
+3. **Update storage configuration**:
+   ```typescript
+   // Change this line in server/storage.ts:
+   export const storage = new DatabaseStorage();
+   ```
+
+4. **Restart the application**
+
+### Testing Architecture
+
+#### Unit Tests
+- **`tests/unit/storage.test.ts`** - Comprehensive test suite for both implementations
+- Tests MemStorage with real operations
+- Tests DatabaseStorage with mocked database calls
+- Fast execution, no external dependencies
+
+#### Integration Tests
+- **`tests/integration/storage/DatabaseStorage-integration.test.ts`** - Real database tests
+- Currently skipped (requires actual database connection)
+- Tests DatabaseStorage with real PostgreSQL database
+- Requires DATABASE_URL environment variable
+
+#### Test Utilities
+- **`tests/setup/db-setup.ts`** - Database setup/teardown utilities
+- **`test-scripts/db-test.ts`** - Standalone database testing script
+- **`server/test-db.ts`** - Express server for manual database testing
+
+### Usage Examples
+
+#### Current Usage (MemStorage)
+```javascript
+import { storage } from './server/storage';
+
+// These work immediately with MemStorage
+const languages = await storage.getLanguages();
+const user = await storage.createUser({ username: 'teacher1', password: 'pass123' });
+const translation = await storage.addTranslation({
+  sourceLanguage: 'en-US',
+  targetLanguage: 'es',
+  originalText: 'Hello class',
+  translatedText: 'Hola clase',
+  latency: 150
+});
+```
+
+#### Database Usage (DatabaseStorage)
+```javascript
+// Same interface, but data persists to PostgreSQL
+const storage = new DatabaseStorage();
+const languages = await storage.getLanguages(); // Loads from database
+```
+
+### Development Workflow
+
+#### For Development
+1. Use MemStorage (default) - no database setup required
+2. Run `npm test` for fast unit tests
+3. Data resets on each application restart
+
+#### For Production
+1. Set up PostgreSQL database
+2. Configure DATABASE_URL environment variable
+3. Switch to DatabaseStorage in `server/storage.ts`
+4. Run database migrations with `npm run db:push`
+
+### File Organization
+
+```
+├── server/
+│   ├── storage.ts           # Main storage implementations
+│   ├── db.ts               # Database connection setup
+│   └── test-db.ts          # Manual database testing server
+├── shared/
+│   └── schema.ts           # Database schema definitions
+├── tests/
+│   ├── unit/
+│   │   └── storage.test.ts # Comprehensive storage tests
+│   ├── integration/storage/
+│   │   └── DatabaseStorage-integration.test.ts # Database integration tests
+│   └── setup/
+│       └── db-setup.ts     # Test database utilities
+├── test-scripts/
+│   └── db-test.ts          # Standalone database test script
+└── config/
+    └── drizzle.config.ts   # Drizzle ORM configuration
+```
+
+### Benefits of This Architecture
+
+1. **Development Speed**: Start coding immediately without database setup
+2. **Testing**: Fast unit tests with MemStorage, thorough integration tests with DatabaseStorage
+3. **Flexibility**: Easy to switch between storage types
+4. **Type Safety**: Shared schema ensures consistent data types
+5. **Scalability**: Database implementation ready for production use
+
+### Performance Considerations
+
+#### MemStorage
+- **Pros**: Extremely fast, no network latency, simple setup
+- **Cons**: Data lost on restart, limited by system memory
+- **Best for**: Development, testing, demos
+
+#### DatabaseStorage  
+- **Pros**: Persistent data, ACID compliance, scalable
+- **Cons**: Network latency, requires database setup
+- **Best for**: Production, data persistence requirements
 ## Interface Guide
 
 ### Teacher Interface
