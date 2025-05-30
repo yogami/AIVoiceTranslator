@@ -1,241 +1,235 @@
 /**
  * WebSocketServer Unit Tests
  * 
- * Tests for WebSocketServer functionality without mocking the SUT
+ * Comprehensive tests for the ACTIVE WebSocketServer implementation
+ * Consolidated from multiple test files
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Server } from 'http';
-import { createMockWebSocketClient } from '../utils/test-helpers';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { Server as HttpServer } from 'http';
+import { WebSocketServer } from '../../../server/services/WebSocketServer';
+import { createMockWebSocket, createMockRequest } from '../utils/test-helpers';
 
-// Mock external dependencies only
+// Mock the translation service
 vi.mock('../../../server/services/TranslationService', () => ({
   speechTranslationService: {
     translateSpeech: vi.fn().mockResolvedValue({
-      originalText: 'Hello',
-      translatedText: 'Hola',
-      audioBuffer: Buffer.from('mock audio data')
+      originalText: 'Hello class',
+      translatedText: 'Hola clase',
+      audioBuffer: Buffer.from('mock-audio-data')
     })
   }
 }));
 
-describe('WebSocketServer', () => {
-  let mockHttpServer: Server;
-  let WebSocketServer: any;
-  let wsServer: any;
+describe('WebSocketServer - Real Implementation', () => {
+  let httpServer: HttpServer;
+  let wsServer: WebSocketServer;
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    
-    // Create a proper mock HTTP server with all required methods
-    mockHttpServer = {
-      on: vi.fn(),
-      removeListener: vi.fn(),
-      emit: vi.fn(),
-      listeners: vi.fn().mockReturnValue([]),
-      addListener: vi.fn(),
-      off: vi.fn(),
-      once: vi.fn(),
-      prependListener: vi.fn(),
-      prependOnceListener: vi.fn(),
-      removeAllListeners: vi.fn(),
-      setMaxListeners: vi.fn(),
-      getMaxListeners: vi.fn().mockReturnValue(10),
-      eventNames: vi.fn().mockReturnValue([]),
-      listenerCount: vi.fn().mockReturnValue(0),
-      rawListeners: vi.fn().mockReturnValue([])
-    } as any;
-
-    try {
-      // Try to import the actual WebSocketServer
-      const module = await import('../../../server/services/WebSocketServer');
-      WebSocketServer = module.WebSocketServer;
-      wsServer = new WebSocketServer(mockHttpServer);
-    } catch (error) {
-      // If import fails, create a mock implementation for testing
-      wsServer = {
-        connections: new Set(),
-        clientData: new Map(),
-        getConnections: function() { return this.connections; },
-        getRole: function(client: any) { return this.clientData.get(client)?.role; },
-        getLanguage: function(client: any) { return this.clientData.get(client)?.language; },
-        close: vi.fn(),
-        addConnection: function(client: any, role?: string, language?: string) {
-          this.connections.add(client);
-          if (role || language) {
-            this.clientData.set(client, { role, language });
-          }
-        },
-        removeConnection: function(client: any) {
-          this.connections.delete(client);
-          this.clientData.delete(client);
-        }
-      };
-    }
+  beforeEach(() => {
+    httpServer = new HttpServer();
+    wsServer = new WebSocketServer(httpServer);
   });
 
   afterEach(() => {
-    // Don't call close() in afterEach as it might cause issues
+    wsServer.close();
     vi.clearAllMocks();
   });
 
-  describe('Public API', () => {
-    it('should initialize with connections set', () => {
-      expect(wsServer).toBeDefined();
-      expect(wsServer.getConnections()).toBeDefined();
-      expect(wsServer.getConnections() instanceof Set).toBe(true);
-    });
-
-    it('should allow getting all connections', () => {
-      const connections = wsServer.getConnections();
-      expect(connections).toBeDefined();
-      expect(connections instanceof Set).toBe(true);
-    });
-
-    it('should return undefined for unknown client role', () => {
-      const mockClient = createMockWebSocketClient();
-      const role = wsServer.getRole(mockClient);
-      expect(role).toBeUndefined();
-    });
-
-    it('should return undefined for unknown client language', () => {
-      const mockClient = createMockWebSocketClient();
-      const language = wsServer.getLanguage(mockClient);
-      expect(language).toBeUndefined();
-    });
-
-    it('should have a close method', () => {
-      // Just test that the close method exists without calling it
-      expect(wsServer.close).toBeDefined();
-      expect(typeof wsServer.close).toBe('function');
-    });
-  });
-
   describe('Connection Management', () => {
-    it('should handle connection registration conceptually', () => {
-      // Test the concept of connection management
-      const mockClient = createMockWebSocketClient();
+    it('should track connections', () => {
+      const mockWs = createMockWebSocket();
       
-      // Simulate adding a connection
-      if (wsServer.addConnection) {
-        wsServer.addConnection(mockClient, 'teacher', 'en-US');
-        
-        expect(wsServer.getConnections().has(mockClient)).toBe(true);
-        expect(wsServer.getRole(mockClient)).toBe('teacher');
-        expect(wsServer.getLanguage(mockClient)).toBe('en-US');
-      }
+      // Simulate connection
+      const connections = wsServer.getConnections();
+      expect(connections.size).toBe(0);
+      
+      // Add connection through public method
+      connections.add(mockWs);
+      expect(connections.size).toBe(1);
     });
 
-    it('should handle connection removal conceptually', () => {
-      const mockClient = createMockWebSocketClient();
+    it('should handle message processing', async () => {
+      const mockWs = createMockWebSocket();
       
-      if (wsServer.addConnection && wsServer.removeConnection) {
-        // Add then remove
-        wsServer.addConnection(mockClient, 'student', 'es-ES');
-        expect(wsServer.getConnections().has(mockClient)).toBe(true);
-        
-        wsServer.removeConnection(mockClient);
-        expect(wsServer.getConnections().has(mockClient)).toBe(false);
-        expect(wsServer.getRole(mockClient)).toBeUndefined();
-      }
-    });
-  });
-
-  describe('Message Processing Concepts', () => {
-    it('should handle registration message concept', () => {
-      // Test the concept of message processing
-      const mockClient = createMockWebSocketClient();
-      
-      // Simulate registration processing
-      const processRegistration = (client: any, message: any) => {
-        if (wsServer.addConnection) {
-          wsServer.addConnection(client, message.role, message.languageCode);
-        }
-        
-        // Send confirmation
-        client.send(JSON.stringify({
-          type: 'register',
-          status: 'success',
-          data: { role: message.role, languageCode: message.languageCode }
-        }));
-      };
-      
-      const registerMessage = {
+      // Test registration message
+      await wsServer.handleMessage(mockWs, JSON.stringify({
         type: 'register',
         role: 'teacher',
         languageCode: 'en-US'
-      };
-      
-      processRegistration(mockClient, registerMessage);
-      
-      expect(mockClient.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"register"')
-      );
+      }));
+
+      expect(mockWs.send).toHaveBeenCalled();
+      const sentMessage = JSON.parse(mockWs.send.mock.calls[0][0]);
+      expect(sentMessage.type).toBe('register');
+      expect(sentMessage.status).toBe('success');
     });
 
-    it('should handle ping/pong concept', () => {
-      // Test ping/pong mechanism concept
-      const mockClient = createMockWebSocketClient();
+    it('should store role and language information', async () => {
+      const mockWs = createMockWebSocket();
       
-      const processPing = (client: any, message: any) => {
-        client.send(JSON.stringify({
-          type: 'pong',
-          timestamp: message.timestamp
-        }));
-      };
-      
-      const pingMessage = {
-        type: 'ping',
-        timestamp: Date.now()
-      };
-      
-      processPing(mockClient, pingMessage);
-      
-      expect(mockClient.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"pong"')
-      );
+      await wsServer.handleMessage(mockWs, JSON.stringify({
+        type: 'register',
+        role: 'student',
+        languageCode: 'es'
+      }));
+
+      expect(wsServer.getRole(mockWs)).toBe('student');
+      expect(wsServer.getLanguage(mockWs)).toBe('es');
     });
   });
 
-  describe('Error Handling Concepts', () => {
-    it('should handle JSON parsing errors gracefully', () => {
-      // Test error handling concept
-      const processMessage = (rawMessage: string) => {
-        try {
-          const message = JSON.parse(rawMessage);
-          return { success: true, message };
-        } catch (error) {
-          console.error('Error handling message:', error);
-          return { success: false, error };
-        }
-      };
+  describe('Message Handling', () => {
+    it('should handle ping messages', async () => {
+      const mockWs = createMockWebSocket();
+      const timestamp = Date.now();
       
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      
-      const result = processMessage('invalid json {');
-      
-      expect(result.success).toBe(false);
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Error handling message:', expect.any(Error));
-      
-      consoleErrorSpy.mockRestore();
+      await wsServer.handleMessage(mockWs, JSON.stringify({
+        type: 'ping',
+        timestamp
+      }));
+
+      expect(mockWs.send).toHaveBeenCalled();
+      const response = JSON.parse(mockWs.send.mock.calls[0][0]);
+      expect(response.type).toBe('pong');
+      expect(response.originalTimestamp).toBe(timestamp);
     });
 
-    it('should handle client errors gracefully', () => {
-      // Test client error handling
-      const mockClient = createMockWebSocketClient();
+    it('should handle settings messages', async () => {
+      const mockWs = createMockWebSocket();
       
-      const handleClientError = (client: any, error: Error) => {
-        console.error('WebSocket error:', error);
-        // In real implementation, might remove client or attempt recovery
-      };
+      await wsServer.handleMessage(mockWs, JSON.stringify({
+        type: 'settings',
+        ttsServiceType: 'openai'
+      }));
+
+      expect(mockWs.send).toHaveBeenCalled();
+      const response = JSON.parse(mockWs.send.mock.calls[0][0]);
+      expect(response.type).toBe('settings');
+      expect(response.status).toBe('success');
+    });
+
+    it('should handle invalid JSON gracefully', async () => {
+      const mockWs = createMockWebSocket();
       
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      // Should not throw
+      await expect(
+        wsServer.handleMessage(mockWs, 'invalid json{')
+      ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('Translation Flow', () => {
+    it('should process teacher transcriptions', async () => {
+      const mockTeacher = createMockWebSocket();
+      const mockStudent = createMockWebSocket();
       
-      handleClientError(mockClient, new Error('Test error'));
+      // Register teacher
+      await wsServer.handleMessage(mockTeacher, JSON.stringify({
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US'
+      }));
+
+      // Register student
+      await wsServer.handleMessage(mockStudent, JSON.stringify({
+        type: 'register',
+        role: 'student',
+        languageCode: 'es'
+      }));
+
+      // Add student to connections
+      wsServer.getConnections().add(mockStudent);
+
+      // Teacher sends transcription
+      await wsServer.handleMessage(mockTeacher, JSON.stringify({
+        type: 'transcription',
+        text: 'Hello class',
+        isFinal: true
+      }));
+
+      // Wait for async processing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Verify translation was sent to student
+      const studentMessages = mockStudent.send.mock.calls;
+      const translationMessage = studentMessages.find((call: any[]) => {
+        try {
+          const msg = JSON.parse(call[0]);
+          return msg.type === 'translation';
+        } catch {
+          return false;
+        }
+      });
+
+      expect(translationMessage).toBeDefined();
+    });
+
+    it('should ignore transcriptions from non-teachers', async () => {
+      const mockStudent = createMockWebSocket();
       
-      expect(consoleErrorSpy).toHaveBeenCalledWith('WebSocket error:', expect.any(Error));
+      await wsServer.handleMessage(mockStudent, JSON.stringify({
+        type: 'register',
+        role: 'student',
+        languageCode: 'es'
+      }));
+
+      await wsServer.handleMessage(mockStudent, JSON.stringify({
+        type: 'transcription',
+        text: 'Should be ignored',
+        isFinal: true
+      }));
+
+      // Student should only receive registration confirmation
+      expect(mockStudent.send).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Classroom Management', () => {
+    it('should generate classroom codes for teachers', async () => {
+      const mockTeacher = createMockWebSocket();
       
-      consoleErrorSpy.mockRestore();
+      await wsServer.handleMessage(mockTeacher, JSON.stringify({
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US'
+      }));
+
+      const messages = mockTeacher.send.mock.calls;
+      const classroomMessage = messages.find((call: any[]) => {
+        try {
+          const msg = JSON.parse(call[0]);
+          return msg.type === 'classroom_code';
+        } catch {
+          return false;
+        }
+      });
+
+      if (classroomMessage) {
+        const msg = JSON.parse(classroomMessage[0]);
+        expect(msg.code).toMatch(/^[A-Z0-9]{6}$/);
+      }
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle unknown message types', async () => {
+      const mockWs = createMockWebSocket();
+      
+      await wsServer.handleMessage(mockWs, JSON.stringify({
+        type: 'unknown_type',
+        data: 'test'
+      }));
+
+      // Should not crash
+      expect(wsServer.getConnections().has(mockWs)).toBe(false);
+    });
+
+    it('should handle malformed messages', async () => {
+      const mockWs = createMockWebSocket();
+      
+      await expect(
+        wsServer.handleMessage(mockWs, '')
+      ).resolves.toBeUndefined();
     });
   });
 });

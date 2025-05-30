@@ -1,7 +1,10 @@
 /**
- * WebSocket Server
+ * PRIMARY WebSocket Server Implementation
  * 
- * Handles real-time communication between teacher and students
+ * This is the ACTIVE WebSocket server used by the application.
+ * Handles real-time communication between teacher and students.
+ * 
+ * IMPORTANT: This is the implementation currently used by server.ts
  */
 import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
@@ -17,6 +20,16 @@ type WebSocketClient = WebSocket & {
   ping: () => void;
 }
 
+// Classroom session interface
+interface ClassroomSession {
+  code: string;
+  sessionId: string;
+  createdAt: number;
+  lastActivity: number;
+  teacherConnected: boolean;
+  expiresAt: number;
+}
+
 export class WebSocketServer {
   private wss: WSServer;
   // We use the speechTranslationService facade
@@ -28,17 +41,23 @@ export class WebSocketServer {
   private sessionIds: Map<WebSocketClient, string> = new Map();
   private clientSettings: Map<WebSocketClient, any> = new Map();
   
+  // Classroom management
+  private classroomSessions: Map<string, ClassroomSession> = new Map();
+  private classroomCleanupInterval: NodeJS.Timeout | null = null;
+  
   // Stats
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   
-  constructor(server: Server) {  // Fixed: Changed from 'wss: WSServer' back to 'server: Server'
-    this.wss = new WSServer({ server }); // Fixed: Create WebSocket server properly
-    
-    // We now use the imported speechTranslationService instead of creating a new instance
+  constructor(server: Server) {
+    this.wss = new WSServer({ server });
+    console.log('🔥 PRIMARY WebSocketServer initialized - This is the ACTIVE implementation');
     
     // Set up event handlers
     this.setupEventHandlers();
+    
+    // Set up classroom session cleanup
+    this.setupClassroomCleanup();
     
     console.log('WebSocket server initialized');
   }
@@ -60,21 +79,48 @@ export class WebSocketServer {
   /**
    * Handle new WebSocket connection
    */
-  private handleConnection(ws: WebSocketClient, request?: any): void {  // Made request parameter optional
+  private handleConnection(ws: WebSocketClient, request?: any): void {
     console.log('New WebSocket connection established');
     
     // Mark as alive
     ws.isAlive = true;
     
-    // Generate session ID
-    const sessionId = this.generateSessionId();
+    // Parse URL for classroom code
+    let sessionId = this.generateSessionId();
+    let classroomCode: string | null = null;
+    
+    if (request?.url) {
+      const url = new URL(request.url, 'http://localhost');
+      classroomCode = url.searchParams.get('class') || url.searchParams.get('code');
+      
+      if (classroomCode) {
+        // Validate classroom code
+        if (!this.isValidClassroomCode(classroomCode)) {
+          console.log(`Invalid classroom code attempted: ${classroomCode}`);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Classroom session expired or invalid. Please ask teacher for new link.',
+            code: 'INVALID_CLASSROOM'
+          }));
+          ws.close(1008, 'Invalid classroom session');
+          return;
+        }
+        
+        // Use classroom session ID
+        const session = this.classroomSessions.get(classroomCode);
+        if (session) {
+          sessionId = session.sessionId;
+          console.log(`Client joining classroom ${classroomCode} with session ${sessionId}`);
+        }
+      }
+    }
     
     // Store connection data
     this.connections.add(ws);
     this.sessionIds.set(ws, sessionId);
     
-    // Send immediate connection confirmation
-    this.sendConnectionConfirmation(ws);
+    // Send immediate connection confirmation with classroom code if applicable
+    this.sendConnectionConfirmation(ws, classroomCode);
     
     // Set up message handler
     ws.on('message', (data: any) => {
@@ -100,7 +146,7 @@ export class WebSocketServer {
   /**
    * Send connection confirmation to client
    */
-  private sendConnectionConfirmation(ws: WebSocketClient): void {
+  private sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
     try {
       const sessionId = this.sessionIds.get(ws);
       const role = this.roles.get(ws);
@@ -111,11 +157,12 @@ export class WebSocketServer {
         status: 'connected',
         sessionId,
         role,
-        language
+        language,
+        classroomCode: classroomCode || undefined
       };
       
       ws.send(JSON.stringify(message));
-      console.log('Sending connection confirmation with sessionId:', sessionId);
+      console.log('Sending connection confirmation with sessionId:', sessionId, 'classroomCode:', classroomCode);
       console.log('Connection confirmation sent successfully');
     } catch (error) {
       console.error('Error sending connection confirmation:', error);
@@ -183,6 +230,24 @@ export class WebSocketServer {
         console.log(`Changing connection role from ${currentRole} to ${message.role}`);
       }
       this.roles.set(ws, message.role);
+      
+      // If registering as teacher, generate or update classroom code
+      if (message.role === 'teacher') {
+        const sessionId = this.sessionIds.get(ws);
+        if (sessionId) {
+          const classroomCode = this.generateClassroomCode(sessionId);
+          
+          // Send classroom code to teacher
+          ws.send(JSON.stringify({
+            type: 'classroom_code',
+            code: classroomCode,
+            sessionId: sessionId,
+            expiresAt: this.classroomSessions.get(classroomCode)?.expiresAt
+          }));
+          
+          console.log(`Generated classroom code ${classroomCode} for teacher session ${sessionId}`);
+        }
+      }
     }
     
     // Update language if provided
@@ -961,9 +1026,111 @@ export class WebSocketServer {
   }
   
   /**
+   * Generate a classroom code for a session
+   */
+  private generateClassroomCode(sessionId: string): string {
+    // Check if we already have a code for this session
+    for (const [code, session] of this.classroomSessions.entries()) {
+      if (session.sessionId === sessionId) {
+        // Update activity and return existing code
+        session.lastActivity = Date.now();
+        session.teacherConnected = true;
+        return code;
+      }
+    }
+    
+    // Generate new 6-character code
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code: string;
+    
+    // Ensure uniqueness
+    do {
+      code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+    } while (this.classroomSessions.has(code));
+    
+    // Create session with 2-hour expiration
+    const session: ClassroomSession = {
+      code,
+      sessionId,
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+      teacherConnected: true,
+      expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
+    };
+    
+    this.classroomSessions.set(code, session);
+    console.log(`Created new classroom session: ${code} for session ${sessionId}`);
+    
+    return code;
+  }
+  
+  /**
+   * Validate classroom code
+   */
+  private isValidClassroomCode(code: string): boolean {
+    // Check format
+    if (!/^[A-Z0-9]{6}$/.test(code)) {
+      return false;
+    }
+    
+    const session = this.classroomSessions.get(code);
+    if (!session) {
+      return false;
+    }
+    
+    // Check expiration
+    if (Date.now() > session.expiresAt) {
+      this.classroomSessions.delete(code);
+      console.log(`Classroom code ${code} expired and removed`);
+      return false;
+    }
+    
+    // Update last activity
+    session.lastActivity = Date.now();
+    return true;
+  }
+  
+  /**
+   * Set up periodic cleanup of expired classroom sessions
+   */
+  private setupClassroomCleanup(): void {
+    // Clean up expired sessions every 15 minutes
+    this.classroomCleanupInterval = setInterval(() => {
+      const now = Date.now();
+      let cleaned = 0;
+      
+      for (const [code, session] of this.classroomSessions.entries()) {
+        if (now > session.expiresAt) {
+          this.classroomSessions.delete(code);
+          cleaned++;
+        }
+      }
+      
+      if (cleaned > 0) {
+        console.log(`Cleaned up ${cleaned} expired classroom sessions`);
+      }
+    }, 15 * 60 * 1000); // 15 minutes
+  }
+  
+  /**
    * Close WebSocket server
    */
   public close(): void {
+    // Clear classroom cleanup interval
+    if (this.classroomCleanupInterval) {
+      clearInterval(this.classroomCleanupInterval);
+      this.classroomCleanupInterval = null;
+    }
+    
+    // Clear heartbeat interval
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    
     this.wss.close();
   }
   

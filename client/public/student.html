@@ -1,33 +1,19 @@
 <!DOCTYPE html>
-<!-- 
-    AIVoiceTranslator Student Interface
-    
-    Architecture Note: TTS service selection is now controlled by the teacher.
-    Students can see which TTS service is active but cannot change it.
-    They can play examples of different TTS services for comparison only.
-    
-    The architecture follows these principles:
-    - Centralized control by the teacher for classroom consistency
-    - Read-only display of TTS service selection for students
-    - TTS comparison capabilities for educational purposes
--->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student View - AIVoiceTranslator</title>
-    <script src="js/language-support.js"></script>
+    <title>Student Interface - AIVoiceTranslator</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
     <style>
         * { box-sizing: border-box; }
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 600px;
-            margin: 40px auto;
+            max-width: 800px;
+            margin: 0 auto;
             padding: 20px;
             background: #f5f5f5;
-            color: #2c3e50;
-            line-height: 1.6;
         }
         
         .container {
@@ -134,13 +120,17 @@
             background: #45a049;
         }
         
-        #disconnect-btn {
+        #connect-btn.connected {
             background: #f44336;
-            color: white;
         }
         
-        #disconnect-btn:hover:not(:disabled) {
+        #connect-btn.connected:hover:not(:disabled) {
             background: #da190b;
+        }
+        
+        /* Remove the separate disconnect button styles */
+        #disconnect-btn {
+            display: none;
         }
         
         .language-dropdown {
@@ -220,414 +210,602 @@
         button.hidden {
             display: none;
         }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .input-group input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: calc(100% - 22px);
+        }
+        
+        .input-group button {
+            padding: 10px 15px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .input-group button:hover {
+            background: #0056b3;
+        }
+        
+        .session-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            background: #f1f1f1;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        /* Simplified styles for auto-join interface */
+        .connection-status {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .language-section {
+            margin-bottom: 20px;
+        }
+        
+        .translation-container {
+            margin-bottom: 20px;
+        }
+        
+        .waiting-message {
+            color: #6c757d;
+            font-style: italic;
+        }
+        
+        .translation-item {
+            margin-bottom: 10px;
+        }
+        
+        .original-text {
+            margin: 0;
+            font-weight: 500;
+        }
+        
+        .translated-text {
+            margin: 0;
+            font-weight: bold;
+        }
+        
+        .language-info {
+            margin: 0;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        
+        /* Language selection styles */
+        .language-categories {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .language-category {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .category-header {
+            background: #f8f9fa;
+            padding: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .category-content {
+            padding: 15px;
+            display: none;
+        }
+        
+        .category-content.active {
+            display: block;
+        }
+        
+        .language-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .language-option:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .language-option.selected {
+            background-color: #e3f2fd;
+            border-color: #2196f3;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="/" class="back-link">← Back to Home</a>
-        
-        <h1>Student Translator</h1>
-        
-        <div id="error-container"></div>
-        <div id="success-container"></div>
+        <h1>🎧 Student Interface</h1>
         
         <div id="connection-status" class="status disconnected">
-            <span id="connection-indicator" class="indicator disconnected"></span>
-            <span id="connection-text">Disconnected</span>
+            <div class="indicator disconnected"></div>
+            <span>Disconnected</span>
         </div>
         
-        <div class="controls">
-            <button id="connect-btn">Connect</button>
-            <button id="disconnect-btn" class="hidden" disabled>Disconnect</button>
+        <!-- Language Selection with Categories -->
+        <div class="language-section">
+            <h3>🌍 Select Your Language</h3>
+            <div class="language-selection">
+                <select id="language-dropdown" class="language-dropdown">
+                    <option value="">Choose your language...</option>
+                    
+                    <!-- Major Languages -->
+                    <option value="en-US">🇺🇸 English (United States)</option>
+                    <option value="en-GB">🇬🇧 English (United Kingdom)</option>
+                    <option value="en-AU">🇦🇺 English (Australia)</option>
+                    <option value="en-CA">🇨🇦 English (Canada)</option>
+                    
+                    <!-- European Languages -->
+                    <option value="es-ES">🇪🇸 Spanish (Spain)</option>
+                    <option value="es-MX">🇲🇽 Spanish (Mexico)</option>
+                    <option value="es-AR">🇦🇷 Spanish (Argentina)</option>
+                    <option value="fr-FR">🇫🇷 French (France)</option>
+                    <option value="fr-CA">🇨🇦 French (Canada)</option>
+                    <option value="de-DE">🇩🇪 German (Germany)</option>
+                    <option value="it-IT">🇮🇹 Italian (Italy)</option>
+                    <option value="pt-PT">🇵🇹 Portuguese (Portugal)</option>
+                    <option value="pt-BR">🇧🇷 Portuguese (Brazil)</option>
+                    <option value="ru-RU">🇷🇺 Russian (Russia)</option>
+                    <option value="pl-PL">🇵🇱 Polish (Poland)</option>
+                    <option value="nl-NL">🇳🇱 Dutch (Netherlands)</option>
+                    <option value="sv-SE">🇸🇪 Swedish (Sweden)</option>
+                    <option value="da-DK">🇩🇰 Danish (Denmark)</option>
+                    <option value="no-NO">🇳🇴 Norwegian (Norway)</option>
+                    <option value="fi-FI">🇫🇮 Finnish (Finland)</option>
+                    <option value="is-IS">🇮🇸 Icelandic (Iceland)</option>
+                    <option value="hu-HU">🇭🇺 Hungarian (Hungary)</option>
+                    <option value="cs-CZ">🇨🇿 Czech (Czech Republic)</option>
+                    <option value="sk-SK">🇸🇰 Slovak (Slovakia)</option>
+                    <option value="sl-SI">🇸🇮 Slovenian (Slovenia)</option>
+                    <option value="hr-HR">🇭🇷 Croatian (Croatia)</option>
+                    <option value="sr-RS">🇷🇸 Serbian (Serbia)</option>
+                    <option value="bg-BG">🇧🇬 Bulgarian (Bulgaria)</option>
+                    <option value="ro-RO">🇷🇴 Romanian (Romania)</option>
+                    <option value="el-GR">🇬🇷 Greek (Greece)</option>
+                    <option value="tr-TR">🇹🇷 Turkish (Turkey)</option>
+                    
+                    <!-- Asian Languages -->
+                    <option value="zh-CN">🇨🇳 Chinese (Simplified)</option>
+                    <option value="zh-TW">🇹🇼 Chinese (Traditional)</option>
+                    <option value="ja-JP">🇯🇵 Japanese (Japan)</option>
+                    <option value="ko-KR">🇰🇷 Korean (Korea)</option>
+                    <option value="hi-IN">🇮🇳 Hindi (India)</option>
+                    <option value="bn-IN">🇮🇳 Bengali (India)</option>
+                    <option value="ta-IN">🇮🇳 Tamil (India)</option>
+                    <option value="te-IN">🇮🇳 Telugu (India)</option>
+                    <option value="mr-IN">🇮🇳 Marathi (India)</option>
+                    <option value="gu-IN">🇮🇳 Gujarati (India)</option>
+                    <option value="kn-IN">🇮🇳 Kannada (India)</option>
+                    <option value="ml-IN">🇮🇳 Malayalam (India)</option>
+                    <option value="pa-IN">🇮🇳 Punjabi (India)</option>
+                    <option value="ur-PK">🇵🇰 Urdu (Pakistan)</option>
+                    <option value="th-TH">🇹🇭 Thai (Thailand)</option>
+                    <option value="vi-VN">🇻🇳 Vietnamese (Vietnam)</option>
+                    <option value="id-ID">🇮🇩 Indonesian (Indonesia)</option>
+                    <option value="ms-MY">🇲🇾 Malay (Malaysia)</option>
+                    <option value="tl-PH">🇵🇭 Filipino (Philippines)</option>
+                    
+                    <!-- Middle Eastern & African Languages -->
+                    <option value="ar-SA">🇸🇦 Arabic (Saudi Arabia)</option>
+                    <option value="ar-EG">🇪🇬 Arabic (Egypt)</option>
+                    <option value="ar-AE">🇦🇪 Arabic (UAE)</option>
+                    <option value="he-IL">🇮🇱 Hebrew (Israel)</option>
+                    <option value="fa-IR">🇮🇷 Persian (Iran)</option>
+                    <option value="sw-KE">🇰🇪 Swahili (Kenya)</option>
+                    <option value="am-ET">🇪🇹 Amharic (Ethiopia)</option>
+                    <option value="zu-ZA">🇿🇦 Zulu (South Africa)</option>
+                    <option value="af-ZA">🇿🇦 Afrikaans (South Africa)</option>
+                    
+                    <!-- Other Languages -->
+                    <option value="cy-GB">🏴󐁧󐁢󐁷󐁬󐁳󐁿 Welsh (Wales)</option>
+                    <option value="ga-IE">🇮🇪 Irish (Ireland)</option>
+                    <option value="mt-MT">🇲🇹 Maltese (Malta)</option>
+                    <option value="lv-LV">🇱🇻 Latvian (Latvia)</option>
+                    <option value="lt-LT">🇱🇹 Lithuanian (Lithuania)</option>
+                    <option value="et-EE">🇪🇪 Estonian (Estonia)</option>
+                    <option value="mk-MK">🇲🇰 Macedonian (North Macedonia)</option>
+                    <option value="sq-AL">🇦🇱 Albanian (Albania)</option>
+                    <option value="eu-ES">🏴󐁧󐁢󐁢󐁡󐁳󐁿 Basque (Spain)</option>
+                    <option value="ca-ES">🏴󐁧󐁢󐁣󐁡󐁴󐁿 Catalan (Spain)</option>
+                    <option value="gl-ES">🏴󐁧󐁢󐁧󐁬󐁣󐁿 Galician (Spain)</option>
+                </select>
+            </div>
+            
+            <div id="selected-language" style="margin-top: 15px; font-weight: bold; color: #2196f3;">
+                No language selected
+            </div>
         </div>
         
-        <div>
-            <label for="simplified-language-select">Select Your Language:</label>
-            <select id="simplified-language-select" class="language-dropdown">
-                <option value="" disabled selected>Choose a language...</option>
-                <!-- Common Languages -->
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="zh">Chinese (Simplified)</option>
-                <option value="ja">Japanese</option>
-                <option value="ko">Korean</option>
-                <option value="ar">Arabic</option>
-                <option value="hi">Hindi</option>
-                <option value="pt">Portuguese</option>
-                <option value="ru">Russian</option>
-                <option value="it">Italian</option>
-                
-                <!-- Additional Languages (Alphabetical) -->
-                <option value="af">Afrikaans</option>
-                <option value="am">Amharic</option>
-                <option value="az">Azerbaijani</option>
-                <option value="be">Belarusian</option>
-                <option value="bg">Bulgarian</option>
-                <option value="bn">Bengali</option>
-                <option value="bs">Bosnian</option>
-                <option value="ca">Catalan</option>
-                <option value="cs">Czech</option>
-                <option value="da">Danish</option>
-                <option value="el">Greek</option>
-                <option value="et">Estonian</option>
-                <option value="fa">Persian</option>
-                <option value="fi">Finnish</option>
-                <option value="fil">Filipino</option>
-                <option value="gu">Gujarati</option>
-                <option value="he">Hebrew</option>
-                <option value="hr">Croatian</option>
-                <option value="hu">Hungarian</option>
-                <option value="hy">Armenian</option>
-                <option value="id">Indonesian</option>
-                <option value="is">Icelandic</option>
-                <option value="jv">Javanese</option>
-                <option value="ka">Georgian</option>
-                <option value="kk">Kazakh</option>
-                <option value="km">Khmer</option>
-                <option value="kn">Kannada</option>
-                <option value="lo">Lao</option>
-                <option value="lt">Lithuanian</option>
-                <option value="lv">Latvian</option>
-                <option value="mk">Macedonian</option>
-                <option value="ml">Malayalam</option>
-                <option value="mn">Mongolian</option>
-                <option value="mr">Marathi</option>
-                <option value="ms">Malay</option>
-                <option value="my">Burmese</option>
-                <option value="ne">Nepali</option>
-                <option value="nl">Dutch</option>
-                <option value="no">Norwegian</option>
-                <option value="pa">Punjabi</option>
-                <option value="pl">Polish</option>
-                <option value="ro">Romanian</option>
-                <option value="si">Sinhala</option>
-                <option value="sk">Slovak</option>
-                <option value="sl">Slovenian</option>
-                <option value="sq">Albanian</option>
-                <option value="sr">Serbian</option>
-                <option value="sv">Swedish</option>
-                <option value="sw">Swahili</option>
-                <option value="ta">Tamil</option>
-                <option value="te">Telugu</option>
-                <option value="th">Thai</option>
-                <option value="tr">Turkish</option>
-                <option value="uk">Ukrainian</option>
-                <option value="ur">Urdu</option>
-                <option value="uz">Uzbek</option>
-                <option value="vi">Vietnamese</option>
-                
-                <!-- Regional Variants -->
-                <option value="en-US">English (United States)</option>
-                <option value="en-GB">English (UK)</option>
-                <option value="en-AU">English (Australia)</option>
-                <option value="es-ES">Spanish (Spain)</option>
-                <option value="es-MX">Spanish (Mexico)</option>
-                <option value="pt-BR">Portuguese (Brazil)</option>
-                <option value="pt-PT">Portuguese (Portugal)</option>
-                <option value="fr-FR">French (France)</option>
-                <option value="fr-CA">French (Canada)</option>
-                <option value="zh-TW">Chinese (Traditional)</option>
-            </select>
-            <!-- Hidden select for backward compatibility -->
-            <select id="language-select" style="display: none;">
-                <option value="en-US">English (United States)</option>
-            </select>
-        </div>
-    </div>
-        
-    <div class="container">
-        <h3>Translated Speech</h3>
-        <div id="translation-box" class="translation-box">
-            Connect and select a language to receive translated speech from the teacher.
+        <!-- Translation Display -->
+        <div class="translation-container">
+            <h3>📖 Live Translation</h3>
+            <div id="translation-display" class="translation-box">
+                Waiting for teacher to start speaking...
+            </div>
         </div>
         
+        <!-- Audio Controls -->
         <div class="audio-controls">
-            <audio id="audio-player" controls style="display: none;"></audio>
-            <button id="play-button" disabled>
-                <span>▶</span> Play Translation
-            </button>
+            <button id="play-button" disabled>🔊 Play Audio</button>
+            <label for="volume-control">Volume:</label>
+            <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.8">
+        </div>
+        
+        <!-- Connection Controls -->
+        <div class="controls">
+            <button id="connect-btn">Connect to Session</button>
         </div>
     </div>
-    
+
     <script>
-        // Global variables
-        let socket;
+        let ws = null;
+        let selectedLanguage = null;
+        let currentAudioData = null;
         let isConnected = false;
-        let sessionId = null;
-        let selectedLanguage = document.getElementById('language-select').value;
         
-        function log(message) {
-            console.log(message);
-        }
-        
-        function showError(message) {
-            const errorContainer = document.getElementById('error-container');
-            errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
-            setTimeout(() => errorContainer.innerHTML = '', 5000);
-        }
-        
-        function showSuccess(message) {
-            const successContainer = document.getElementById('success-container');
-            successContainer.innerHTML = `<div class="success-message">${message}</div>`;
-            setTimeout(() => successContainer.innerHTML = '', 3000);
-        }
-        
-        function connectWebSocket() {
-            // Prevent double clicks
-            if (isConnected || document.getElementById('connect-btn').disabled) {
-                return;
-            }
-            
-            // Immediately update UI to show connecting state
-            updateConnectionUI('connecting');
-            
-            try {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws`;
-                
-                socket = new WebSocket(wsUrl);
-                
-                socket.onopen = function() {
-                    isConnected = true;
-                    updateConnectionUI(true);
-                    showSuccess('Connected to classroom');
-                    registerAsStudent(selectedLanguage);
-                };
-                
-                socket.onclose = function() {
-                    isConnected = false;
-                    updateConnectionUI(false);
-                };
-                
-                socket.onerror = function(error) {
-                    showError('Connection error. Please try again.');
-                    isConnected = false;
-                    updateConnectionUI(false);
-                };
-                
-                socket.onmessage = function(event) {
-                    const message = JSON.parse(event.data);
-                    
-                    if (message.type === 'connection' && message.sessionId) {
-                        sessionId = message.sessionId;
-                    }
-                    
-                    if (message.type === 'translation') {
-                        displayTranslation(message.text, message.sourceLanguage, message.targetLanguage, 
-                                         message.originalText, message.audioData, message.useClientSpeech, 
-                                         message.ttsServiceType);
-                    }
-                };
-            } catch (error) {
-                showError('Failed to establish connection: ' + error.message);
-                isConnected = false;
-                updateConnectionUI(false);
-            }
-        }
-        
-        function disconnectWebSocket() {
-            // Prevent double clicks
-            if (!isConnected || document.getElementById('disconnect-btn').disabled) {
-                return;
-            }
-            
-            // Immediately update UI to show disconnecting state
-            updateConnectionUI('disconnecting');
-            
-            if (socket) {
-                socket.close();
-            } else {
-                // If no socket exists, just update UI to disconnected
-                isConnected = false;
-                updateConnectionUI(false);
-            }
-        }
-        
-        function registerAsStudent(languageCode) {
-            if (!isConnected) {
-                showError('Not connected to classroom');
-                return;
-            }
-            
-            const message = {
-                type: 'register',
-                role: 'student',
-                languageCode: languageCode
-            };
-            
-            socket.send(JSON.stringify(message));
-            showSuccess(`Receiving translations in ${getLanguageName(languageCode)}`);
-        }
-        
-        function updateConnectionUI(state) {
-            const connectBtn = document.getElementById('connect-btn');
-            const disconnectBtn = document.getElementById('disconnect-btn');
-            const indicator = document.getElementById('connection-indicator');
-            const connectionText = document.getElementById('connection-text');
-            const connectionStatus = document.getElementById('connection-status');
-            
-            if (state === 'connecting') {
-                indicator.className = 'indicator disconnected';
-                connectionText.textContent = '⏳ Connecting...';
-                connectionStatus.className = 'status disconnected';
-                connectBtn.textContent = 'Connecting...';
-                connectBtn.disabled = true;
-                connectBtn.classList.remove('hidden');
-                disconnectBtn.classList.add('hidden');
-            } else if (state === 'disconnecting') {
-                indicator.className = 'indicator connected';
-                connectionText.textContent = '⏳ Disconnecting...';
-                connectionStatus.className = 'status connected';
-                disconnectBtn.textContent = 'Disconnecting...';
-                disconnectBtn.disabled = true;
-                connectBtn.classList.add('hidden');
-                disconnectBtn.classList.remove('hidden');
-            } else if (state === true) {
-                // Connected state
-                indicator.className = 'indicator connected';
-                connectionText.textContent = '✓ Connected to Classroom';
-                connectionStatus.className = 'status connected';
-                connectBtn.classList.add('hidden');
-                disconnectBtn.classList.remove('hidden');
-                disconnectBtn.textContent = 'Disconnect';
-                disconnectBtn.disabled = false;
-            } else {
-                // Disconnected state
-                indicator.className = 'indicator disconnected';
-                connectionText.textContent = '✗ Disconnected';
-                connectionStatus.className = 'status disconnected';
-                connectBtn.classList.remove('hidden');
-                connectBtn.textContent = 'Connect';
-                connectBtn.disabled = false;
-                disconnectBtn.classList.add('hidden');
-            }
-        }
-        
-        function displayTranslation(text, sourceLanguage, targetLanguage, originalText, audioData, useClientSpeech, ttsServiceType) {
-            const translationBox = document.getElementById('translation-box');
-            const audio = document.getElementById('audio-player');
-            const playButton = document.getElementById('play-button');
-            
-            // Display translation
-            let html = '';
-            if (originalText) {
-                html += `<p style="color: #6c757d; font-size: 0.9em; margin-bottom: 10px;">"${originalText}"</p>`;
-            }
-            html += `<p style="font-size: 1.2em; font-weight: bold; margin: 0;">${text}</p>`;
-            translationBox.innerHTML = html;
-            
-            // Handle audio
-            if (ttsServiceType === 'silent') {
-                playButton.disabled = true;
-                playButton.innerHTML = '<span>🔇</span> Audio Disabled';
-            } else if (audioData && audioData.length > 0) {
-                try {
-                    const binaryString = atob(audioData);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    
-                    const blob = new Blob([bytes.buffer], { type: 'audio/mp3' });
-                    const audioURL = URL.createObjectURL(blob);
-                    
-                    audio.src = audioURL;
-                    playButton.disabled = false;
-                    playButton.innerHTML = '<span>▶</span> Play Translation';
-                    
-                    playButton.onclick = () => {
-                        audio.play();
-                        playButton.innerHTML = '<span>🔊</span> Playing...';
-                    };
-                    
-                    audio.onended = () => {
-                        playButton.innerHTML = '<span>▶</span> Play Translation';
-                    };
-                    
-                    // Auto-play
-                    setTimeout(() => audio.play(), 100);
-                    
-                } catch (error) {
-                    generateSpeechFromText(text, targetLanguage);
-                }
-            } else {
-                generateSpeechFromText(text, targetLanguage);
-            }
-        }
-        
-        function generateSpeechFromText(text, languageCode) {
-            const playButton = document.getElementById('play-button');
-            
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = languageCode || 'en-US';
-                
-                playButton.disabled = false;
-                playButton.innerHTML = '<span>▶</span> Play Translation';
-                
-                playButton.onclick = () => {
-                    window.speechSynthesis.cancel();
-                    window.speechSynthesis.speak(utterance);
-                    playButton.innerHTML = '<span>🔊</span> Playing...';
-                };
-                
-                utterance.onend = () => {
-                    playButton.innerHTML = '<span>▶</span> Play Translation';
-                };
-                
-                showSuccess('Translation audio ready');
-            } else {
-                playButton.disabled = true;
-                showError('Audio not supported in your browser');
-            }
-        }
-        
-        function getLanguageName(code) {
-            const languages = {
-                'en': 'English', 'es': 'Spanish', 'fr': 'French', 'de': 'German',
-                'zh': 'Chinese', 'ja': 'Japanese', 'ko': 'Korean', 'ar': 'Arabic',
-                'hi': 'Hindi', 'pt': 'Portuguese', 'ru': 'Russian', 'it': 'Italian'
-            };
-            return languages[code] || code;
-        }
-        
-        // Initialize
+        // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
-            const connectBtn = document.getElementById('connect-btn');
-            const disconnectBtn = document.getElementById('disconnect-btn');
-            const languageSelect = document.getElementById('language-select');
-            const simplifiedLanguageSelect = document.getElementById('simplified-language-select');
+            setupLanguageSelection();
             
-            connectBtn.addEventListener('click', connectWebSocket);
-            disconnectBtn.addEventListener('click', disconnectWebSocket);
+            // Check if classroom code is provided
+            const urlParams = new URLSearchParams(window.location.search);
+            const classroomCode = urlParams.get('code');
             
-            // Language selection
-            if (simplifiedLanguageSelect) {
-                simplifiedLanguageSelect.addEventListener('change', function() {
-                    const lang = this.value;
-                    if (!lang) return;
-                    
-                    selectedLanguage = lang;
-                    languageSelect.value = lang;
-                    
-                    if (isConnected) {
-                        registerAsStudent(lang);
-                        showSuccess(`Language changed to ${this.options[this.selectedIndex].text}`);
-                    }
-                });
+            if (!classroomCode) {
+                // Show error message and disable functionality
+                document.getElementById('connection-status').innerHTML = `
+                    <div class="indicator disconnected"></div>
+                    <span>No classroom code provided</span>
+                `;
+                document.getElementById('translation-display').innerHTML = 
+                    '<div style="color: red; text-align: center; padding: 20px;">' +
+                    '<h3>❌ Missing Classroom Code</h3>' +
+                    '<p>Please get the correct link from your teacher.</p>' +
+                    '<p>The link should look like: <code>/student?code=ABC123</code></p>' +
+                    '</div>';
+                document.getElementById('connect-btn').disabled = true;
+                return;
             }
             
-            if (languageSelect) {
-                languageSelect.addEventListener('change', function() {
-                    selectedLanguage = this.value;
-                    if (isConnected) {
-                        registerAsStudent(selectedLanguage);
-                    }
-                });
-            }
+            // Show classroom code info
+            const classroomInfo = document.createElement('div');
+            classroomInfo.style.cssText = 'text-align: center; margin-bottom: 20px; padding: 10px; background: #e8f5e8; border-radius: 6px; border: 2px solid #28a745;';
+            classroomInfo.innerHTML = `
+                <div style="font-weight: bold; color: #28a745;">Joining Classroom: ${classroomCode}</div>
+            `;
+            document.querySelector('.container').insertBefore(classroomInfo, document.querySelector('h1').nextSibling);
+            
+            setupWebSocket();
+            
+            // Auto-select first language and enable button immediately
+            setTimeout(() => {
+                autoSelectFirstLanguage();
+                document.getElementById('connect-btn').disabled = false;
+            }, 100);
         });
+        
+        function autoSelectFirstLanguage() {
+            const dropdown = document.getElementById('language-dropdown');
+            if (dropdown && !selectedLanguage) {
+                // Auto-select the first real option (not the placeholder)
+                const firstOption = dropdown.options[1]; // Skip the placeholder at index 0
+                if (firstOption) {
+                    dropdown.value = firstOption.value;
+                    selectedLanguage = firstOption.value;
+                    
+                    // Update display
+                    const languageName = firstOption.textContent;
+                    document.getElementById('selected-language').textContent = `Selected: ${languageName}`;
+                    
+                    // Enable connect button
+                    document.getElementById('connect-btn').disabled = false;
+                    
+                    console.log('Auto-selected language:', selectedLanguage);
+                }
+            }
+        }
+        
+        function setupLanguageSelection() {
+            // Dropdown change handler
+            const dropdown = document.getElementById('language-dropdown');
+            dropdown.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                
+                if (selectedOption.value) {
+                    selectedLanguage = selectedOption.value;
+                    
+                    // Update display
+                    const languageName = selectedOption.textContent;
+                    document.getElementById('selected-language').textContent = `Selected: ${languageName}`;
+                    
+                    // Enable connect button
+                    document.getElementById('connect-btn').disabled = false;
+                    
+                    // CRITICAL: Update WebSocket registration if connected
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const classroomCode = urlParams.get('code');
+                        console.log('Language changed while connected - re-registering with server');
+                        registerWithServer(classroomCode);
+                    }
+                    
+                    console.log('Language selected:', selectedLanguage);
+                } else {
+                    // Placeholder selected
+                    selectedLanguage = null;
+                    document.getElementById('selected-language').textContent = 'No language selected';
+                    document.getElementById('connect-btn').disabled = true;
+                }
+            });
+        }
+        
+        function setupWebSocket() {
+            document.getElementById('connect-btn').addEventListener('click', toggleConnection);
+            document.getElementById('play-button').addEventListener('click', playCurrentAudio);
+        }
+        
+        function toggleConnection() {
+            if (isConnected) {
+                disconnectFromServer();
+            } else {
+                connectToServer();
+            }
+        }
+        
+        function connectToServer() {
+            // Check if there's a classroom code in the URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const classroomCode = urlParams.get('code');
+            
+            if (!classroomCode) {
+                // No classroom code provided - show error
+                updateStatus('No classroom code provided. Please get the link from your teacher.');
+                return;
+            }
+            
+            // Force enable even if no language detected
+            if (!selectedLanguage) {
+                console.log('No language selected, auto-selecting first option');
+                autoSelectFirstLanguage();
+            }
+            
+            // If still no language, use default
+            if (!selectedLanguage) {
+                selectedLanguage = 'es'; // Default to Spanish
+                document.getElementById('selected-language').textContent = 'Selected: Spanish (Default)';
+            }
+            
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws?class=${classroomCode}`;
+            
+            console.log('Connecting to WebSocket with classroom code:', classroomCode, 'and language:', selectedLanguage);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                console.log('Connected to server');
+                updateConnectionStatus(true);
+                registerWithServer(classroomCode);
+            };
+            
+            ws.onmessage = function(event) {
+                console.log('Received WebSocket message:', event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+            
+            ws.onclose = function() {
+                console.log('Disconnected from server');
+                updateConnectionStatus(false);
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket error:', error);
+                updateConnectionStatus(false);
+            };
+        }
+        
+        function registerWithServer(classroomCode) {
+            if (ws && ws.readyState === WebSocket.OPEN && selectedLanguage) {
+                const message = {
+                    type: 'register',
+                    role: 'student',
+                    languageCode: selectedLanguage,
+                    classroomCode: classroomCode  // Include the classroom code
+                };
+                
+                console.log('Sending registration:', message);
+                ws.send(JSON.stringify(message));
+                
+                // Also send a ping to ensure the server knows we're active
+                setTimeout(() => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+                    }
+                }, 1000);
+            }
+        }
+        
+        function handleWebSocketMessage(data) {
+            console.log('Processing message type:', data.type, data);
+            
+            switch (data.type) {
+                case 'connection':
+                    console.log('Connection confirmed:', data);
+                    // Immediately register as student after connection
+                    setTimeout(() => registerWithServer(), 100);
+                    break;
+                    
+                case 'register':
+                    if (data.status === 'success') {
+                        console.log('Student registration successful:', data);
+                    } else {
+                        console.error('Student registration failed:', data);
+                    }
+                    break;
+                    
+                case 'translation':
+                    console.log('Received translation:', data);
+                    displayTranslation(data);
+                    if (data.audioData) {
+                        currentAudioData = data.audioData;
+                        document.getElementById('play-button').disabled = false;
+                        // Auto-play the audio
+                        playAudio(data.audioData);
+                    }
+                    break;
+                    
+                case 'error':
+                    console.error('Server error:', data.message);
+                    // Also display error in translation area
+                    const display = document.getElementById('translation-display');
+                    display.innerHTML = `<div style="color: red;">Error: ${data.message}</div>`;
+                    break;
+                    
+                default:
+                    console.log('Unknown message type:', data.type, data);
+                    // For debugging, try to display any message with text
+                    if (data.text || data.translatedText || data.message) {
+                        console.log('Attempting to display unknown message type as translation');
+                        displayTranslation(data);
+                    }
+            }
+        }
+        
+        function displayTranslation(data) {
+            const display = document.getElementById('translation-display');
+            
+            // Handle different message formats from the server
+            // Check all possible field names the server might be using
+            const originalText = data.originalText || data.original || data.sourceText || 'Unknown';
+            
+            // The server might be sending translation in different fields
+            let translatedText = 'No translation available';
+            
+            // Check multiple possible field names
+            if (data.text) {
+                translatedText = data.text;
+            } else if (data.translatedText) {
+                translatedText = data.translatedText;
+            } else if (data.translated) {
+                translatedText = data.translated;
+            } else if (data.message) {
+                translatedText = data.message;
+            } else {
+                console.warn('No translation text found in data object:', Object.keys(data));
+            }
+            
+            display.innerHTML = `
+                <div style="margin-bottom: 10px;">
+                    <strong>Original:</strong> ${originalText}
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <strong>Translation:</strong> ${translatedText}
+                </div>
+            `;
+        }
+        
+        function playAudio(audioBase64) {
+            try {
+                console.log('Playing audio, data length:', audioBase64.length);
+                const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+                audio.volume = document.getElementById('volume-control').value;
+                
+                audio.onloadeddata = function() {
+                    console.log('Audio loaded successfully');
+                };
+                
+                audio.onerror = function(e) {
+                    console.error('Audio play error:', e);
+                };
+                
+                audio.play().catch(e => {
+                    console.error('Audio play failed:', e);
+                    // Show user-friendly message
+                    const display = document.getElementById('translation-display');
+                    display.innerHTML += '<br><em style="color: #ff6b6b;">Click the play button to hear audio</em>';
+                });
+            } catch (error) {
+                console.error('Error creating audio:', error);
+            }
+        }
+        
+        function playCurrentAudio() {
+            if (currentAudioData) {
+                playAudio(currentAudioData);
+            } else {
+                console.log('No audio data available to play');
+            }
+        }
+        
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connection-status');
+            const indicator = status.querySelector('.indicator');
+            const text = status.querySelector('span');
+            const connectBtn = document.getElementById('connect-btn');
+            
+            isConnected = connected;
+            
+            if (connected) {
+                status.className = 'status connected';
+                indicator.className = 'indicator connected';
+                text.textContent = 'Connected';
+                connectBtn.textContent = 'Disconnect';
+                connectBtn.className = 'connected';
+                connectBtn.disabled = false;
+            } else {
+                status.className = 'status disconnected';
+                indicator.className = 'indicator disconnected';
+                text.textContent = 'Disconnected';
+                connectBtn.textContent = 'Connect to Session';
+                connectBtn.className = '';
+                // Only enable connect button if language is selected
+                connectBtn.disabled = !selectedLanguage;
+                document.getElementById('play-button').disabled = true;
+            }
+        }
+        
+        function disconnectFromServer() {
+            if (ws) {
+                ws.close();
+            }
+        }
     </script>
 </body>
 </html>

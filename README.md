@@ -19,18 +19,21 @@ This project aims to break down language barriers in educational settings by pro
 ## Technical Architecture
 
 ### Frontend
-- **Main Interface**: HTML/CSS/JavaScript for teacher and student interfaces
+- **Main Interfaces**: 
+  - Teacher Interface: `/teacher` (teacher.html)
+  - Student Interface: `/student` (student.html)
+  - Diagnostics: `/diagnostics.html`
 - **Real-time Communication**: WebSocket client for bidirectional updates
 - **Audio Processing**: Web Audio API for speech capture and playback
 - **Mobile Support**: Responsive design with QR code access for students
 
 ### Backend
 - **Server**: Node.js with Express
-- **Real-time Communication**: WebSocket server for bidirectional messaging
+- **Real-time Communication**: WebSocketServer (server/services/WebSocketServer.ts)
 - **Speech Processing**: OpenAI Whisper API for accurate transcription
 - **Translation Engine**: OpenAI GPT-4 for high-quality contextual translations
 - **Text-to-Speech**: OpenAI TTS for natural-sounding synthesized speech
-- **Data Persistence**: PostgreSQL database for storing translation history
+- **Data Persistence**: In-memory storage (MemStorage) with PostgreSQL support available
 
 ## Project Structure
 
@@ -46,16 +49,15 @@ AIVoiceTranslator/
 ├── server/                  # Server-side code
 │   ├── config.ts            # Server configuration
 │   ├── index.ts             # Main server entry point
+│   ├── server.ts            # Server setup and WebSocket initialization
 │   ├── openai.ts            # OpenAI API integration
 │   ├── openai-streaming.ts  # OpenAI streaming functionality
 │   ├── routes.ts            # HTTP API routes
 │   ├── storage.ts           # Database interface
-│   ├── vite.ts              # Vite server configuration
-│   ├── websocket.ts         # WebSocket server implementation
 │   └── services/            # Core service implementations
 │       ├── TextToSpeechService.ts  # TTS service
 │       ├── TranslationService.ts   # Translation service
-│       └── WebSocketServer.ts      # WebSocket server
+│       └── WebSocketServer.ts      # PRIMARY WebSocket server (ACTIVE)
 │
 ├── shared/                  # Shared code between client and server
 │   └── schema.ts            # Database schema definitions

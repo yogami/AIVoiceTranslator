@@ -21,6 +21,11 @@ export interface AudioStreamingSessionState {
   lastChunkTime: number;
   transcriptionText: string;
   transcriptionInProgress: boolean;
+  // Add new tracking fields
+  teacherId?: string;
+  teacherLanguage?: string;
+  studentsConnected?: number;
+  translationCount?: number;
 }
 
 /**
@@ -140,6 +145,37 @@ export class AudioSessionManager {
    */
   getAllSessions(): Map<string, AudioStreamingSessionState> {
     return this.sessions;
+  }
+
+  /**
+   * Set teacher information for a session
+   */
+  setTeacherInfo(sessionId: string, info: { teacherId: string; teacherLanguage: string }): void {
+    const session = this.getSession(sessionId);
+    if (session) {
+      session.teacherId = info.teacherId;
+      session.teacherLanguage = info.teacherLanguage;
+    }
+  }
+
+  /**
+   * Increment student count for a session
+   */
+  incrementStudentCount(sessionId: string): void {
+    const session = this.getSession(sessionId);
+    if (session) {
+      session.studentsConnected = (session.studentsConnected || 0) + 1;
+    }
+  }
+
+  /**
+   * Increment translation count for a session
+   */
+  incrementTranslationCount(sessionId: string): void {
+    const session = this.getSession(sessionId);
+    if (session) {
+      session.translationCount = (session.translationCount || 0) + 1;
+    }
   }
 }
 

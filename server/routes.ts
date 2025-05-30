@@ -250,13 +250,15 @@ apiRoutes.put('/languages/:code/status', async (req: Request, res: Response) => 
  */
 apiRoutes.get('/diagnostics', async (req: Request, res: Response) => {
   try {
-    const metrics = diagnosticsService.getMetrics();
-    res.json(metrics);
+    console.log('Diagnostics endpoint called');
+    const diagnostics = await diagnosticsService.getMetrics();
+    console.log('Diagnostics data generated successfully');
+    res.json(diagnostics);
   } catch (error) {
-    console.error('Error retrieving diagnostics:', error);
+    console.error('Error getting diagnostics:', error);
     res.status(500).json({ 
-      error: 'Unable to retrieve diagnostics data',
-      message: 'Diagnostics service is temporarily unavailable. Please try again later.'
+      error: 'Failed to get diagnostics',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -268,19 +270,117 @@ apiRoutes.get('/diagnostics', async (req: Request, res: Response) => {
  */
 apiRoutes.get('/diagnostics/export', async (req: Request, res: Response) => {
   try {
-    const exportData = diagnosticsService.getExportData();
-    const filename = `diagnostics-${new Date().toISOString().split('T')[0]}.json`;
-    
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    console.log('Diagnostics export endpoint called');
+    const exportData = await diagnosticsService.getExportData();
+    console.log('Diagnostics export data generated successfully');
     res.json(exportData);
   } catch (error) {
     console.error('Error exporting diagnostics:', error);
     res.status(500).json({ 
-      error: 'Unable to export diagnostics data',
-      message: 'Export service is temporarily unavailable. Please try again later.'
+      error: 'Failed to export diagnostics',
+      message: error instanceof Error ? error.message : 'Unknown error'
     });
   }
+});
+
+// Simple test endpoint to verify API is working
+apiRoutes.get('/test', (req, res) => {
+  res.json({ message: 'API is working', timestamp: new Date().toISOString() });
+});
+
+// Basic diagnostics endpoint with minimal data
+apiRoutes.get('/diagnostics', (req, res) => {
+  try {
+    const diagnostics = {
+      connections: {
+        total: 0,
+        active: 0
+      },
+      translations: {
+        total: 0,
+        averageTime: 0,
+        averageTimeFormatted: '0 ms',
+        totalFromDatabase: 0,
+        averageLatencyFromDatabase: 0,
+        averageLatencyFromDatabaseFormatted: '0 ms',
+        languagePairs: [],
+        recentTranslations: 0
+      },
+      sessions: {
+        activeSessions: 0,
+        totalSessions: 0,
+        averageSessionDuration: 0,
+        averageSessionDurationFormatted: '0 minutes',
+        studentsConnected: 0,
+        teachersConnected: 0,
+        currentLanguages: [],
+        recentSessionActivity: []
+      },
+      audio: {
+        totalGenerated: 0,
+        averageGenerationTime: 0,
+        averageGenerationTimeFormatted: '0 ms',
+        cacheSize: 0,
+        cacheSizeFormatted: '0 B'
+      },
+      system: {
+        memoryUsage: process.memoryUsage().heapUsed,
+        memoryUsageFormatted: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)} MB`,
+        uptime: Math.round(process.uptime()),
+        uptimeFormatted: `${Math.round(process.uptime() / 60)} minutes`
+      },
+      lastUpdated: new Date().toISOString()
+    };
+
+    console.log('Sending diagnostics data:', diagnostics);
+    res.json(diagnostics);
+  } catch (error) {
+    console.error('Error in diagnostics endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to get diagnostics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Diagnostics export endpoint
+apiRoutes.get('/diagnostics/export', (req, res) => {
+  try {
+    const exportData = {
+      connections: { total: 0, active: 0 },
+      translations: { total: 0, averageTime: 0 },
+      sessions: { activeSessions: 0, totalSessions: 0 },
+      audio: { totalGenerated: 0, averageGenerationTime: 0 },
+      system: {
+        memoryUsage: process.memoryUsage().heapUsed,
+        uptime: Math.round(process.uptime())
+      },
+      lastUpdated: new Date().toISOString(),
+      exportedAt: new Date().toISOString(),
+      version: '1.0.0'
+    };
+
+    res.json(exportData);
+  } catch (error) {
+    console.error('Error in diagnostics export endpoint:', error);
+    res.status(500).json({ 
+      error: 'Failed to export diagnostics',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Classroom join route - redirects to student interface with classroom code
+apiRoutes.get("/join/:classCode", async (req: Request, res: Response) => {
+  const { classCode } = req.params;
+  
+  // Validate classroom code format (6 alphanumeric characters)
+  if (!/^[A-Z0-9]{6}$/.test(classCode)) {
+    return res.status(400).send("Invalid classroom code format");
+  }
+  
+  // Redirect to student interface with classroom parameter
+  res.redirect(`/student?class=${classCode}`);
 });
 
 

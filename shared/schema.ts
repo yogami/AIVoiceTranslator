@@ -58,6 +58,27 @@ export const insertTranscriptSchema = createInsertSchema(transcripts).pick({
   text: true,
 });
 
+export const sessions = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id").notNull().unique(),
+  teacherLanguage: text("teacher_language"),
+  startTime: timestamp("start_time").defaultNow(),
+  endTime: timestamp("end_time"),
+  studentsCount: integer("students_count").default(0),
+  totalTranslations: integer("total_translations").default(0),
+  averageLatency: integer("average_latency"),
+  isActive: boolean("is_active").default(true),
+});
+
+export const insertSessionSchema = createInsertSchema(sessions).pick({
+  sessionId: true,
+  teacherLanguage: true,
+  studentsCount: true,
+  totalTranslations: true,
+  averageLatency: true,
+  isActive: true,
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
@@ -69,3 +90,6 @@ export type InsertTranslation = z.infer<typeof insertTranslationSchema>;
 
 export type Transcript = typeof transcripts.$inferSelect;
 export type InsertTranscript = z.infer<typeof insertTranscriptSchema>;
+
+export type Session = typeof sessions.$inferSelect;
+export type InsertSession = z.infer<typeof insertSessionSchema>;
