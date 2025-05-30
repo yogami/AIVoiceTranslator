@@ -236,4 +236,74 @@ describe('AudioSessionManager', () => {
     expect(sessions.has('test-session-11')).toBe(true);
     expect(sessions.has('test-session-12')).toBe(true);
   });
+  
+  describe('Session Metrics Tracking', () => {
+    it('should track teacher information in session', () => {
+      // Create a session
+      const sessionId = 'teacher-session-123';
+      const session = sessionManager.createSession(sessionId, 'en-US', mockBuffer);
+      
+      // Set teacher information
+      sessionManager.setTeacherInfo(sessionId, {
+        teacherId: 'teacher-1',
+        teacherLanguage: 'en-US'
+      });
+      
+      // Verify teacher info is stored
+      const sessionInfo = sessionManager.getSession(sessionId);
+      expect(sessionInfo?.teacherId).toBe('teacher-1');
+      expect(sessionInfo?.teacherLanguage).toBe('en-US');
+    });
+
+    it('should increment student count when students join session', () => {
+      // Create a session
+      const sessionId = 'teacher-session-456';
+      const session = sessionManager.createSession(sessionId, 'en-US', mockBuffer);
+      
+      // Initially no students
+      expect(session.studentsConnected).toBeUndefined();
+      
+      // First student joins
+      sessionManager.incrementStudentCount(sessionId);
+      
+      const updatedSession1 = sessionManager.getSession(sessionId);
+      expect(updatedSession1?.studentsConnected).toBe(1);
+      
+      // Second student joins
+      sessionManager.incrementStudentCount(sessionId);
+      
+      const updatedSession2 = sessionManager.getSession(sessionId);
+      expect(updatedSession2?.studentsConnected).toBe(2);
+    });
+
+    it('should increment translation count during session', () => {
+      // Create a session
+      const sessionId = 'teacher-session-789';
+      const session = sessionManager.createSession(sessionId, 'en-US', mockBuffer);
+      
+      // Initially no translations
+      expect(session.translationCount).toBeUndefined();
+      
+      // First translation
+      sessionManager.incrementTranslationCount(sessionId);
+      
+      const updatedSession1 = sessionManager.getSession(sessionId);
+      expect(updatedSession1?.translationCount).toBe(1);
+      
+      // More translations
+      sessionManager.incrementTranslationCount(sessionId);
+      sessionManager.incrementTranslationCount(sessionId);
+      
+      const updatedSession2 = sessionManager.getSession(sessionId);
+      expect(updatedSession2?.translationCount).toBe(3);
+    });
+
+    it('should handle incrementing counts on non-existent session gracefully', () => {
+      // Try to increment counts on non-existent session - should not throw
+      expect(() => {
+        sessionManager.incrementStudentCount('non-existent-session');
+        sessionManager.incrementTranslationCount('non-existent-session');
+      }).not.toThrow();
+    });
+  });
 });

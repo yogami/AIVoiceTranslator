@@ -2,10 +2,25 @@
  * Audio Transcription Service
  * 
  * Handles transcription of audio streams using OpenAI's Whisper model.
+ * Provides real-time transcription capabilities with support for multiple languages.
  */
+
 import OpenAI from 'openai';
-import WebSocket from 'ws';
-import { WebSocketState } from '../../websocket';
+import { Readable } from 'stream';
+
+// Define the ExtendedWebSocket type locally since we can't import from deleted file
+interface ExtendedWebSocket {
+  send(data: string): void;
+  readyState: number;
+}
+
+// WebSocket ready states
+const WebSocketState = {
+  CONNECTING: 0,
+  OPEN: 1,
+  CLOSING: 2,
+  CLOSED: 3
+} as const;
 
 // Configuration constants - making magic numbers explicit
 const CONFIG = {
@@ -87,7 +102,7 @@ export class WebSocketCommunicator {
    * Send a generic message over WebSocket
    * Private helper method used by other public methods
    */
-  private static sendMessage(ws: WebSocket, message: any): void {
+  private static sendMessage(ws: ExtendedWebSocket, message: any): void {
     // Only send if the connection is open
     if (ws.readyState === WebSocketState.OPEN) {
       ws.send(JSON.stringify(message));

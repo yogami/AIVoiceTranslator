@@ -166,8 +166,8 @@
         }
         
         .error-message {
-            background-color: rgba(231, 76, 60, 0.1);
-            color: #c0392b;
+            background-color: #f8d7da;
+            color: #721c24;
             padding: 15px;
             border-radius: var(--border-radius);
             margin-bottom: 20px;
@@ -176,14 +176,34 @@
         
         .loading {
             text-align: center;
-            padding: 40px;
             color: var(--text-light);
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-bottom: 20px;
+            font-family: monospace;
+            font-size: 0.9rem;
         }
         
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
             .controls {
                 flex-direction: column;
                 align-items: center;
+            }
+            
+            button {
+                width: 100%;
+                max-width: 200px;
             }
             
             .metrics-grid {
@@ -196,24 +216,26 @@
     <div class="header">
         <h1>Application Diagnostics</h1>
         <div>
-            <a href="/"><span>←</span> Back to Home</a>
+            <a href="/">← Back to Home</a>
         </div>
     </div>
     
     <div class="controls">
         <button id="refresh-btn">🔄 Refresh Data</button>
-        <button id="export-btn" class="export-btn" data-testid="export-diagnostics">📥 Export Data</button>
+        <button id="test-api-btn">🧪 Test API</button>
+        <button id="export-btn" class="export-btn">📥 Export Data</button>
         <button id="auto-refresh-btn">⏰ Auto-refresh: OFF</button>
     </div>
     
     <div id="error-container"></div>
+    <div id="debug-container"></div>
     <div id="loading" class="loading" style="display: none;">Loading diagnostics...</div>
     
     <div id="metrics-container" class="metrics-grid">
         <!-- Metrics will be populated here -->
     </div>
     
-    <div id="last-updated" class="last-updated" data-testid="last-updated">
+    <div id="last-updated" class="last-updated">
         <!-- Last updated time will appear here -->
     </div>
     
@@ -222,76 +244,91 @@
         let isAutoRefreshEnabled = false;
         
         function showError(message) {
-            const errorContainer = document.getElementById('error-container');
-            errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
-            setTimeout(() => errorContainer.innerHTML = '', 10000);
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+        
+        function showDebug(info) {
+            const container = document.getElementById('debug-container');
+            container.innerHTML = `<div class="debug-info">${JSON.stringify(info, null, 2)}</div>`;
         }
         
         function showLoading(show) {
-            document.getElementById('loading').style.display = show ? 'block' : 'none';
+            const loading = document.getElementById('loading');
+            loading.style.display = show ? 'block' : 'none';
         }
         
-        function formatMetricValue(value, formatted) {
-            return formatted || value.toString();
-        }
-        
-        function getStatusIndicator(value, thresholds) {
-            if (!thresholds) return 'status-good';
-            
-            if (value >= thresholds.error) return 'status-error';
-            if (value >= thresholds.warning) return 'status-warning';
-            return 'status-good';
-        }
-        
-        function createMetricCard(title, metrics, testIdPrefix) {
+        function createMetricCard(title, data) {
             const card = document.createElement('div');
             card.className = 'metric-card';
-            card.setAttribute('data-testid', `${testIdPrefix}-metrics`);
             
             let html = `<h3>${title}</h3>`;
             
-            Object.entries(metrics).forEach(([key, data]) => {
-                if (key.endsWith('Formatted')) return; // Skip formatted versions
-                
-                const formatted = metrics[key + 'Formatted'];
-                const displayValue = formatMetricValue(data, formatted);
-                const label = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-                
-                // Determine status based on metric type and value
-                let statusClass = 'status-good';
-                if (key === 'memoryUsage' && typeof data === 'number') {
-                    statusClass = getStatusIndicator(data / (1024 * 1024), { warning: 100, error: 500 });
-                } else if (key === 'averageTime' && typeof data === 'number') {
-                    statusClass = getStatusIndicator(data, { warning: 1000, error: 3000 });
-                }
-                
-                html += `
-                    <div class="metric-item">
-                        <span class="metric-label">
-                            <span class="status-indicator ${statusClass}"></span>
-                            ${label}
-                        </span>
-                        <span class="metric-value" data-testid="${testIdPrefix}-${key}-value">${displayValue}</span>
-                    </div>
-                `;
-            });
+            if (typeof data === 'object' && data !== null) {
+                Object.entries(data).forEach(([key, value]) => {
+                    if (typeof value === 'object' && value !== null) {
+                        return; // Skip complex objects
+                    }
+                    
+                    html += `
+                        <div class="metric-item">
+                            <span class="metric-label">
+                                <span class="status-indicator status-good"></span>
+                                ${key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                            </span>
+                            <span class="metric-value">${value}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                html += `<div class="metric-item">No data available</div>`;
+            }
             
             card.innerHTML = html;
             return card;
         }
         
-        async function loadDiagnostics() {
+        async function testAPI() {
+            showLoading(true);
+            showDebug('Testing API connection...');
+            
             try {
-                showLoading(true);
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                showDebug({
+                    status: 'API test successful',
+                    health: data,
+                    timestamp: new Date().toISOString()
+                });
+            } catch (error) {
+                showDebug({
+                    status: 'API test failed',
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                });
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        async function loadDiagnostics() {
+            showLoading(true);
+            document.getElementById('error-container').innerHTML = '';
+            
+            try {
+                console.log('Fetching diagnostics from /api/diagnostics');
                 const response = await fetch('/api/diagnostics');
+                console.log('Response status:', response.status);
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
                 }
                 
                 const data = await response.json();
+                console.log('Diagnostics data received:', data);
                 displayDiagnostics(data);
-                
             } catch (error) {
                 console.error('Error loading diagnostics:', error);
                 showError(`Failed to load diagnostics: ${error.message}`);
@@ -305,20 +342,34 @@
             container.innerHTML = '';
             
             // Connection metrics
-            const connectionCard = createMetricCard('Connection Status', data.connections, 'connection');
-            container.appendChild(connectionCard);
+            if (data.connections) {
+                const connectionCard = createMetricCard('Connection Status', data.connections);
+                container.appendChild(connectionCard);
+            }
+            
+            // Session metrics
+            if (data.sessions) {
+                const sessionCard = createSessionMetricsCard('Session Quality', data.sessions);
+                container.appendChild(sessionCard);
+            }
             
             // Translation metrics
-            const translationCard = createMetricCard('Translation Performance', data.translations, 'translation');
-            container.appendChild(translationCard);
+            if (data.translations) {
+                const translationCard = createTranslationMetricsCard('Translation Performance', data.translations);
+                container.appendChild(translationCard);
+            }
             
             // Audio metrics
-            const audioCard = createMetricCard('Audio Generation', data.audio, 'audio');
-            container.appendChild(audioCard);
+            if (data.audio) {
+                const audioCard = createMetricCard('Audio Generation', data.audio);
+                container.appendChild(audioCard);
+            }
             
             // System metrics
-            const systemCard = createMetricCard('System Health', data.system, 'system');
-            container.appendChild(systemCard);
+            if (data.system) {
+                const systemCard = createMetricCard('System Health', data.system);
+                container.appendChild(systemCard);
+            }
             
             // Update last updated time
             const lastUpdated = document.getElementById('last-updated');
@@ -326,35 +377,99 @@
             lastUpdated.innerHTML = `Last updated: ${updateTime}`;
         }
         
+        function createSessionMetricsCard(title, sessionData) {
+            const card = document.createElement('div');
+            card.className = 'metric-card';
+            card.setAttribute('data-testid', 'session-metrics');
+            
+            let html = `<h3>${title}</h3>`;
+            
+            if (sessionData) {
+                html += `
+                    <div class="metric-item">
+                        <span class="metric-label">
+                            <span class="status-indicator status-good"></span>
+                            Active Sessions
+                        </span>
+                        <span class="metric-value">${sessionData.activeSessions || 0}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">
+                            <span class="status-indicator status-good"></span>
+                            Total Sessions
+                        </span>
+                        <span class="metric-value">${sessionData.totalSessions || 0}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">
+                            <span class="status-indicator status-good"></span>
+                            Average Session Duration
+                        </span>
+                        <span class="metric-value">${sessionData.averageSessionDurationFormatted || 'N/A'}</span>
+                    </div>
+                `;
+            } else {
+                html += '<div class="metric-item">No session data available</div>';
+            }
+            
+            card.innerHTML = html;
+            return card;
+        }
+        
+        function createTranslationMetricsCard(title, translationData) {
+            const card = document.createElement('div');
+            card.className = 'metric-card';
+            card.setAttribute('data-testid', 'translation-metrics');
+            
+            let html = `<h3>${title}</h3>`;
+            
+            if (translationData) {
+                html += `
+                    <div class="metric-item">
+                        <span class="metric-label">
+                            <span class="status-indicator status-good"></span>
+                            Real-time Translations
+                        </span>
+                        <span class="metric-value">${translationData.total || 0}</span>
+                    </div>
+                    <div class="metric-item">
+                        <span class="metric-label">
+                            <span class="status-indicator status-good"></span>
+                            Average Latency
+                        </span>
+                        <span class="metric-value">${translationData.averageTimeFormatted || 'N/A'}</span>
+                    </div>
+                `;
+            } else {
+                html += '<div class="metric-item">No translation data available</div>';
+            }
+            
+            card.innerHTML = html;
+            return card;
+        }
+        
         async function exportDiagnostics() {
             try {
+                console.log('Exporting diagnostics...');
                 const response = await fetch('/api/diagnostics/export');
-                
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
+                const data = await response.json();
+                
+                // Create and download JSON file
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                
-                // Get filename from response headers or use default
-                const contentDisposition = response.headers.get('content-disposition');
-                let filename = 'diagnostics-export.json';
-                if (contentDisposition) {
-                    const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-                    if (filenameMatch) {
-                        filename = filenameMatch[1];
-                    }
-                }
-                
                 a.href = url;
-                a.download = filename;
+                a.download = `diagnostics-${new Date().toISOString().split('T')[0]}.json`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
+                URL.revokeObjectURL(url);
                 
+                console.log('Diagnostics exported successfully');
             } catch (error) {
                 console.error('Error exporting diagnostics:', error);
                 showError(`Failed to export diagnostics: ${error.message}`);
@@ -365,12 +480,14 @@
             const button = document.getElementById('auto-refresh-btn');
             
             if (isAutoRefreshEnabled) {
+                // Disable auto-refresh
                 clearInterval(autoRefreshInterval);
                 autoRefreshInterval = null;
                 isAutoRefreshEnabled = false;
                 button.textContent = '⏰ Auto-refresh: OFF';
-                button.style.backgroundColor = '';
+                button.style.backgroundColor = '#3498db';
             } else {
+                // Enable auto-refresh
                 autoRefreshInterval = setInterval(loadDiagnostics, 5000); // Refresh every 5 seconds
                 isAutoRefreshEnabled = true;
                 button.textContent = '⏰ Auto-refresh: ON';
@@ -380,6 +497,7 @@
         
         // Event listeners
         document.getElementById('refresh-btn').addEventListener('click', loadDiagnostics);
+        document.getElementById('test-api-btn').addEventListener('click', testAPI);
         document.getElementById('export-btn').addEventListener('click', exportDiagnostics);
         document.getElementById('auto-refresh-btn').addEventListener('click', toggleAutoRefresh);
         
