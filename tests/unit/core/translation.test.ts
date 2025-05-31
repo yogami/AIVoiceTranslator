@@ -5,9 +5,13 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { TranslationService } from '../../../server/services/TranslationService';
-import { TranscriptionService } from '../../../server/services/TranslationService';
-import { SpeechTranslationService } from '../../../server/services/TranslationService';
+import {
+  OpenAITranslationService,
+  OpenAITranscriptionService,
+  SpeechTranslationService,
+  ITranslationService,
+  ITranscriptionService
+} from '../../../server/services/TranslationService';
 
 // Mock only external dependencies
 vi.mock('openai', () => ({
@@ -38,8 +42,8 @@ vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => ({
 
 describe('Translation Services - Real Implementations', () => {
   let mockOpenAI: any;
-  let translationService: TranslationService;
-  let transcriptionService: TranscriptionService;
+  let translationService: ITranslationService;
+  let transcriptionService: ITranscriptionService;
   let speechTranslationService: SpeechTranslationService;
 
   beforeEach(async () => {
@@ -49,16 +53,17 @@ describe('Translation Services - Real Implementations', () => {
     const OpenAI = (await import('openai')).default;
     mockOpenAI = new OpenAI();
     
-    // Create REAL service instances
-    translationService = new TranslationService(mockOpenAI);
-    transcriptionService = new TranscriptionService(mockOpenAI);
+    // Create REAL service instances using concrete classes
+    translationService = new OpenAITranslationService(mockOpenAI);
+    transcriptionService = new OpenAITranscriptionService(mockOpenAI);
     speechTranslationService = new SpeechTranslationService(
       transcriptionService,
-      translationService
+      translationService,
+      true
     );
   });
 
-  describe('TranslationService', () => {
+  describe('OpenAITranslationService', () => {
     it('should translate text between languages', async () => {
       vi.mocked(mockOpenAI.chat.completions.create).mockResolvedValueOnce({
         choices: [{ message: { content: 'Hola' } }]
@@ -108,7 +113,7 @@ describe('Translation Services - Real Implementations', () => {
     });
   });
 
-  describe('TranscriptionService', () => {
+  describe('OpenAITranscriptionService', () => {
     it('should transcribe audio to text', async () => {
       vi.mocked(mockOpenAI.audio.transcriptions.create).mockResolvedValueOnce({
         text: 'Transcribed text'

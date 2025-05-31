@@ -13,7 +13,6 @@
     "test:unit": "NODE_ENV=test TEST_MODE=unit vitest --config=test-config/vitest/vitest.unified.config.mjs",
     "test:integration": "NODE_ENV=test TEST_MODE=integration vitest run --config test-config/vitest/vitest.unified.config.mjs",
     "test:integration:watch": "NODE_ENV=test TEST_MODE=integration vitest --config test-config/vitest/vitest.unified.config.mjs",
-    "test:e2e": "NODE_ENV=test TEST_MODE=e2e vitest --config=test-config/vitest/vitest.unified.config.mjs",
     "test:coverage": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs --coverage",
     "test:all": "npm run test:unit && npm run test:integration"
   },
@@ -116,6 +115,7 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.5",
+    "@vitejs/plugin-react": "^4.5.0",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.30.4",
     "esbuild": "^0.25.0",

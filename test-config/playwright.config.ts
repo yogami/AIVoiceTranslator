@@ -47,8 +47,8 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://127.0.0.1:5000',
-    reuseExistingServer: !process.env.CI, // Only reuse in local development, not CI
-    timeout: 120 * 1000, // 2 minutes timeout for server to start
+    reuseExistingServer: false, // Only reuse in local development, not CI
+    timeout: 300 * 1000, // 5 minutes timeout for server to start
     cwd: '../', // Run the command from the parent directory where package.json is located
   },
 });

@@ -8,7 +8,6 @@ import { describe, it, expect, beforeEach, vi, beforeAll, afterAll, afterEach } 
 import { createMockWebSocketClient } from '../../unit/utils/test-helpers';
 import WebSocket from 'ws';
 import { WebSocketServer } from '../../../server/services/WebSocketServer';
-import { TranslationService, ITranslationService } from '../../../server/services/TranslationService';
 
 // Since WebSocketClientManager might have specific implementation details,
 // let's create a mock that matches what we expect
