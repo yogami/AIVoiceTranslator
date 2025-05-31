@@ -28,10 +28,6 @@ const getTestPattern = (mode) => {
       return ['**/tests/unit/**/*.{test,spec}.{js,jsx,ts,tsx}'];
     case 'integration':
       return ['**/tests/integration/**/*.{test,spec}.{js,jsx,ts,tsx}'];
-    case 'e2e':
-      // E2E tests are handled by Playwright, not Vitest
-      console.warn('E2E tests should be run with Playwright: npx playwright test --config test-config/playwright.config.ts');
-      return [];
     case 'all':
     default:
       // Exclude e2e tests from default 'all' mode (they use Playwright)
@@ -50,12 +46,6 @@ const getTestTimeouts = (mode) => {
         testTimeout: 60000,          // 60 seconds per integration test
         hookTimeout: 30000,          // 30 seconds for hooks 
         teardownTimeout: 15000,      // 15 seconds for teardown
-      };
-    case 'e2e':
-      return {
-        testTimeout: 120000,         // 2 minutes per e2e test
-        hookTimeout: 60000,          // 1 minute for hooks 
-        teardownTimeout: 30000,      // 30 seconds for teardown
       };
     case 'unit':
     default:

@@ -39,6 +39,7 @@ export const configureCorsMiddleware = (app: express.Express): void => {
  * Start the server
  */
 export async function startServer() {
+  // console.log('Server CWD:', process.cwd()); // Log CWD
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
     console.warn('⚠️ No OPENAI_API_KEY found in environment variables');
@@ -73,41 +74,11 @@ export async function startServer() {
   // Serve static files from client/public directory
   app.use(express.static('client/public'));
   
-  // Route for student page - require classroom code
+  // Route for student page
   app.get('/student', (req, res) => {
-    const classroomCode = req.query.code;
-    
-    if (!classroomCode) {
-      // Redirect to a landing page or show error
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Missing Classroom Code</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
-            .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            .error { color: #dc3545; font-size: 1.2em; margin-bottom: 20px; }
-            .code { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>🎧 Student Interface</h1>
-            <div class="error">❌ No classroom code provided</div>
-            <p>Please get the correct link from your teacher.</p>
-            <p>The link should look like:</p>
-            <div class="code">/student?code=ABC123</div>
-            <br>
-            <p>Ask your teacher for the classroom link or QR code.</p>
-          </div>
-        </body>
-        </html>
-      `);
-      return;
-    }
-    
-    // Serve the student interface with the classroom code
+    // Always serve the student.html file.
+    // The client-side JavaScript in student.html will handle
+    // the case where req.query.code is missing.
     res.sendFile(path.resolve('client/public/student.html'));
   });
 
@@ -127,7 +98,7 @@ export async function startServer() {
   });
   
   // Start server - use random port for tests to avoid conflicts
-  const port = process.env.NODE_ENV === 'test' ? 0 : (process.env.PORT || 5000);
+  const port = process.env.PORT || (process.env.NODE_ENV === 'test' ? 0 : 5000);
   
   return new Promise((resolve, reject) => {
     const server = httpServer.listen(port, () => {
