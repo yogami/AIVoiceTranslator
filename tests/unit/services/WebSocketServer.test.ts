@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Server as HttpServer } from 'http';
 import { WebSocketServer } from '../../../server/services/WebSocketServer';
-import { createMockWebSocket, createMockRequest } from '../utils/test-helpers';
+import { createMockWebSocketClient, createMockRequest } from '../utils/test-helpers';
 
 // Mock the translation service
 vi.mock('../../../server/services/TranslationService', () => ({
@@ -37,7 +37,7 @@ describe('WebSocketServer - Real Implementation', () => {
 
   describe('Connection Management', () => {
     it('should track connections', () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       // Simulate connection
       const connections = wsServer.getConnections();
@@ -49,7 +49,7 @@ describe('WebSocketServer - Real Implementation', () => {
     });
 
     it('should handle message processing', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       // Test registration message
       await wsServer.handleMessage(mockWs, JSON.stringify({
@@ -65,7 +65,7 @@ describe('WebSocketServer - Real Implementation', () => {
     });
 
     it('should store role and language information', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       await wsServer.handleMessage(mockWs, JSON.stringify({
         type: 'register',
@@ -80,7 +80,7 @@ describe('WebSocketServer - Real Implementation', () => {
 
   describe('Message Handling', () => {
     it('should handle ping messages', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       const timestamp = Date.now();
       
       await wsServer.handleMessage(mockWs, JSON.stringify({
@@ -95,7 +95,7 @@ describe('WebSocketServer - Real Implementation', () => {
     });
 
     it('should handle settings messages', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       await wsServer.handleMessage(mockWs, JSON.stringify({
         type: 'settings',
@@ -109,7 +109,7 @@ describe('WebSocketServer - Real Implementation', () => {
     });
 
     it('should handle invalid JSON gracefully', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       // Should not throw
       await expect(
@@ -120,8 +120,8 @@ describe('WebSocketServer - Real Implementation', () => {
 
   describe('Translation Flow', () => {
     it('should process teacher transcriptions', async () => {
-      const mockTeacher = createMockWebSocket();
-      const mockStudent = createMockWebSocket();
+      const mockTeacher = createMockWebSocketClient();
+      const mockStudent = createMockWebSocketClient();
       
       // Register teacher
       await wsServer.handleMessage(mockTeacher, JSON.stringify({
@@ -165,7 +165,7 @@ describe('WebSocketServer - Real Implementation', () => {
     });
 
     it('should ignore transcriptions from non-teachers', async () => {
-      const mockStudent = createMockWebSocket();
+      const mockStudent = createMockWebSocketClient();
       
       await wsServer.handleMessage(mockStudent, JSON.stringify({
         type: 'register',
@@ -186,7 +186,7 @@ describe('WebSocketServer - Real Implementation', () => {
 
   describe('Classroom Management', () => {
     it('should generate classroom codes for teachers', async () => {
-      const mockTeacher = createMockWebSocket();
+      const mockTeacher = createMockWebSocketClient();
       
       await wsServer.handleMessage(mockTeacher, JSON.stringify({
         type: 'register',
@@ -213,7 +213,7 @@ describe('WebSocketServer - Real Implementation', () => {
 
   describe('Error Handling', () => {
     it('should handle unknown message types', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       await wsServer.handleMessage(mockWs, JSON.stringify({
         type: 'unknown_type',
@@ -225,7 +225,7 @@ describe('WebSocketServer - Real Implementation', () => {
     });
 
     it('should handle malformed messages', async () => {
-      const mockWs = createMockWebSocket();
+      const mockWs = createMockWebSocketClient();
       
       await expect(
         wsServer.handleMessage(mockWs, '')

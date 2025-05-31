@@ -8,7 +8,7 @@ import { execSync } from 'child_process';
 import { createServer } from 'http';
 import express from 'express';
 import { apiRoutes } from '../../server/routes';
-import { WebSocketService } from '../../server/websocket';
+import { WebSocketServer } from '../../server/services/WebSocketServer';
 
 /**
  * Start a test server for E2E tests
@@ -26,7 +26,7 @@ export async function startTestServer(port = 5001) {
   app.use('/api', apiRoutes);
   
   // Set up WebSocket server
-  const wsService = new WebSocketService(server);
+  const wsService = new WebSocketServer(server);
   
   // Start server
   return new Promise<void>((resolve) => {

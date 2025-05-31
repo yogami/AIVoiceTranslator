@@ -7,6 +7,7 @@
 
 import OpenAI from 'openai';
 import { Readable } from 'stream';
+import { WebSocket as NodeWebSocket } from 'ws';
 
 // Define the ExtendedWebSocket type locally since we can't import from deleted file
 interface ExtendedWebSocket {
@@ -74,7 +75,7 @@ export class WebSocketCommunicator {
    * Send a transcription result over WebSocket
    */
   static sendTranscriptionResult(
-    ws: WebSocket, 
+    ws: NodeWebSocket, 
     result: TranscriptionResult
   ): void {
     this.sendMessage(ws, {
@@ -87,7 +88,7 @@ export class WebSocketCommunicator {
    * Send an error message over WebSocket
    */
   static sendErrorMessage(
-    ws: WebSocket, 
+    ws: NodeWebSocket, 
     message: string, 
     errorType: string = 'server_error'
   ): void {
