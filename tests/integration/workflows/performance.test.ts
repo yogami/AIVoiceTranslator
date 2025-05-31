@@ -6,7 +6,9 @@
 
 import { describe, it, expect, beforeEach, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { createMockWebSocketClient } from '../../unit/utils/test-helpers';
-import type { WebSocket } from 'ws';
+import WebSocket from 'ws';
+import { WebSocketServer } from '../../../server/services/WebSocketServer';
+import { TranslationService, ITranslationService } from '../../../server/services/TranslationService';
 
 // Since WebSocketClientManager might have specific implementation details,
 // let's create a mock that matches what we expect
@@ -29,6 +31,8 @@ class MockWebSocketClientManager {
     return this.clients.get(client);
   }
 }
+
+const TEST_PORT = 7003;
 
 describe('Performance Integration Tests', () => {
   // Ensure we're using real timers for performance measurements

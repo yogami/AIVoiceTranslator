@@ -1,6 +1,6 @@
 import { sessionManager } from '../managers/AudioSessionManager';
 import { audioTranscriptionService, WebSocketCommunicator } from '../transcription/AudioTranscriptionService';
-import WebSocket from 'ws';
+import { WebSocket as NodeWebSocket } from 'ws';
 
 /**
  * Process a chunk of streaming audio
@@ -11,7 +11,7 @@ import WebSocket from 'ws';
  * @param language The language code for transcription
  */
 export async function processStreamingAudio(
-  ws: WebSocket,
+  ws: NodeWebSocket,
   sessionId: string,
   audioBase64: string,
   isFirstChunk: boolean,
@@ -63,7 +63,7 @@ export async function processStreamingAudio(
  * @param sessionId The ID of the session to finalize
  */
 export async function finalizeStreamingSession(
-  ws: WebSocket,
+  ws: NodeWebSocket,
   sessionId: string
 ) {
   try {

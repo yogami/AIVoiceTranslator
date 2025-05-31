@@ -6,8 +6,24 @@ import { vi } from 'vitest';
 
 /**
  * Creates a mock WebSocket client for testing
+ * @param options Optional parameters to customize the mock WebSocket
+ * @param options.role The role of the WebSocket client (e.g., 'teacher', 'student')
+ * @param options.languageCode The language code for the client
+ * @param options.sessionId Custom session ID
+ * @param options.readyState Custom readyState
+ * @param options.isAlive Custom isAlive state
  */
-export function createMockWebSocket(): any {
+export function createMockWebSocketClient(options?: {
+  role?: string;
+  languageCode?: string;
+  sessionId?: string;
+  readyState?: number;
+  isAlive?: boolean;
+}): any {
+  const defaultSessionId = 'test-session-123';
+  const defaultReadyState = 1; // OPEN
+  const defaultIsAlive = true;
+
   const mockWs = {
     send: vi.fn(),
     close: vi.fn(),
@@ -15,9 +31,11 @@ export function createMockWebSocket(): any {
     ping: vi.fn(),
     on: vi.fn(),
     emit: vi.fn(),
-    readyState: 1, // OPEN state
-    isAlive: true,
-    sessionId: 'test-session-123',
+    readyState: options?.readyState ?? defaultReadyState,
+    isAlive: options?.isAlive ?? defaultIsAlive,
+    sessionId: options?.sessionId ?? defaultSessionId,
+    role: options?.role,
+    languageCode: options?.languageCode,
     CONNECTING: 0,
     OPEN: 1,
     CLOSING: 2,
@@ -28,6 +46,17 @@ export function createMockWebSocket(): any {
   mockWs.on.mockReturnValue(mockWs);
   
   return mockWs;
+}
+
+/**
+ * Creates a mock audio buffer for testing.
+ * @param size The size of the buffer in bytes. Defaults to 1024.
+ * @param content Optional content to fill the buffer with. Defaults to 'mock-audio-data'.
+ */
+export function createMockAudioBuffer(size: number = 1024, content: string = 'mock-audio-data'): Buffer {
+  const buffer = Buffer.alloc(size);
+  buffer.write(content);
+  return buffer;
 }
 
 /**
@@ -93,5 +122,51 @@ export function createMockDiagnosticsService() {
       audio: { totalGenerated: 30, averageGenerationTime: 800 },
       system: { memoryUsage: 100000000, uptime: 3600 }
     })
+  };
+}
+
+/**
+ * Sets up console mocks for testing.
+ * This is a placeholder and can be expanded if needed.
+ */
+export function setupConsoleMocks() {
+  const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.spyOn(console, 'info').mockImplementation(() => {});
+  vi.spyOn(console, 'debug').mockImplementation(() => {});
+  return { consoleLogSpy, consoleErrorSpy };
+}
+
+/**
+ * Sets up a mock file system environment for testing.
+ * This is a placeholder and can be expanded if needed.
+ * @param _ignoredPath Optional path argument that is currently ignored.
+ */
+export function setupFileSystemTestEnvironment(_ignoredPath?: any) {
+  // Placeholder: In a real scenario, this might use mock-fs or vi.mock('fs')
+  // For now, it does nothing, just satisfies the import and signature.
+}
+
+/**
+ * Creates a mock OpenAI client for testing.
+ * This is a placeholder and can be expanded with more specific mock behaviors as needed.
+ */
+export function createMockOpenAI(): any {
+  return {
+    audio: {
+      transcriptions: {
+        create: vi.fn().mockResolvedValue({ text: 'mocked transcription' }),
+      },
+      speech: {
+        create: vi.fn().mockResolvedValue(Buffer.from('mock audio data')), // For TTS
+      }
+    },
+    chat: {
+      completions: {
+        create: vi.fn().mockResolvedValue({ choices: [{ message: { content: 'mocked completion' } }] }),
+      },
+    },
+    // Add other OpenAI services/methods here if tests require them
   };
 }

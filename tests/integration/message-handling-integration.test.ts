@@ -7,7 +7,6 @@ import { WebSocketServer } from '../../server/services/WebSocketServer';
 
 describe('Message Handler Integration - Unique Tests', () => {
   let httpServer: Server;
-  let wss: WSServer;
   let wsServer: WebSocketServer;
   let wsUrl: string;
   const testPort = 5558; // Different port to avoid conflicts
@@ -17,14 +16,8 @@ describe('Message Handler Integration - Unique Tests', () => {
     const app = express();
     httpServer = createServer(app);
     
-    // Create WebSocket server
-    wss = new WSServer({ 
-      server: httpServer,
-      path: '/ws'
-    });
-    
-    // Create our WebSocketServer instance
-    wsServer = new WebSocketServer(wss);
+    // Create our WebSocketServer instance using the httpServer
+    wsServer = new WebSocketServer(httpServer);
     
     // Start listening
     await new Promise<void>((resolve) => {

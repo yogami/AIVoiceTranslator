@@ -9,7 +9,9 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { createMockAudioBuffer, createMockWebSocketClient } from '../utils/test-helpers';
+import { createMockWebSocketClient, createMockAudioBuffer } from '../utils/test-helpers';
+import { AudioProcessor } from '../../../server/services/processors/AudioProcessor';
+import { SessionManager } from '../../../server/services/managers/AudioSessionManager';
 
 // Mock implementations for testing
 class MockAudioSessionManager {
@@ -200,6 +202,22 @@ describe('Audio Processing', () => {
       
       expect(isValidSize(smallBuffer)).toBe(false);
       expect(isValidSize(largeBuffer)).toBe(true);
+    });
+  });
+
+  describe('AudioProcessor', () => {
+    let audioProcessor: AudioProcessor;
+
+    beforeEach(() => {
+      audioProcessor = new AudioProcessor();
+    });
+
+    it('should correctly process an audio chunk', () => {
+      const mockWs = createMockWebSocketClient();
+      const audioChunk = createMockAudioBuffer(1024);
+      const sessionId = 'test-session';
+
+      // ... existing code ...
     });
   });
 });
