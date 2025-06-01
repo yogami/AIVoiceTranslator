@@ -22,7 +22,6 @@ import { textToSpeechService, ttsFactory } from './textToSpeech/TextToSpeechServ
 import { promisify } from 'util';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import { AudioFileHandler as ImportedAudioFileHandler } from './handlers/AudioFileHandler';
 import { DevelopmentModeHelper } from './helpers/DevelopmentModeHelper';
 
 // Add this code near the top of the file
@@ -136,11 +135,8 @@ class AudioFileHandler {
     
     try {
       await writeFile(filePath, audioBuffer);
-      console.log(`Saved audio buffer to temporary file: ${filePath}`);
       
       const fileStats = await stat(filePath);
-      console.log(`Audio file size: ${fileStats.size} bytes, created: ${fileStats.mtime}`);
-      console.log(`Audio duration estimate: ~${Math.round(fileStats.size / 16000 / 2)} seconds`);
       
       return filePath;
     } catch (error) {
@@ -155,7 +151,6 @@ class AudioFileHandler {
   async deleteTempFile(filePath: string): Promise<void> {
     try {
       await unlink(filePath);
-      console.log(`Deleted temporary file: ${filePath}`);
     } catch (error) {
       console.error('Error cleaning up temporary file:', error);
       // Don't throw here - cleaning up is a best effort
@@ -189,10 +184,6 @@ export class OpenAITranscriptionService implements ITranscriptionService {
       return '';
     }
     
-    console.log(`Transcribing audio buffer of size ${audioBuffer.length}...`);
-    console.log(`Audio buffer header (hex): ${audioBuffer.slice(0, 32).toString('hex')}`);
-    console.log(`Audio buffer has valid WAV header: ${audioBuffer.slice(0, 4).toString() === 'RIFF'}`);
-    
     let tempFilePath = '';
     
     try {
@@ -201,10 +192,8 @@ export class OpenAITranscriptionService implements ITranscriptionService {
       
       // Create stream from file
       const audioReadStream = fs.createReadStream(tempFilePath);
-      console.log('Sending read stream to OpenAI API');
       
       // Use minimal parameters to avoid hallucination issues
-      console.log('Using minimal parameters with no prompt to avoid preconceptions');
       
       // Extract the primary language code (e.g., 'en' from 'en-US')
       const primaryLanguage = sourceLanguage.split('-')[0];
@@ -217,14 +206,9 @@ export class OpenAITranscriptionService implements ITranscriptionService {
         response_format: 'json'
       });
       
-      // Log the full response for debugging
-      console.log(`Full transcription response: ${JSON.stringify(transcriptionResponse)}`);
-      
       // Use the detected text or empty string if not found
       if (transcriptionResponse.text) {
         const originalText = transcriptionResponse.text;
-        console.log(`Transcription successful: { text: '${originalText}' }`);
-        console.log(`📢 DIAGNOSTIC - EXACT TRANSCRIPTION FROM OPENAI: "${originalText}"`);
         
         // Check for potential prompt leakage
         const isPotentialPromptLeak = SUSPICIOUS_PHRASES.some(phrase => 
@@ -394,9 +378,6 @@ export class OpenAITranslationService implements ITranslationService {
       const targetLangName = this.getLanguageName(targetLanguage);
       
       const translatedText = await this.executeWithRetry(text, sourceLangName, targetLangName);
-      
-      console.log(`Successfully processed translation to ${targetLanguage}`);
-      console.log(`Translation complete: "${text}" -> "${translatedText}"`);
       
       return translatedText;
     } catch (error: unknown) {
