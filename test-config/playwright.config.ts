@@ -44,12 +44,15 @@ export default defineConfig({
     // },
   ],
 
-  // webServer block is intentionally removed/commented out for manual server startup.
-  // webServer: {
-  //   command: 'npm run dev',
-  //   url: 'http://127.0.0.1:5000',
-  //   reuseExistingServer: !process.env.CI,
-  //   timeout: 300 * 1000,
-  //   cwd: '../',
-  // },
+  // Re-enable webServer block for automated server startup
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:5000', // URL for Playwright to poll until server is ready
+    reuseExistingServer: !process.env.CI, // Reuse server locally, fresh start in CI
+    timeout: 120 * 1000, // 2 minutes for server to start
+    cwd: '../', // Project root relative to this config file
+    stdout: 'pipe', // Capture server stdout
+    stderr: 'pipe', // Capture server stderr
+    // consider adding `ignoreHTTPSErrors: true` if using HTTPS with self-signed cert locally, though not applicable here.
+  },
 });
