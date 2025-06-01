@@ -714,7 +714,6 @@ export class WebSocketServer {
     
     // Always use OpenAI TTS for best quality
     const ttsServiceType = 'openai';
-    console.log(`Using OpenAI TTS service for TTS request`);
     
     try {
       // Generate TTS audio
@@ -771,8 +770,6 @@ export class WebSocketServer {
     voice?: string
   ): Promise<Buffer> {
     try {
-      console.log(`Generating TTS audio for language '${languageCode}' using service '${ttsServiceType}'`);
-      
       // Use empty source language as we aren't translating, just doing TTS
       const result = await speechTranslationService.translateSpeech(
         Buffer.from(''), // Empty buffer as we already have the text
@@ -782,7 +779,6 @@ export class WebSocketServer {
         { ttsServiceType } // Force specified TTS service type
       );
       
-      console.log(`TTS audio generated successfully, audio buffer size: ${result.audioBuffer.length} bytes`);
       return result.audioBuffer;
     } catch (error) {
       console.error('Error generating TTS audio:', error);
@@ -835,7 +831,6 @@ export class WebSocketServer {
       
       // Send response
       ws.send(JSON.stringify(response));
-      console.log(`TTS response sent successfully for language '${languageCode}'`);
     } catch (error) {
       console.error('Error sending TTS response:', error);
       // Try to send error message if possible
@@ -879,8 +874,6 @@ export class WebSocketServer {
   private handleSettingsMessage(ws: WebSocketClient, message: any): void {
     const role = this.roles.get(ws);
     
-    console.log(`Processing settings update from ${role || 'unknown'}:`, message);
-    
     // Initialize settings for this client if not already present
     const settings = this.clientSettings.get(ws) || {};
     
@@ -893,11 +886,6 @@ export class WebSocketServer {
     if (message.ttsServiceType) {
       settings.ttsServiceType = message.ttsServiceType;
       console.log(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
-      
-      // Special notification for teacher TTS service preference
-      if (role === 'teacher') {
-        console.log(`Teacher's TTS service preference set to '${settings.ttsServiceType}'. This will be used for all student translations.`);
-      }
     }
     
     // Store updated settings
@@ -938,7 +926,7 @@ export class WebSocketServer {
    * Handle WebSocket close event
    */
   private handleClose(ws: WebSocketClient): void {
-    console.log('WebSocket disconnected, sessionId:', ws.sessionId);
+    console.log('WebSocket disconnected, sessionId:', this.sessionIds.get(ws));
     
     // Remove from all maps
     this.connections.delete(ws);
