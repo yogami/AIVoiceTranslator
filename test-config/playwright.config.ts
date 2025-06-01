@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
+ * Simplified Playwright Configuration for manual server startup.
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
@@ -18,7 +19,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5000',
+    baseURL: 'http://127.0.0.1:5000', // Ensure this matches your manually started server
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -43,10 +44,12 @@ export default defineConfig({
     // },
   ],
 
-  /* Run your local dev server before starting the tests */
-  webServer: {
-    command: undefined,
-    url: 'http://localhost:5000',
-    reuseExistingServer: true,
-  },
+  // webServer block is intentionally removed/commented out for manual server startup.
+  // webServer: {
+  //   command: 'npm run dev',
+  //   url: 'http://127.0.0.1:5000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 300 * 1000,
+  //   cwd: '../',
+  // },
 });

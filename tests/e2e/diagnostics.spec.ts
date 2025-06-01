@@ -12,7 +12,7 @@ test.describe('Application Diagnostics Page', () => {
   });
 
   test.beforeEach(async () => {
-    await page.goto('/diagnostics.html');
+    await page.goto('http://127.0.0.1:5000/diagnostics.html');
   });
 
   test('should display initial UI elements correctly', async () => {
