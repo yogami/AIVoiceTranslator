@@ -3,7 +3,7 @@
  */
 import express from 'express';
 import { createServer } from 'http';
-// ACTIVE WebSocket Implementation - This is what's actually running
+// Use WebSocketServer for WebSocket connections
 import { WebSocketServer } from './services/WebSocketServer';
 import { apiRoutes } from './routes';
 import './config';
@@ -31,24 +31,18 @@ export const configureCorsMiddleware = (app: express.Express): void => {
       next();
     }
   });
-  
-  console.log('CORS middleware configured successfully');
 };
 
 /**
  * Start the server
  */
 export async function startServer() {
-  // console.log('Server CWD:', process.cwd()); // Log CWD
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
     console.warn('⚠️ No OPENAI_API_KEY found in environment variables');
     console.warn('Translation functionality will be limited');
   } else {
-    console.log('OpenAI API key status: Present');
-    console.log('OpenAI client initialized successfully');
-    console.log('OpenAI Streaming - API key status: Present');
-    console.log('OpenAI Streaming - client initialized successfully');
+    console.log('OpenAI API key found and client configured.');
   }
   
   // Create Express app
@@ -66,10 +60,8 @@ export async function startServer() {
   // Create HTTP server
   const httpServer = createServer(app);
   
-  // 🔥 ACTIVE WebSocket Implementation - WebSocketServer from services/
-  // NOT using the WebSocketService from websocket.ts
+  // Initialize WebSocket server
   const wss = new WebSocketServer(httpServer);
-  console.log('🚀 Server using PRIMARY WebSocketServer implementation');
   
   // Serve static files from client/public directory
   app.use(express.static('client/public'));
@@ -89,12 +81,12 @@ export async function startServer() {
   
   // Serve index.html for root route
   app.get('/', (req, res) => {
-    res.sendFile('index.html', { root: 'client' });
+    res.sendFile(path.resolve('client/index.html'));
   });
   
   // Catch-all route for any other routes
   app.get('*', (req, res) => {
-    res.sendFile('index.html', { root: 'client' });
+    res.sendFile(path.resolve('client/index.html'));
   });
   
   // Start server - use random port for tests to avoid conflicts
