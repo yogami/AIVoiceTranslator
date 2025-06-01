@@ -1,22 +1,22 @@
 import {
-  users,
+  // users, // Removed
   type User,
   type InsertUser,
-  languages,
+  // languages, // Removed
   type Language,
   type InsertLanguage,
-  translations,
+  // translations, // Removed
   type Translation,
   type InsertTranslation,
-  transcripts,
+  // transcripts, // Removed
   type Transcript,
   type InsertTranscript,
-  sessions,
+  // sessions, // Removed
   type Session,
   type InsertSession
 } from "../shared/schema";
-import { db } from "./db";
-import { eq, and, gte, lte } from "drizzle-orm";
+// import { db } from "./db"; // Removed
+// import { eq, and, gte, lte } from "drizzle-orm"; // Removed
 
 export interface IStorage {
   // User methods
@@ -254,162 +254,23 @@ export class MemStorage implements IStorage {
     averageLatency: number;
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }> {
-    // Get transcripts for this session
+    // TODO: Implement full analytics calculation for MemStorage. 
+    // Current implementation is a placeholder and uses mock data.
+    // In a real implementation, you'd need to properly correlate translations to sessions.
+    // This might involve storing sessionId on translations or linking through transcripts if applicable.
+
+    // Get transcripts for this session (as a proxy for activity)
     const sessionTranscripts = Array.from(this.transcripts.values())
       .filter(t => t.sessionId === sessionId);
     
-    // For now, return basic analytics - in real implementation, you'd join with translations
     return {
-      totalTranslations: sessionTranscripts.length,
-      averageLatency: 1500, // Mock average
-      languagePairs: [
-        { sourceLanguage: 'en-US', targetLanguage: 'es', count: sessionTranscripts.length }
-      ]
-    };
-  }
-}
-
-export class DatabaseStorage implements IStorage {
-  // User methods
-  async getUser(id: number): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id));
-    return result[0];
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username));
-    return result[0];
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(insertUser).returning();
-    return result[0];
-  }
-  
-  // Language methods
-  async getLanguages(): Promise<Language[]> {
-    return await db.select().from(languages);
-  }
-  
-  async getActiveLanguages(): Promise<Language[]> {
-    return await db.select().from(languages).where(eq(languages.isActive, true));
-  }
-  
-  async getLanguageByCode(code: string): Promise<Language | undefined> {
-    const result = await db.select().from(languages).where(eq(languages.code, code));
-    return result[0];
-  }
-  
-  async createLanguage(insertLanguage: InsertLanguage): Promise<Language> {
-    const result = await db.insert(languages).values(insertLanguage).returning();
-    return result[0];
-  }
-  
-  async updateLanguageStatus(code: string, isActive: boolean): Promise<Language | undefined> {
-    const result = await db.update(languages)
-      .set({ isActive })
-      .where(eq(languages.code, code))
-      .returning();
-    return result[0];
-  }
-  
-  // Translation methods
-  async addTranslation(insertTranslation: InsertTranslation): Promise<Translation> {
-    const result = await db.insert(translations).values(insertTranslation).returning();
-    return result[0];
-  }
-  
-  async getTranslationsByLanguage(targetLanguage: string, limit = 10): Promise<Translation[]> {
-    return await db.select()
-      .from(translations)
-      .where(eq(translations.targetLanguage, targetLanguage))
-      .limit(limit);
-  }
-  
-  // Transcript methods
-  async addTranscript(insertTranscript: InsertTranscript): Promise<Transcript> {
-    const result = await db.insert(transcripts).values(insertTranscript).returning();
-    return result[0];
-  }
-  
-  async getTranscriptsBySession(sessionId: string, language: string): Promise<Transcript[]> {
-    return await db.select()
-      .from(transcripts)
-      .where(and(eq(transcripts.sessionId, sessionId), eq(transcripts.language, language)));
-  }
-  
-  // Session methods
-  async createSession(insertSession: InsertSession): Promise<Session> {
-    const result = await db.insert(sessions).values(insertSession).returning();
-    return result[0];
-  }
-
-  async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined> {
-    const result = await db.update(sessions)
-      .set(updates)
-      .where(eq(sessions.sessionId, sessionId))
-      .returning();
-    return result[0];
-  }
-
-  async getActiveSession(sessionId: string): Promise<Session | undefined> {
-    const result = await db.select()
-      .from(sessions)
-      .where(and(eq(sessions.sessionId, sessionId), eq(sessions.isActive, true)));
-    return result[0];
-  }
-
-  async getAllActiveSessions(): Promise<Session[]> {
-    return await db.select()
-      .from(sessions)
-      .where(eq(sessions.isActive, true));
-  }
-
-  async endSession(sessionId: string): Promise<Session | undefined> {
-    const result = await db.update(sessions)
-      .set({ endTime: new Date(), isActive: false })
-      .where(eq(sessions.sessionId, sessionId))
-      .returning();
-    return result[0];
-  }
-
-  async getTranslationsByDateRange(startDate: Date, endDate: Date): Promise<Translation[]> {
-    return await db.select()
-      .from(translations)
-      .where(and(
-        gte(translations.timestamp, startDate),
-        lte(translations.timestamp, endDate)
-      ));
-  }
-
-  async getSessionAnalytics(sessionId: string): Promise<{
-    totalTranslations: number;
-    averageLatency: number;
-    languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
-  }> {
-    // Complex query to get session analytics
-    const sessionTranslations = await db.select()
-      .from(translations)
-      .innerJoin(transcripts, eq(transcripts.sessionId, sessionId));
-    
-    // Calculate metrics
-    const totalTranslations = sessionTranslations.length;
-    const averageLatency = sessionTranslations.reduce((sum, row) => sum + (row.translations.latency || 0), 0) / totalTranslations;
-    
-    // Group by language pairs
-    const languagePairs = sessionTranslations.reduce((acc, row) => {
-      const key = `${row.translations.sourceLanguage}-${row.translations.targetLanguage}`;
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return {
-      totalTranslations,
-      averageLatency: Math.round(averageLatency),
-      languagePairs: Object.entries(languagePairs).map(([key, count]) => {
-        const [sourceLanguage, targetLanguage] = key.split('-');
-        return { sourceLanguage, targetLanguage, count };
-      })
+      totalTranslations: 0, // Placeholder - sessionTranscripts.length was a proxy
+      averageLatency: 0, // Placeholder - 1500 was mock
+      languagePairs: [] // Placeholder - example was mock
+      // Example of what might be calculated if data was available:
+      // languagePairs: [
+      //   { sourceLanguage: 'en-US', targetLanguage: 'es', count: sessionTranscripts.length }
+      // ]
     };
   }
 }
