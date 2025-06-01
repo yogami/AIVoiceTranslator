@@ -115,7 +115,13 @@ export interface TTSResponseMessageToClient extends BaseWebSocketMessage {
   ttsServiceType?: string;
   audioData?: string; // base64
   useClientSpeech?: boolean;
-  speechParams?: any; // Can be refined if structure is known
+  speechParams?: { // Specific params if client speech is used
+    type: 'browser-speech';
+    text: string;
+    languageCode: string;
+    autoPlay: boolean;
+    [key: string]: any; // Allow other params if needed
+  };
   error?: {
     message: string;
     code: string;
