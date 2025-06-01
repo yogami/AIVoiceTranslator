@@ -429,9 +429,6 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
         }
       }
       
-      // Temporary file path for the output
-      const outputFilePath = path.join(TEMP_DIR, `tts-${Date.now()}.mp3`);
-      
       // Create speech using OpenAI's API
       console.log(`Using voice: ${voice}, speed: ${speed}`);
       
@@ -445,10 +442,6 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
       
       // Get the audio as a buffer
       const buffer = Buffer.from(await mp3.arrayBuffer());
-      
-      // Save to file (optional - for debugging)
-      await writeFile(outputFilePath, buffer);
-      console.log(`Saved synthesized speech to: ${outputFilePath}`);
       
       // Cache the result for future use
       await this.cacheAudio(cacheKey, buffer);
@@ -472,16 +465,22 @@ export class TextToSpeechFactory {
   
   private constructor() {
     // Initialize OpenAI client with API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || '';
+    const apiKey = process.env.OPENAI_API_KEY || ''; // Ensure apiKey is a string
     
     try {
       this.openai = new OpenAI({ 
-        apiKey: apiKey || 'sk-placeholder-for-initialization-only' 
+        apiKey: apiKey || 'sk-placeholder-for-factory-init' // Use a specific placeholder
       });
-      console.log('OpenAI client initialized for TTS service');
+      // Log only if a real API key is configured, otherwise it's expected to use placeholder
+      if (apiKey) {
+        console.log('OpenAI client initialized for TextToSpeechFactory with API key.');
+      } else {
+        console.warn('OpenAI client for TextToSpeechFactory initialized with placeholder API key. OpenAI TTS will fail if used.');
+      }
     } catch (error) {
-      console.error('Error initializing OpenAI client for TTS:', error);
-      this.openai = new OpenAI({ apiKey: 'sk-placeholder-for-initialization-only' });
+      console.error('Critical error initializing OpenAI client for TextToSpeechFactory:', error);
+      // Fallback to a placeholder client to prevent constructor failure
+      this.openai = new OpenAI({ apiKey: 'sk-placeholder-on-error' });
     }
     
     // Register services
