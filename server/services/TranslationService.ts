@@ -23,6 +23,7 @@ import { promisify } from 'util';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { DevelopmentModeHelper } from './helpers/DevelopmentModeHelper';
+import { AudioFileHandler } from './AudioFileHandler';
 
 // Add this code near the top of the file
 const __filename = fileURLToPath(import.meta.url);
@@ -38,7 +39,7 @@ const unlink = promisify(fs.unlink);
 const stat = promisify(fs.stat);
 
 // Constants for configuration
-const TEMP_DIR = os.tmpdir(); // Use OS temp directory instead of hardcoded Linux path
+// const TEMP_DIR = os.tmpdir(); // Removed as it's now defined and used within AudioFileHandler.ts
 const DEFAULT_WHISPER_MODEL = 'whisper-1';
 const DEFAULT_CHAT_MODEL = 'gpt-4o'; // the newest OpenAI model is "gpt-4o" which was released May 13, 2024
 
@@ -114,48 +115,6 @@ export interface ITranscriptionService {
  */
 export interface ITranslationService {
   translate(text: string, sourceLanguage: string, targetLanguage: string): Promise<string>;
-}
-
-/**
- * Audio file handler for temporary file operations
- * Following Single Responsibility Principle
- */
-class AudioFileHandler {
-  private readonly tempDir: string;
-  
-  constructor(tempDir: string = TEMP_DIR) {
-    this.tempDir = tempDir;
-  }
-  
-  /**
-   * Create a temporary file from an audio buffer
-   */
-  async createTempFile(audioBuffer: Buffer): Promise<string> {
-    const filePath = path.join(this.tempDir, `temp-audio-${Date.now()}.wav`);
-    
-    try {
-      await writeFile(filePath, audioBuffer);
-      
-      const fileStats = await stat(filePath);
-      
-      return filePath;
-    } catch (error) {
-      console.error('Error creating temporary audio file:', error);
-      throw new Error('Failed to create temporary audio file');
-    }
-  }
-  
-  /**
-   * Delete a temporary file
-   */
-  async deleteTempFile(filePath: string): Promise<void> {
-    try {
-      await unlink(filePath);
-    } catch (error) {
-      console.error('Error cleaning up temporary file:', error);
-      // Don't throw here - cleaning up is a best effort
-    }
-  }
 }
 
 /**
@@ -502,7 +461,7 @@ export class SpeechTranslationService {
     preTranscribedText?: string,
     options?: { ttsServiceType?: string }
   ): Promise<TranslationResult> {
-    console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`);
+    // console.log(`Processing speech translation from ${sourceLanguage} to ${targetLanguage}`); // Removed
     
     // DEVELOPMENT MODE: Check if API key is missing
     if (!this.apiKeyAvailable) {
@@ -552,7 +511,7 @@ export class SpeechTranslationService {
         preserveEmotions: true // Enable emotional tone preservation
       });
       
-      console.log(`Generated translated audio using ${ttsServiceType} service: ${translatedAudioBuffer.length} bytes`);
+      // console.log(`Generated translated audio using ${ttsServiceType} service: ${translatedAudioBuffer.length} bytes`); // Removed
     } catch (error) {
       console.error('Error generating audio for translation:', error);
       // On error, keep the original audio buffer
