@@ -10,6 +10,25 @@ import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
 import { speechTranslationService } from './TranslationService';
 import { URL } from 'url';
+import type {
+  ClientSettings,
+  WebSocketMessageToServer,
+  RegisterMessageToServer,
+  TranscriptionMessageToServer,
+  AudioMessageToServer,
+  TTSRequestMessageToServer,
+  SettingsMessageToServer,
+  PingMessageToServer,
+  // Import ToClient message types as needed for constructing responses
+  ConnectionMessageToClient,
+  ClassroomCodeMessageToClient,
+  RegisterResponseToClient,
+  TranslationMessageToClient,
+  TTSResponseMessageToClient,
+  SettingsResponseToClient,
+  PongMessageToClient,
+  ErrorMessageToClient
+} from './WebSocketTypes';
 
 // Custom WebSocketClient type for our server
 type WebSocketClient = WebSocket & {
@@ -39,7 +58,7 @@ export class WebSocketServer {
   private roles: Map<WebSocketClient, string> = new Map();
   private languages: Map<WebSocketClient, string> = new Map();
   private sessionIds: Map<WebSocketClient, string> = new Map();
-  private clientSettings: Map<WebSocketClient, any> = new Map();
+  private clientSettings: Map<WebSocketClient, ClientSettings> = new Map();
   
   // Classroom management
   private classroomSessions: Map<string, ClassroomSession> = new Map();
@@ -149,12 +168,12 @@ export class WebSocketServer {
       const role = this.roles.get(ws);
       const language = this.languages.get(ws);
       
-      const message = {
+      const message: ConnectionMessageToClient = {
         type: 'connection',
         status: 'connected',
-        sessionId,
-        role,
-        language,
+        sessionId: sessionId || 'unknown',
+        role: role as ('teacher' | 'student' | undefined),
+        language: language,
         classroomCode: classroomCode || undefined
       };
       
@@ -170,32 +189,32 @@ export class WebSocketServer {
   async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
     try {
       // Parse message data
-      const message = JSON.parse(data);
+      const message = JSON.parse(data) as WebSocketMessageToServer;
       
       // Process message based on type
       switch (message.type) {
         case 'register':
-          this.handleRegisterMessage(ws, message);
+          this.handleRegisterMessage(ws, message as RegisterMessageToServer);
           break;
         
         case 'transcription':
-          await this.handleTranscriptionMessage(ws, message);
+          await this.handleTranscriptionMessage(ws, message as TranscriptionMessageToServer);
           break;
         
         case 'tts_request':
-          await this.handleTTSRequestMessage(ws, message);
+          await this.handleTTSRequestMessage(ws, message as TTSRequestMessageToServer);
           break;
           
         case 'audio':
-          await this.handleAudioMessage(ws, message);
+          await this.handleAudioMessage(ws, message as AudioMessageToServer);
           break;
           
         case 'settings':
-          this.handleSettingsMessage(ws, message);
+          this.handleSettingsMessage(ws, message as SettingsMessageToServer);
           break;
           
         case 'ping':
-          this.handlePingMessage(ws, message);
+          this.handlePingMessage(ws, message as PingMessageToServer);
           break;
           
         case 'pong':
@@ -213,7 +232,7 @@ export class WebSocketServer {
   /**
    * Handle registration message
    */
-  private handleRegisterMessage(ws: WebSocketClient, message: any): void {
+  private handleRegisterMessage(ws: WebSocketClient, message: RegisterMessageToServer): void {
     console.log('Processing message type=register from connection:', 
       `role=${message.role}, languageCode=${message.languageCode}`);
     
@@ -231,14 +250,15 @@ export class WebSocketServer {
         const sessionId = this.sessionIds.get(ws);
         if (sessionId) {
           const classroomCode = this.generateClassroomCode(sessionId);
+          const sessionInfo = this.classroomSessions.get(classroomCode);
           
-          // Send classroom code to teacher
-          ws.send(JSON.stringify({
+          const response: ClassroomCodeMessageToClient = {
             type: 'classroom_code',
             code: classroomCode,
             sessionId: sessionId,
-            expiresAt: this.classroomSessions.get(classroomCode)?.expiresAt
-          }));
+            expiresAt: sessionInfo?.expiresAt || Date.now() + (2 * 60 * 60 * 1000) // Fallback expiration
+          };
+          ws.send(JSON.stringify(response));
           
           console.log(`Generated classroom code ${classroomCode} for teacher session ${sessionId}`);
         }
@@ -251,7 +271,7 @@ export class WebSocketServer {
     }
     
     // Store client settings
-    const settings: any = this.clientSettings.get(ws) || {};
+    const settings: ClientSettings = this.clientSettings.get(ws) || {};
     
     // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
@@ -266,11 +286,11 @@ export class WebSocketServer {
       `role=${this.roles.get(ws)}, languageCode=${this.languages.get(ws)}, ttsService=${settings.ttsServiceType || 'default'}`);
     
     // Send confirmation
-    const response = {
+    const response: RegisterResponseToClient = {
       type: 'register',
       status: 'success',
       data: {
-        role: this.roles.get(ws),
+        role: this.roles.get(ws) as ('teacher' | 'student' | undefined),
         languageCode: this.languages.get(ws),
         settings: settings
       }
@@ -282,7 +302,7 @@ export class WebSocketServer {
   /**
    * Handle transcription message
    */
-  private async handleTranscriptionMessage(ws: WebSocketClient, message: any): Promise<void> {
+  private async handleTranscriptionMessage(ws: WebSocketClient, message: TranscriptionMessageToServer): Promise<void> {
     console.log('Received transcription from', this.roles.get(ws), ':', message.text);
     
     // Start tracking latency when transcription is received
@@ -562,22 +582,22 @@ export class WebSocketServer {
         processing: number;
       };
     }
-  ): any {
+  ): TranslationMessageToClient {
     return {
       type: 'translation',
       text: translatedText,
       originalText: originalText,
       sourceLanguage: sourceLanguage,
       targetLanguage: targetLanguage,
-      ttsServiceType: ttsServiceType, // Include the service type for client reference
+      ttsServiceType: ttsServiceType,
       latency: {
         total: totalLatency,
-        serverCompleteTime: currentTime, // Timestamp when server completed processing
+        serverCompleteTime: currentTime,
         components: {
           translation: latencyTracking.components.translation,
           tts: latencyTracking.components.tts,
           processing: latencyTracking.components.processing,
-          network: 0 // Will be calculated on client side
+          network: 0
         }
       }
     };
@@ -587,7 +607,7 @@ export class WebSocketServer {
    * Add audio data to a translation message
    */
   private addAudioDataToMessage(
-    translationMessage: any,
+    translationMessage: TranslationMessageToClient,
     audioBuffer: Buffer,
     studentLanguage: string,
     translatedText: string,
@@ -628,14 +648,13 @@ export class WebSocketServer {
       }
     } catch (error) {
       console.error('Error processing audio data for translation:', error);
-      translationMessage.error = 'Audio processing failed';
     }
   }
   
   /**
    * Handle audio message
    */
-  private async handleAudioMessage(ws: WebSocketClient, message: any): Promise<void> {
+  private async handleAudioMessage(ws: WebSocketClient, message: AudioMessageToServer): Promise<void> {
     const role = this.roles.get(ws);
     
     // Only process audio from teacher
@@ -703,7 +722,7 @@ export class WebSocketServer {
   /**
    * Handle TTS request message
    */
-  private async handleTTSRequestMessage(ws: WebSocketClient, message: any): Promise<void> {
+  private async handleTTSRequestMessage(ws: WebSocketClient, message: TTSRequestMessageToServer): Promise<void> {
     const text = message.text;
     const languageCode = message.languageCode;
     
@@ -798,7 +817,7 @@ export class WebSocketServer {
   ): Promise<void> {
     try {
       // Create base message
-      const response: any = {
+      const response: Partial<TTSResponseMessageToClient> = {
         type: 'tts_response',
         status: 'success',
         text,
@@ -830,7 +849,8 @@ export class WebSocketServer {
       }
       
       // Send response
-      ws.send(JSON.stringify(response));
+      ws.send(JSON.stringify(response as TTSResponseMessageToClient));
+      console.log(`TTS response sent successfully for language '${languageCode}'`);
     } catch (error) {
       console.error('Error sending TTS response:', error);
       // Try to send error message if possible
@@ -847,22 +867,22 @@ export class WebSocketServer {
    */
   private async sendTTSErrorResponse(
     ws: WebSocketClient,
-    message: string,
+    messageText: string,
     code: string = 'TTS_ERROR'
   ): Promise<void> {
     try {
-      const errorResponse = {
+      const ttsErrorResponse: TTSResponseMessageToClient = {
         type: 'tts_response',
         status: 'error',
         error: {
-          message,
-          code
+          message: messageText,
+          code: code
         },
         timestamp: Date.now()
       };
       
-      ws.send(JSON.stringify(errorResponse));
-      console.error(`TTS error response sent: ${message}`);
+      ws.send(JSON.stringify(ttsErrorResponse));
+      console.error(`TTS error response sent: ${messageText}`);
     } catch (error) {
       console.error('Error sending TTS error response:', error);
     }
@@ -871,11 +891,11 @@ export class WebSocketServer {
   /**
    * Handle settings message
    */
-  private handleSettingsMessage(ws: WebSocketClient, message: any): void {
+  private handleSettingsMessage(ws: WebSocketClient, message: SettingsMessageToServer): void {
     const role = this.roles.get(ws);
     
     // Initialize settings for this client if not already present
-    const settings = this.clientSettings.get(ws) || {};
+    const settings: ClientSettings = this.clientSettings.get(ws) || {};
     
     // Update settings with new values
     if (message.settings) {
@@ -892,7 +912,7 @@ export class WebSocketServer {
     this.clientSettings.set(ws, settings);
     
     // Send confirmation
-    const response = {
+    const response: SettingsResponseToClient = {
       type: 'settings',
       status: 'success',
       settings
@@ -904,12 +924,12 @@ export class WebSocketServer {
   /**
    * Handle ping message
    */
-  private handlePingMessage(ws: WebSocketClient, message: any): void {
+  private handlePingMessage(ws: WebSocketClient, message: PingMessageToServer): void {
     // Mark as alive for heartbeat
     ws.isAlive = true;
     
     // Send pong response
-    const response = {
+    const response: PongMessageToClient = {
       type: 'pong',
       timestamp: Date.now(),
       originalTimestamp: message.timestamp
