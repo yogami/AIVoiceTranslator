@@ -51,12 +51,6 @@ const getTestTimeouts = (mode) => {
         hookTimeout: 30000,          // 30 seconds for hooks 
         teardownTimeout: 15000,      // 15 seconds for teardown
       };
-    case 'e2e':
-      return {
-        testTimeout: 120000,         // 2 minutes per e2e test
-        hookTimeout: 60000,          // 1 minute for hooks 
-        teardownTimeout: 30000,      // 30 seconds for teardown
-      };
     case 'unit':
     default:
       return {
