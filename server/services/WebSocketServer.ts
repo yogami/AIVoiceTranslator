@@ -51,15 +51,12 @@ export class WebSocketServer {
   
   constructor(server: Server) {
     this.wss = new WSServer({ server });
-    console.log('🔥 PRIMARY WebSocketServer initialized - This is the ACTIVE implementation');
     
     // Set up event handlers
     this.setupEventHandlers();
     
     // Set up classroom session cleanup
     this.setupClassroomCleanup();
-    
-    console.log('WebSocket server initialized');
   }
   
   /**
@@ -162,8 +159,6 @@ export class WebSocketServer {
       };
       
       ws.send(JSON.stringify(message));
-      console.log('Sending connection confirmation with sessionId:', sessionId, 'classroomCode:', classroomCode);
-      console.log('Connection confirmation sent successfully');
     } catch (error) {
       console.error('Error sending connection confirmation:', error);
     }
@@ -421,9 +416,6 @@ export class WebSocketServer {
       tts: 0
     };
     
-    // Get the teacher's preferred TTS service type
-    const teacherTtsServiceType = this.getTeacherTTSServiceType();
-    
     // Always use OpenAI TTS service for best quality
     const ttsServiceToUse = 'openai';
     
@@ -480,24 +472,6 @@ export class WebSocketServer {
     }
     
     return { translations, translationResults, latencyInfo };
-  }
-  
-  /**
-   * Get the teacher's preferred TTS service type
-   */
-  private getTeacherTTSServiceType(): string {
-    let teacherTtsServiceType = process.env.TTS_SERVICE_TYPE || 'browser';
-    
-    // Look for the teacher's TTS service preference
-    this.connections.forEach(client => {
-      if (this.roles.get(client) === 'teacher' &&
-          this.clientSettings.get(client)?.ttsServiceType) {
-        // Use the teacher's preference for all student translations
-        teacherTtsServiceType = this.clientSettings.get(client)?.ttsServiceType;
-      }
-    });
-    
-    return teacherTtsServiceType;
   }
   
   /**
@@ -738,11 +712,8 @@ export class WebSocketServer {
       return;
     }
     
-    // Get the client's preferred TTS service type or default to OpenAI
-    let ttsServiceType = this.clientSettings.get(ws)?.ttsServiceType || 'openai';
-    
-    // Always force OpenAI for best quality
-    ttsServiceType = 'openai';
+    // Always use OpenAI TTS for best quality
+    const ttsServiceType = 'openai';
     console.log(`Using OpenAI TTS service for TTS request`);
     
     try {
