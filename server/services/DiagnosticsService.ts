@@ -111,7 +111,7 @@ export class DiagnosticsService {
     }
   }
 
-  recordAudioGeneration(timeMs: number, service: string): void {
+  recordAudioGeneration(timeMs: number): void {
     this.audioGenerationTimes.push(timeMs);
     // Keep only last 100 audio generations
     if (this.audioGenerationTimes.length > 100) {
@@ -192,43 +192,38 @@ export class DiagnosticsService {
         total: this.translationTimes.length,
         averageTime: translationAvg,
         averageTimeFormatted: this.formatDuration(translationAvg),
-        totalFromDatabase: 0, // Mock data
-        averageLatencyFromDatabase: 1500, // Mock data
-        averageLatencyFromDatabaseFormatted: this.formatDuration(1500),
-        languagePairs: [
-          {
-            sourceLanguage: 'en-US',
-            targetLanguage: 'es',
-            count: 5,
-            averageLatency: 1200,
-            averageLatencyFormatted: this.formatDuration(1200)
-          },
-          {
-            sourceLanguage: 'en-US',
-            targetLanguage: 'fr',
-            count: 3,
-            averageLatency: 1400,
-            averageLatencyFormatted: this.formatDuration(1400)
-          }
+        totalFromDatabase: 0, // TODO: Implement actual data collection from storage/database
+        averageLatencyFromDatabase: 0, // TODO: Implement actual data collection from storage/database (e.g., 1500 as placeholder)
+        averageLatencyFromDatabaseFormatted: this.formatDuration(0), // TODO: Update with actual average latency
+        languagePairs: [ // TODO: Implement dynamic aggregation of language pair metrics
+          // Example structure:
+          // {
+          //   sourceLanguage: 'en-US',
+          //   targetLanguage: 'es',
+          //   count: 5,
+          //   averageLatency: 1200,
+          //   averageLatencyFormatted: this.formatDuration(1200)
+          // },
         ],
-        recentTranslations: 8
+        recentTranslations: 0 // TODO: Implement logic to count recent translations (e.g., last N or last X time period)
       },
       sessions: {
-        activeSessions: 1,
-        totalSessions: 5,
-        averageSessionDuration: 1800,
-        averageSessionDurationFormatted: this.formatDuration(1800 * 1000),
-        studentsConnected: 0,
-        teachersConnected: 0,
-        currentLanguages: ['en-US', 'es', 'fr'],
-        recentSessionActivity: [
-          {
-            sessionId: 'class_ABC123',
-            language: 'en-US',
-            transcriptCount: 5,
-            lastActivity: new Date().toISOString(),
-            duration: 300
-          }
+        activeSessions: 0, // TODO: Implement tracking of active WebSocket sessions
+        totalSessions: 0, // TODO: Implement tracking of total historical sessions
+        averageSessionDuration: 0, // TODO: Implement calculation of average session duration
+        averageSessionDurationFormatted: this.formatDuration(0), // TODO: Update with actual average duration
+        studentsConnected: 0, // TODO: Implement tracking of connected students via WebSockets
+        teachersConnected: 0, // TODO: Implement tracking of connected teachers via WebSockets
+        currentLanguages: [], // TODO: Implement aggregation of languages currently in use in active sessions
+        recentSessionActivity: [ // TODO: Implement dynamic list of recent session activities
+          // Example structure:
+          // {
+          //   sessionId: 'class_ABC123',
+          //   language: 'en-US',
+          //   transcriptCount: 5,
+          //   lastActivity: new Date().toISOString(),
+          //   duration: 300
+          // }
         ]
       },
       audio: {
