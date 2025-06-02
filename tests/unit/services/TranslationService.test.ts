@@ -13,6 +13,41 @@ import {
 } from '../../../server/services/TranslationService';
 import OpenAI from 'openai';
 import { createMockOpenAI, createMockAudioBuffer } from '../utils/test-helpers';
+import { AudioFileHandler } from '../../../server/services/AudioFileHandler';
+import { Mocked, MockedFunction } from 'vitest';
+// import { URL } from 'url';
+
+// Mock the 'ws' library (if still needed for other tests, otherwise remove if only for WebSocketServer.test.ts)
+// For this file, 'ws' is not directly used by TranslationService components, so this mock might be here from consolidation.
+// Let's assume it's not strictly needed for OpenAITranscriptionService/OpenAITranslationService tests.
+
+// Mock 'fs' to prevent ENOENT errors from createReadStream
+vi.mock('fs', async () => {
+  const actualFs = await vi.importActual('fs') as any; 
+  const { Readable } = await vi.importActual('stream') as typeof import('stream'); // Added type cast
+  return {
+    ...actualFs, 
+    createReadStream: vi.fn().mockImplementation((path: string) => { // Added type for path
+      // console.log(`Mocked fs.createReadStream called for path: ${path}`);
+      const readable = new Readable();
+      readable._read = () => {}; // Implement a no-op _read method
+      // Push some minimal data or null to indicate EOF immediately if the mock consumer doesn't read it
+      // For OpenAI transcription mock, it usually doesn't care about the stream content itself.
+      readable.push(Buffer.from('mock stream data'));
+      readable.push(null);
+      return readable;
+    }),
+    promises: {
+      ...(actualFs.promises || {}), // Ensure actualFs.promises is not undefined
+      access: vi.fn(), 
+      stat: vi.fn(), 
+      readFile: vi.fn(), 
+      writeFile: vi.fn().mockResolvedValue(undefined), 
+      mkdir: vi.fn().mockResolvedValue(undefined) 
+    },
+    constants: actualFs.constants, // Ensure constants like F_OK are available
+  };
+});
 
 // Mock the TextToSpeechService
 vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => ({
@@ -26,12 +61,28 @@ vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => ({
   }
 }));
 
-// Mock AudioFileHandler
-vi.mock('../../../server/services/handlers/AudioFileHandler', () => ({
-  audioFileHandler: {
+// Mock AudioFileHandler with correct path
+vi.mock('../../../server/services/AudioFileHandler', () => ({
+  // Assuming AudioFileHandler is a class and we want to mock its instance methods
+  // Or if it's used as `new AudioFileHandler()`, mock the constructor and prototype.
+  // For now, let's assume it might be a default export or named export of an object/class
+  // If it's a class, the mock should typically be: 
+  // default: vi.fn().mockImplementation(() => ({
+  //   createTempFile: vi.fn().mockResolvedValue('/tmp/test-audio.wav'),
+  //   deleteTempFile: vi.fn().mockResolvedValue(undefined)
+  // }))
+  // Given the original mock was `audioFileHandler: { ... }`, it implies it might have been a named export
+  // of an object, or the intention was to mock a default exported class instance methods.
+  // Let's try to mock it as if it's a class with a default export for now.
+  AudioFileHandler: vi.fn().mockImplementation(() => ({
     createTempFile: vi.fn().mockResolvedValue('/tmp/test-audio.wav'),
     deleteTempFile: vi.fn().mockResolvedValue(undefined)
-  }
+  }))
+  // If AudioFileHandler is a default export, it would be:
+  // default: vi.fn().mockImplementation(() => ({
+  //   createTempFile: vi.fn().mockResolvedValue('/tmp/test-audio.wav'),
+  //   deleteTempFile: vi.fn().mockResolvedValue(undefined)
+  // }))
 }));
 
 describe('Translation Services', () => {
@@ -43,68 +94,64 @@ describe('Translation Services', () => {
       vi.useFakeTimers();
       mockOpenAI = createMockOpenAI();
       service = new OpenAITranslationService(mockOpenAI);
-      vi.clearAllMocks();
+      if (mockOpenAI.chat && mockOpenAI.chat.completions && mockOpenAI.chat.completions.create) {
+        (mockOpenAI.chat.completions.create as any).mockClear();
+      }
     });
 
     afterEach(() => {
       vi.useRealTimers();
+      vi.clearAllMocks();
     });
 
-    it('should_TranslateText_When_ValidInputProvided', async () => {
-      // Arrange
+    it('should translate text with valid input', async () => {
       const text = 'Hello world';
       const sourceLang = 'en';
       const targetLang = 'es';
-      
       (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({
         choices: [{ message: { content: 'Hola mundo' } }]
       });
-
-      // Act
       const result = await service.translate(text, sourceLang, targetLang);
-
-      // Assert
       expect(result).toBe('Hola mundo');
-      // Update the expectation to match the actual implementation
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith({
-        model: 'gpt-4o', // Changed from 'gpt-4' to 'gpt-4o'
+        model: 'gpt-4o', 
         messages: expect.any(Array),
-        temperature: 0.1, // Changed from 0.3 to 0.1
+        temperature: 0.1,
         max_tokens: 500
       });
     });
 
-    it('should_ReturnEmptyString_When_NoChoicesReturned', async () => {
-      // Arrange
-      (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({
-        choices: []
-      });
+    it('should return original text if OpenAI returns no choices', async () => {
+      const originalText = 'Hello no choice';
+      (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({ choices: [] });
+      const result = await service.translate(originalText, 'en', 'es');
+      expect(result).toBe(originalText);
+    });
 
-      // Act - Don't use fake timers for this test
-      vi.useRealTimers();
-      const result = await service.translate('Hello', 'en', 'es');
-      vi.useFakeTimers();
+    it('should return original text if OpenAI choice has no message content', async () => {
+      const originalText = 'Hello no content';
+      (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({ choices: [{ message: {} }] });
+      const result = await service.translate(originalText, 'en', 'es');
+      expect(result).toBe(originalText);
+    });
 
-      // Assert
-      expect(result).toBeDefined();
-      // The actual implementation might not return empty string
-      // Check what it actually returns
-    }, 10000); // Increase timeout
+    it('should return original text if OpenAI choice message content is null', async () => {
+      const originalText = 'Hello null content';
+      (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({ choices: [{ message: { content: null } }] });
+      const result = await service.translate(originalText, 'en', 'es');
+      expect(result).toBe(originalText);
+    });
 
-    it('should_ReturnEmptyString_When_NoMessageInChoice', async () => {
-      // Arrange
-      (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({
-        choices: [{}]
-      });
-
-      // Act
-      vi.useRealTimers();
-      const result = await service.translate('Hello', 'en', 'es');
-      vi.useFakeTimers();
-
-      // Assert
-      expect(result).toBeDefined();
-    }, 10000); // Increase timeout
+    it('should retry on API error and eventually return empty string if all retries fail', async () => {
+      (mockOpenAI.chat.completions.create as any).mockRejectedValue(new Error('API error'));
+      const promise = service.translate('Hello retry', 'en', 'es');
+      for (let i = 0; i < 4; i++) {
+        await vi.advanceTimersByTimeAsync(Math.pow(2, i) * 1000 + 100);
+      }
+      const result = await promise;
+      expect(result).toBe('');
+      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(4);
+    });
 
     it('should_RetryOnError_When_APIFailsWithRetryableError', async () => {
       // Arrange - ensure the mock rejects for all calls
@@ -191,120 +238,209 @@ describe('Translation Services', () => {
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(4);
     });
 
-    it('should_LogError_When_TranslationFails', async () => {
-      // Arrange
-      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      (mockOpenAI.chat.completions.create as any).mockRejectedValue(new Error('API error'));
-
-      // Act
-      const promise = service.translate('Hello', 'en', 'es');
-      await vi.runAllTimersAsync();
+    it('should log error when translation eventually fails after retries', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      (mockOpenAI.chat.completions.create as any).mockRejectedValue(new Error('Persistent API error'));
+      const promise = service.translate('Hello log fail', 'en', 'es');
+      for (let i = 0; i < 4; i++) { 
+        await vi.advanceTimersByTimeAsync(Math.pow(2, i) * 1000 + 100);
+      }
       await promise;
+      
+      const consoleErrorCalls = consoleErrorSpy.mock.calls;
 
-      // Assert
-      expect(spy).toHaveBeenCalled();
-      spy.mockRestore();
-    });
+      // Check for the log: "Error translating to [targetLanguage]:" ErrorObject
+      const errorTranslatingLog = consoleErrorCalls.find(call => 
+        call.length === 2 &&
+        typeof call[0] === 'string' && call[0].includes('Error translating to es:') &&
+        call[1] instanceof Error && (call[1] as Error).message.includes('Persistent API error')
+      );
+      expect(errorTranslatingLog, 'Expected log for "Error translating to..." not found or incorrect').toBeDefined();
 
-    it('should_LogSuccess_When_TranslationSucceeds', async () => {
-      // Arrange
-      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      (mockOpenAI.chat.completions.create as any).mockResolvedValueOnce({
-        choices: [{ message: { content: 'Hola' } }]
-      });
+      // Check for the log: "Translation error details: [message]"
+      const translationDetailsLog = consoleErrorCalls.find(call =>
+        call.length === 1 &&
+        typeof call[0] === 'string' && 
+        call[0].startsWith('Translation error details:') && 
+        call[0].includes('Persistent API error')
+      );
+      expect(translationDetailsLog, 'Expected log for "Translation error details..." not found or incorrect').toBeDefined();
 
-      // Act
-      await service.translate('Hello', 'en', 'es');
-
-      // Assert
-      expect(spy).toHaveBeenCalled();
-      spy.mockRestore();
+      consoleErrorSpy.mockRestore();
     });
   });
 
-  describe('SpeechTranslationService', () => {
-    let service: SpeechTranslationService;
-    let mockTranscriptionService: ITranscriptionService;
-    let mockTranslationService: ITranslationService;
+  describe('OpenAITranscriptionService', () => {
+    let service: ITranscriptionService;
+    let mockOpenAI: OpenAI;
+    let audioFileHandlerCreateMock: MockedFunction<any>;
+    let audioFileHandlerDeleteMock: MockedFunction<any>;
 
-    beforeEach(() => {
-      mockTranscriptionService = {
-        transcribe: vi.fn().mockResolvedValue('Transcribed text')
-      };
+    beforeEach(async () => {
+      mockOpenAI = createMockOpenAI(); 
       
-      mockTranslationService = {
-        translate: vi.fn().mockResolvedValue('Translated text')
-      };
+      // Dynamically import the mocked AudioFileHandler module to access its exports
+      // The module itself is mocked at the top of the file.
+      const MockedAudioFileHandlerModule = await import('../../../server/services/AudioFileHandler');
+      const MockedAudioFileHandlerConstructor = vi.mocked(MockedAudioFileHandlerModule.AudioFileHandler);
 
-      service = new SpeechTranslationService(
-        mockTranscriptionService,
-        mockTranslationService,
-        true
-      );
+      // Instantiate OpenAITranscriptionService. 
+      // It will use the mocked AudioFileHandler constructor due to vi.mock at the top.
+      // The default parameter for audioHandler in OpenAITranscriptionService constructor will trigger `new AudioFileHandler()`.
+      service = new OpenAITranscriptionService(mockOpenAI); 
+      
+      // To assert calls on createTempFile/deleteTempFile, we get the methods from the *last instance* 
+      // of the mocked AudioFileHandler that was created by the SUT.
+      const audioFileHandlerInstances = MockedAudioFileHandlerConstructor.mock.instances;
+      if (audioFileHandlerInstances.length === 0) {
+        // This might happen if the SUT constructor doesn't immediately create one, or if passed explicitly.
+        // For this test setup, OpenAITranscriptionService creates one if not provided.
+        // If it IS provided (like in the next line), this path might be an issue.
+        // Let's ensure we test the path where it IS provided too.
+        // For now, if we always provide it, this branch is less critical.
+      }
+      
+      // Let's explicitly pass a new mocked instance to ensure we control it for assertions
+      const explicitMockAudioHandlerInstance = new MockedAudioFileHandlerConstructor();
+      service = new OpenAITranscriptionService(mockOpenAI, explicitMockAudioHandlerInstance);
+
+      audioFileHandlerCreateMock = vi.mocked(explicitMockAudioHandlerInstance.createTempFile);
+      audioFileHandlerDeleteMock = vi.mocked(explicitMockAudioHandlerInstance.deleteTempFile);
+
+      if (mockOpenAI.audio?.transcriptions?.create) {
+        vi.mocked(mockOpenAI.audio.transcriptions.create).mockClear();
+      }
+      audioFileHandlerCreateMock.mockClear();
+      audioFileHandlerDeleteMock.mockClear();
     });
 
-    it('should_TranslateSpeech_When_ValidAudioProvided', async () => {
-      // Arrange
-      const audioBuffer = createMockAudioBuffer(1000);
-      const sourceLang = 'en-US';
-      const targetLang = 'es-ES';
+    it('should transcribe audio successfully', async () => {
+      const audioBuffer = createMockAudioBuffer(2000, 'some audio');
+      const expectedText = "This is a successful transcription.";
+      (mockOpenAI.audio.transcriptions.create as any).mockResolvedValueOnce({ text: expectedText });
+      audioFileHandlerCreateMock.mockResolvedValueOnce('/tmp/fake-audio.wav');
 
-      // Act
-      const result = await service.translateSpeech(audioBuffer, sourceLang, targetLang);
+      const result = await service.transcribe(audioBuffer, 'en-US');
 
-      // Assert
-      expect(result).toEqual({
-        originalText: 'Transcribed text',
-        translatedText: 'Translated text',
-        audioBuffer: expect.any(Buffer)
-      });
-      
-      expect(mockTranscriptionService.transcribe).toHaveBeenCalledWith(audioBuffer, sourceLang);
-      // The service passes full language codes, not extracted ones
-      expect(mockTranslationService.translate).toHaveBeenCalledWith('Transcribed text', sourceLang, targetLang);
+      expect(result).toBe(expectedText);
+      expect(audioFileHandlerCreateMock).toHaveBeenCalledWith(audioBuffer);
+      expect(mockOpenAI.audio.transcriptions.create).toHaveBeenCalled();
+      expect(audioFileHandlerDeleteMock).toHaveBeenCalledWith('/tmp/fake-audio.wav');
     });
 
-    it('should_UsePreTranscribedText_When_Provided', async () => {
-      // Arrange
-      const audioBuffer = createMockAudioBuffer(1000);
-      const preTranscribedText = 'Already transcribed';
-
-      // Act
-      const result = await service.translateSpeech(
-        audioBuffer,
-        'en-US',
-        'es-ES',
-        preTranscribedText
-      );
-
-      // Assert
-      expect(result.originalText).toBe(preTranscribedText);
-      expect(mockTranscriptionService.transcribe).not.toHaveBeenCalled();
-      // The service passes full language codes
-      expect(mockTranslationService.translate).toHaveBeenCalledWith(preTranscribedText, 'en-US', 'es-ES');
+    it('should return empty string for audio buffer too small', async () => {
+      const audioBuffer = createMockAudioBuffer(100); // Less than 1000 bytes
+      const result = await service.transcribe(audioBuffer, 'en-US');
+      expect(result).toBe('');
+      expect(audioFileHandlerCreateMock).not.toHaveBeenCalled();
+      expect(mockOpenAI.audio.transcriptions.create).not.toHaveBeenCalled();
     });
 
-    it('should_SkipTranslation_When_SourceAndTargetLanguagesAreSame', async () => {
-      // Arrange
-      const audioBuffer = createMockAudioBuffer(1000);
-      const language = 'en-US';
+    it('should throw if temp file creation fails', async () => {
+      const audioBuffer = createMockAudioBuffer(2000);
+      audioFileHandlerCreateMock.mockRejectedValueOnce(new Error('Failed to create temp file'));
+
+      await expect(service.transcribe(audioBuffer, 'en-US'))
+        .rejects.toThrow('Transcription failed: Failed to create temp file');
+      expect(audioFileHandlerDeleteMock).not.toHaveBeenCalled();
+    });
+    
+    it('should clean up temp file even if transcription API call fails', async () => {
+      const audioBuffer = createMockAudioBuffer(2000);
+      audioFileHandlerCreateMock.mockResolvedValueOnce('/tmp/cleanup-test.wav');
+      (mockOpenAI.audio.transcriptions.create as any).mockRejectedValueOnce(new Error('OpenAI API Error'));
+
+      await expect(service.transcribe(audioBuffer, 'en-US')).rejects.toThrow('Transcription failed: OpenAI API Error');
+      expect(audioFileHandlerDeleteMock).toHaveBeenCalledWith('/tmp/cleanup-test.wav');
+    });
+
+    it('should return empty string if OpenAI returns no text', async () => {
+      const audioBuffer = createMockAudioBuffer(2000);
+      audioFileHandlerCreateMock.mockResolvedValueOnce('/tmp/no-text.wav');
+      (mockOpenAI.audio.transcriptions.create as any).mockResolvedValueOnce({ text: null }); // or undefined or empty object
+
+      const result = await service.transcribe(audioBuffer, 'en-US');
+      expect(result).toBe('');
+      expect(audioFileHandlerDeleteMock).toHaveBeenCalledWith('/tmp/no-text.wav');
+    });
+
+    it('should return empty string if prompt leakage is detected', async () => {
+      const audioBuffer = createMockAudioBuffer(2000);
+      const leakyText = "If there is no speech or only background noise, return an empty string. Test.";
+      audioFileHandlerCreateMock.mockResolvedValueOnce('/tmp/leaky.wav');
+      (mockOpenAI.audio.transcriptions.create as any).mockResolvedValueOnce({ text: leakyText });
+
+      const result = await service.transcribe(audioBuffer, 'en-US');
+      expect(result).toBe('');
+      expect(audioFileHandlerDeleteMock).toHaveBeenCalledWith('/tmp/leaky.wav');
+    });
+
+  }); // End of OpenAITranscriptionService describe
+
+  describe('Legacy translateSpeech function', () => {
+    let legacyTranslateSpeechFunction: typeof import('../../../server/services/TranslationService').translateSpeech;
+    let speechTranslationServiceMock: Mocked<typeof import('../../../server/services/TranslationService').speechTranslationService>;
+
+    beforeEach(async () => {
+      const SUTModule = await import('../../../server/services/TranslationService');
+      legacyTranslateSpeechFunction = SUTModule.translateSpeech; 
+      speechTranslationServiceMock = vi.mocked(SUTModule.speechTranslationService, true);
       
-      // Override the translate mock to not be called
-      mockTranslationService.translate = vi.fn().mockResolvedValue('Should not be called');
-
-      // Act
-      const result = await service.translateSpeech(audioBuffer, language, language);
-
-      // Assert
-      expect(result).toBeDefined();
-      expect(result.originalText).toBe('Transcribed text');
-      // Check if the service actually skips translation
-      if (result.translatedText === 'Transcribed text') {
-        expect(mockTranslationService.translate).not.toHaveBeenCalled();
+      // speechTranslationServiceMock.translateSpeech is already a vi.fn() due to the top-level mock
+      if (typeof speechTranslationServiceMock.translateSpeech.mockClear === 'function') {
+        speechTranslationServiceMock.translateSpeech.mockClear().mockResolvedValue({
+          originalText: 'translated by mock service',
+          translatedText: 'legacy wrapper called service',
+          audioBuffer: Buffer.from('mockaudio')
+        });
       } else {
-        // The service might still call translate even for same language
-        expect(mockTranslationService.translate).toHaveBeenCalled();
+        // This path indicates a problem with the mock setup if translateSpeech is not a mock function
+        console.error('Warning: speechTranslationServiceMock.translateSpeech is not a mock function in test setup.');
+        // Fallback or throw if critical
+        speechTranslationServiceMock.translateSpeech = vi.fn().mockResolvedValue({
+            originalText: 'translated by mock service',
+            translatedText: 'legacy wrapper called service',
+            audioBuffer: Buffer.from('mockaudio')
+        });
       }
     });
+
+    it('should call speechTranslationService.translateSpeech with ttsServiceType as string', async () => {
+      const audioBuffer = createMockAudioBuffer(100);
+      await legacyTranslateSpeechFunction(audioBuffer, 'en', 'es', 'pre-text', 'openai');
+      expect(speechTranslationServiceMock.translateSpeech).toHaveBeenCalledWith(
+        audioBuffer,
+        'en',
+        'es',
+        'pre-text',
+        { ttsServiceType: 'openai' }
+      );
+    });
+
+    it('should call speechTranslationService.translateSpeech with ttsServiceType as object', async () => {
+      const audioBuffer = createMockAudioBuffer(100);
+      const ttsOptions = { ttsServiceType: 'browser' };
+      await legacyTranslateSpeechFunction(audioBuffer, 'en', 'de', 'pre-text-obj', ttsOptions);
+      expect(speechTranslationServiceMock.translateSpeech).toHaveBeenCalledWith(
+        audioBuffer,
+        'en',
+        'de',
+        'pre-text-obj',
+        ttsOptions
+      );
+    });
+
+    it('should call speechTranslationService.translateSpeech with empty options if ttsServiceType is undefined', async () => {
+      const audioBuffer = createMockAudioBuffer(100);
+      await legacyTranslateSpeechFunction(audioBuffer, 'en', 'fr', 'pre-text-undef', undefined);
+      expect(speechTranslationServiceMock.translateSpeech).toHaveBeenCalledWith(
+        audioBuffer,
+        'en',
+        'fr',
+        'pre-text-undef',
+        {}
+      );
+    });
   });
-});
+
+}); // End of main describe

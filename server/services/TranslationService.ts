@@ -293,8 +293,15 @@ export class OpenAITranslationService implements ITranslationService {
         max_tokens: 500
       });
       
-      const translatedText = translation.choices[0].message.content?.trim() || text;
-      return translatedText;
+      const translatedText = translation.choices[0]?.message?.content?.trim();
+
+      if (translatedText) {
+        return translatedText;
+      } else {
+        console.warn(`OpenAI returned no translated content for: "${text}". Returning original.`);
+        return text; // Return original text if OpenAI gives no content, without retrying this specific case.
+      }
+
     } catch (error) {
       const errorResponse = this.handleTranslationError(error, text, retryCount);
       

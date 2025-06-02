@@ -1,3 +1,11 @@
+// TODO: [Technical Debt - Feature/Refactor]
+// Consolidate language dropdown list from a single source of truth instead of being hardcoded in HTML.
+// This applies to both teacher.html and student.html.
+
+// TODO: [Technical Debt - Feature]
+// Implement/fix the "Connected Students: <span id="studentCount">0</span>" display logic.
+// This involves WebSocket messages from the server to update the count and potentially list.
+
 (function() {
     const appState = {
         ws: null,
