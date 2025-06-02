@@ -62,19 +62,25 @@ describe('server/index.ts (entry point)', () => {
     const fakeError = new Error('Failed to start');
     
     // Mock the server module to make startServer reject
-    startServerMock = vi.fn().mockRejectedValue(fakeError);
+    startServerMock.mockRejectedValue(fakeError);
     
     vi.doMock('../../server/server', () => ({
       startServer: startServerMock
     }));
     
-    // Import dynamically after mocking
+    // Mock import.meta.url to simulate running the file directly
+    const originalArgv = process.argv;
+    process.argv = ['/path/to/node', '/Users/yamijala/gitprojects/AIVoiceTranslator/server/index.ts'];
+    
     try {
+      // Import dynamically after mocking
       await import('../../server/index.ts?t=' + Date.now());
       // Give time for the promise to reject and be caught
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
     } catch (error) {
       // Expected - process.exit throws in our mock
+    } finally {
+      process.argv = originalArgv;
     }
     
     expect(startServerMock).toHaveBeenCalledTimes(1);

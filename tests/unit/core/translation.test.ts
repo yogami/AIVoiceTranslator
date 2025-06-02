@@ -73,19 +73,26 @@ describe('Translation Services - Real Implementations', () => {
       
       expect(result).toBe('Hola');
       expect(mockOpenAI.chat.completions.create).toHaveBeenCalledWith({
-        model: 'gpt-3.5-turbo',
-        messages: expect.arrayContaining([
-          expect.objectContaining({
+        model: 'gpt-4o',
+        messages: [
+          {
             role: 'system',
-            content: expect.stringContaining('translator')
-          }),
-          expect.objectContaining({
+            content: 'You are a professional translator with expertise in multiple languages.'
+          },
+          {
             role: 'user',
-            content: 'Hello'
-          })
-        ]),
-        temperature: 0.3,
-        max_tokens: 1000
+            content: `
+         Translate this text from en to es. 
+         Maintain the same tone and style. Return only the translation without explanations or notes.
+         
+         Original text: "Hello"
+         
+         Translation:
+       `
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 500
       });
     });
 

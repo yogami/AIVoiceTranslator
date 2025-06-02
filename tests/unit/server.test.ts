@@ -56,10 +56,7 @@ describe('Server Unit Tests', () => {
     });
 
     it('should create a WebSocketServer instance', async () => {
-      // Reset the mock before test
-      MockWebSocketServer.mockClear();
-      
-      // Create a mock instance
+      // Reset the mock before test  
       const mockInstance = { close: vi.fn() };
       MockWebSocketServer.mockImplementation(() => mockInstance);
       
@@ -89,7 +86,7 @@ describe('Server Unit Tests', () => {
       
       server = await startServer();
       
-      expect(consoleSpy).toHaveBeenCalledWith('OpenAI API key status: Present');
+      expect(consoleSpy).toHaveBeenCalledWith('OpenAI API key found and client configured.');
       
       consoleSpy.mockRestore();
     });
