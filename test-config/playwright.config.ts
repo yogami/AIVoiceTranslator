@@ -1,7 +1,16 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// TODO: [Technical Debt - E2E Test Infrastructure]
+// Resolve webServer startup issues to enable automated E2E tests for CI/CD.
+// This involves:
+// 1. Ensuring `command: 'npm run dev'` (with correct `cwd`) reliably starts the server.
+// 2. Ensuring Playwright's `url` polling correctly detects server readiness.
+// 3. Debugging any errors (e.g., timeouts, "Cannot navigate to invalid URL" when webServer is active).
+// 4. Once webServer works, re-evaluate using `baseURL` with relative paths in `page.goto()` vs. full URLs.
+// Current workaround: Manual server start and full URLs in page.goto(). The webServer block below is configured but commented out.
+
 /**
- * Simplified Playwright Configuration for manual server startup.
+ * Playwright Configuration - Currently set up for manual server startup.
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
@@ -19,7 +28,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://127.0.0.1:5000', // Ensure this matches your manually started server
+    baseURL: 'http://127.0.0.1:5000', // BaseURL is set, but using full URLs in goto() for reliability
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -44,15 +53,14 @@ export default defineConfig({
     // },
   ],
 
-  // Re-enable webServer block for automated server startup
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://127.0.0.1:5000', // URL for Playwright to poll until server is ready
-    reuseExistingServer: !process.env.CI, // Reuse server locally, fresh start in CI
-    timeout: 120 * 1000, // 2 minutes for server to start
-    cwd: '../', // Project root relative to this config file
-    stdout: 'pipe', // Capture server stdout
-    stderr: 'pipe', // Capture server stderr
-    // consider adding `ignoreHTTPSErrors: true` if using HTTPS with self-signed cert locally, though not applicable here.
-  },
+  // webServer block is commented out to support manual server startup for now.
+  // webServer: {
+  //   command: 'npm run dev',
+  //   url: 'http://127.0.0.1:5000',
+  //   reuseExistingServer: !process.env.CI, 
+  //   timeout: 120 * 1000, 
+  //   cwd: '../', 
+  //   stdout: 'pipe', 
+  //   stderr: 'pipe',
+  // },
 });

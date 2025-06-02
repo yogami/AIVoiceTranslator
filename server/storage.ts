@@ -152,11 +152,15 @@ export class MemStorage implements IStorage {
   // Translation methods
   async addTranslation(insertTranslation: InsertTranslation): Promise<Translation> {
     const id = this.translationId++;
-    const timestamp = new Date();
+    // Use provided timestamp if it's a Date, otherwise default to new Date()
+    const finalTimestamp = (insertTranslation.timestamp && insertTranslation.timestamp instanceof Date) 
+                           ? insertTranslation.timestamp 
+                           : new Date();
+    
     const translation: Translation = { 
       ...insertTranslation, 
       id, 
-      timestamp,
+      timestamp: finalTimestamp, // Use the determined timestamp
       latency: insertTranslation.latency ?? null
     };
     this.translations.set(id, translation);
@@ -254,23 +258,19 @@ export class MemStorage implements IStorage {
     averageLatency: number;
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }> {
-    // TODO: Implement full analytics calculation for MemStorage. 
-    // Current implementation is a placeholder and uses mock data.
-    // In a real implementation, you'd need to properly correlate translations to sessions.
-    // This might involve storing sessionId on translations or linking through transcripts if applicable.
+    // TODO: [Technical Debt - Feature Implementation]
+    // Implement full analytics calculation for MemStorage. 
+    // Current implementation is a placeholder and uses mock/zeroed data.
+    // This would involve aggregating data from stored translations and possibly transcripts
+    // related to the given sessionId.
 
-    // Get transcripts for this session (as a proxy for activity)
     const sessionTranscripts = Array.from(this.transcripts.values())
       .filter(t => t.sessionId === sessionId);
     
     return {
-      totalTranslations: 0, // Placeholder - sessionTranscripts.length was a proxy
-      averageLatency: 0, // Placeholder - 1500 was mock
-      languagePairs: [] // Placeholder - example was mock
-      // Example of what might be calculated if data was available:
-      // languagePairs: [
-      //   { sourceLanguage: 'en-US', targetLanguage: 'es', count: sessionTranscripts.length }
-      // ]
+      totalTranslations: 0, 
+      averageLatency: 0, 
+      languagePairs: [] 
     };
   }
 }

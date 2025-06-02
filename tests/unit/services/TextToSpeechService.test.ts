@@ -193,3 +193,27 @@ describe('Text-to-Speech Services', () => {
     });
   });
 });
+
+// TODO: [Technical Debt - Test Coverage - OpenAITextToSpeechService]
+// Comprehensive unit tests for OpenAITextToSpeechService are needed.
+// This service was challenging to mock fs.promises for its caching logic effectively with current tools.
+// Key areas to test when revisited:
+// 1. Caching Logic:
+//    - Cache miss: Verifying OpenAI API call and fs.promises.writeFile to cache.
+//    - Cache hit: Verifying fs.promises.readFile is used and OpenAI API is NOT called.
+//    - Cache expiration: Verifying fs.promises.stat leads to cache invalidation and new API call.
+//    - Error handling during cache file operations.
+// 2. Emotion Preservation & Voice Selection:
+//    - How `detectEmotions`, `selectVoice`, `adjustSpeechParams`, `formatInputForEmotion` affect
+//      the parameters (input, voice, speed) passed to the mocked `openai.audio.speech.create`.
+//    - Test different text inputs to trigger various emotion paths.
+// 3. OpenAI API Interaction:
+//    - Correct parameters (model, response_format) passed to `openai.audio.speech.create`.
+//    - Handling of errors from the `openai.audio.speech.create` call.
+// 4. `ensureCacheDirectoryExists` logic:
+//    - Verify `fs.promises.mkdir` is called when `fs.promises.access` indicates directories don't exist.
+
+// TODO: [Technical Debt - Test Refinement - BrowserSpeechSynthesisService]
+// While basic tests exist, consider adding more specific checks for all properties 
+// in the JSON marker returned by BrowserSpeechSynthesisService, especially default values 
+// for optional parameters in TextToSpeechOptions if those are important to verify.

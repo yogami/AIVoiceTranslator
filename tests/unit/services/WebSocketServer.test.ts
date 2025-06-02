@@ -1,3 +1,16 @@
+// TODO: [Technical Debt - Test Cleanup & Coverage]
+// This test file needs a full review and refactoring/rewrite.
+// - Ensure robust and maintainable mocking for the 'ws' library (WebSocket and WebSocketServer classes).
+// - Systematically test all public-facing behaviors of AppWebSocketServer:
+//   - Connection handling (new connections, disconnections, errors).
+//   - Client registration (teacher, student, different languages, classroom code validation).
+//   - All message types handled in `handleMessage` (transcription, tts_request, settings, ping, error responses).
+//   - Classroom session management (code generation, expiration, cleanup).
+//   - Heartbeat mechanism and termination of dead connections.
+//   - State management within the server (roles, languages, sessions, client settings).
+//   - Interactions with dependency services (e.g., speechTranslationService - ensure it's mocked and calls are verified).
+// Aim for high code coverage with clear, focused, and reliable unit tests.
+
 /**
  * WebSocketServer Unit Tests
  * 

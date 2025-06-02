@@ -1,57 +1,17 @@
 /**
  * Storage Tests (Consolidated)
  * 
- * A comprehensive test suite for both MemStorage and DatabaseStorage implementations.
+ * A comprehensive test suite for the MemStorage implementation.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { IStorage, MemStorage, DatabaseStorage } from '../../server/storage';
-import { languages, users, translations, transcripts } from '../../shared/schema';
-import { db } from '../../server/db';
-import { eq } from 'drizzle-orm';
-
-// Mock the database
-vi.mock('../../server/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          orderBy: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve([]))
-          }))
-        }))
-      }))
-    })),
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({
-        returning: vi.fn(() => Promise.resolve([]))
-      }))
-    })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([]))
-        }))
-      }))
-    })),
-    transaction: vi.fn((callback) => callback({
-      select: vi.fn(() => ({
-        from: vi.fn(() => ({
-          where: vi.fn(() => Promise.resolve([]))
-        }))
-      })),
-      insert: vi.fn(() => ({
-        values: vi.fn(() => ({
-          returning: vi.fn(() => Promise.resolve([]))
-        }))
-      })),
-      update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn(() => Promise.resolve([]))
-        }))
-      }))
-    }))
-  }
-}));
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { IStorage, MemStorage } from '../../server/storage';
+import { 
+  type User, type InsertUser,
+  type Language, type InsertLanguage,
+  type Translation, type InsertTranslation,
+  type Transcript, type InsertTranscript,
+  type Session, type InsertSession
+} from '../../shared/schema';
 
 describe('Storage Services', () => {
   describe('MemStorage', () => {
@@ -61,7 +21,7 @@ describe('Storage Services', () => {
       storage = new MemStorage();
     });
 
-    it('should_InitializeWithDefaultLanguages_When_Created', async () => {
+    it('should initialize with default languages', async () => {
       // Act
       const result = await storage.getLanguages();
       
@@ -79,7 +39,7 @@ describe('Storage Services', () => {
       if (spanish) expect(spanish.name).toBe('Spanish');
     });
 
-    it('should_CreateAndRetrieveUser_When_ValidUserProvided', async () => {
+    it('should create and retrieve a user', async () => {
       // Arrange
       const testUser = {
         username: 'testuser',
@@ -95,12 +55,10 @@ describe('Storage Services', () => {
       expect(createdUser.id).toBeDefined();
       expect(createdUser.username).toBe(testUser.username);
       
-      expect(retrievedUser).toBeDefined();
-      expect(retrievedUser?.id).toBe(createdUser.id);
-      expect(retrievedUser?.username).toBe(testUser.username);
+      expect(retrievedUser).toEqual(createdUser);
     });
 
-    it('should_UpdateLanguageStatus_When_ValidCodeProvided', async () => {
+    it('should update language status', async () => {
       // Arrange - Get a language to update
       const initialLanguages = await storage.getLanguages();
       const testCode = initialLanguages[0].code;
@@ -118,7 +76,7 @@ describe('Storage Services', () => {
       expect(foundInActive).toBe(false);
     });
 
-    it('should_StoreAndRetrieveTranslations_When_ValidTranslationProvided', async () => {
+    it('should store and retrieve translations', async () => {
       // Arrange
       const testTranslation = {
         sourceLanguage: 'en-US',
@@ -143,7 +101,7 @@ describe('Storage Services', () => {
       expect(found?.translatedText).toBe('Hola mundo');
     });
 
-    it('should_StoreAndRetrieveTranscriptsBySession_When_ValidTranscriptProvided', async () => {
+    it('should store and retrieve transcripts by session', async () => {
       // Arrange
       const sessionId = 'test-session-1';
       const language = 'en-US';
@@ -163,201 +121,123 @@ describe('Storage Services', () => {
       expect(retrievedTranscripts.length).toBe(1);
       expect(retrievedTranscripts[0].text).toBe('This is a test transcript');
     });
-  });
 
-  describe.skip('DatabaseStorage', () => {
-    let storage: IStorage;
-    let dbMock: any;
+    it('should create and retrieve a language by code', async () => {
+      const newLang: InsertLanguage = { code: 'fr-FR', name: 'French (France)', isActive: true };
+      const createdLang = await storage.createLanguage(newLang);
+      expect(createdLang).toBeDefined();
+      expect(createdLang.id).toBeDefined();
+      expect(createdLang.code).toBe(newLang.code);
+      expect(createdLang.name).toBe(newLang.name);
+      expect(createdLang.isActive).toBe(true); // Default or specified
 
-    beforeEach(() => {
-      storage = new DatabaseStorage();
-      dbMock = db;
-      vi.clearAllMocks();
-      
-      // Setup common mocked responses
-      (dbMock.select as any).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
-        })
-      });
-      
-      (dbMock.insert as any).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{ id: 1, isActive: true }])
-        })
-      });
-      
-      (dbMock.update as any).mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([])
-        })
-      });
+      const retrievedLang = await storage.getLanguageByCode('fr-FR');
+      expect(retrievedLang).toEqual(createdLang);
     });
 
-    afterEach(() => {
-      vi.resetAllMocks();
+    it('should return undefined for a non-existent language code', async () => {
+      const retrievedLang = await storage.getLanguageByCode('xx-XX');
+      expect(retrievedLang).toBeUndefined();
     });
 
-    it('should_GetUserById_When_ValidIdProvided', async () => {
-      // Arrange
-      const mockUser = { id: 1, username: 'testuser', password: 'hashedpwd' };
-      (dbMock.select as any).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([mockUser])
-        })
-      });
-      
-      // Act
-      const result = await storage.getUser(1);
-      
-      // Assert
-      expect(result).toEqual(mockUser);
-      expect(dbMock.select).toHaveBeenCalled();
-      expect(dbMock.select().from).toHaveBeenCalledWith(users);
+    it('should retrieve a user by ID', async () => {
+      const newUser: InsertUser = { username: 'userByIdTest', password: 'password' };
+      const createdUser = await storage.createUser(newUser);
+      expect(createdUser.id).toBeDefined();
+
+      const retrievedUser = await storage.getUser(createdUser.id);
+      expect(retrievedUser).toEqual(createdUser);
     });
 
-    it('should_GetUserByUsername_When_ValidUsernameProvided', async () => {
-      // Arrange
-      const mockUser = { id: 1, username: 'testuser', password: 'hashedpwd' };
-      (dbMock.select as any).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue([mockUser])
-        })
-      });
-      
-      // Act
-      const result = await storage.getUserByUsername('testuser');
-      
-      // Assert
-      expect(result).toEqual(mockUser);
-      expect(dbMock.select).toHaveBeenCalled();
-      expect(dbMock.select().from).toHaveBeenCalledWith(users);
+    it('should return undefined for a non-existent user ID', async () => {
+      const retrievedUser = await storage.getUser(99999);
+      expect(retrievedUser).toBeUndefined();
     });
 
-    it('should_CreateUser_When_ValidUserDataProvided', async () => {
-      // Arrange
-      const newUser = { username: 'newuser', password: 'newpwd' };
-      const mockCreatedUser = { id: 1, ...newUser };
-      
-      (dbMock.insert as any).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([mockCreatedUser])
-        })
-      });
-      
-      // Act
-      const result = await storage.createUser(newUser);
-      
-      // Assert
-      expect(result).toEqual(mockCreatedUser);
-      expect(dbMock.insert).toHaveBeenCalled();
-      expect(dbMock.insert().values).toHaveBeenCalledWith(newUser);
+    // Session method tests
+    it('should create a new session', async () => {
+      const newSessionData: InsertSession = { sessionId: 'session123', teacherLanguage: 'en-US' };
+      const session = await storage.createSession(newSessionData);
+      expect(session).toBeDefined();
+      expect(session.id).toBeDefined();
+      expect(session.sessionId).toBe('session123');
+      expect(session.isActive).toBe(true);
+      expect(session.startTime).toBeInstanceOf(Date);
+      expect(session.endTime).toBeNull();
     });
 
-    it('should_GetAllLanguages_When_Requested', async () => {
-      // Arrange
-      const mockLanguages = [
-        { id: 1, code: 'en-US', name: 'English', isActive: true },
-        { id: 2, code: 'es-ES', name: 'Spanish', isActive: false }
-      ];
-      
-      (dbMock.select as any).mockReturnValue({
-        from: vi.fn().mockResolvedValue(mockLanguages)
-      });
-      
-      // Act
-      const result = await storage.getLanguages();
-      
-      // Assert
-      expect(result).toEqual(mockLanguages);
-      expect(dbMock.select).toHaveBeenCalled();
-      expect(dbMock.select().from).toHaveBeenCalledWith(languages);
+    it('should retrieve an active session', async () => {
+      const newSessionData: InsertSession = { sessionId: 'session-active', teacherLanguage: 'fr-FR' };
+      await storage.createSession(newSessionData);
+      const activeSession = await storage.getActiveSession('session-active');
+      expect(activeSession).toBeDefined();
+      expect(activeSession?.sessionId).toBe('session-active');
+      expect(activeSession?.isActive).toBe(true);
     });
 
-    it('should_GetActiveLanguagesOnly_When_Requested', async () => {
-      // Arrange
-      const mockLanguages = [
-        { id: 1, code: 'en-US', name: 'English', isActive: true }
-      ];
-      
-      (dbMock.select as any).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(mockLanguages)
-        })
-      });
-      
-      // Act
-      const result = await storage.getActiveLanguages();
-      
-      // Assert
-      expect(result).toEqual(mockLanguages);
-      expect(dbMock.select).toHaveBeenCalled();
-      expect(dbMock.select().from).toHaveBeenCalledWith(languages);
+    it('should update an existing session', async () => {
+      const newSessionData: InsertSession = { sessionId: 'session-update', studentsCount: 1 };
+      const createdSession = await storage.createSession(newSessionData);
+      const updates: Partial<InsertSession> = { studentsCount: 5, averageLatency: 120 };
+      const updatedSession = await storage.updateSession('session-update', updates);
+      expect(updatedSession).toBeDefined();
+      expect(updatedSession?.studentsCount).toBe(5);
+      expect(updatedSession?.averageLatency).toBe(120);
+      expect(updatedSession?.id).toBe(createdSession.id);
     });
 
-    it('should_AddAndRetrieveTranslations_When_ValidTranslationProvided', async () => {
-      // Arrange
-      const mockTranslation = {
-        id: 1,
-        sourceLanguage: 'en-US',
-        targetLanguage: 'es-ES',
-        originalText: 'Hello',
-        translatedText: 'Hola',
-        latency: 100,
-        createdAt: new Date()
-      };
-      
-      (dbMock.insert as any).mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([mockTranslation])
-        })
-      });
-      
-      (dbMock.select as any).mockReturnValue({
-        from: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            orderBy: vi.fn().mockReturnValue({
-              limit: vi.fn().mockResolvedValue([mockTranslation])
-            })
-          })
-        })
-      });
-      
-      // Act
-      const newTranslation = {
-        sourceLanguage: 'en-US',
-        targetLanguage: 'es-ES',
-        originalText: 'Hello',
-        translatedText: 'Hola',
-        latency: 100
-      };
-      
-      const result = await storage.addTranslation(newTranslation);
-      const retrieved = await storage.getTranslationsByLanguage('es-ES', 10);
-      
-      // Assert
-      expect(result).toEqual(mockTranslation);
-      expect(retrieved).toContainEqual(mockTranslation);
+    it('should retrieve all active sessions', async () => {
+      await storage.createSession({ sessionId: 's1', isActive: true });
+      await storage.createSession({ sessionId: 's2', isActive: false }); // inactive
+      await storage.createSession({ sessionId: 's3', isActive: true });
+      const activeSessions = await storage.getAllActiveSessions();
+      expect(activeSessions.length).toBe(2);
+      expect(activeSessions.some(s => s.sessionId === 's1')).toBe(true);
+      expect(activeSessions.some(s => s.sessionId === 's3')).toBe(true);
     });
 
-    it('should_UpdateLanguageStatus_When_ValidCodeProvided', async () => {
-      // Arrange
-      const mockLanguage = { id: 1, code: 'en-US', name: 'English', isActive: false };
-      
-      (dbMock.update as any).mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([mockLanguage])
-          })
-        })
-      });
-      
-      // Act
-      const result = await storage.updateLanguageStatus('en-US', false);
-      
-      // Assert
-      expect(result).toEqual(mockLanguage);
-      expect(dbMock.update).toHaveBeenCalled();
+    it('should end an active session', async () => {
+      await storage.createSession({ sessionId: 'session-to-end', isActive: true });
+      const endedSession = await storage.endSession('session-to-end');
+      expect(endedSession).toBeDefined();
+      expect(endedSession?.isActive).toBe(false);
+      expect(endedSession?.endTime).toBeInstanceOf(Date);
+      const retrievedAfterEnd = await storage.getActiveSession('session-to-end');
+      expect(retrievedAfterEnd).toBeUndefined();
     });
+
+    it('should return undefined when trying to end a non-existent or inactive session', async () => {
+      const result = await storage.endSession('non-existent-session');
+      expect(result).toBeUndefined();
+    });
+
+    // Analytics method tests
+    it('should retrieve translations by date range', async () => {
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+      await storage.addTranslation({ sourceLanguage: 'en', targetLanguage: 'es', originalText: 'text1', translatedText: 'texto1', timestamp: yesterday });
+      await storage.addTranslation({ sourceLanguage: 'en', targetLanguage: 'fr', originalText: 'text2', translatedText: 'texte2', timestamp: now });
+      await storage.addTranslation({ sourceLanguage: 'en', targetLanguage: 'de', originalText: 'text3', translatedText: 'text3', timestamp: tomorrow });
+
+      const results = await storage.getTranslationsByDateRange(yesterday, now);
+      expect(results.length).toBe(2);
+      expect(results.some(t => t.originalText === 'text1')).toBe(true);
+      expect(results.some(t => t.originalText === 'text2')).toBe(true);
+    });
+
+    it('should return placeholder analytics for getSessionAnalytics', async () => {
+      // This test verifies the current placeholder implementation.
+      // It should be updated if/when getSessionAnalytics is fully implemented for MemStorage.
+      const analytics = await storage.getSessionAnalytics('any-session-id');
+      expect(analytics).toBeDefined();
+      expect(analytics.totalTranslations).toBe(0); // Based on current placeholder
+      expect(analytics.averageLatency).toBe(0);    // Based on current placeholder
+      expect(analytics.languagePairs).toEqual([]); // Based on current placeholder
+    });
+
+    // All IStorage methods for MemStorage appear to have basic test coverage now.
+    // Further tests could cover more edge cases or specific data scenarios if needed.
   });
 });
