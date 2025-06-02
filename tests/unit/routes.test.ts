@@ -4,7 +4,6 @@
  * This file consolidates tests for the API routes
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-// @ts-ignore - supertest types not available
 import request from 'supertest';
 import express from 'express';
 import type { Express } from 'express';
@@ -47,6 +46,16 @@ vi.mock('../../server/storage', () => ({
   }
 }));
 
+// Mock DiagnosticsService
+const mockGetMetrics = vi.fn();
+const mockGetExportData = vi.fn(); // For the export route
+vi.mock('../../server/services/DiagnosticsService.js', () => ({
+  DiagnosticsService: vi.fn().mockImplementation(() => ({
+    getMetrics: mockGetMetrics,
+    getExportData: mockGetExportData 
+  }))
+}));
+
 describe('API Routes', () => {
   let app: Express;
 
@@ -65,7 +74,7 @@ describe('API Routes', () => {
   });
 
   describe('GET /api/languages', () => {
-    it('should_ReturnActiveLanguages_When_Requested', async () => {
+    it('should return all languages', async () => {
       // Act
       const response = await request(app)
         .get('/api/languages')
@@ -79,7 +88,7 @@ describe('API Routes', () => {
       expect(response.body[0]).toHaveProperty('isActive');
     });
 
-    it('should_ReturnOnlyActiveLanguages_When_SomeAreInactive', async () => {
+    it('should return only active languages for /active', async () => {
       // Act
       const response = await request(app)
         .get('/api/languages/active')
@@ -93,7 +102,7 @@ describe('API Routes', () => {
   });
 
   describe('POST /api/translations', () => {
-    it('should_SaveTranslation_When_ValidDataProvided', async () => {
+    it('should save translation with valid data', async () => {
       // Arrange
       const translationData = {
         sourceLanguage: 'en-US',
@@ -117,7 +126,7 @@ describe('API Routes', () => {
       expect(response.body.translatedText).toBe(translationData.translatedText);
     });
 
-    it('should_ReturnError_When_RequiredFieldsMissing', async () => {
+    it('should return 400 if required fields are missing for translation', async () => {
       // Arrange
       const invalidData = {
         sourceLanguage: 'en-US',
@@ -136,7 +145,7 @@ describe('API Routes', () => {
   });
 
   describe('GET /api/translations/:language', () => {
-    it('should_ReturnTranslations_When_LanguageExists', async () => {
+    it('should return translations if language exists', async () => {
       // Arrange - mock some translations
       const { storage } = await import('../../server/storage');
       (storage.getTranslationsByLanguage as any).mockResolvedValueOnce([
@@ -161,7 +170,7 @@ describe('API Routes', () => {
       expect(response.body[0].targetLanguage).toBe('es-ES');
     });
 
-    it('should_ReturnEmptyArray_When_NoTranslationsExist', async () => {
+    it('should return empty array if no translations exist for language', async () => {
       // Act
       const response = await request(app)
         .get('/api/translations/zh-CN')
@@ -172,7 +181,7 @@ describe('API Routes', () => {
       expect(response.body.length).toBe(0);
     });
 
-    it('should_LimitResults_When_LimitProvided', async () => {
+    it('should limit results when limit query param is provided', async () => {
       // Arrange - mock limited results
       const { storage } = await import('../../server/storage');
       (storage.getTranslationsByLanguage as any).mockResolvedValueOnce([
@@ -195,7 +204,7 @@ describe('API Routes', () => {
   });
 
   describe('POST /api/transcripts', () => {
-    it('should_SaveTranscript_When_ValidDataProvided', async () => {
+    it('should save transcript with valid data', async () => {
       // Arrange
       const transcriptData = {
         sessionId: 'test-session-123',
@@ -218,7 +227,7 @@ describe('API Routes', () => {
   });
 
   describe('GET /api/transcripts/:sessionId/:language', () => {
-    it('should_ReturnTranscripts_When_SessionExists', async () => {
+    it('should return transcripts if session exists', async () => {
       // Arrange
       const sessionId = 'test-session-456';
       const language = 'en-US';
@@ -246,7 +255,7 @@ describe('API Routes', () => {
   });
 
   describe('PUT /api/languages/:code/status', () => {
-    it('should_UpdateLanguageStatus_When_ValidDataProvided', async () => {
+    it('should update language status with valid data', async () => {
       // Act
       const response = await request(app)
         .put('/api/languages/en-US/status')
@@ -258,7 +267,7 @@ describe('API Routes', () => {
       expect(response.body.isActive).toBe(false);
     });
 
-    it('should_ReturnError_When_LanguageNotFound', async () => {
+    it('should return 404 if language not found for status update', async () => {
       // Arrange - mock language not found
       const { storage } = await import('../../server/storage');
       (storage.updateLanguageStatus as any).mockResolvedValueOnce(null);
@@ -273,4 +282,120 @@ describe('API Routes', () => {
       expect(response.body).toHaveProperty('error');
     });
   });
+
+  describe('GET /api/health', () => {
+    it('should return health status', async () => {
+      const response = await request(app)
+        .get('/api/health')
+        .expect(200);
+      
+      expect(response.body).toHaveProperty('status', 'ok');
+      expect(response.body).toHaveProperty('timestamp');
+      expect(response.body).toHaveProperty('version');
+      // NODE_ENV in test is 'test', check if health reflects this or a default
+      expect(response.body.environment).toBe(process.env.NODE_ENV || 'development');
+    });
+  });
+
+  describe('GET /api/test', () => {
+    it('should return a test message', async () => {
+      const response = await request(app)
+        .get('/api/test')
+        .expect(200);
+      
+      expect(response.body).toHaveProperty('message', 'API is working');
+      expect(response.body).toHaveProperty('timestamp');
+    });
+  });
+
+  describe('GET /api/user', () => {
+    it('should return user data if user exists', async () => {
+      // The global storage mock is already set up to return a user for ID 1
+      const response = await request(app)
+        .get('/api/user')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('id', 1);
+      expect(response.body).toHaveProperty('username', 'testuser');
+    });
+
+    it('should return 404 if user does not exist', async () => {
+      // Need to make storage.getUser return undefined for this test case
+      const { storage } = await import('../../server/storage');
+      vi.mocked(storage.getUser).mockResolvedValueOnce(undefined);
+
+      const response = await request(app)
+        .get('/api/user')
+        .expect(404);
+      
+      expect(response.body).toHaveProperty('error', 'User not found');
+    });
+  });
+
+  describe('GET /api/join/:classCode', () => {
+    it('should redirect to student page with valid class code', async () => {
+      const classCode = 'ABC123';
+      const response = await request(app)
+        .get(`/api/join/${classCode}`)
+        .expect(302); // Expect a redirect
+      
+      expect(response.headers.location).toBe(`/student?code=${classCode}`);
+    });
+
+    it('should return 400 for invalid class code format (too short)', async () => {
+      const response = await request(app)
+        .get('/api/join/ABC')
+        .expect(400);
+      expect(response.body).toEqual({ error: "Invalid classroom code format" });
+    });
+
+    it('should return 400 for invalid class code format (invalid characters)', async () => {
+      const response = await request(app)
+        .get('/api/join/ABC!23')
+        .expect(400);
+      expect(response.body).toEqual({ error: "Invalid classroom code format" });
+    });
+  });
+
+  describe('GET /api/diagnostics', () => {
+    beforeEach(() => {
+      // Reset mocks for each test
+      mockGetMetrics.mockReset();
+      mockGetExportData.mockReset();
+    });
+
+    it('should return diagnostics data from DiagnosticsService for /diagnostics', async () => {
+      const mockMetricsData = { system: 'all green', connections: 10 };
+      mockGetMetrics.mockResolvedValueOnce(mockMetricsData);
+
+      const response = await request(app)
+        .get('/api/diagnostics')
+        .expect(200);
+      
+      expect(response.body).toEqual(mockMetricsData);
+      expect(mockGetMetrics).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return export data from DiagnosticsService for /diagnostics/export', async () => {
+      const mockExportPayload = { data: 'exported', timestamp: new Date().toISOString() };
+      mockGetExportData.mockResolvedValueOnce(mockExportPayload);
+
+      const response = await request(app)
+        .get('/api/diagnostics/export')
+        .expect(200);
+
+      expect(response.body).toEqual(mockExportPayload);
+      expect(mockGetExportData).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle error if getMetrics fails', async () => {
+      mockGetMetrics.mockRejectedValueOnce(new Error('Metrics service failed'));
+      const response = await request(app)
+        .get('/api/diagnostics')
+        .expect(500);
+      expect(response.body).toHaveProperty('error', 'Failed to get diagnostics');
+    });
+
+  });
+
 });

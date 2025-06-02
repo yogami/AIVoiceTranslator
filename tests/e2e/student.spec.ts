@@ -10,7 +10,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
   test.afterEach(async () => {
     if (page) {
-      await page.close();
+    await page.close();
     }
   });
 
@@ -150,7 +150,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
       await studentPage.evaluate((payload) => {
         if (typeof (window as any).handleWebSocketMessage === 'function') {
           (window as any).handleWebSocketMessage(payload);
-        } else {
+    } else {
           console.error('handleWebSocketMessage function not found on student page for mocking.');
           throw new Error('handleWebSocketMessage function not found on student page for mocking.');
         }

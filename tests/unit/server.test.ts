@@ -3,8 +3,8 @@
  *
  * Tests the startServer function behavior and contracts
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Server } from 'http';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mocked } from 'vitest';
+import { Server as HttpServer } from 'http';
 import express from 'express';
 import request from 'supertest';
 
@@ -17,7 +17,7 @@ vi.mock('../../../server/services/WebSocketServer', () => ({
 import { startServer, configureCorsMiddleware } from '../../server/server';
 
 describe('Server Unit Tests', () => {
-  let server: any;
+  let server: any; // Use any for simplicity for the global server ref
   
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,12 +33,15 @@ describe('Server Unit Tests', () => {
   });
   
   afterEach(async () => {
-    if (server?.httpServer) {
+    if (server?.httpServer?.listening) {
       await new Promise<void>((resolve) => {
         server.httpServer.close(() => resolve());
       });
     }
+    server = null;
     delete process.env.NODE_ENV;
+    delete process.env.PORT;
+    vi.restoreAllMocks(); // Ensure all spies are restored
   });
 
   describe('startServer', () => {
@@ -92,43 +95,65 @@ describe('Server Unit Tests', () => {
     });
 
     it('should use PORT environment variable or default for tests', async () => {
-      process.env.PORT = '0'; 
-      server = await startServer();
-      expect(server.httpServer.listening).toBe(true);
       delete process.env.PORT;
+      const testServer: any = await startServer();
+      expect(testServer.httpServer.listening).toBe(true);
+      const address = testServer.httpServer.address();
+      if (typeof address === 'object' && address !== null) {
+        expect(address.port).not.toBe(5000);
+      }
+      if (testServer.httpServer.listening) {
+        await new Promise<void>(resolve => testServer.httpServer.close(resolve));
+      }
     });
 
     it('should default to port 5000 if NODE_ENV is not \'test\' and PORT is not set', async () => {
       const originalNodeEnv = process.env.NODE_ENV;
       const originalPort = process.env.PORT;
-      
-      process.env.NODE_ENV = 'development';
-      delete process.env.PORT;
+      let localTestServerInstance: any = null; 
 
-      const listenSpy = vi.fn().mockImplementation((port: number, cb: () => void) => { 
-        const mockServerInstance = { close: (closeCb?: () => void) => { if(closeCb) closeCb(); } };
-        if (cb) cb(); 
-        return mockServerInstance;
-      });
-      
-      const httpServerInstance = { 
-        listen: listenSpy, 
-        on: vi.fn(), 
-        address: () => ({ port: 5000 }) 
-      };
-      const httpModule = await import('http'); // Import http for spyOn
-      const createServerSpy = vi.spyOn(httpModule, 'createServer').mockReturnValue(httpServerInstance as any);
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      let createServerSpy: any = undefined; // Initialize to undefined, use any type
+      let consoleLogSpy: any = undefined;   // Initialize to undefined, use any type
+      let listenSpy: any;                 // Will be vi.fn()
 
-      server = await startServer();
+      try {
+        process.env.NODE_ENV = 'development';
+        delete process.env.PORT;
 
-      expect(listenSpy).toHaveBeenCalledWith(5000, expect.any(Function));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('[express] serving on port 5000'));
+        listenSpy = vi.fn().mockImplementation((port: number, cb_listen?: () => void) => { 
+          if (cb_listen) cb_listen(); 
+          return { 
+            close: (cb_close?: () => void) => { if (cb_close) cb_close(); },
+            on: vi.fn(),
+            address: () => ({ port: 5000 }) 
+          };
+        });
+        
+        const mockHttpServerCtrl = { 
+          listen: listenSpy, 
+          on: vi.fn(), 
+          address: () => ({ port: 5000 }) 
+        };
 
-      createServerSpy.mockRestore();
-      consoleLogSpy.mockRestore();
-      process.env.NODE_ENV = originalNodeEnv;
-      if (originalPort) process.env.PORT = originalPort; else delete process.env.PORT;
+        const httpModule = await import('http');
+        createServerSpy = vi.spyOn(httpModule, 'createServer').mockReturnValue(mockHttpServerCtrl as any);
+        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+        localTestServerInstance = await startServer();
+
+        expect(listenSpy).toHaveBeenCalledWith(5000, expect.any(Function));
+        expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('[express] serving on port 5000'));
+        
+      } finally {
+        if (createServerSpy) createServerSpy.mockRestore(); // Check if spy exists before restoring
+        if (consoleLogSpy) consoleLogSpy.mockRestore();   // Check if spy exists before restoring
+        
+        process.env.NODE_ENV = originalNodeEnv;
+        if (originalPort !== undefined) process.env.PORT = originalPort; else delete process.env.PORT;
+        if (localTestServerInstance?.httpServer?.listening) {
+          await new Promise<void>(resolve => localTestServerInstance.httpServer.close(resolve));
+        }
+      }
     });
   });
 

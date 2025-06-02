@@ -1,124 +1,153 @@
 /**
- * OpenAI Service Unit Tests
- * 
- * Tests for OpenAI integration functionality with properly mocked external dependencies
+ * OpenAI Streaming Functionality Tests
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createMockAudioBuffer, createMockWebSocketClient } from './utils/test-helpers';
+import { createMockWebSocketClient } from './utils/test-helpers';
+import { Buffer } from 'node:buffer';
 
-// Mock only the external OpenAI dependency
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    audio: {
-      transcriptions: {
-        create: vi.fn().mockResolvedValue({ text: 'Test transcription' })
-      },
-      speech: {
-        create: vi.fn().mockResolvedValue({
-          arrayBuffer: async () => new ArrayBuffer(1000)
-        })
-      }
-    },
-    chat: {
-      completions: {
-        create: vi.fn().mockResolvedValue({
-          choices: [{ message: { content: 'Test translation' } }]
-        })
-      }
-    }
-  }))
+// Mock dependencies of StreamingAudioProcessor
+const mockCreateSession = vi.fn();
+const mockAddAudioToSession = vi.fn();
+const mockGetSession = vi.fn();
+const mockUpdateSessionTranscription = vi.fn();
+const mockDeleteSession = vi.fn();
+
+vi.mock('../../server/services/managers/AudioSessionManager', () => ({
+  sessionManager: {
+    createSession: mockCreateSession,
+    addAudioToSession: mockAddAudioToSession,
+    getSession: mockGetSession,
+    updateSessionTranscription: mockUpdateSessionTranscription,
+    deleteSession: mockDeleteSession,
+    // cleanupInactiveSessions: vi.fn() // if needed for other tests
+  }
 }));
 
-describe('OpenAI Service', () => {
-  let translateSpeech: any;
+const mockTranscribeAudio = vi.fn();
+vi.mock('../../server/services/transcription/AudioTranscriptionService', () => ({
+  audioTranscriptionService: {
+    transcribeAudio: mockTranscribeAudio,
+  },
+  WebSocketCommunicator: {
+    sendTranscriptionResult: vi.fn(),
+    sendErrorMessage: vi.fn(),
+  }
+}));
+
+// OpenAI library mock (if StreamingAudioProcessor or its deep dependencies make direct calls)
+// For now, let's assume dependencies like audioTranscriptionService handle OpenAI calls and are mocked.
+vi.mock('openai', () => ({ default: vi.fn() })); // Basic mock if not directly used by SUT
+
+describe('StreamingAudioProcessor', () => {
+  let streamingModule: typeof import('../../server/services/processors/StreamingAudioProcessor');
   
   beforeEach(async () => {
     vi.clearAllMocks();
-    
-    // Import the REAL implementation after mocks are set up
-    const module = await import('../../server/openai');
-    translateSpeech = module.translateSpeech;
+    // Dynamically import SUT to get fresh mocks applied
+    streamingModule = await import('../../server/services/processors/StreamingAudioProcessor');
   });
   
   afterEach(() => {
     vi.resetAllMocks();
   });
 
-  describe('translateSpeech - Real Implementation', () => {
-    it('should translate audio successfully when valid input provided', async () => {
-      const audioBuffer = createMockAudioBuffer(1000);
-      const sourceLang = 'en-US';
-      const targetLang = 'es-ES';
-      
-      const result = await translateSpeech(audioBuffer, sourceLang, targetLang);
-      
-      expect(result).toEqual({
-        originalText: 'Test transcription',
-        translatedText: 'Test translation',
-        audioBuffer: expect.any(Buffer)
-      });
-    });
-
-    it('should use pre-transcribed text when provided', async () => {
-      const audioBuffer = createMockAudioBuffer(1000);
-      const preTranscribedText = 'Pre-transcribed text';
-      
-      const result = await translateSpeech(
-        audioBuffer,
-        'en-US',
-        'fr-FR',
-        preTranscribedText
-      );
-      
-      expect(result.originalText).toBe(preTranscribedText);
-      expect(result.translatedText).toBe('Test translation');
-    });
-
-    it('should skip translation when source and target languages are the same', async () => {
-      const audioBuffer = createMockAudioBuffer(1000);
+  describe('processStreamingAudio', () => {
+    it('should create a new session for the first audio chunk', async () => {
+      const mockWs = createMockWebSocketClient({ readyState: 1 });
+      const sessionId = 'session-1';
+      const audioBase64 = Buffer.from('first chunk').toString('base64');
       const language = 'en-US';
-      
-      const result = await translateSpeech(audioBuffer, language, language);
-      
-      expect(result.originalText).toBe('Test transcription');
-      expect(result.translatedText).toBe('Test transcription');
+
+      // Mock getSession to indicate no existing session initially
+      mockGetSession.mockReturnValue(undefined);
+
+      await streamingModule.processStreamingAudio(mockWs as any, sessionId, audioBase64, true, language);
+
+      expect(mockGetSession).toHaveBeenCalledWith(sessionId);
+      expect(mockCreateSession).toHaveBeenCalledTimes(1);
+      expect(mockCreateSession).toHaveBeenCalledWith(sessionId, language, expect.any(Buffer));
+      expect(mockAddAudioToSession).not.toHaveBeenCalled();
+      // ws.send should not be called directly by processStreamingAudio for first chunk in current SUT logic
+      const { WebSocketCommunicator } = await import('../../server/services/transcription/AudioTranscriptionService');
+      expect(WebSocketCommunicator.sendErrorMessage).not.toHaveBeenCalled();
+      expect(WebSocketCommunicator.sendTranscriptionResult).not.toHaveBeenCalled();
     });
 
-    it('should handle empty transcription', async () => {
-      // Mock empty transcription
-      const OpenAI = (await import('openai')).default;
-      const mockInstance = new OpenAI();
-      vi.mocked(mockInstance.audio.transcriptions.create).mockResolvedValueOnce({ text: '' });
+    it('should add audio to an existing session for subsequent chunks', async () => {
+      const mockWs = createMockWebSocketClient({ readyState: 1 });
+      const sessionId = 'session-1';
+      const audioBase64 = Buffer.from('next chunk').toString('base64');
+      const language = 'en-US';
+      const mockExistingSession = { 
+        id: sessionId, language, audioBuffer: [], 
+        transcriptionInProgress: false, transcriptionText: '' 
+      };
+      mockGetSession.mockReturnValue(mockExistingSession);
+
+      await streamingModule.processStreamingAudio(mockWs as any, sessionId, audioBase64, false, language);
+
+      expect(mockGetSession).toHaveBeenCalledWith(sessionId);
+      expect(mockCreateSession).not.toHaveBeenCalled();
+      expect(mockAddAudioToSession).toHaveBeenCalledTimes(1);
+      expect(mockAddAudioToSession).toHaveBeenCalledWith(sessionId, expect.any(Buffer));
+    });
+
+    // TODO: Add test for the case where !session.transcriptionInProgress && session.audioBuffer.length > 1
+    // This would require mocking sessionManager.getSession to return a session that meets these criteria
+    // and then verifying if an interim transcription/send process is triggered (if that logic is implemented).
+  });
+
+  describe('finalizeStreamingSession', () => {
+    it('should transcribe remaining audio and send final result if session exists', async () => {
+      const mockWs = createMockWebSocketClient({ readyState: 1 });
+      const sessionId = 'session-to-finalize';
+      const language = 'en-US';
+      const mockAudioChunk = Buffer.from('final audio data');
+      const mockSession = {
+        id: sessionId,
+        language,
+        audioBuffer: [mockAudioChunk, mockAudioChunk],
+        transcriptionText: '', 
+        transcriptionInProgress: false
+      };
+      mockGetSession.mockReturnValue(mockSession);
+      mockTranscribeAudio.mockResolvedValue('Final transcription text');
       
-      const audioBuffer = createMockAudioBuffer(1000);
-      const result = await translateSpeech(audioBuffer, 'en-US', 'es-ES');
+      // Make mockUpdateSessionTranscription modify the mockSession object for this test
+      mockUpdateSessionTranscription.mockImplementation((sId, text) => {
+        if (sId === mockSession.id) {
+          mockSession.transcriptionText = text; 
+        }
+      });
       
-      expect(result.originalText).toBe('');
-      expect(result.translatedText).toBe('');
+      const { WebSocketCommunicator } = await import('../../server/services/transcription/AudioTranscriptionService');
+
+      await streamingModule.finalizeStreamingSession(mockWs as any, sessionId);
+
+      expect(mockGetSession).toHaveBeenCalledWith(sessionId);
+      expect(mockTranscribeAudio).toHaveBeenCalledWith(Buffer.concat(mockSession.audioBuffer), language);
+      expect(mockUpdateSessionTranscription).toHaveBeenCalledWith(sessionId, 'Final transcription text');
+      expect(WebSocketCommunicator.sendTranscriptionResult).toHaveBeenCalledWith(mockWs, {
+        text: 'Final transcription text', // Expectation should now pass
+        isFinal: true,
+        languageCode: language
+      });
+      expect(mockDeleteSession).toHaveBeenCalledWith(sessionId);
+    });
+
+    it('should do nothing if session to finalize does not exist', async () => {
+      const mockWs = createMockWebSocketClient({ readyState: 1 });
+      const sessionId = 'non-existent-session';
+      mockGetSession.mockReturnValue(undefined);
+
+      await streamingModule.finalizeStreamingSession(mockWs as any, sessionId);
+
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+      const { WebSocketCommunicator } = await import('../../server/services/transcription/AudioTranscriptionService');
+      expect(WebSocketCommunicator.sendTranscriptionResult).not.toHaveBeenCalled();
+      expect(mockDeleteSession).not.toHaveBeenCalled();
     });
   });
 
-  describe('Streaming Functionality - Real Implementation', () => {
-    it('should handle streaming audio processing', async () => {
-      const mockWs = createMockWebSocketClient();
-      const sessionId = 'test-session-123';
-      const audioBase64 = Buffer.from('test audio data').toString('base64');
-      
-      // Import real streaming functions
-      const streamingModule = await import('../../server/openai-streaming');
-      const { processStreamingAudio } = streamingModule;
-      
-      // Test real implementation
-      const result = await processStreamingAudio(
-        mockWs,
-        sessionId,
-        audioBase64,
-        true,
-        'en-US'
-      );
-      
-      expect(result).toBe(true);
-      expect(mockWs.send).toHaveBeenCalled();
-    });
-  });
+  // TODO: Add tests for cleanupInactiveStreamingSessions
 });

@@ -246,7 +246,7 @@ describe('Translation Services', () => {
         await vi.advanceTimersByTimeAsync(Math.pow(2, i) * 1000 + 100);
       }
       await promise;
-      
+
       const consoleErrorCalls = consoleErrorSpy.mock.calls;
 
       // Check for the log: "Error translating to [targetLanguage]:" ErrorObject
@@ -440,7 +440,7 @@ describe('Translation Services', () => {
         'pre-text-undef',
         {}
       );
-    });
   });
+});
 
 }); // End of main describe
