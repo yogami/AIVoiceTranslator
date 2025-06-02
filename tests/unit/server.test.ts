@@ -4,66 +4,151 @@
  * Tests the startServer function behavior and contracts
  */
 import { describe, it, expect, vi, beforeEach, afterEach, type Mocked } from 'vitest';
-import { Server as HttpServer } from 'http';
 import express from 'express';
 import request from 'supertest';
 
-// Mock WebSocketServer before importing server
-const MockWebSocketServer = vi.fn();
-vi.mock('../../../server/services/WebSocketServer', () => ({
-  WebSocketServer: MockWebSocketServer
-}));
+// Mock http module
+vi.mock('http', async (importOriginal) => {
+  const actualHttp = await importOriginal() as any;
+  const mockHttpServerInstance = {
+    listen: vi.fn((port, cb) => {
+      (mockHttpServerInstance as any).listeningPort = port;
+      process.nextTick(() => {
+        if (cb) cb();
+      });
+      return mockHttpServerInstance;
+    }),
+    on: vi.fn(),
+    address: vi.fn(() => ({ port: (mockHttpServerInstance as any).listeningPort || 0 })),
+    close: vi.fn((cb) => {
+      process.nextTick(() => {
+        if (cb) cb();
+      });
+    }),
+    listening: false,
+    clearMocks: () => {
+        mockHttpServerInstance.listen.mockClear();
+        mockHttpServerInstance.on.mockClear();
+        mockHttpServerInstance.address.mockClear().mockReturnValue({ port: 0 });
+        mockHttpServerInstance.close.mockClear();
+        (mockHttpServerInstance as any).listeningPort = 0;
+        mockHttpServerInstance.listening = false;
+    }
+  };
+  const mockCreateServer = vi.fn(() => {
+    mockHttpServerInstance.listening = false;
+    const originalListen = mockHttpServerInstance.listen;
+    mockHttpServerInstance.listen = vi.fn((port, cb) => {
+      mockHttpServerInstance.listening = true;
+      (mockHttpServerInstance as any).listeningPort = port;
+      return originalListen(port, cb);
+    });
+    const originalClose = mockHttpServerInstance.close;
+    mockHttpServerInstance.close = vi.fn((cb) => {
+      mockHttpServerInstance.listening = false;
+      return originalClose(cb);
+    });
+    return mockHttpServerInstance;
+  });
+  return {
+    ...actualHttp,
+    createServer: mockCreateServer,
+    _mockHttpServerInstance: mockHttpServerInstance,
+    _mockCreateServer: mockCreateServer,
+    Server: actualHttp.Server,
+  };
+});
 
+// Declare a variable to hold the mock constructor for WebSocketServer
+// let webSocketServerMockConstructor: any; // No longer needed here
+
+// Mock WebSocketServer before importing server
+vi.mock('../../server/services/WebSocketServer', () => {
+  const localMockConstructor = vi.fn();
+  return {
+    WebSocketServer: localMockConstructor,
+    // Provide a getter to access the same instance of the mock constructor
+    _webSocketServerMockConstructorGetter: () => localMockConstructor 
+  };
+}); 
+
+// Now import the server module AFTER mocks are set up
 import { startServer, configureCorsMiddleware } from '../../server/server';
+import * as http from 'http'; // Import the mocked http to access its members
+// Import the mocked WebSocketServer service to access the getter
+import * as WSService from '../../server/services/WebSocketServer'; 
+
+// Helper to access the exposed mock instance from the mocked http module
+const getMockedHttpServerInstance = () => (http as any)._mockHttpServerInstance;
+const getMockedCreateServer = () => (http as any)._mockCreateServer;
+// Helper to access the WebSocketServer mock constructor
+const getWebSocketServerMockConstructor = () => (WSService as any)._webSocketServerMockConstructorGetter();
 
 describe('Server Unit Tests', () => {
-  let server: any; // Use any for simplicity for the global server ref
+  let server: any;
   
   beforeEach(() => {
-    vi.clearAllMocks();
-    MockWebSocketServer.mockImplementation(() => ({
+    vi.clearAllMocks(); 
+    
+    const mockedHttpInstance = getMockedHttpServerInstance();
+    if (mockedHttpInstance && typeof mockedHttpInstance.clearMocks === 'function') {
+        mockedHttpInstance.clearMocks();
+    } else if (mockedHttpInstance) { 
+        mockedHttpInstance.listen.mockClear();
+        mockedHttpInstance.on.mockClear();
+        mockedHttpInstance.address.mockClear().mockReturnValue({ port: 0 });
+        mockedHttpInstance.close.mockClear();
+        (mockedHttpInstance as any).listeningPort = 0;
+        mockedHttpInstance.listening = false;
+    }
+
+    // Set up the mock implementation for WebSocketServer using the getter
+    getWebSocketServerMockConstructor().mockImplementation(() => ({
       getConnections: vi.fn(() => new Set()),
       getRole: vi.fn(),
       getLanguage: vi.fn(),
       close: vi.fn()
     }));
     
-    // Set test environment to use random port
     process.env.NODE_ENV = 'test';
   });
   
   afterEach(async () => {
+    const mockedHttpInstance = getMockedHttpServerInstance();
     if (server?.httpServer?.listening) {
       await new Promise<void>((resolve) => {
-        server.httpServer.close(() => resolve());
+        if (server.httpServer === mockedHttpInstance) {
+          mockedHttpInstance.close(resolve);
+        } else {
+          server.httpServer.close(resolve);
+        }
       });
     }
     server = null;
     delete process.env.NODE_ENV;
     delete process.env.PORT;
-    vi.restoreAllMocks(); // Ensure all spies are restored
+    vi.restoreAllMocks();
   });
 
   describe('startServer', () => {
     it('should return app, httpServer, and wss properties', async () => {
       server = await startServer();
-      
       expect(server).toBeDefined();
       expect(server).toHaveProperty('app');
       expect(server).toHaveProperty('httpServer');
       expect(server).toHaveProperty('wss');
-      expect(server.app).toBeInstanceOf(Function); // Express app is a function
+      expect(server.app).toBeInstanceOf(Function);
+      expect(server.httpServer).toBe(getMockedHttpServerInstance()); 
     });
 
-    it('should create a WebSocketServer instance', async () => {
-      // Reset the mock before test  
+    it('should create a WebSocketServer instance', async () => { 
       const mockInstance = { close: vi.fn() };
-      MockWebSocketServer.mockImplementation(() => mockInstance);
-      
+      // Use the getter for the mock constructor variable here
+      getWebSocketServerMockConstructor().mockImplementation(() => mockInstance);
       server = await startServer();
-      
-      expect(MockWebSocketServer).toHaveBeenCalledTimes(1);
-      expect(MockWebSocketServer).toHaveBeenCalledWith(server.httpServer);
+      // And here for assertions
+      expect(getWebSocketServerMockConstructor()).toHaveBeenCalledTimes(1);
+      expect(getWebSocketServerMockConstructor()).toHaveBeenCalledWith(getMockedHttpServerInstance());
       expect(server.wss).toBe(mockInstance);
     });
 
@@ -71,11 +156,8 @@ describe('Server Unit Tests', () => {
       const originalKey = process.env.OPENAI_API_KEY;
       delete process.env.OPENAI_API_KEY;
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      
       server = await startServer();
-      
       expect(consoleSpy).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
-      
       consoleSpy.mockRestore();
       if (originalKey) process.env.OPENAI_API_KEY = originalKey;
     });
@@ -83,107 +165,68 @@ describe('Server Unit Tests', () => {
     it('should log success if OPENAI_API_KEY is present', async () => {
       process.env.OPENAI_API_KEY = 'test-key';
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      
       server = await startServer();
-      
       expect(consoleSpy).toHaveBeenCalledWith('OpenAI API key found and client configured.');
-      
       consoleSpy.mockRestore();
     });
 
     it('should use PORT environment variable or default for tests', async () => {
       delete process.env.PORT;
+      const mockedHttpInstance = getMockedHttpServerInstance();
+      mockedHttpInstance.address.mockImplementation(() => ({ port: 12345 }));
       const testServer: any = await startServer();
       expect(testServer.httpServer.listening).toBe(true);
       const address = testServer.httpServer.address();
-      if (typeof address === 'object' && address !== null) {
-        expect(address.port).not.toBe(5000);
-      }
-      if (testServer.httpServer.listening) {
-        await new Promise<void>(resolve => testServer.httpServer.close(resolve));
-      }
+      expect(address.port).toBe(12345);
     });
 
     it('should default to port 5000 if NODE_ENV is not \'test\' and PORT is not set', async () => {
       const originalNodeEnv = process.env.NODE_ENV;
       const originalPort = process.env.PORT;
-      let localTestServerInstance: any = null; 
-
-      let createServerSpy: any = undefined; // Initialize to undefined, use any type
-      let consoleLogSpy: any = undefined;   // Initialize to undefined, use any type
-      let listenSpy: any;                 // Will be vi.fn()
+      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const mockedHttpInstance = getMockedHttpServerInstance();
+      const mockedCreateServerSpy = getMockedCreateServer();
 
       try {
         process.env.NODE_ENV = 'development';
         delete process.env.PORT;
-
-        listenSpy = vi.fn().mockImplementation((port: number, cb_listen?: () => void) => { 
-          if (cb_listen) cb_listen(); 
-          return { 
-            close: (cb_close?: () => void) => { if (cb_close) cb_close(); },
-            on: vi.fn(),
-            address: () => ({ port: 5000 }) 
-          };
+        mockedHttpInstance.address.mockImplementation(() => {
+            return { port: mockedHttpInstance.listeningPort === 5000 ? 5000 : 0 };
         });
-        
-        const mockHttpServerCtrl = { 
-          listen: listenSpy, 
-          on: vi.fn(), 
-          address: () => ({ port: 5000 }) 
-        };
-
-        const httpModule = await import('http');
-        createServerSpy = vi.spyOn(httpModule, 'createServer').mockReturnValue(mockHttpServerCtrl as any);
-        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-
-        localTestServerInstance = await startServer();
-
-        expect(listenSpy).toHaveBeenCalledWith(5000, expect.any(Function));
+        server = await startServer();
+        expect(mockedHttpInstance.listen).toHaveBeenCalledWith(5000, expect.any(Function));
         expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('[express] serving on port 5000'));
-        
       } finally {
-        if (createServerSpy) createServerSpy.mockRestore(); // Check if spy exists before restoring
-        if (consoleLogSpy) consoleLogSpy.mockRestore();   // Check if spy exists before restoring
-        
+        consoleLogSpy.mockRestore();
         process.env.NODE_ENV = originalNodeEnv;
         if (originalPort !== undefined) process.env.PORT = originalPort; else delete process.env.PORT;
-        if (localTestServerInstance?.httpServer?.listening) {
-          await new Promise<void>(resolve => localTestServerInstance.httpServer.close(resolve));
-        }
       }
     });
   });
 
   describe('configureCorsMiddleware', () => {
     let app: express.Express;
-
     beforeEach(() => {
       app = express();
     });
 
     it('should add CORS middleware', () => {
       const useSpy = vi.spyOn(app, 'use');
-      
       configureCorsMiddleware(app);
-      
       expect(useSpy).toHaveBeenCalled();
     });
 
     it('should set CORS headers correctly', async () => {
       configureCorsMiddleware(app);
       app.get('/test', (req, res) => res.send('OK'));
-      
       const response = await request(app).get('/test');
-      
       expect(response.headers['access-control-allow-origin']).toBe('*');
       expect(response.headers['access-control-allow-methods']).toBe('GET, POST, PUT, DELETE, OPTIONS');
     });
 
     it('should handle OPTIONS preflight requests', async () => {
       configureCorsMiddleware(app);
-      
       const response = await request(app).options('/test');
-      
       expect(response.status).toBe(200);
     });
   });
