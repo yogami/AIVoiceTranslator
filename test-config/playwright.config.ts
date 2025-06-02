@@ -53,14 +53,14 @@ export default defineConfig({
     // },
   ],
 
-  // webServer block is commented out to support manual server startup for now.
-  // webServer: {
-  //   command: 'npm run dev',
-  //   url: 'http://127.0.0.1:5000',
-  //   reuseExistingServer: !process.env.CI, 
-  //   timeout: 120 * 1000, 
-  //   cwd: '../', 
-  //   stdout: 'pipe', 
-  //   stderr: 'pipe',
-  // },
+  /* Run your local dev server before starting the tests */
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:5000',
+    reuseExistingServer: false, // Force Playwright to start the server for this run
+    cwd: '/Users/yamijala/gitprojects/AIVoiceTranslator', // Absolute path
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: 300 * 1000, // 5 minutes
+  },
 });
