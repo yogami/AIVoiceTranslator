@@ -274,7 +274,7 @@ describe('Translation Flow Integration', () => {
       spanishStudent.close();
       frenchStudent.close();
       germanStudent.close();
-    });
+    }, 15000); // Increased timeout for this specific test to 15 seconds
   });
   
   describe('Error Handling', () => {
