@@ -65,8 +65,9 @@ describe('API Routes', () => {
     app.use(express.json());
     
     // Import routes after mocks are set up - apiRoutes is already a Router instance
-    const { apiRoutes } = await import('../../server/routes');
+    const { apiRoutes, apiErrorHandler } = await import('../../server/routes');
     app.use('/api', apiRoutes);
+    app.use('/api', apiErrorHandler);
   });
 
   afterEach(() => {

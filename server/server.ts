@@ -5,7 +5,7 @@ import express from 'express';
 import { createServer } from 'http';
 // Use WebSocketServer for WebSocket connections
 import { WebSocketServer } from './services/WebSocketServer';
-import { apiRoutes } from './routes';
+import { apiRoutes, apiErrorHandler } from './routes';
 import './config';
 import path from 'path';
 
@@ -56,6 +56,9 @@ export async function startServer() {
   
   // Add API routes
   app.use('/api', apiRoutes);
+  
+  // Add API error handler middleware
+  app.use('/api', apiErrorHandler);
   
   // Create HTTP server
   const httpServer = createServer(app);

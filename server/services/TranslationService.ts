@@ -23,7 +23,7 @@ import { promisify } from 'util';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { DevelopmentModeHelper } from './helpers/DevelopmentModeHelper';
-import { AudioFileHandler } from './AudioFileHandler';
+import { AudioFileHandler } from './handlers/AudioFileHandler';
 
 // Add this code near the top of the file
 const __filename = fileURLToPath(import.meta.url);
