@@ -86,7 +86,7 @@ vi.mock('fs', async () => {
   };
 });
 
-vi.mock('../../../server/services/AudioFileHandler', () => {
+vi.mock('../../../server/services/handlers/AudioFileHandler', () => {
   return {
     AudioFileHandler: vi.fn().mockImplementation(() => ({
       createTempFile: vi.fn(),
@@ -135,7 +135,7 @@ describe('Translation Services - Real Implementations', () => {
     const OpenAI = (await import('openai')).default;
     mockOpenAI = new OpenAI();
     
-    const { AudioFileHandler } = await import('../../../server/services/AudioFileHandler');
+    const { AudioFileHandler } = await import('../../../server/services/handlers/AudioFileHandler');
     const mockAudioHandlerInstance = new AudioFileHandler();
     // Return a mock file path without creating actual files
     vi.mocked(mockAudioHandlerInstance.createTempFile).mockResolvedValue('/mock/temp/audio.wav');

@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import express, { Express } from 'express';
-import { apiRoutes } from '../../../server/routes';
+import { apiRoutes, apiErrorHandler } from '../../../server/routes';
 import { storage } from '../../../server/storage';
 
 // Simple wrapper function to wait for promises
@@ -22,6 +22,7 @@ describe('API Routes', () => {
     app = express();
     app.use(express.json());
     app.use('/api', apiRoutes);
+    app.use('/api', apiErrorHandler);
   });
   
   it('should handle health check endpoint', async () => {

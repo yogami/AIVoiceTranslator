@@ -1,37 +1,96 @@
-// import * as fs from 'fs'; // fs is no longer used
-// import * as path from 'path'; // No longer used
-// import { fileURLToPath } from 'url'; // No longer used
+/**
+ * Application Configuration
+ * 
+ * Centralized configuration management for the AI Voice Translator application.
+ * All environment variables and configuration constants should be defined here.
+ */
 
-// const __filename = fileURLToPath(import.meta.url); // No longer used
-// const __dirname = path.dirname(__filename); // No longer used
-// const rootDir = path.resolve(__dirname, '..'); // No longer used
+/**
+ * Configuration interface for type safety
+ */
+interface AppConfig {
+  openai: {
+    apiKey: string | undefined;
+  };
+  server: {
+    port: number;
+    host: string;
+  };
+  app: {
+    environment: 'development' | 'production' | 'test';
+    logLevel: 'debug' | 'info' | 'warn' | 'error';
+  };
+}
 
-// Directly read the .env file - THIS ENTIRE TRY-CATCH BLOCK (manual parsing) IS REMOVED
-// try {
-//   const envFile = path.join(rootDir, '.env');
-//   if (fs.existsSync(envFile)) {
-//     console.log('Loading environment variables from .env file');
-//     const envConfig = fs.readFileSync(envFile, 'utf8')
-//       .split('\n')
-//       .filter(line => line.trim() && !line.startsWith('#'))
-//       .reduce((acc, line) => {
-//         const [key, value] = line.split('=');
-//         if (key && value) {
-//           acc[key.trim()] = value.trim().replace(/^[\"\']|[\"\']$/g, '');
-//         }
-//         return acc;
-//       }, {} as Record<string, string>);
-//     
-//     // Apply to process.env
-//     Object.entries(envConfig).forEach(([key, value]) => {
-//       process.env[key] = value;
-//     });
-//   }
-// } catch (error) {
-//   console.error('Error loading .env file:', error);
-// }
+/**
+ * Validates and returns a port number
+ */
+function validatePort(port: string | undefined, defaultPort: number): number {
+  const parsedPort = parseInt(port || '', 10);
+  return isNaN(parsedPort) ? defaultPort : parsedPort;
+}
 
-export const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+/**
+ * Validates environment type
+ */
+function validateEnvironment(env: string | undefined): AppConfig['app']['environment'] {
+  const validEnvironments: AppConfig['app']['environment'][] = ['development', 'production', 'test'];
+  const environment = (env || 'development').toLowerCase() as AppConfig['app']['environment'];
+  return validEnvironments.includes(environment) ? environment : 'development';
+}
+
+/**
+ * Application configuration object
+ */
+export const config: AppConfig = {
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+  server: {
+    port: validatePort(process.env.PORT, 3001),
+    host: process.env.HOST || 'localhost',
+  },
+  app: {
+    environment: validateEnvironment(process.env.NODE_ENV),
+    logLevel: (process.env.LOG_LEVEL || 'info') as AppConfig['app']['logLevel'],
+  },
+};
+
+// Export individual values for backward compatibility
+export const OPENAI_API_KEY = config.openai.apiKey;
+
+/**
+ * Validates that required configuration values are present
+ * @throws Error if required configuration is missing
+ */
+export function validateConfig(): void {
+  const errors: string[] = [];
+
+  if (!config.openai.apiKey && config.app.environment === 'production') {
+    errors.push('OPENAI_API_KEY is required in production environment');
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Configuration validation failed:\n${errors.join('\n')}`);
+  }
+}
+
+/**
+ * Gets a configuration value with a fallback
+ */
+export function getConfigValue<T>(path: string, fallback: T): T {
+  const keys = path.split('.');
+  let value: any = config;
+  
+  for (const key of keys) {
+    value = value?.[key];
+    if (value === undefined) {
+      return fallback;
+    }
+  }
+  
+  return value as T;
+}
 
 // Remove the entire PATHS object as it seems unused
 // export const PATHS = { ... };
