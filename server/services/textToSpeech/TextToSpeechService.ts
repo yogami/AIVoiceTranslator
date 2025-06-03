@@ -23,6 +23,33 @@ const CACHE_DIR = path.join(process.cwd(), 'audio-cache');
 const MAX_CACHE_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 const TEMP_DIR = process.env.TEMP_DIR || path.join(process.cwd(), 'temp');
 
+// OpenAI TTS Constants
+const DEFAULT_TTS_MODEL = 'tts-1';
+const TTS_RESPONSE_FORMAT = 'mp3';
+const DEFAULT_SPEED = 1.0;
+
+// Emotion-specific speed adjustments
+const EMOTION_SPEEDS = {
+  excited: 1.2,
+  serious: 0.9,
+  calm: 0.9,
+  sad: 0.8
+} as const;
+
+// Emotion-specific voice mappings
+const EMOTION_VOICE_MAP = {
+  excited: 'nova',
+  serious: 'onyx',
+  calm: 'shimmer',
+  sad: 'echo'
+} as const;
+
+// Confidence calculation constants
+const BASE_CONFIDENCE = 0.3;
+const PATTERN_CONFIDENCE_WEIGHT = 0.5;
+const MATCH_DENSITY_MULTIPLIER = 20;
+const MIN_CONFIDENCE_FOR_FORMATTING = 0.5;
+
 // Voice options by language and gender
 const VOICE_OPTIONS: Record<string, string[]> = {
   'en': ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'], // English
@@ -269,7 +296,10 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
         const patternRatio = matchCount / emotionPattern.patterns.length;
         const textLength = text.length;
         // Normalized confidence (0-1) with some smoothing based on text length
-        const confidence = Math.min(0.3 + (patternRatio * 0.5) + (totalMatches / textLength) * 20, 1);
+        const confidence = Math.min(
+          BASE_CONFIDENCE + (patternRatio * PATTERN_CONFIDENCE_WEIGHT) + (totalMatches / textLength) * MATCH_DENSITY_MULTIPLIER, 
+          1
+        );
         
         detectedEmotions.push({
           emotion: emotionPattern.name,
@@ -288,19 +318,8 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
   private selectVoice(languageCode: string, detectedEmotion?: string): string {
     const lang = languageCode.split('-')[0].toLowerCase(); // Normalize to base language code e.g., 'en'
 
-    if (detectedEmotion) {
-      if (detectedEmotion === 'excited') {
-        return 'nova';
-      }
-      if (detectedEmotion === 'serious') {
-        return 'onyx';
-      }
-      if (detectedEmotion === 'calm') {
-        return 'shimmer';
-      }
-      if (detectedEmotion === 'sad') {
-        return 'echo';
-      }
+    if (detectedEmotion && detectedEmotion in EMOTION_VOICE_MAP) {
+      return EMOTION_VOICE_MAP[detectedEmotion as keyof typeof EMOTION_VOICE_MAP];
     }
     
     // Get available voices for this language
@@ -320,27 +339,16 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
   } {
     const params: { voice: string, speed: number, input: string } = {
       voice: options.voice || this.selectVoice(options.languageCode, undefined), // Default voice if no emotion or specific mapping
-      speed: options.speed || 1.0,
+      speed: options.speed || DEFAULT_SPEED,
       input: options.text,
     };
 
     const languageCode = options.languageCode || 'en'; // Default to 'en' if not provided
 
-    if (emotion === 'excited') {
+    // Apply emotion-specific adjustments if emotion is recognized
+    if (emotion in EMOTION_SPEEDS) {
       params.voice = this.selectVoice(languageCode, emotion);
-      params.speed = 1.2;
-      params.input = this.formatInputForEmotion(options.text, emotion);
-    } else if (emotion === 'serious') {
-      params.voice = this.selectVoice(languageCode, emotion);
-      params.speed = 0.9;
-      params.input = this.formatInputForEmotion(options.text, emotion);
-    } else if (emotion === 'calm') {
-      params.voice = this.selectVoice(languageCode, emotion);
-      params.speed = 0.9;
-      params.input = this.formatInputForEmotion(options.text, emotion);
-    } else if (emotion === 'sad') {
-      params.voice = this.selectVoice(languageCode, emotion);
-      params.speed = 0.8;
+      params.speed = EMOTION_SPEEDS[emotion as keyof typeof EMOTION_SPEEDS];
       params.input = this.formatInputForEmotion(options.text, emotion);
     }
 
@@ -369,6 +377,64 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
   }
   
   /**
+   * Process emotions and adjust speech parameters if emotion preservation is enabled
+   */
+  private processEmotions(options: TextToSpeechOptions): {
+    voice: string;
+    speed: number;
+    input: string;
+  } {
+    let voice = options.voice || this.selectVoice(options.languageCode);
+    let speed = options.speed || DEFAULT_SPEED;
+    let input = options.text;
+    
+    if (options.preserveEmotions) {
+      const detectedEmotions = this.detectEmotions(options.text);
+      
+      if (detectedEmotions.length > 0) {
+        const topEmotion = detectedEmotions[0];
+        console.log(`Detected emotion: ${topEmotion.emotion} (confidence: ${topEmotion.confidence.toFixed(2)})`);
+        
+        const adjustedParams = this.adjustSpeechParams(topEmotion.emotion, options);
+        voice = adjustedParams.voice;
+        speed = adjustedParams.speed;
+        
+        if (topEmotion.confidence > MIN_CONFIDENCE_FOR_FORMATTING) {
+          input = this.formatInputForEmotion(adjustedParams.input, topEmotion.emotion);
+        } else {
+          input = adjustedParams.input;
+        }
+      }
+    }
+    
+    return { voice, speed, input };
+  }
+  
+  /**
+   * Call OpenAI's TTS API with the given parameters
+   */
+  private async callOpenAIAPI(voice: string, speed: number, input: string): Promise<Buffer> {
+    try {
+      const apiPayload = {
+        model: DEFAULT_TTS_MODEL,
+        input: input,
+        voice: voice as any,
+        response_format: TTS_RESPONSE_FORMAT as "mp3",
+        speed: speed,
+      };
+      
+      const response = await this.openai.audio.speech.create(apiPayload);
+      return Buffer.from(await response.arrayBuffer());
+    } catch (error) {
+      throw new TextToSpeechError(
+        `Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'API_ERROR',
+        error
+      );
+    }
+  }
+  
+  /**
    * Synthesize speech from text using OpenAI's TTS API
    */
   public async synthesizeSpeech(options: TextToSpeechOptions): Promise<Buffer> {
@@ -383,47 +449,13 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
     try {
       console.log(`Synthesizing speech for text (${options.text.length} chars) in ${options.languageCode}`);
       
-      let voice = options.voice || this.selectVoice(options.languageCode);
-      let speed = options.speed || 1.0;
-      let input = options.text;
-      
-      // If emotion preservation is requested
-      if (options.preserveEmotions) {
-        // Detect emotions in the text
-        const detectedEmotions = this.detectEmotions(options.text);
-        
-        if (detectedEmotions.length > 0) {
-          // Use the highest confidence emotion
-          const topEmotion = detectedEmotions[0];
-          console.log(`Detected emotion: ${topEmotion.emotion} (confidence: ${topEmotion.confidence.toFixed(2)})`);
-          
-          // Adjust speech parameters
-          const adjustedParams = this.adjustSpeechParams(topEmotion.emotion, options);
-          voice = adjustedParams.voice;
-          speed = adjustedParams.speed;
-          
-          // Format input for emotion if confidence is high enough
-          if (topEmotion.confidence > 0.5) {
-            input = this.formatInputForEmotion(adjustedParams.input, topEmotion.emotion);
-          } else {
-            input = adjustedParams.input;
-          }
-        }
-      }
+      // Process emotions and get adjusted parameters
+      const { voice, speed, input } = this.processEmotions(options);
       
       // Create speech using OpenAI's API
       console.log(`Using voice: ${voice}, speed: ${speed}`);
       
-      const apiPayload = {
-        model: "tts-1",
-        input: input,
-        voice: voice as any,
-        response_format: "mp3" as "mp3",
-        speed: speed,
-      };
-      
-      const response = await this.openai.audio.speech.create(apiPayload);
-      const audioBuffer = Buffer.from(await response.arrayBuffer());
+      const audioBuffer = await this.callOpenAIAPI(voice, speed, input);
       
       // Cache the result for future use
       await this.cacheAudio(cacheKey, audioBuffer);
@@ -431,6 +463,12 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
       return audioBuffer;
     } catch (error) {
       console.error('Error synthesizing speech:', error);
+      
+      // Re-throw TextToSpeechError as is, wrap other errors
+      if (error instanceof TextToSpeechError) {
+        throw error;
+      }
+      
       throw new Error(`Speech synthesis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -499,3 +537,17 @@ export const textToSpeechService = {
     return ttsFactory.getService(serviceType).synthesizeSpeech(options);
   }
 };
+
+/**
+ * Custom error class for Text-to-Speech specific errors
+ */
+export class TextToSpeechError extends Error {
+  constructor(
+    message: string,
+    public readonly code: 'CACHE_ERROR' | 'API_ERROR' | 'INVALID_INPUT' | 'UNKNOWN_ERROR',
+    public readonly originalError?: unknown
+  ) {
+    super(message);
+    this.name = 'TextToSpeechError';
+  }
+}
