@@ -67,7 +67,13 @@ export default defineConfig({
       '**/node_modules/**', 
       '**/dist/**', 
       '**/build/**',
-      '**/tests/e2e/**'  // Explicitly exclude E2E tests
+      '**/tests/e2e/**',  // Explicitly exclude E2E tests
+      'server/websocket.ts', // Added deprecated websocket.ts
+      'server/services/managers/WebSocketClientManager.ts', // Added empty manager
+      'server/test-db.ts', // Exclude test database setup
+      'server/vite.ts', // Exclude vite specific config
+      'server/services/WebSocketTypes.ts', // Exclude type definitions
+      'server/services/DiagnosticsService.ts', // Exclude unimplemented feature
     ],
     ...getTestTimeouts(testMode),
     maxConcurrency: testMode === 'integration' ? 1 : 2,  // Sequential for integration tests
@@ -96,7 +102,13 @@ export default defineConfig({
         'client/**',
         '**/*.d.ts',
         '**/*.config.{js,ts}',
-        '**/node_modules/**'
+        '**/node_modules/**',
+        'server/websocket.ts',
+        'server/services/managers/WebSocketClientManager.ts',
+        'server/test-db.ts', // Exclude test database setup
+        'server/vite.ts', // Exclude vite specific config
+        'server/services/WebSocketTypes.ts', // Exclude type definitions
+        'server/services/DiagnosticsService.ts', // Exclude unimplemented feature
       ],
       all: true,
       thresholds: {
