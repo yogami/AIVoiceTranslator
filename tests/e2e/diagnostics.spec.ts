@@ -79,11 +79,19 @@ test.describe('Diagnostics Dashboard', () => {
     // Get initial last updated time
     const initialLastUpdated = await page.locator('#last-updated').textContent();
 
+    // Intercept the API call to add a delay so we can catch the loading state
+    await page.route('/api/diagnostics', async route => {
+      // Add a small delay to make the loading state visible
+      await new Promise(resolve => setTimeout(resolve, 100));
+      // Continue with the original request
+      await route.continue();
+    });
+
     // Click refresh button
     await page.click('#refresh-btn');
 
-    // Check loading status
-    await expect(page.locator('#status')).toContainText('Loading diagnostics data...');
+    // Check loading status (now we should be able to catch it)
+    await expect(page.locator('#status')).toContainText('Loading diagnostics data...', { timeout: 1000 });
 
     // Wait for refresh to complete
     await page.waitForFunction(
@@ -93,6 +101,10 @@ test.describe('Diagnostics Dashboard', () => {
 
     // Check that metrics are still displayed
     await expect(page.locator('.metric-card')).toHaveCount(6);
+
+    // Verify the last updated time has changed
+    const newLastUpdated = await page.locator('#last-updated').textContent();
+    expect(newLastUpdated).not.toBe(initialLastUpdated);
   });
 
   test('should test API connection when test button is clicked', async () => {
