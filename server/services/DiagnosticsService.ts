@@ -5,6 +5,9 @@
  * Tracks performance metrics, system health, and provides user-friendly formatting.
  */
 
+import { storage } from '../storage';
+import { WebSocketServer } from './WebSocketServer';
+
 interface ConnectionMetrics {
   total: number;
   active: number;
@@ -183,6 +186,50 @@ export class DiagnosticsService {
     const memoryUsage = this.getMemoryUsage();
     const uptime = this.getUptime();
 
+    // Get real data from storage
+    const [sessions, translations, languagePairs] = await Promise.all([
+      storage.getSessionMetrics(),
+      storage.getTranslationMetrics(),
+      storage.getLanguagePairMetrics()
+    ]);
+
+    // Get active connection data from WebSocketServer if available
+    let activeSessionData = {
+      activeSessions: 0,
+      studentsConnected: 0,
+      teachersConnected: 0,
+      currentLanguages: [] as string[]
+    };
+
+    try {
+      // Get WebSocketServer instance if it exists
+      const wsServer = (global as any).wsServer as WebSocketServer;
+      if (wsServer) {
+        activeSessionData = wsServer.getActiveSessionMetrics();
+      }
+    } catch (error) {
+      console.error('Failed to get active session metrics:', error);
+    }
+
+    // Format language pair metrics
+    const formattedLanguagePairs = languagePairs.map(pair => ({
+      sourceLanguage: pair.sourceLanguage,
+      targetLanguage: pair.targetLanguage,
+      count: pair.count,
+      averageLatency: pair.averageLatency,
+      averageLatencyFormatted: this.formatDuration(pair.averageLatency)
+    }));
+
+    // Get recent session activity
+    const recentSessions = await storage.getRecentSessionActivity(5);
+    const recentSessionActivity = recentSessions.map(session => ({
+      sessionId: session.sessionId,
+      language: session.teacherLanguage || 'unknown',
+      transcriptCount: session.transcriptCount || 0,
+      lastActivity: session.endTime || session.startTime,
+      duration: session.duration || 0
+    }));
+
     return {
       connections: {
         total: this.connectionCount,
@@ -192,39 +239,21 @@ export class DiagnosticsService {
         total: this.translationTimes.length,
         averageTime: translationAvg,
         averageTimeFormatted: this.formatDuration(translationAvg),
-        totalFromDatabase: 0, // TODO: Implement actual data collection from storage/database
-        averageLatencyFromDatabase: 0, // TODO: Implement actual data collection from storage/database (e.g., 1500 as placeholder)
-        averageLatencyFromDatabaseFormatted: this.formatDuration(0), // TODO: Update with actual average latency
-        languagePairs: [ // TODO: Implement dynamic aggregation of language pair metrics
-          // Example structure:
-          // {
-          //   sourceLanguage: 'en-US',
-          //   targetLanguage: 'es',
-          //   count: 5,
-          //   averageLatency: 1200,
-          //   averageLatencyFormatted: this.formatDuration(1200)
-          // },
-        ],
-        recentTranslations: 0 // TODO: Implement logic to count recent translations (e.g., last N or last X time period)
+        totalFromDatabase: translations.totalTranslations,
+        averageLatencyFromDatabase: translations.averageLatency,
+        averageLatencyFromDatabaseFormatted: this.formatDuration(translations.averageLatency),
+        languagePairs: formattedLanguagePairs,
+        recentTranslations: translations.recentTranslations
       },
       sessions: {
-        activeSessions: 0, // TODO: Implement tracking of active WebSocket sessions
-        totalSessions: 0, // TODO: Implement tracking of total historical sessions
-        averageSessionDuration: 0, // TODO: Implement calculation of average session duration
-        averageSessionDurationFormatted: this.formatDuration(0), // TODO: Update with actual average duration
-        studentsConnected: 0, // TODO: Implement tracking of connected students via WebSockets
-        teachersConnected: 0, // TODO: Implement tracking of connected teachers via WebSockets
-        currentLanguages: [], // TODO: Implement aggregation of languages currently in use in active sessions
-        recentSessionActivity: [ // TODO: Implement dynamic list of recent session activities
-          // Example structure:
-          // {
-          //   sessionId: 'class_ABC123',
-          //   language: 'en-US',
-          //   transcriptCount: 5,
-          //   lastActivity: new Date().toISOString(),
-          //   duration: 300
-          // }
-        ]
+        activeSessions: activeSessionData.activeSessions,
+        totalSessions: sessions.totalSessions,
+        averageSessionDuration: sessions.averageSessionDuration,
+        averageSessionDurationFormatted: this.formatDuration(sessions.averageSessionDuration),
+        studentsConnected: activeSessionData.studentsConnected,
+        teachersConnected: activeSessionData.teachersConnected,
+        currentLanguages: activeSessionData.currentLanguages,
+        recentSessionActivity
       },
       audio: {
         totalGenerated: this.audioGenerationTimes.length,
