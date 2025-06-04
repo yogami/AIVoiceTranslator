@@ -9,7 +9,7 @@ import { db } from '../../../server/db';
 import { users, languages, translations, transcripts } from '../../../shared/schema';
 import { initTestDatabase, closeDatabaseConnection } from '../../setup/db-setup';
 
-describe.skip('DatabaseStorage Integration Tests', () => {
+describe('DatabaseStorage Integration Tests', () => {
   let storage: DatabaseStorage;
 
   // Set up the storage and initialize the database before tests

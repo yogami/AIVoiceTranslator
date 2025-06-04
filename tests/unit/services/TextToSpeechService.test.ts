@@ -744,99 +744,164 @@ describe('Text-to-Speech Services', () => {
         }
       });
 
-      it.skip('should call OpenAI API, cache, and return new audio if not cached', async () => {
-        mockPromisifiedAccess.mockRejectedValue(new Error('ENOENT')); // Cache miss
+      it('should call OpenAI API, cache, and return new audio if not cached', async () => {
+        // Setup: Cache miss scenario
+        mockPromisifiedAccess.mockRejectedValue(new Error('ENOENT')); // Cache file doesn't exist
+        
+        // Setup: Mock audio data
         const mockAudioBuffer = Buffer.from('mock audio data for not cached test');
+        
+        // Setup: Mock OpenAI response with proper arrayBuffer method
         const mockAPIResponse = { 
-          ok: true, 
-          arrayBuffer: vi.fn().mockResolvedValue(mockAudioBuffer.buffer.slice(mockAudioBuffer.byteOffset, mockAudioBuffer.byteOffset + mockAudioBuffer.byteLength)),
-          headers: new Headers({ 'content-type': 'audio/mpeg' })
+          arrayBuffer: vi.fn().mockResolvedValue(mockAudioBuffer.buffer.slice(
+            mockAudioBuffer.byteOffset, 
+            mockAudioBuffer.byteOffset + mockAudioBuffer.byteLength
+          ))
         };
-        speechCreateMock.mockResolvedValue(mockAPIResponse as any);
-        mockPromisifiedWriteFile.mockResolvedValue(undefined); // Cache write succeeds
+        speechCreateMock.mockResolvedValue(mockAPIResponse);
+        
+        // Setup: Mock successful cache write
+        mockPromisifiedWriteFile.mockResolvedValue(undefined);
 
+        // Test data
         const text = 'test text for not cached scenario';
         const languageCode = 'en-US';
         const voice = 'alloy';
-        const options: TextToSpeechOptions = { text, languageCode, voice }; 
+        const options: TextToSpeechOptions = { text, languageCode, voice };
 
-        // Configure crypto mock for this test's cache key generation
+        // Setup: Configure crypto mock for cache key generation
         resetCryptoMock();
-        const expectedCacheKey = 'md5-not-cached-test-hash';
+        const expectedCacheKey = 'test-cache-key-not-cached';
         cryptoDigestMock.mockReturnValueOnce(expectedCacheKey);
-        const SUTExpectedCacheFilename = `${SUT_CACHE_DIR}/${expectedCacheKey}.mp3`;
-        const dataToHash = JSON.stringify(options);
+        
+        // Expected cache file path
+        const expectedCacheFilePath = `${SUT_CACHE_DIR}/${expectedCacheKey}.mp3`;
 
+        // Execute
         const result = await localSynthesizeSpeechService.synthesizeSpeech(options);
 
+        // Verify: Cache key generation
         expect(cryptoCreateHashMock).toHaveBeenCalledWith('md5');
-        expect(cryptoUpdateMock).toHaveBeenCalledWith(dataToHash);
-        expect(mockPromisifiedAccess).toHaveBeenCalledWith(SUTExpectedCacheFilename, fs.constants.F_OK);
+        expect(cryptoUpdateMock).toHaveBeenCalledWith(JSON.stringify(options));
+        expect(cryptoDigestMock).toHaveBeenCalledWith('hex');
+        
+        // Verify: Cache miss check
+        expect(mockPromisifiedAccess).toHaveBeenCalledWith(expectedCacheFilePath, fsOriginalConstants.F_OK);
+        
+        // Verify: OpenAI API was called
         expect(speechCreateMock).toHaveBeenCalledTimes(1);
-        expect(mockPromisifiedWriteFile).toHaveBeenCalledWith(SUTExpectedCacheFilename, mockAudioBuffer);
+        expect(speechCreateMock).toHaveBeenCalledWith({
+          model: 'tts-1',
+          input: text,
+          voice: voice,
+          response_format: 'mp3',
+          speed: 1.0
+        });
+        
+        // Verify: Cache write
+        expect(mockPromisifiedWriteFile).toHaveBeenCalledWith(expectedCacheFilePath, mockAudioBuffer);
+        
+        // Verify: Correct audio buffer returned
+        expect(result).toBeInstanceOf(Buffer);
         expect(result.toString('hex')).toBe(mockAudioBuffer.toString('hex'));
       });
 
-      it.skip('should call OpenAI API, cache, and return new audio if cache is expired', async () => {
+      it('should call OpenAI API, cache, and return new audio if cache is expired', async () => {
+        // Setup: Cache exists but is expired
+        mockPromisifiedAccess.mockResolvedValue(undefined); // File exists
+        
+        // Setup: Mock expired cache file stats
+        const expiredTime = Date.now() - (SUT_MAX_CACHE_AGE_MS + 1000); // 1 second past expiration
+        const mockStatObject: Stats = {
+          mtimeMs: expiredTime,
+          isFile: () => true,
+          isDirectory: () => false,
+          size: 1000,
+          atimeMs: expiredTime,
+          ctimeMs: expiredTime,
+          birthtimeMs: expiredTime,
+          dev: 0,
+          ino: 0,
+          mode: 0,
+          nlink: 0,
+          uid: 0,
+          gid: 0,
+          rdev: 0,
+          blksize: 0,
+          blocks: 0,
+          atime: new Date(expiredTime),
+          mtime: new Date(expiredTime),
+          ctime: new Date(expiredTime),
+          birthtime: new Date(expiredTime),
+          isBlockDevice: () => false,
+          isCharacterDevice: () => false,
+          isSymbolicLink: () => false,
+          isFIFO: () => false,
+          isSocket: () => false
+        } as Stats;
+        mockPromisifiedStat.mockResolvedValue(mockStatObject);
+        
+        // Setup: Mock audio data
+        const mockAudioBuffer = Buffer.from([0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE]);
+        
+        // Setup: Mock OpenAI response
+        const mockAPIResponse = {
+          arrayBuffer: vi.fn().mockResolvedValue(
+            mockAudioBuffer.buffer.slice(
+              mockAudioBuffer.byteOffset,
+              mockAudioBuffer.byteOffset + mockAudioBuffer.byteLength
+            )
+          )
+        };
+        speechCreateMock.mockResolvedValue(mockAPIResponse);
+        
+        // Setup: Mock successful cache write
+        mockPromisifiedWriteFile.mockResolvedValue(undefined);
+
+        // Test data
         const text = 'This is a unique test phrase for cache expiration.';
         const languageCode = 'en-US';
         const voice = 'alloy';
-        const speed: number | undefined = undefined;
-        const preserveEmotions: boolean | undefined = undefined;
+        const options: TextToSpeechOptions = { text, languageCode, voice };
 
-        const simpleRawData = [0xDE, 0xAD, 0xBE, 0xEF, 0xCA, 0xFE];
-        const simpleUint8Array = new Uint8Array(simpleRawData);
-        const simpleArrayBuffer = simpleUint8Array.buffer.slice(
-          simpleUint8Array.byteOffset,
-          simpleUint8Array.byteOffset + simpleUint8Array.byteLength
-        );
-        const expectedSimpleBuffer = Buffer.from(simpleUint8Array);
-
-        const mockOpenAIResponse = {
-          ok: true,
-          arrayBuffer: vi.fn().mockResolvedValue(simpleArrayBuffer),
-          headers: new Headers({ 'content-type': 'audio/mpeg' }),
-        };
-        // specificTestSpeechCreateMock is spied in beforeEach and restored in afterEach.
-        // We set its behavior for this specific test.
-        speechCreateMock.mockResolvedValue(mockOpenAIResponse as any);
-        // Removed the .mockImplementationOnce with console.log for clarity now that we're skipping.
-
-        const initialTime = Date.now() - (SUT_MAX_CACHE_AGE_MS + 1000);
-        let mockStatObject: fs.Stats = { 
-          mtimeMs: initialTime, isFile: () => true, isDirectory: () => false, size: 0, 
-          atimeMs: initialTime, ctimeMs: initialTime, birthtimeMs: initialTime, 
-          dev: 0, ino: 0, mode: 0, nlink: 0, uid: 0, gid: 0, rdev: 0, blksize: 0, blocks: 0, 
-          atime: new Date(initialTime), mtime: new Date(initialTime), 
-          ctime: new Date(initialTime), birthtime: new Date(initialTime)
-        } as fs.Stats;
-        mockPromisifiedStat.mockResolvedValue(mockStatObject);
-        mockPromisifiedAccess.mockResolvedValue(undefined);
-
+        // Setup: Configure crypto mock for cache key generation
         resetCryptoMock();
-        const expectedHashForThisCase = 'md5-expired-cache-test-hash';
-        cryptoDigestMock.mockReturnValueOnce(expectedHashForThisCase);
+        const expectedCacheKey = 'test-cache-key-expired';
+        cryptoDigestMock.mockReturnValueOnce(expectedCacheKey);
+        
+        // Expected cache file path
+        const expectedCacheFilePath = `${SUT_CACHE_DIR}/${expectedCacheKey}.mp3`;
 
-        const optionsForCacheKey: TextToSpeechOptions = { text, languageCode, voice, speed, preserveEmotions }; 
-        const dataToHash = JSON.stringify(optionsForCacheKey);
-        const expectedCacheKey = expectedHashForThisCase;
-        const expectedCacheFilename = `${SUT_CACHE_DIR}/${expectedCacheKey}.mp3`;
+        // Execute
+        const result = await localSynthesizeSpeechService.synthesizeSpeech(options);
 
-        mockPromisifiedWriteFile.mockClear();
-
-        const synthesizeInputOptions: TextToSpeechOptions = { text, languageCode, voice, speed, preserveEmotions };
-        const result = await localSynthesizeSpeechService.synthesizeSpeech(synthesizeInputOptions);
-
+        // Verify: Cache key generation
         expect(cryptoCreateHashMock).toHaveBeenCalledWith('md5');
-        expect(cryptoUpdateMock).toHaveBeenCalledWith(dataToHash);
+        expect(cryptoUpdateMock).toHaveBeenCalledWith(JSON.stringify(options));
         expect(cryptoDigestMock).toHaveBeenCalledWith('hex');
-
-        expect(speechCreateMock).toHaveBeenCalled();
-        expect(mockPromisifiedWriteFile).toHaveBeenCalledWith(
-          SUT_CACHE_DIR + '/' + expectedCacheFilename,
-          expectedSimpleBuffer
-        );
-        expect(result.toString('hex')).toBe(expectedSimpleBuffer.toString('hex'));
+        
+        // Verify: Cache check (file exists)
+        expect(mockPromisifiedAccess).toHaveBeenCalledWith(expectedCacheFilePath, fsOriginalConstants.F_OK);
+        
+        // Verify: Cache expiration check
+        expect(mockPromisifiedStat).toHaveBeenCalledWith(expectedCacheFilePath);
+        
+        // Verify: OpenAI API was called (because cache was expired)
+        expect(speechCreateMock).toHaveBeenCalledTimes(1);
+        expect(speechCreateMock).toHaveBeenCalledWith({
+          model: 'tts-1',
+          input: text,
+          voice: voice,
+          response_format: 'mp3',
+          speed: 1.0
+        });
+        
+        // Verify: Cache write (updating expired cache)
+        expect(mockPromisifiedWriteFile).toHaveBeenCalledWith(expectedCacheFilePath, mockAudioBuffer);
+        
+        // Verify: Correct audio buffer returned
+        expect(result).toBeInstanceOf(Buffer);
+        expect(result.toString('hex')).toBe(mockAudioBuffer.toString('hex'));
       });
       
       it('should handle OpenAI API errors gracefully', async () => {

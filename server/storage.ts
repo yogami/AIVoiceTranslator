@@ -6,24 +6,24 @@
  */
 
 import {
-  // users, // Removed
   type User,
   type InsertUser,
-  // languages, // Removed
   type Language,
   type InsertLanguage,
-  // translations, // Removed
   type Translation,
   type InsertTranslation,
-  // transcripts, // Removed
   type Transcript,
   type InsertTranscript,
-  // sessions, // Removed
   type Session,
-  type InsertSession
+  type InsertSession,
+  users,
+  languages,
+  translations,
+  transcripts,
+  sessions
 } from "../shared/schema";
-// import { db } from "./db"; // Removed
-// import { eq, and, gte, lte } from "drizzle-orm"; // Removed
+import { db } from "./db";
+import { eq, and, gte, lte } from "drizzle-orm";
 
 // Constants
 const DEFAULT_QUERY_LIMIT = 10;
@@ -40,7 +40,7 @@ const DEFAULT_LANGUAGES: InsertLanguage[] = [
 export class StorageError extends Error {
   constructor(
     message: string,
-    public readonly code: 'NOT_FOUND' | 'VALIDATION_ERROR' | 'DUPLICATE_ENTRY' | 'STORAGE_ERROR',
+    public readonly code: 'NOT_FOUND' | 'VALIDATION_ERROR' | 'DUPLICATE_ENTRY' | 'STORAGE_ERROR' | 'CREATE_FAILED',
     public readonly details?: unknown
   ) {
     super(message);
@@ -392,5 +392,234 @@ export class MemStorage implements IStorage {
   }
 }
 
-// Use MemStorage for in-memory storage (no database required)
-export const storage = new MemStorage();
+/**
+ * Database Storage Implementation
+ * 
+ * Implements the IStorage interface using PostgreSQL database
+ */
+export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db
+      .select()
+      .from(users)
+      .where(eq(users.username, username))
+      .limit(1);
+    return result[0];
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const result = await db
+      .insert(users)
+      .values(user)
+      .returning();
+    
+    if (!result[0]) {
+      throw new StorageError('Failed to create user', 'CREATE_FAILED');
+    }
+    return result[0];
+  }
+
+  async getLanguages(): Promise<Language[]> {
+    return await db.select().from(languages);
+  }
+
+  async getActiveLanguages(): Promise<Language[]> {
+    return await db
+      .select()
+      .from(languages)
+      .where(eq(languages.isActive, true));
+  }
+
+  async getLanguageByCode(code: string): Promise<Language | undefined> {
+    const result = await db
+      .select()
+      .from(languages)
+      .where(eq(languages.code, code))
+      .limit(1);
+    return result[0];
+  }
+
+  async createLanguage(language: InsertLanguage): Promise<Language> {
+    const result = await db
+      .insert(languages)
+      .values(language)
+      .returning();
+    
+    if (!result[0]) {
+      throw new StorageError('Failed to create language', 'CREATE_FAILED');
+    }
+    return result[0];
+  }
+
+  async updateLanguageStatus(code: string, isActive: boolean): Promise<Language | undefined> {
+    const result = await db
+      .update(languages)
+      .set({ isActive })
+      .where(eq(languages.code, code))
+      .returning();
+    return result[0];
+  }
+
+  async addTranslation(translation: InsertTranslation): Promise<Translation> {
+    const result = await db
+      .insert(translations)
+      .values({
+        ...translation,
+        timestamp: new Date()
+      })
+      .returning();
+    
+    if (!result[0]) {
+      throw new StorageError('Failed to add translation', 'CREATE_FAILED');
+    }
+    return result[0];
+  }
+
+  async getTranslationsByLanguage(targetLanguage: string, limit: number = DEFAULT_QUERY_LIMIT): Promise<Translation[]> {
+    return await db
+      .select()
+      .from(translations)
+      .where(eq(translations.targetLanguage, targetLanguage))
+      .orderBy(translations.timestamp)
+      .limit(limit);
+  }
+
+  async addTranscript(transcript: InsertTranscript): Promise<Transcript> {
+    const result = await db
+      .insert(transcripts)
+      .values({
+        ...transcript,
+        timestamp: new Date()
+      })
+      .returning();
+    
+    if (!result[0]) {
+      throw new StorageError('Failed to add transcript', 'CREATE_FAILED');
+    }
+    return result[0];
+  }
+
+  async getTranscriptsBySession(sessionId: string, language: string, limit: number = DEFAULT_QUERY_LIMIT): Promise<Transcript[]> {
+    return await db
+      .select()
+      .from(transcripts)
+      .where(and(
+        eq(transcripts.sessionId, sessionId),
+        eq(transcripts.language, language)
+      ))
+      .orderBy(transcripts.timestamp)
+      .limit(limit);
+  }
+
+  async getTranslations(limit: number = DEFAULT_QUERY_LIMIT): Promise<Translation[]> {
+    return await db
+      .select()
+      .from(translations)
+      .orderBy(translations.timestamp)
+      .limit(limit);
+  }
+
+  async createSession(session: InsertSession): Promise<Session> {
+    const result = await db
+      .insert(sessions)
+      .values({
+        ...session,
+        startTime: new Date(),
+        endTime: null,
+        isActive: true
+      })
+      .returning();
+    
+    if (!result[0]) {
+      throw new StorageError('Failed to create session', 'CREATE_FAILED');
+    }
+    return result[0];
+  }
+
+  async getActiveSession(sessionId: string): Promise<Session | undefined> {
+    const result = await db
+      .select()
+      .from(sessions)
+      .where(and(
+        eq(sessions.sessionId, sessionId),
+        eq(sessions.isActive, true)
+      ))
+      .limit(1);
+    return result[0];
+  }
+
+  async getAllActiveSessions(): Promise<Session[]> {
+    return await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.isActive, true));
+  }
+
+  async endSession(sessionId: string): Promise<Session | undefined> {
+    const result = await db
+      .update(sessions)
+      .set({ 
+        endTime: new Date(), 
+        isActive: false 
+      })
+      .where(and(
+        eq(sessions.sessionId, sessionId),
+        eq(sessions.isActive, true)
+      ))
+      .returning();
+    return result[0];
+  }
+
+  async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined> {
+    const result = await db
+      .update(sessions)
+      .set(updates)
+      .where(eq(sessions.sessionId, sessionId))
+      .returning();
+    return result[0];
+  }
+
+  async getTranslationsByDateRange(startDate: Date, endDate: Date): Promise<Translation[]> {
+    return await db
+      .select()
+      .from(translations)
+      .where(and(
+        gte(translations.timestamp, startDate),
+        lte(translations.timestamp, endDate)
+      ));
+  }
+
+  async getSessionAnalytics(sessionId: string): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
+    languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
+  }> {
+    // TODO: [Technical Debt - Feature Implementation]
+    // Implement full analytics calculation for DatabaseStorage. 
+    // Current implementation is a placeholder and uses mock/zeroed data.
+    
+    const sessionTranscripts = await db
+      .select()
+      .from(transcripts)
+      .where(eq(transcripts.sessionId, sessionId));
+    
+    // For now, return placeholder data
+    return {
+      totalTranslations: 0, 
+      averageLatency: 0, 
+      languagePairs: [] 
+    };
+  }
+}
+
+// Export storage instance - use DATABASE_URL to determine which storage to use
+export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
