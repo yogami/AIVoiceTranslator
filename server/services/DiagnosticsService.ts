@@ -5,9 +5,15 @@
  * Tracks performance metrics, system health, and provides user-friendly formatting.
  */
 
+import { storage } from '../storage';
+import type { Translation, Session, Transcript } from '../../shared/schema';
+
 interface ConnectionMetrics {
   total: number;
   active: number;
+  teachers: number;
+  students: number;
+  byRole: { [role: string]: number };
 }
 
 interface TranslationMetrics {
@@ -19,6 +25,8 @@ interface TranslationMetrics {
   averageLatencyFromDatabaseFormatted: string;
   languagePairs: LanguagePairMetric[];
   recentTranslations: number;
+  translationsLast24Hours: number;
+  translationsLastHour: number;
 }
 
 interface LanguagePairMetric {
@@ -38,6 +46,8 @@ interface SessionMetrics {
   teachersConnected: number;
   currentLanguages: string[];
   recentSessionActivity: SessionActivity[];
+  sessionsLast24Hours: number;
+  averageStudentsPerSession: number;
 }
 
 interface SessionActivity {
@@ -63,12 +73,30 @@ interface SystemMetrics {
   uptimeFormatted: string;
 }
 
+interface UsageMetrics {
+  peakConcurrentUsers: number;
+  uniqueTeachersToday: Set<string>;
+  uniqueStudentsToday: Set<string>;
+  mostActiveLanguagePairs: LanguagePairMetric[];
+  averageSessionLength: number;
+  totalTranscriptions: number;
+  completedSessionsCount: number;
+}
+
 export interface DiagnosticsData {
   connections: ConnectionMetrics;
   translations: TranslationMetrics;
   sessions: SessionMetrics;
   audio: AudioMetrics;
   system: SystemMetrics;
+  usage: {
+    peakConcurrentUsers: number;
+    uniqueTeachersToday: number;
+    uniqueStudentsToday: number;
+    mostActiveLanguagePairs: LanguagePairMetric[];
+    averageSessionLengthFormatted: string;
+    totalTranscriptions: number;
+  };
   lastUpdated: string;
 }
 
@@ -80,26 +108,64 @@ export interface DiagnosticsExportData extends DiagnosticsData {
 export class DiagnosticsService {
   private startTime: number;
   private connectionCount: number = 0;
-  private activeConnections: number = 0;
+  private activeConnections: Map<string, { role: string; connectedAt: Date }> = new Map();
   private translationTimes: number[] = [];
   private audioGenerationTimes: number[] = [];
   private audioCacheSize: number = 0;
+  private usageMetrics: UsageMetrics;
+  private sessionStartTimes: Map<string, number> = new Map();
 
   constructor() {
     this.startTime = Date.now();
+    this.usageMetrics = {
+      peakConcurrentUsers: 0,
+      uniqueTeachersToday: new Set(),
+      uniqueStudentsToday: new Set(),
+      mostActiveLanguagePairs: [],
+      averageSessionLength: 0,
+      totalTranscriptions: 0,
+      completedSessionsCount: 0
+    };
   }
 
-  recordConnection(): void {
+  recordConnection(connectionId: string, role: string): void {
     this.connectionCount++;
+    this.activeConnections.set(connectionId, { role, connectedAt: new Date() });
+    
+    // Track unique users
+    if (role === 'teacher') {
+      this.usageMetrics.uniqueTeachersToday.add(connectionId);
+    } else if (role === 'student') {
+      this.usageMetrics.uniqueStudentsToday.add(connectionId);
+    }
+    
+    // Update peak concurrent users
+    const currentActive = this.activeConnections.size;
+    if (currentActive > this.usageMetrics.peakConcurrentUsers) {
+      this.usageMetrics.peakConcurrentUsers = currentActive;
+    }
   }
 
-  recordConnectionActive(): void {
-    this.activeConnections++;
+  recordConnectionClosed(connectionId: string): void {
+    this.activeConnections.delete(connectionId);
   }
 
-  recordConnectionClosed(): void {
-    if (this.activeConnections > 0) {
-      this.activeConnections--;
+  recordSessionStart(sessionId: string): void {
+    this.sessionStartTimes.set(sessionId, Date.now());
+  }
+
+  recordSessionEnd(sessionId: string): void {
+    const startTime = this.sessionStartTimes.get(sessionId);
+    if (startTime) {
+      const duration = Date.now() - startTime;
+      // Update average session length
+      const currentAvg = this.usageMetrics.averageSessionLength;
+      const completedCount = this.usageMetrics.completedSessionsCount;
+      this.usageMetrics.averageSessionLength = 
+        (currentAvg * completedCount + duration) / (completedCount + 1);
+      
+      this.usageMetrics.completedSessionsCount++;
+      this.sessionStartTimes.delete(sessionId);
     }
   }
 
@@ -109,6 +175,10 @@ export class DiagnosticsService {
     if (this.translationTimes.length > 100) {
       this.translationTimes.shift();
     }
+  }
+
+  recordTranscription(): void {
+    this.usageMetrics.totalTranscriptions++;
   }
 
   recordAudioGeneration(timeMs: number): void {
@@ -177,54 +247,130 @@ export class DiagnosticsService {
     return Math.round((Date.now() - this.startTime) / 1000);
   }
 
+  private async getLanguagePairMetrics(): Promise<LanguagePairMetric[]> {
+    try {
+      // Get translations from last 24 hours
+      const endDate = new Date();
+      const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000);
+      const translations = await storage.getTranslationsByDateRange(startDate, endDate);
+      
+      // Aggregate by language pair
+      const pairMap = new Map<string, { count: number; totalLatency: number }>();
+      
+      translations.forEach(t => {
+        const key = `${t.sourceLanguage}->${t.targetLanguage}`;
+        const existing = pairMap.get(key) || { count: 0, totalLatency: 0 };
+        existing.count++;
+        existing.totalLatency += t.latency || 0;
+        pairMap.set(key, existing);
+      });
+      
+      // Convert to array and calculate averages
+      return Array.from(pairMap.entries()).map(([pair, data]) => {
+        const [source, target] = pair.split('->');
+        const avgLatency = data.count > 0 ? Math.round(data.totalLatency / data.count) : 0;
+        return {
+          sourceLanguage: source,
+          targetLanguage: target,
+          count: data.count,
+          averageLatency: avgLatency,
+          averageLatencyFormatted: this.formatDuration(avgLatency)
+        };
+      }).sort((a, b) => b.count - a.count); // Sort by most used
+    } catch (error) {
+      console.error('Error getting language pair metrics:', error);
+      return [];
+    }
+  }
+
   async getMetrics(): Promise<DiagnosticsData> {
     const translationAvg = this.calculateAverage(this.translationTimes);
     const audioAvg = this.calculateAverage(this.audioGenerationTimes);
     const memoryUsage = this.getMemoryUsage();
     const uptime = this.getUptime();
 
+    // Get active connections by role
+    const connectionsByRole: { [role: string]: number } = {};
+    let teacherCount = 0;
+    let studentCount = 0;
+    
+    this.activeConnections.forEach(conn => {
+      connectionsByRole[conn.role] = (connectionsByRole[conn.role] || 0) + 1;
+      if (conn.role === 'teacher') teacherCount++;
+      else if (conn.role === 'student') studentCount++;
+    });
+
+    // Get data from storage
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+    
+    let dbTranslations: Translation[] = [];
+    let dbSessions: Session[] = [];
+    let totalDbTranslations = 0;
+    let avgDbLatency = 0;
+    
+    try {
+      // Get translations from database
+      dbTranslations = await storage.getTranslationsByDateRange(oneDayAgo, now);
+      totalDbTranslations = dbTranslations.length;
+      
+      if (totalDbTranslations > 0) {
+        const totalLatency = dbTranslations.reduce((sum, t) => sum + (t.latency || 0), 0);
+        avgDbLatency = Math.round(totalLatency / totalDbTranslations);
+      }
+      
+      // Get sessions
+      dbSessions = await storage.getAllActiveSessions();
+    } catch (error) {
+      console.error('Error fetching data from storage:', error);
+    }
+
+    // Calculate translations in different time windows
+    const translationsLastHour = dbTranslations.filter(t => 
+      t.timestamp && t.timestamp >= oneHourAgo
+    ).length;
+
+    // Get language pair metrics
+    const languagePairs = await this.getLanguagePairMetrics();
+
     return {
       connections: {
         total: this.connectionCount,
-        active: this.activeConnections
+        active: this.activeConnections.size,
+        teachers: teacherCount,
+        students: studentCount,
+        byRole: connectionsByRole
       },
       translations: {
         total: this.translationTimes.length,
         averageTime: translationAvg,
         averageTimeFormatted: this.formatDuration(translationAvg),
-        totalFromDatabase: 0, // TODO: Implement actual data collection from storage/database
-        averageLatencyFromDatabase: 0, // TODO: Implement actual data collection from storage/database (e.g., 1500 as placeholder)
-        averageLatencyFromDatabaseFormatted: this.formatDuration(0), // TODO: Update with actual average latency
-        languagePairs: [ // TODO: Implement dynamic aggregation of language pair metrics
-          // Example structure:
-          // {
-          //   sourceLanguage: 'en-US',
-          //   targetLanguage: 'es',
-          //   count: 5,
-          //   averageLatency: 1200,
-          //   averageLatencyFormatted: this.formatDuration(1200)
-          // },
-        ],
-        recentTranslations: 0 // TODO: Implement logic to count recent translations (e.g., last N or last X time period)
+        totalFromDatabase: totalDbTranslations,
+        averageLatencyFromDatabase: avgDbLatency,
+        averageLatencyFromDatabaseFormatted: this.formatDuration(avgDbLatency),
+        languagePairs: languagePairs.slice(0, 5), // Top 5 language pairs
+        recentTranslations: this.translationTimes.length,
+        translationsLast24Hours: totalDbTranslations,
+        translationsLastHour: translationsLastHour
       },
       sessions: {
-        activeSessions: 0, // TODO: Implement tracking of active WebSocket sessions
-        totalSessions: 0, // TODO: Implement tracking of total historical sessions
-        averageSessionDuration: 0, // TODO: Implement calculation of average session duration
-        averageSessionDurationFormatted: this.formatDuration(0), // TODO: Update with actual average duration
-        studentsConnected: 0, // TODO: Implement tracking of connected students via WebSockets
-        teachersConnected: 0, // TODO: Implement tracking of connected teachers via WebSockets
-        currentLanguages: [], // TODO: Implement aggregation of languages currently in use in active sessions
-        recentSessionActivity: [ // TODO: Implement dynamic list of recent session activities
-          // Example structure:
-          // {
-          //   sessionId: 'class_ABC123',
-          //   language: 'en-US',
-          //   transcriptCount: 5,
-          //   lastActivity: new Date().toISOString(),
-          //   duration: 300
-          // }
-        ]
+        activeSessions: dbSessions.length,
+        totalSessions: this.sessionStartTimes.size + dbSessions.length,
+        averageSessionDuration: this.usageMetrics.averageSessionLength,
+        averageSessionDurationFormatted: this.formatDuration(this.usageMetrics.averageSessionLength),
+        studentsConnected: studentCount,
+        teachersConnected: teacherCount,
+        currentLanguages: Array.from(new Set(
+          Array.from(this.activeConnections.values())
+            .map(conn => conn.role)
+            .filter(role => role !== 'teacher' && role !== 'student')
+        )),
+        recentSessionActivity: [], // TODO: Implement if needed
+        sessionsLast24Hours: dbSessions.length,
+        averageStudentsPerSession: studentCount > 0 && teacherCount > 0 
+          ? Math.round(studentCount / teacherCount) 
+          : 0
       },
       audio: {
         totalGenerated: this.audioGenerationTimes.length,
@@ -238,6 +384,14 @@ export class DiagnosticsService {
         memoryUsageFormatted: this.formatBytes(memoryUsage),
         uptime,
         uptimeFormatted: this.formatUptime(uptime)
+      },
+      usage: {
+        peakConcurrentUsers: this.usageMetrics.peakConcurrentUsers,
+        uniqueTeachersToday: this.usageMetrics.uniqueTeachersToday.size,
+        uniqueStudentsToday: this.usageMetrics.uniqueStudentsToday.size,
+        mostActiveLanguagePairs: languagePairs.slice(0, 3), // Top 3
+        averageSessionLengthFormatted: this.formatDuration(this.usageMetrics.averageSessionLength),
+        totalTranscriptions: this.usageMetrics.totalTranscriptions
       },
       lastUpdated: new Date().toISOString()
     };
@@ -254,11 +408,21 @@ export class DiagnosticsService {
 
   reset(): void {
     this.connectionCount = 0;
-    this.activeConnections = 0;
+    this.activeConnections.clear();
     this.translationTimes = [];
     this.audioGenerationTimes = [];
     this.audioCacheSize = 0;
     this.startTime = Date.now();
+    this.usageMetrics = {
+      peakConcurrentUsers: 0,
+      uniqueTeachersToday: new Set(),
+      uniqueStudentsToday: new Set(),
+      mostActiveLanguagePairs: [],
+      averageSessionLength: 0,
+      totalTranscriptions: 0,
+      completedSessionsCount: 0
+    };
+    this.sessionStartTimes.clear();
   }
 }
 

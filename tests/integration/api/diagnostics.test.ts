@@ -3,9 +3,9 @@ import express from 'express';
 import request from 'supertest';
 import { apiRoutes } from '../../../server/routes';
 
-// TODO: Diagnostics API feature is not yet implemented
-// These tests should be enabled once the diagnostics API endpoints are fully implemented
-describe.skip('Diagnostics API Integration Tests', () => {
+// Diagnostics API feature is now implemented
+// These tests verify the diagnostics API endpoints are working correctly
+describe('Diagnostics API Integration Tests', () => {
   let app: express.Application;
 
   beforeEach(() => {
