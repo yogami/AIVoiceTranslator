@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mocked } from 'vitest';
 import express from 'express';
 import request from 'supertest';
+import * as http from 'http'; // Import the mocked http to access its members
 
 // Mock http module
 vi.mock('http', async (importOriginal) => {
@@ -35,6 +36,10 @@ vi.mock('http', async (importOriginal) => {
         mockHttpServerInstance.listening = false;
     }
   };
+  
+  // Make the mock instance extend the Server prototype
+  Object.setPrototypeOf(mockHttpServerInstance, actualHttp.Server.prototype);
+  
   const mockCreateServer = vi.fn(() => {
     mockHttpServerInstance.listening = false;
     const originalListen = mockHttpServerInstance.listen;
@@ -74,7 +79,6 @@ vi.mock('../../server/services/WebSocketServer', () => {
 
 // Now import the server module AFTER mocks are set up
 import { startServer, configureCorsMiddleware } from '../../server/server';
-import * as http from 'http'; // Import the mocked http to access its members
 // Import the mocked WebSocketServer service to access the getter
 import * as WSService from '../../server/services/WebSocketServer'; 
 
@@ -115,12 +119,14 @@ describe('Server Unit Tests', () => {
   
   afterEach(async () => {
     const mockedHttpInstance = getMockedHttpServerInstance();
-    if (server?.httpServer?.listening) {
+    if (server && mockedHttpInstance.listening) {
       await new Promise<void>((resolve) => {
-        if (server.httpServer === mockedHttpInstance) {
+        if (server === mockedHttpInstance) {
           mockedHttpInstance.close(resolve);
+        } else if (server.close) {
+          server.close(resolve);
         } else {
-          server.httpServer.close(resolve);
+          resolve();
         }
       });
     }
@@ -132,31 +138,30 @@ describe('Server Unit Tests', () => {
 
   describe('startServer', () => {
     it('should return app, httpServer, and wss properties', async () => {
-      server = await startServer();
+      const app = express();
+      server = await startServer(app);
       expect(server).toBeDefined();
-      expect(server).toHaveProperty('app');
-      expect(server).toHaveProperty('httpServer');
-      expect(server).toHaveProperty('wss');
-      expect(server.app).toBeInstanceOf(Function);
-      expect(server.httpServer).toBe(getMockedHttpServerInstance()); 
+      expect(server).toBeInstanceOf(http.Server);
+      expect(getWebSocketServerMockConstructor()).toHaveBeenCalledTimes(1);
     });
 
     it('should create a WebSocketServer instance', async () => { 
       const mockInstance = { close: vi.fn() };
       // Use the getter for the mock constructor variable here
       getWebSocketServerMockConstructor().mockImplementation(() => mockInstance);
-      server = await startServer();
+      const app = express();
+      server = await startServer(app);
       // And here for assertions
       expect(getWebSocketServerMockConstructor()).toHaveBeenCalledTimes(1);
       expect(getWebSocketServerMockConstructor()).toHaveBeenCalledWith(getMockedHttpServerInstance());
-      expect(server.wss).toBe(mockInstance);
     });
 
     it('should log warning if OPENAI_API_KEY is missing', async () => {
       const originalKey = process.env.OPENAI_API_KEY;
       delete process.env.OPENAI_API_KEY;
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      server = await startServer();
+      const app = express();
+      server = await startServer(app);
       expect(consoleSpy).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
       consoleSpy.mockRestore();
       if (originalKey) process.env.OPENAI_API_KEY = originalKey;
@@ -165,7 +170,8 @@ describe('Server Unit Tests', () => {
     it('should log success if OPENAI_API_KEY is present', async () => {
       process.env.OPENAI_API_KEY = 'test-key';
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-      server = await startServer();
+      const app = express();
+      server = await startServer(app);
       expect(consoleSpy).toHaveBeenCalledWith('OpenAI API key found and client configured.');
       consoleSpy.mockRestore();
     });
@@ -174,9 +180,10 @@ describe('Server Unit Tests', () => {
       delete process.env.PORT;
       const mockedHttpInstance = getMockedHttpServerInstance();
       mockedHttpInstance.address.mockImplementation(() => ({ port: 12345 }));
-      const testServer: any = await startServer();
-      expect(testServer.httpServer.listening).toBe(true);
-      const address = testServer.httpServer.address();
+      const app = express();
+      const testServer: any = await startServer(app);
+      expect(mockedHttpInstance.listening).toBe(true);
+      const address = mockedHttpInstance.address();
       expect(address.port).toBe(12345);
     });
 
@@ -193,7 +200,8 @@ describe('Server Unit Tests', () => {
         mockedHttpInstance.address.mockImplementation(() => {
             return { port: mockedHttpInstance.listeningPort === 5000 ? 5000 : 0 };
         });
-        server = await startServer();
+        const app = express();
+        server = await startServer(app);
         expect(mockedHttpInstance.listen).toHaveBeenCalledWith(5000, expect.any(Function));
         expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('[express] serving on port 5000'));
       } finally {

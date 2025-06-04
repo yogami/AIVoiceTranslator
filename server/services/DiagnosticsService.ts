@@ -134,8 +134,8 @@ export class DiagnosticsService {
     if (bytes === 0) return '0.0 B';
     
     const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
     
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   }
@@ -226,7 +226,7 @@ export class DiagnosticsService {
       sessionId: session.sessionId,
       language: session.teacherLanguage || 'unknown',
       transcriptCount: session.transcriptCount || 0,
-      lastActivity: session.endTime || session.startTime,
+      lastActivity: (session.endTime || session.startTime)?.toISOString() || new Date().toISOString(),
       duration: session.duration || 0
     }));
 
