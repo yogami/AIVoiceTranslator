@@ -10,6 +10,7 @@ import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
 import { speechTranslationService } from './TranslationService';
 import { URL } from 'url';
+import { storage } from '../storage';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -135,6 +136,12 @@ export class WebSocketServer {
     this.connections.add(ws);
     this.sessionIds.set(ws, sessionId);
     
+    // Create session in storage for metrics tracking
+    this.createSessionInStorage(sessionId).catch(error => {
+      console.error('Failed to create session in storage:', error);
+      // Continue without metrics - don't break core functionality
+    });
+    
     // Send immediate connection confirmation with classroom code if applicable
     this.sendConnectionConfirmation(ws, classroomCode);
     
@@ -157,6 +164,22 @@ export class WebSocketServer {
     ws.on('error', (error) => {
       console.error('WebSocket error:', error);
     });
+  }
+
+  /**
+   * Create session in storage for metrics tracking
+   */
+  private async createSessionInStorage(sessionId: string): Promise<void> {
+    try {
+      await storage.createSession({
+        sessionId,
+        isActive: true
+        // startTime is automatically set by the database default
+      });
+    } catch (error) {
+      // Log but don't throw - metrics should not break core functionality
+      console.error('Failed to create session in storage:', error);
+    }
   }
 
   /**
@@ -252,6 +275,15 @@ export class WebSocketServer {
           const classroomCode = this.generateClassroomCode(sessionId);
           const sessionInfo = this.classroomSessions.get(classroomCode);
           
+          // Update session with teacher language
+          if (message.languageCode) {
+            this.updateSessionInStorage(sessionId, {
+              teacherLanguage: message.languageCode
+            }).catch(error => {
+              console.error('Failed to update session with teacher language:', error);
+            });
+          }
+          
           const response: ClassroomCodeMessageToClient = {
             type: 'classroom_code',
             code: classroomCode,
@@ -297,6 +329,17 @@ export class WebSocketServer {
     };
     
     ws.send(JSON.stringify(response));
+  }
+  
+  /**
+   * Update session in storage
+   */
+  private async updateSessionInStorage(sessionId: string, updates: any): Promise<void> {
+    try {
+      await storage.updateSession(sessionId, updates);
+    } catch (error) {
+      console.error('Failed to update session in storage:', error);
+    }
   }
   
   /**
@@ -518,50 +561,81 @@ export class WebSocketServer {
       };
     }
   ): void {
-    studentConnections.forEach(client => {
-      const studentLanguage = this.languages.get(client);
-      if (!studentLanguage) return;
+    // Send translations to each student
+    studentConnections.forEach(student => {
+      const studentLanguage = this.languages.get(student);
       
-      const translatedText = translations[studentLanguage] || originalText;
-      
-      // Always use OpenAI TTS service - ignore any other settings
-      const ttsServiceType = 'openai';
-      
-      // Calculate total latency up to this point
-      const currentTime = Date.now();
-      const totalLatency = currentTime - startTime;
-      
-      // Create translation message
-      const translationMessage = this.createTranslationMessage(
-        translatedText,
-        originalText,
-        sourceLanguage,
-        studentLanguage,
-        ttsServiceType,
-        totalLatency,
-        currentTime,
-        latencyTracking
-      );
-      
-      // Add audio data if available
-      if (translationResults[studentLanguage] && translationResults[studentLanguage].audioBuffer) {
-        this.addAudioDataToMessage(
-          translationMessage,
-          translationResults[studentLanguage].audioBuffer,
+      if (studentLanguage && translationResults[studentLanguage]) {
+        const result = translationResults[studentLanguage];
+        const currentTime = Date.now();
+        const totalLatency = currentTime - startTime;
+        
+        // Get TTS service type for this student
+        const studentSettings = this.clientSettings.get(student) || {};
+        const ttsServiceType = studentSettings.ttsServiceType || 'openai';
+        
+        // Create translation message
+        const translationMessage = this.createTranslationMessage(
+          result.translatedText,
+          originalText,
+          sourceLanguage,
           studentLanguage,
-          translatedText,
-          ttsServiceType
+          ttsServiceType,
+          totalLatency,
+          currentTime,
+          latencyTracking
         );
-      }
-      
-      // Send the translation message to the student
-      try {
-        client.send(JSON.stringify(translationMessage));
-        console.log(`Sent translation to student: "${translatedText.substring(0, 30)}${translatedText.length > 30 ? '...' : ''}"`);
-      } catch (error) {
-        console.error('Error sending translation to student:', error);
+        
+        // Add audio data if available
+        if (result.audioBuffer && result.audioBuffer.length > 0) {
+          this.addAudioDataToMessage(
+            translationMessage,
+            result.audioBuffer,
+            studentLanguage,
+            result.translatedText,
+            ttsServiceType
+          );
+        }
+        
+        // Send the translation message
+        student.send(JSON.stringify(translationMessage));
+        
+        // Store translation in storage for metrics
+        this.storeTranslationMetrics(
+          sourceLanguage,
+          studentLanguage,
+          originalText,
+          result.translatedText,
+          totalLatency
+        ).catch(error => {
+          console.error('Failed to store translation metrics:', error);
+        });
       }
     });
+  }
+  
+  /**
+   * Store translation metrics in storage
+   */
+  private async storeTranslationMetrics(
+    sourceLanguage: string,
+    targetLanguage: string,
+    originalText: string,
+    translatedText: string,
+    latency: number
+  ): Promise<void> {
+    try {
+      await storage.addTranslation({
+        sourceLanguage,
+        targetLanguage,
+        originalText,
+        translatedText,
+        latency
+        // timestamp is automatically set by the database default
+      });
+    } catch (error) {
+      console.error('Failed to store translation metrics:', error);
+    }
   }
   
   /**
@@ -946,14 +1020,36 @@ export class WebSocketServer {
    * Handle WebSocket close event
    */
   private handleClose(ws: WebSocketClient): void {
-    console.log('WebSocket disconnected, sessionId:', this.sessionIds.get(ws));
+    const sessionId = this.sessionIds.get(ws);
+    console.log('WebSocket disconnected, sessionId:', sessionId);
     
-    // Remove from all maps
+    // Remove from tracking
     this.connections.delete(ws);
     this.roles.delete(ws);
     this.languages.delete(ws);
     this.sessionIds.delete(ws);
     this.clientSettings.delete(ws);
+    
+    // End session in storage if no more connections with this sessionId
+    if (sessionId) {
+      const hasOtherConnections = Array.from(this.sessionIds.values()).includes(sessionId);
+      if (!hasOtherConnections) {
+        this.endSessionInStorage(sessionId).catch(error => {
+          console.error('Failed to end session in storage:', error);
+        });
+      }
+    }
+  }
+  
+  /**
+   * End session in storage
+   */
+  private async endSessionInStorage(sessionId: string): Promise<void> {
+    try {
+      await storage.endSession(sessionId);
+    } catch (error) {
+      console.error('Failed to end session in storage:', error);
+    }
   }
   
   /**
@@ -1119,5 +1215,47 @@ export class WebSocketServer {
   private generateSessionId(): string {
     this.sessionCounter++;
     return `session-${this.sessionCounter}-${Date.now()}`;
+  }
+
+  /**
+   * Get active session metrics for diagnostics
+   */
+  getActiveSessionMetrics() {
+    const activeSessions = new Set<string>();
+    let studentsConnected = 0;
+    let teachersConnected = 0;
+    const currentLanguages = new Set<string>();
+
+    for (const connection of this.connections.values()) {
+      const sessionId = this.sessionIds.get(connection);
+      const role = this.roles.get(connection);
+      const language = this.languages.get(connection);
+      
+      if (sessionId) {
+        // Find classroom code for this session
+        for (const [code, session] of this.classroomSessions.entries()) {
+          if (session.sessionId === sessionId) {
+            activeSessions.add(code);
+            break;
+          }
+        }
+      }
+      
+      if (role === 'student') {
+        studentsConnected++;
+      } else if (role === 'teacher') {
+        teachersConnected++;
+        if (language) {
+          currentLanguages.add(language);
+        }
+      }
+    }
+
+    return {
+      activeSessions: activeSessions.size,
+      studentsConnected,
+      teachersConnected,
+      currentLanguages: Array.from(currentLanguages)
+    };
   }
 }

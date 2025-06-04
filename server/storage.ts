@@ -390,6 +390,107 @@ export class MemStorage implements IStorage {
       languagePairs: [] 
     };
   }
+
+  /**
+   * Get session metrics for diagnostics
+   */
+  async getSessionMetrics() {
+    // In-memory implementation
+    const allSessions = Array.from(this.sessions.values());
+    const activeSessions = allSessions.filter(s => s.isActive);
+    
+    const durations = allSessions
+      .filter(s => s.endTime)
+      .map(s => new Date(s.endTime!).getTime() - new Date(s.startTime).getTime());
+    
+    const averageDuration = durations.length > 0 
+      ? durations.reduce((sum, d) => sum + d, 0) / durations.length 
+      : 0;
+    
+    return {
+      totalSessions: allSessions.length,
+      activeSessions: activeSessions.length,
+      averageSessionDuration: averageDuration
+    };
+  }
+
+  /**
+   * Get translation metrics for diagnostics
+   */
+  async getTranslationMetrics() {
+    // In-memory implementation
+    const allTranslations = Array.from(this.translations.values());
+    const oneHourAgo = Date.now() - 3600000;
+    
+    // For in-memory storage, we don't have timestamps, so count all as recent
+    const recentTranslations = allTranslations.length;
+    
+    const avgLatency = allTranslations.length > 0
+      ? allTranslations.reduce((sum, t) => sum + (t.latency || 0), 0) / allTranslations.length
+      : 0;
+    
+    return {
+      totalTranslations: allTranslations.length,
+      averageLatency: avgLatency,
+      recentTranslations: recentTranslations
+    };
+  }
+
+  /**
+   * Get language pair metrics for diagnostics
+   */
+  async getLanguagePairMetrics() {
+    // In-memory implementation
+    const pairMap = new Map<string, { count: number; totalLatency: number }>();
+    
+    for (const translation of this.translations.values()) {
+      const key = `${translation.sourceLanguage}-${translation.targetLanguage}`;
+      const existing = pairMap.get(key) || { count: 0, totalLatency: 0 };
+      pairMap.set(key, {
+        count: existing.count + 1,
+        totalLatency: existing.totalLatency + (translation.latency || 0)
+      });
+    }
+    
+    return Array.from(pairMap.entries())
+      .map(([key, data]) => {
+        const [sourceLanguage, targetLanguage] = key.split('-');
+        return {
+          sourceLanguage,
+          targetLanguage,
+          count: data.count,
+          averageLatency: data.totalLatency / data.count
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+
+  /**
+   * Get recent session activity for diagnostics
+   */
+  async getRecentSessionActivity(limit: number = 5) {
+    // In-memory implementation
+    const recentSessions = Array.from(this.sessions.values())
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+      .slice(0, limit);
+    
+    return recentSessions.map(s => {
+      const transcriptCount = Array.from(this.transcripts.values())
+        .filter(t => t.sessionId === s.sessionId).length;
+      
+      return {
+        sessionId: s.sessionId,
+        teacherLanguage: s.teacherLanguage,
+        transcriptCount,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        duration: s.endTime 
+          ? new Date(s.endTime).getTime() - new Date(s.startTime).getTime()
+          : 0
+      };
+    });
+  }
 }
 
 // Use MemStorage for in-memory storage (no database required)
