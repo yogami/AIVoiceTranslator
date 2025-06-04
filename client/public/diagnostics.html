@@ -3,41 +3,685 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Voice Translator - Diagnostics Dashboard</title>
-    <link rel="stylesheet" href="css/diagnostics.css">
+    <title>Analytics Dashboard - AIVoiceTranslator</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --primary-dark: #2980b9;
+            --secondary-color: #2ecc71;
+            --error-color: #e74c3c;
+            --warning-color: #f39c12;
+            --text-color: #2c3e50;
+            --text-light: #7f8c8d;
+            --bg-color: #f5f8fa;
+            --card-bg: white;
+            --border-radius: 8px;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: var(--text-light);
+            margin-bottom: 2rem;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .header a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .header a:hover {
+            text-decoration: underline;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover:not(:disabled) {
+            background-color: var(--primary-dark);
+        }
+        
+        button:disabled {
+            background-color: #cbd5e0;
+            cursor: not-allowed;
+        }
+        
+        .export-btn {
+            background-color: var(--secondary-color);
+        }
+        
+        .export-btn:hover:not(:disabled) {
+            background-color: #27ae60;
+        }
+        
+        /* Section Headers */
+        .section-header {
+            margin: 40px 0 20px 0;
+            padding: 10px;
+            background-color: #e8f4f8;
+            border-left: 4px solid var(--primary-color);
+            border-radius: var(--border-radius);
+        }
+        
+        .section-header h2 {
+            margin: 0;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+        }
+        
+        .section-header p {
+            margin: 5px 0 0 0;
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .metric-card.highlight {
+            border-left-color: var(--secondary-color);
+        }
+        
+        .metric-card.warning {
+            border-left-color: var(--warning-color);
+        }
+        
+        .metric-card h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            font-size: 1.2rem;
+        }
+        
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .metric-item:last-child {
+            border-bottom: none;
+        }
+        
+        .metric-label {
+            font-weight: 500;
+            color: var(--text-color);
+        }
+        
+        .metric-value {
+            font-weight: 600;
+            color: var(--primary-dark);
+            font-size: 1.1rem;
+        }
+        
+        .metric-value.large {
+            font-size: 1.5rem;
+            color: var(--secondary-color);
+        }
+        
+        /* Language Pairs Table */
+        .language-pairs-table {
+            width: 100%;
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        
+        .language-pairs-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .language-pairs-table th {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        
+        .language-pairs-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .language-pairs-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .language-pairs-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        /* Recent Sessions */
+        .recent-sessions {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+        
+        .session-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+            align-items: center;
+        }
+        
+        .session-item:last-child {
+            border-bottom: none;
+        }
+        
+        .session-id {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--text-light);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-good {
+            background-color: var(--secondary-color);
+        }
+        
+        .status-warning {
+            background-color: var(--warning-color);
+        }
+        
+        .status-error {
+            background-color: var(--error-color);
+        }
+        
+        .last-updated {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+        }
+        
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            border-left: 4px solid var(--error-color);
+        }
+        
+        .loading {
+            text-align: center;
+            color: var(--text-light);
+            font-style: italic;
+            padding: 20px;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: var(--text-light);
+            padding: 40px;
+            font-style: italic;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            button {
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .session-item {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 Diagnostics Dashboard</h1>
-        
-        <div class="header-info">
-            <div>System Status: <span id="system-status" class="status-good">Operational</span></div>
-            <div><a href="/" class="back-link">← Back to Home</a></div>
-        </div>
-        
-        <div class="control-group">
-            <div class="button-grid">
-                <button id="refresh-btn" class="primary-btn">🔄 Refresh Data</button>
-                <button id="test-api-btn" class="secondary-btn">🧪 Test API</button>
-                <button id="export-btn" class="success-btn">📥 Export Data</button>
-                <button id="auto-refresh-btn" class="toggle-btn">⏰ Auto-refresh: OFF</button>
-            </div>
-        </div>
-        
-        <div class="status" id="status">Loading diagnostics data...</div>
-        
-        <div id="error-container"></div>
-        <div id="debug-container"></div>
-        
-        <div id="metrics-container" class="metrics-container">
-            <!-- Metrics cards will be populated here -->
-        </div>
-        
-        <div class="last-updated" id="last-updated">
-            <!-- Last updated time will appear here -->
+    <div class="header">
+        <h1>Analytics Dashboard</h1>
+        <div>
+            <a href="/">← Back to Home</a>
         </div>
     </div>
-
-    <script src="js/diagnostics.js" defer></script>
+    
+    <p class="subtitle">Real-time usage metrics and adoption analytics for AI Voice Translator</p>
+    
+    <div class="controls">
+        <button id="refresh-btn">🔄 Refresh Data</button>
+        <button id="export-btn" class="export-btn">📥 Export Data</button>
+        <button id="auto-refresh-btn">⏰ Auto-refresh: OFF</button>
+    </div>
+    
+    <div id="error-container"></div>
+    <div id="loading" class="loading" style="display: none;">Loading analytics data...</div>
+    
+    <!-- Product Owner Metrics Section -->
+    <div class="section-header">
+        <h2>📊 Product Adoption Metrics</h2>
+        <p>Key metrics for understanding product usage and growth</p>
+    </div>
+    
+    <div id="adoption-metrics" class="metrics-grid">
+        <!-- Adoption metrics will be populated here -->
+    </div>
+    
+    <!-- Usage Analytics Section -->
+    <div class="section-header">
+        <h2>📈 Usage Analytics</h2>
+        <p>Translation volume and language pair popularity</p>
+    </div>
+    
+    <div id="usage-analytics">
+        <!-- Usage analytics will be populated here -->
+    </div>
+    
+    <!-- Developer Metrics Section -->
+    <div class="section-header">
+        <h2>⚡ Performance & Quality Metrics</h2>
+        <p>Technical metrics for monitoring system health and performance</p>
+    </div>
+    
+    <div id="performance-metrics" class="metrics-grid">
+        <!-- Performance metrics will be populated here -->
+    </div>
+    
+    <!-- Recent Activity Section -->
+    <div class="section-header">
+        <h2>🕐 Recent Session Activity</h2>
+        <p>Latest classroom sessions and their activity</p>
+    </div>
+    
+    <div id="recent-activity">
+        <!-- Recent activity will be populated here -->
+    </div>
+    
+    <div id="last-updated" class="last-updated">
+        <!-- Last updated time will appear here -->
+    </div>
+    
+    <script>
+        let autoRefreshInterval = null;
+        let isAutoRefreshEnabled = false;
+        
+        function showError(message) {
+            const container = document.getElementById('error-container');
+            container.innerHTML = `<div class="error-message">${message}</div>`;
+        }
+        
+        function showLoading(show) {
+            const loading = document.getElementById('loading');
+            loading.style.display = show ? 'block' : 'none';
+        }
+        
+        function formatNumber(num) {
+            return new Intl.NumberFormat().format(num);
+        }
+        
+        function formatDuration(ms) {
+            if (ms < 1000) return `${ms}ms`;
+            if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+            if (ms < 3600000) return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+            return `${Math.floor(ms / 3600000)}h ${Math.floor((ms % 3600000) / 60000)}m`;
+        }
+        
+        async function loadDiagnostics() {
+            showLoading(true);
+            document.getElementById('error-container').innerHTML = '';
+            
+            try {
+                console.log('Fetching diagnostics from /api/diagnostics');
+                const response = await fetch('/api/diagnostics');
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Diagnostics data received:', data);
+                displayDiagnostics(data);
+            } catch (error) {
+                console.error('Error loading diagnostics:', error);
+                showError(`Failed to load diagnostics: ${error.message}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        function displayDiagnostics(data) {
+            // Display adoption metrics
+            displayAdoptionMetrics(data);
+            
+            // Display usage analytics
+            displayUsageAnalytics(data);
+            
+            // Display performance metrics
+            displayPerformanceMetrics(data);
+            
+            // Display recent activity
+            displayRecentActivity(data);
+            
+            // Update last updated time
+            const lastUpdated = document.getElementById('last-updated');
+            const updateTime = new Date(data.lastUpdated).toLocaleString();
+            lastUpdated.innerHTML = `Last updated: ${updateTime}`;
+        }
+        
+        function displayAdoptionMetrics(data) {
+            const container = document.getElementById('adoption-metrics');
+            container.innerHTML = '';
+            
+            // Total Sessions Card
+            const sessionsCard = createMetricCard('Total Sessions', [
+                { label: 'All-time Sessions', value: formatNumber(data.sessions?.totalSessions || 0), large: true },
+                { label: 'Active Now', value: data.sessions?.activeSessions || 0 },
+                { label: 'Average Duration', value: data.sessions?.averageSessionDurationFormatted || 'N/A' }
+            ], 'highlight');
+            container.appendChild(sessionsCard);
+            
+            // Active Users Card
+            const usersCard = createMetricCard('Active Users', [
+                { label: 'Teachers Online', value: data.sessions?.teachersConnected || 0 },
+                { label: 'Students Online', value: data.sessions?.studentsConnected || 0 },
+                { label: 'Languages in Use', value: (data.sessions?.currentLanguages || []).length }
+            ]);
+            container.appendChild(usersCard);
+            
+            // Translation Volume Card
+            const volumeCard = createMetricCard('Translation Volume', [
+                { label: 'Total Translations', value: formatNumber(data.translations?.totalFromDatabase || 0), large: true },
+                { label: 'Last Hour', value: formatNumber(data.translations?.recentTranslations || 0) },
+                { label: 'Average Latency', value: data.translations?.averageLatencyFromDatabaseFormatted || 'N/A' }
+            ]);
+            container.appendChild(volumeCard);
+        }
+        
+        function displayUsageAnalytics(data) {
+            const container = document.getElementById('usage-analytics');
+            container.innerHTML = '';
+            
+            // Language Pairs Table
+            if (data.translations?.languagePairs && data.translations.languagePairs.length > 0) {
+                const tableDiv = document.createElement('div');
+                tableDiv.className = 'language-pairs-table';
+                
+                const table = document.createElement('table');
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>Source Language</th>
+                            <th>Target Language</th>
+                            <th>Translation Count</th>
+                            <th>Average Latency</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.translations.languagePairs.map(pair => `
+                            <tr>
+                                <td>${getLanguageName(pair.sourceLanguage)}</td>
+                                <td>${getLanguageName(pair.targetLanguage)}</td>
+                                <td>${formatNumber(pair.count)}</td>
+                                <td>${pair.averageLatencyFormatted}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                `;
+                
+                tableDiv.appendChild(table);
+                container.appendChild(tableDiv);
+            } else {
+                container.innerHTML = '<div class="no-data">No language pair data available yet</div>';
+            }
+        }
+        
+        function displayPerformanceMetrics(data) {
+            const container = document.getElementById('performance-metrics');
+            container.innerHTML = '';
+            
+            // System Health Card
+            const systemCard = createMetricCard('System Health', [
+                { label: 'Uptime', value: data.system?.uptimeFormatted || 'N/A' },
+                { label: 'Memory Usage', value: data.system?.memoryUsageFormatted || 'N/A' },
+                { label: 'Active Connections', value: data.connections?.active || 0 }
+            ]);
+            container.appendChild(systemCard);
+            
+            // Audio Performance Card
+            const audioCard = createMetricCard('Audio Generation', [
+                { label: 'Total Generated', value: formatNumber(data.audio?.totalGenerated || 0) },
+                { label: 'Average Time', value: data.audio?.averageGenerationTimeFormatted || 'N/A' },
+                { label: 'Cache Size', value: data.audio?.cacheSizeFormatted || 'N/A' }
+            ]);
+            container.appendChild(audioCard);
+            
+            // Real-time Performance Card
+            const realtimeCard = createMetricCard('Real-time Performance', [
+                { label: 'Active Translations', value: data.translations?.total || 0 },
+                { label: 'Average Latency', value: data.translations?.averageTimeFormatted || 'N/A' },
+                { label: 'Total Connections', value: data.connections?.total || 0 }
+            ], data.translations?.averageTime > 2000 ? 'warning' : '');
+            container.appendChild(realtimeCard);
+        }
+        
+        function displayRecentActivity(data) {
+            const container = document.getElementById('recent-activity');
+            container.innerHTML = '';
+            
+            if (data.sessions?.recentSessionActivity && data.sessions.recentSessionActivity.length > 0) {
+                const activityDiv = document.createElement('div');
+                activityDiv.className = 'recent-sessions';
+                
+                activityDiv.innerHTML = '<h3>Recent Sessions</h3>';
+                
+                data.sessions.recentSessionActivity.forEach(session => {
+                    const sessionDiv = document.createElement('div');
+                    sessionDiv.className = 'session-item';
+                    
+                    sessionDiv.innerHTML = `
+                        <div>
+                            <div class="session-id">${session.sessionId}</div>
+                            <div>Language: ${getLanguageName(session.language)}</div>
+                        </div>
+                        <div>
+                            <span class="status-indicator ${session.duration > 0 ? 'status-good' : 'status-warning'}"></span>
+                            ${session.transcriptCount} transcripts
+                        </div>
+                        <div>Duration: ${formatDuration(session.duration)}</div>
+                        <div>Last: ${new Date(session.lastActivity).toLocaleTimeString()}</div>
+                    `;
+                    
+                    activityDiv.appendChild(sessionDiv);
+                });
+                
+                container.appendChild(activityDiv);
+            } else {
+                container.innerHTML = '<div class="no-data">No recent session activity</div>';
+            }
+        }
+        
+        function createMetricCard(title, items, className = '') {
+            const card = document.createElement('div');
+            card.className = `metric-card ${className}`;
+            
+            let html = `<h3>${title}</h3>`;
+            
+            items.forEach(item => {
+                html += `
+                    <div class="metric-item">
+                        <span class="metric-label">${item.label}</span>
+                        <span class="metric-value ${item.large ? 'large' : ''}">${item.value}</span>
+                    </div>
+                `;
+            });
+            
+            card.innerHTML = html;
+            return card;
+        }
+        
+        function getLanguageName(code) {
+            const languages = {
+                'en-US': 'English (US)',
+                'es': 'Spanish',
+                'es-ES': 'Spanish',
+                'fr': 'French',
+                'fr-FR': 'French',
+                'de': 'German',
+                'de-DE': 'German',
+                'ja': 'Japanese',
+                'ja-JP': 'Japanese',
+                'zh': 'Chinese',
+                'zh-CN': 'Chinese',
+                'ru': 'Russian',
+                'ru-RU': 'Russian',
+                'pt': 'Portuguese',
+                'pt-BR': 'Portuguese (BR)',
+                'it': 'Italian',
+                'it-IT': 'Italian',
+                'ko': 'Korean',
+                'ko-KR': 'Korean'
+            };
+            return languages[code] || code;
+        }
+        
+        async function exportDiagnostics() {
+            try {
+                console.log('Exporting diagnostics...');
+                const response = await fetch('/api/diagnostics/export');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Create and download JSON file
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `analytics-export-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                console.log('Analytics exported successfully');
+            } catch (error) {
+                console.error('Error exporting analytics:', error);
+                showError(`Failed to export analytics: ${error.message}`);
+            }
+        }
+        
+        function toggleAutoRefresh() {
+            const button = document.getElementById('auto-refresh-btn');
+            
+            if (isAutoRefreshEnabled) {
+                // Disable auto-refresh
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                isAutoRefreshEnabled = false;
+                button.textContent = '⏰ Auto-refresh: OFF';
+                button.style.backgroundColor = '#3498db';
+            } else {
+                // Enable auto-refresh
+                autoRefreshInterval = setInterval(loadDiagnostics, 5000); // Refresh every 5 seconds
+                isAutoRefreshEnabled = true;
+                button.textContent = '⏰ Auto-refresh: ON';
+                button.style.backgroundColor = '#2ecc71';
+                loadDiagnostics(); // Load immediately
+            }
+        }
+        
+        // Event listeners
+        document.getElementById('refresh-btn').addEventListener('click', loadDiagnostics);
+        document.getElementById('export-btn').addEventListener('click', exportDiagnostics);
+        document.getElementById('auto-refresh-btn').addEventListener('click', toggleAutoRefresh);
+        
+        // Load diagnostics on page load
+        loadDiagnostics();
+    </script>
 </body>
 </html>

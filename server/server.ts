@@ -2,7 +2,7 @@
  * Server setup functionality extracted for easier testing
  */
 import express from 'express';
-import { createServer } from 'http';
+import { createServer, Server } from 'http';
 // Use WebSocketServer for WebSocket connections
 import { WebSocketServer } from './services/WebSocketServer';
 import { apiRoutes, apiErrorHandler } from './routes';
@@ -36,7 +36,7 @@ export const configureCorsMiddleware = (app: express.Express): void => {
 /**
  * Start the server
  */
-export async function startServer() {
+export async function startServer(app: express.Express): Promise<Server> {
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
     console.warn('⚠️ No OPENAI_API_KEY found in environment variables');
@@ -44,9 +44,6 @@ export async function startServer() {
   } else {
     console.log('OpenAI API key found and client configured.');
   }
-  
-  // Create Express app
-  const app = express();
   
   // Apply CORS middleware (Open/Closed Principle - extending functionality without modifying existing code)
   configureCorsMiddleware(app);
@@ -62,9 +59,6 @@ export async function startServer() {
   
   // Create HTTP server
   const httpServer = createServer(app);
-  
-  // Initialize WebSocket server
-  const wss = new WebSocketServer(httpServer);
   
   // Serve static files from client/public directory
   app.use(express.static('client/public'));
@@ -99,17 +93,22 @@ export async function startServer() {
     const server = httpServer.listen(port, () => {
       const actualPort = (httpServer.address() as any)?.port || port;
       console.log(`${new Date().toLocaleTimeString()} [express] serving on port ${actualPort}`);
-      resolve({ app, httpServer, wss });
+      
+      // Initialize WebSocket server
+      const wsServer = new WebSocketServer(httpServer);
+      
+      // Make WebSocketServer globally accessible for diagnostics
+      (global as any).wsServer = wsServer;
+      
+      console.log('Server started successfully');
+      resolve(httpServer);
     });
     
-    server.on('error', (error) => {
-      console.error('Server failed to start:', error);
-      reject(error);
-    });
+    httpServer.on('error', reject);
   });
 }
 
 // Main entry point - start the server if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startServer().catch(console.error);
+  startServer(express()).catch(console.error);
 }

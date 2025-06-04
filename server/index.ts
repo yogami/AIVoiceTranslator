@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import express from 'express';
 
 // Determine the root directory relative to server/index.ts
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +20,8 @@ import { startServer } from './server';
 
 // Only start server if this file is run directly (not during tests)
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startServer()
+  const app = express();
+  startServer(app)
     .then(() => {
       console.log('Server started successfully');
     })
