@@ -94,3 +94,23 @@ export function getConfigValue<T>(path: string, fallback: T): T {
 
 // Remove the entire PATHS object as it seems unused
 // export const PATHS = { ... };
+
+// Test mode detection
+export const isE2ETestMode = process.env.E2E_TEST_MODE === 'true' || 
+  (process.env.NODE_ENV === 'test' && process.argv.includes('--e2e'));
+
+// Storage configuration
+export const getStorageType = (): 'memory' | 'database' => {
+  // Force memory storage for E2E tests
+  if (isE2ETestMode) {
+    return 'memory';
+  }
+  
+  // Check explicit STORAGE_TYPE setting
+  if (process.env.STORAGE_TYPE === 'database' || process.env.STORAGE_TYPE === 'memory') {
+    return process.env.STORAGE_TYPE;
+  }
+  
+  // Fallback to DATABASE_URL check for backward compatibility
+  return process.env.DATABASE_URL ? 'database' : 'memory';
+};

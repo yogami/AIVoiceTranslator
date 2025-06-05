@@ -9,6 +9,7 @@
 import { Server } from 'http';
 import { WebSocketServer as WSServer } from 'ws';
 import { speechTranslationService } from './TranslationService';
+import { audioTranscriptionService } from './transcription/AudioTranscriptionService';
 import { URL } from 'url';
 import { storage } from '../storage';
 import type {
@@ -765,29 +766,52 @@ export class WebSocketServer {
         return;
       }
       
-      // Get teacher language
+      // Get teacher language and session ID
       const teacherLanguage = this.languages.get(ws) || 'en-US';
+      const sessionId = this.sessionIds.get(ws);
       
-      // Check the Web Speech API transcription info from the client
-      let webSpeechTranscription = '';
-      try {
-        // The first few bytes might be a JSON object with transcription info
-        // from the Web Speech API in the browser
-        const bufferStart = audioBuffer.slice(0, 200).toString('utf8');
-        if (bufferStart.startsWith('{') && bufferStart.includes('transcription')) {
-          const endIndex = bufferStart.indexOf('}') + 1;
-          const jsonStr = bufferStart.substring(0, endIndex);
-          const data = JSON.parse(jsonStr);
-          webSpeechTranscription = data.transcription || '';
-          
-          console.log('Web Speech API transcription from client:', webSpeechTranscription);
-        }
-      } catch (err) {
-        console.warn('No Web Speech API transcription found in audio data');
+      if (!sessionId) {
+        console.error('No session ID found for teacher');
+        return;
       }
       
-      // Get session ID for reference
-      const sessionId = this.sessionIds.get(ws);
+      // Process the audio through the transcription service
+      try {
+        // Comment out server-side transcription since we're using client-side speech recognition
+        // The client sends both audio chunks and transcriptions separately
+        /*
+        // Transcribe the audio
+        const transcription = await audioTranscriptionService.transcribeAudio(
+          audioBuffer,
+          teacherLanguage
+        );
+        
+        console.log('Transcribed audio:', transcription);
+        
+        // If we got a transcription, process it as a transcription message
+        if (transcription && transcription.trim().length > 0) {
+          await this.handleTranscriptionMessage(ws, {
+            type: 'transcription',
+            text: transcription,
+            timestamp: Date.now(),
+            isFinal: true
+          } as TranscriptionMessageToServer);
+        }
+        */
+        
+        // For now, just log that we received audio
+        console.log('Received audio chunk from teacher, using client-side transcription');
+      } catch (transcriptionError) {
+        console.error('Error transcribing audio:', transcriptionError);
+        
+        // Send error to client
+        const errorMessage: ErrorMessageToClient = {
+          type: 'error',
+          message: 'Failed to transcribe audio',
+          code: 'TRANSCRIPTION_ERROR'
+        };
+        ws.send(JSON.stringify(errorMessage));
+      }
     } catch (error) {
       console.error('Error processing teacher audio:', error);
     }

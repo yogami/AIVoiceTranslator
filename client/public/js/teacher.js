@@ -12,8 +12,9 @@
         isRecording: false,
         recognition: null, // webkitSpeechRecognition instance
         selectedLanguage: 'en-US', // Default language, will be updated from DOM
-        // mediaRecorder: null, // Not currently used, can be added if needed
-        // sessionId: null, // Not currently used, can be added if needed
+        mediaRecorder: null, // MediaRecorder for audio capture
+        audioChunks: [], // Store audio chunks
+        sessionId: null, // Session ID for audio streaming
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -120,6 +121,7 @@
             switch (data.type) {
                 case 'connection':
                     uiUpdater.updateStatus('Connected to server');
+                    appState.sessionId = data.sessionId; // Store session ID
                     this.register(); // Call internal method
                     break;
                 case 'register':
@@ -133,7 +135,10 @@
                     break; 
                 case 'error':
                     console.error('Server error:', data.message);
-                    uiUpdater.updateStatus(`Error: ${data.message}`, 'error');
+                    // Don't show transcription errors in the UI since we're using client-side speech recognition
+                    if (data.code !== 'TRANSCRIPTION_ERROR') {
+                        uiUpdater.updateStatus(`Error: ${data.message}`, 'error');
+                    }
                     break;
                 case 'ping':
                     this.sendPong();
@@ -149,9 +154,84 @@
             }
         },
 
+        sendAudioChunk: function(audioData, isFirstChunk = false, isFinalChunk = false) {
+            if (appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.sessionId) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Audio = reader.result.split(',')[1]; // Remove data:audio/webm;base64, prefix
+                    const message = {
+                        type: 'audio',
+                        sessionId: appState.sessionId,
+                        data: base64Audio,
+                        isFirstChunk: isFirstChunk,
+                        isFinalChunk: isFinalChunk,
+                        language: appState.selectedLanguage
+                    };
+                    appState.ws.send(JSON.stringify(message));
+                };
+                reader.readAsDataURL(audioData);
+            }
+        },
+
         sendPong: function() {
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 appState.ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
+            }
+        }
+    };
+
+    const audioHandler = {
+        setup: async function() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Create MediaRecorder for audio capture
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+                appState.mediaRecorder = new MediaRecorder(stream, { mimeType });
+                
+                let isFirstChunk = true;
+                
+                appState.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        appState.audioChunks.push(event.data);
+                        
+                        // Send audio chunk immediately for real-time processing
+                        if (appState.isRecording) {
+                            webSocketHandler.sendAudioChunk(event.data, isFirstChunk, false);
+                            isFirstChunk = false;
+                        }
+                    }
+                };
+                
+                appState.mediaRecorder.onstop = () => {
+                    // Send final chunk when recording stops
+                    if (appState.audioChunks.length > 0) {
+                        const audioBlob = new Blob(appState.audioChunks, { type: mimeType });
+                        webSocketHandler.sendAudioChunk(audioBlob, false, true);
+                    }
+                    appState.audioChunks = [];
+                };
+                
+                return true;
+            } catch (error) {
+                console.error('Error setting up audio capture:', error);
+                uiUpdater.updateStatus('Microphone access denied or unavailable');
+                return false;
+            }
+        },
+
+        startRecording: function() {
+            if (appState.mediaRecorder && appState.mediaRecorder.state === 'inactive') {
+                appState.audioChunks = [];
+                appState.mediaRecorder.start(100); // Capture in 100ms chunks for low latency
+                console.log('Started audio recording');
+            }
+        },
+
+        stopRecording: function() {
+            if (appState.mediaRecorder && appState.mediaRecorder.state === 'recording') {
+                appState.mediaRecorder.stop();
+                console.log('Stopped audio recording');
             }
         }
     };
@@ -170,7 +250,9 @@
                         if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
                     }
                     if (finalTranscript) {
+                        // Send transcription for display purposes
                         webSocketHandler.sendTranscription(finalTranscript);
+                        // Display locally as well
                         uiUpdater.displayTranscription(finalTranscript, true);
                     }
                 };
@@ -186,9 +268,19 @@
             }
         },
 
-        toggle: function() {
-            if (!appState.isRecording) this.start();
-            else this.stop();
+        toggle: async function() {
+            if (!appState.isRecording) {
+                // Setup audio capture if not already done
+                if (!appState.mediaRecorder) {
+                    const audioSetup = await audioHandler.setup();
+                    if (!audioSetup) {
+                        return; // Failed to setup audio
+                    }
+                }
+                this.start();
+            } else {
+                this.stop();
+            }
         },
 
         start: function() {
@@ -198,12 +290,17 @@
             }
             appState.isRecording = true;
             appState.recognition.lang = domElements.languageSelect ? domElements.languageSelect.value : appState.selectedLanguage;
+            
             try {
+                // Start speech recognition
                 appState.recognition.start();
+                // Start audio recording
+                audioHandler.startRecording();
+                
                 uiUpdater.setRecordButtonToRecording();
                 uiUpdater.updateStatus('Recording... Speak naturally');
             } catch (e) {
-                console.error("Error starting speech recognition:", e);
+                console.error("Error starting recording:", e);
                 uiUpdater.updateStatus('Error starting recording.');
                 appState.isRecording = false; // Reset state
             }
@@ -211,9 +308,15 @@
 
         stop: function() {
             appState.isRecording = false;
+            
+            // Stop speech recognition
             if (appState.recognition) {
                 appState.recognition.stop();
             }
+            
+            // Stop audio recording
+            audioHandler.stopRecording();
+            
             uiUpdater.setRecordButtonToStopped();
             uiUpdater.updateStatus('Recording stopped');
         }

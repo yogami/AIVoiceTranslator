@@ -23,7 +23,8 @@ import {
   sessions
 } from "../shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, desc, count } from "drizzle-orm";
+import { getStorageType } from "./config";
 
 // Constants
 const DEFAULT_QUERY_LIMIT = 10;
@@ -86,6 +87,32 @@ export interface IStorage {
     averageLatency: number;
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }>;
+  
+  // Diagnostics methods
+  getSessionMetrics(): Promise<{
+    totalSessions: number;
+    activeSessions: number;
+    averageSessionDuration: number;
+  }>;
+  getTranslationMetrics(): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
+    recentTranslations: number;
+  }>;
+  getLanguagePairMetrics(): Promise<{
+    sourceLanguage: string;
+    targetLanguage: string;
+    count: number;
+    averageLatency: number;
+  }[]>;
+  getRecentSessionActivity(limit?: number): Promise<{
+    sessionId: string;
+    teacherLanguage: string | null;
+    transcriptCount: number;
+    startTime: Date;
+    endTime: Date | null;
+    duration: number;
+  }[]>;
 }
 
 /**
@@ -720,7 +747,130 @@ export class DatabaseStorage implements IStorage {
       languagePairs: [] 
     };
   }
+
+  /**
+   * Get session metrics for diagnostics
+   */
+  async getSessionMetrics() {
+    const allSessions = await db.select().from(sessions);
+    const activeSessions = await db
+      .select()
+      .from(sessions)
+      .where(eq(sessions.isActive, true));
+    
+    const durations = allSessions
+      .filter(s => s.endTime)
+      .map(s => new Date(s.endTime!).getTime() - new Date(s.startTime).getTime());
+    
+    const averageDuration = durations.length > 0 
+      ? durations.reduce((sum, d) => sum + d, 0) / durations.length 
+      : 0;
+    
+    return {
+      totalSessions: allSessions.length,
+      activeSessions: activeSessions.length,
+      averageSessionDuration: averageDuration
+    };
+  }
+
+  /**
+   * Get translation metrics for diagnostics
+   */
+  async getTranslationMetrics() {
+    const allTranslations = await db.select().from(translations);
+    const oneHourAgo = new Date(Date.now() - 3600000);
+    
+    const recentTranslations = await db
+      .select()
+      .from(translations)
+      .where(gte(translations.timestamp, oneHourAgo));
+    
+    const avgLatency = allTranslations.length > 0
+      ? allTranslations.reduce((sum, t) => sum + (t.latency || 0), 0) / allTranslations.length
+      : 0;
+    
+    return {
+      totalTranslations: allTranslations.length,
+      averageLatency: avgLatency,
+      recentTranslations: recentTranslations.length
+    };
+  }
+
+  /**
+   * Get language pair metrics for diagnostics
+   */
+  async getLanguagePairMetrics() {
+    const allTranslations = await db.select().from(translations);
+    const pairMap = new Map<string, { count: number; totalLatency: number }>();
+    
+    for (const translation of allTranslations) {
+      const key = `${translation.sourceLanguage}-${translation.targetLanguage}`;
+      const existing = pairMap.get(key) || { count: 0, totalLatency: 0 };
+      pairMap.set(key, {
+        count: existing.count + 1,
+        totalLatency: existing.totalLatency + (translation.latency || 0)
+      });
+    }
+    
+    return Array.from(pairMap.entries())
+      .map(([key, data]) => {
+        const [sourceLanguage, targetLanguage] = key.split('-');
+        return {
+          sourceLanguage,
+          targetLanguage,
+          count: data.count,
+          averageLatency: data.totalLatency / data.count
+        };
+      })
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }
+
+  /**
+   * Get recent session activity for diagnostics
+   */
+  async getRecentSessionActivity(limit: number = 5) {
+    const recentSessions = await db
+      .select()
+      .from(sessions)
+      .orderBy(desc(sessions.startTime))
+      .limit(limit);
+    
+    const results = [];
+    for (const session of recentSessions) {
+      const transcriptCount = await db
+        .select({ count: count() })
+        .from(transcripts)
+        .where(eq(transcripts.sessionId, session.sessionId));
+      
+      results.push({
+        sessionId: session.sessionId,
+        teacherLanguage: session.teacherLanguage,
+        transcriptCount: transcriptCount[0]?.count || 0,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        duration: session.endTime 
+          ? new Date(session.endTime).getTime() - new Date(session.startTime).getTime()
+          : 0
+      });
+    }
+    
+    return results;
+  }
 }
 
-// Export storage instance - use DATABASE_URL to determine which storage to use
-export const storage = process.env.DATABASE_URL ? new DatabaseStorage() : new MemStorage();
+// Export storage instance - use configuration to determine which storage to use
+export const storage = (() => {
+  const storageType = getStorageType();
+  
+  if (storageType === 'database') {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL must be set when storage type is database');
+    }
+    console.log('[Storage] Using DatabaseStorage');
+    return new DatabaseStorage();
+  } else {
+    console.log('[Storage] Using MemStorage');
+    return new MemStorage();
+  }
+})();

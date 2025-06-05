@@ -1,17 +1,128 @@
 /**
- * Teacher Interface E2E Test
+ * Teacher Interface Comprehensive E2E Test Suite
  * 
- * This test checks the functionality of the teacher interface.
+ * This test suite covers all teacher interface functionality including:
+ * - Basic UI and WebSocket connection
+ * - Audio recording and transcription
+ * - Language selection
+ * - Classroom code generation
+ * - Teacher-student interaction flows
  */
+import { test, expect, Page, BrowserContext } from '@playwright/test';
 
-import { test, expect, Page } from '@playwright/test';
-
-test.describe('Teacher Interface - Basic Load', () => {
+test.describe('Teacher Interface - Comprehensive Test Suite', () => {
   let page: Page;
 
-  test.beforeEach(async ({ browser }) => {
-    page = await browser.newPage();
-    // Use full URL directly
+  test.beforeEach(async ({ browser, browserName }) => {
+    // Create a new context with permissions (only for Chromium)
+    const contextOptions: any = {};
+    if (browserName === 'chromium') {
+      contextOptions.permissions = ['microphone'];
+    }
+    const context = await browser.newContext(contextOptions);
+    page = await context.newPage();
+    
+    // Mock getUserMedia and Speech Recognition for audio tests
+    await page.addInitScript(() => {
+      // Create a mock MediaStream
+      const mockStream = {
+        getTracks: () => [{
+          kind: 'audio',
+          stop: () => {},
+          enabled: true
+        }],
+        getAudioTracks: () => [{
+          kind: 'audio',
+          stop: () => {},
+          enabled: true
+        }],
+        active: true
+      };
+      
+      // Mock MediaRecorder
+      (window as any).MediaRecorder = class MockMediaRecorder {
+        state = 'inactive';
+        ondataavailable: ((event: any) => void) | null = null;
+        onstop: (() => void) | null = null;
+        
+        constructor(stream: any, options: any) {
+          console.log('MockMediaRecorder created with options:', options);
+        }
+        
+        start(timeslice?: number) {
+          console.log('MockMediaRecorder started with timeslice:', timeslice);
+          this.state = 'recording';
+          
+          // Simulate data available events
+          if (this.ondataavailable) {
+            setTimeout(() => {
+              const mockBlob = new Blob(['mock audio data'], { type: 'audio/webm' });
+              if (this.ondataavailable) {
+                this.ondataavailable({ data: mockBlob });
+              }
+            }, 150);
+          }
+        }
+        
+        stop() {
+          console.log('MockMediaRecorder stopped');
+          this.state = 'inactive';
+          if (this.onstop) {
+            this.onstop();
+          }
+        }
+        
+        static isTypeSupported(mimeType: string) {
+          return mimeType === 'audio/webm' || mimeType === 'audio/ogg';
+        }
+      };
+      
+      // Mock getUserMedia
+      Object.defineProperty(navigator, 'mediaDevices', {
+        writable: true,
+        value: {
+          getUserMedia: async (constraints: any) => {
+            console.log('getUserMedia called with constraints:', constraints);
+            return mockStream as any;
+          }
+        }
+      });
+      
+      // Mock Speech Recognition
+      (window as any).webkitSpeechRecognition = class MockSpeechRecognition {
+        continuous = false;
+        interimResults = false;
+        lang = 'en-US';
+        onresult: ((event: any) => void) | null = null;
+        onerror: ((event: any) => void) | null = null;
+        onend: (() => void) | null = null;
+        
+        start() {
+          console.log('Speech recognition started');
+          // Simulate a transcription result after a delay
+          setTimeout(() => {
+            if (this.onresult) {
+              this.onresult({
+                resultIndex: 0,
+                results: [{
+                  isFinal: true,
+                  0: { transcript: 'Hello, this is a test transcription' }
+                }]
+              });
+            }
+          }, 500);
+        }
+        
+        stop() {
+          console.log('Speech recognition stopped');
+          if (this.onend) {
+            this.onend();
+          }
+        }
+      };
+    });
+    
+    // Navigate to teacher page
     await page.goto('http://127.0.0.1:5000/teacher'); 
     await page.waitForLoadState('domcontentloaded');
   });
@@ -22,6 +133,8 @@ test.describe('Teacher Interface - Basic Load', () => {
     }
   });
 
+  // Basic UI Tests
+  test.describe('Basic UI and Connection', () => {
   test('should display initial UI elements correctly', async () => {
     // Check h1 (main heading)
     const mainHeading = page.locator('h1');
@@ -41,10 +154,38 @@ test.describe('Teacher Interface - Basic Load', () => {
 
   test('should establish WebSocket connection automatically', async () => {
     // Wait for auto-connection status message
-    await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 }); // Increased timeout slightly
-    // TODO: Add a more specific class assertion here if needed, e.g., for a 'connected' class.
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+    });
+
+    test('should display classroom code and QR code', async () => {
+      // Wait for WebSocket connection and registration
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Check classroom code is displayed
+      const classroomCode = page.locator('#classroom-code-display');
+      await expect(classroomCode).toBeVisible();
+      
+      // Code should be 6 characters
+      const codeText = await classroomCode.textContent();
+      expect(codeText).toMatch(/^[A-Z0-9]{6}$/);
+      
+      // Student URL should be displayed
+      const studentUrl = page.locator('#studentUrl');
+      await expect(studentUrl).toContainText(`/student?code=${codeText}`);
+      
+      // QR code container should exist and have a canvas
+      const qrCodeContainer = page.locator('#qr-code');
+      await expect(qrCodeContainer).toBeVisible();
+      
+      // Check that QR code canvas exists (it might be inside the container)
+      const qrCanvas = qrCodeContainer.locator('canvas');
+      const canvasCount = await qrCanvas.count();
+      expect(canvasCount).toBeGreaterThan(0);
+    });
   });
 
+  // Language Selection Tests
+  test.describe('Language Selection', () => {
   test('should handle language selection', async () => {
     // Wait for connection first, as language change might trigger re-registration
     await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
@@ -55,11 +196,46 @@ test.describe('Teacher Interface - Basic Load', () => {
     expect(selectedValue).toBe('es-ES');
     
     // The application should ideally re-register with the new language.
-    // We'll add a small pause. A more robust check would be to verify a specific 
-    // message or state change indicating re-registration, if available.
     await page.waitForTimeout(1000); 
   });
 
+    test('should handle language changes during recording', async () => {
+      // Wait for WebSocket connection
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Change language
+      const languageSelect = page.locator('#teacherLanguage');
+      await languageSelect.selectOption('es-ES');
+      
+      // Track registration messages
+      const wsMessages: any[] = [];
+      page.on('websocket', ws => {
+        ws.on('framesent', event => {
+          try {
+            const data = JSON.parse(event.payload as string);
+            if (data.type === 'register') {
+              wsMessages.push(data);
+            }
+          } catch (e) {
+            // Not JSON
+          }
+        });
+      });
+      
+      // Wait a bit for the registration to be sent
+      await page.waitForTimeout(500);
+      
+      // Start recording to verify language is used
+      const recordButton = page.locator('#recordButton');
+      await recordButton.click();
+      
+      // Verify recording started
+      await expect(recordButton).toHaveText('Stop Recording');
+    });
+  });
+
+  // Audio Recording Tests
+  test.describe('Audio Recording and Transcription', () => {
   test('should handle recording controls', async () => {
     // Wait for WebSocket connection to be established first
     await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
@@ -69,58 +245,149 @@ test.describe('Teacher Interface - Basic Load', () => {
     await expect(recordButton).toBeEnabled();
     await expect(recordButton).toHaveText('Start Recording');
     
-    // Attempt to start recording
+      // Start recording
     await recordButton.click();
-    await page.waitForTimeout(200); // Allow a brief moment for UI to react
-    
-    const speechRecognitionSupported = await page.evaluate(() => {
-      return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
-    });
-    
-    if (!speechRecognitionSupported) {
-      console.log('Speech recognition not supported by this browser environment for testing.');
-      await expect(page.locator('#status')).toContainText('Speech recognition not available');
-      await expect(recordButton).toBeEnabled(); // Should remain enabled if it couldn't start
-      await expect(recordButton).toHaveText('Start Recording'); // Should not have changed
-      return; // End test if not supported
-    }
-    
-    // If speech recognition is supported, proceed with testing recording states
-    try {
-      // Check for recording state (allow time for it to engage)
-      await expect(recordButton).toHaveText('Stop Recording', { timeout: 5000 }); 
-      await expect(page.locator('#status')).toContainText('Recording', { timeout: 5000 });
-      // Placeholder for transcription area status - adapt if app uses a specific attribute/class
-      // await expect(page.locator('#transcription')).toHaveAttribute('data-status', 'listening');
       
-      // Attempt to stop recording
+      // Wait for recording to start
+      await expect(recordButton).toHaveText('Stop Recording');
+      await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
+      
+      // Stop recording
       await recordButton.click();
-      await page.waitForTimeout(200); // Allow a brief moment for UI to react
-      
-      // Check for stopped state
-      await expect(recordButton).toBeEnabled();
       await expect(recordButton).toHaveText('Start Recording');
-      
-      // Status might revert to various states depending on exact client logic after stopping
-      const statusText = await page.locator('#status').textContent();
-      expect(statusText).toMatch(/Recording stopped|Ready to record|Registered as teacher/);
+      await expect(page.locator('#status')).toContainText('Recording stopped');
+    });
 
-    } catch (error) {
-      // Special handling for Firefox which might have permission issues or different behavior
-      const browserName = page.context().browser()?.browserType().name();
-      if (browserName === 'firefox') {
-        console.warn('Recording controls test might behave differently or require manual permissions in Firefox. Test assertions for Firefox might need adjustment.');
-        // Add Firefox-specific assertions if its behavior is consistently different and testable
-        // For now, we'll just ensure the button is still there.
-        await expect(recordButton).toBeVisible();
-      } else {
-        // Re-throw for other browsers if it's an unexpected error
-        console.error('Error during recording controls test:', error);
-        throw error; 
-      }
-    }
+    test('should display transcriptions from speech recognition', async () => {
+      // Wait for WebSocket connection
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Start recording
+      const recordButton = page.locator('#recordButton');
+      await recordButton.click();
+      
+      // Wait for recording to start
+      await expect(recordButton).toHaveText('Stop Recording');
+      await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
+      
+      // Wait for transcription to appear (mock speech recognition sends it after 500ms)
+      await page.waitForTimeout(1000);
+      
+      // Check that transcription is displayed
+      const transcriptionDisplay = page.locator('#transcription');
+      await expect(transcriptionDisplay).toContainText('Hello, this is a test transcription');
+      
+      // Stop recording
+      await recordButton.click();
+      await expect(recordButton).toHaveText('Start Recording');
+      await expect(page.locator('#status')).toContainText('Recording stopped');
+    });
+
+    test('should send transcriptions through WebSocket', async () => {
+      // Wait for WebSocket connection
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Track WebSocket messages
+      const wsMessages: any[] = [];
+      await page.addInitScript(() => {
+        const originalSend = WebSocket.prototype.send;
+        WebSocket.prototype.send = function(data: any) {
+          try {
+            const parsed = JSON.parse(data);
+            (window as any).__wsMessages = (window as any).__wsMessages || [];
+            (window as any).__wsMessages.push(parsed);
+          } catch (e) {
+            // Not JSON, ignore
+          }
+          return originalSend.call(this, data);
+        };
+      });
+      
+      // Reload to apply WebSocket interception
+      await page.reload();
+      await page.waitForLoadState('domcontentloaded');
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Start recording
+      const recordButton = page.locator('#recordButton');
+      await recordButton.click();
+      
+      // Wait for transcription to be sent (mock sends after 500ms)
+      await page.waitForTimeout(1000);
+      
+      // Get WebSocket messages
+      const messages = await page.evaluate(() => (window as any).__wsMessages || []);
+      
+      // Find transcription messages
+      const transcriptionMessages = messages.filter((msg: any) => msg.type === 'transcription');
+      
+      // Verify transcription message was sent
+      expect(transcriptionMessages.length).toBeGreaterThan(0);
+      
+      const transcriptionMessage = transcriptionMessages[0];
+      expect(transcriptionMessage).toMatchObject({
+        type: 'transcription',
+        text: 'Hello, this is a test transcription',
+        timestamp: expect.any(Number),
+        isFinal: true
+      });
+    });
+
+    test('should send audio data through WebSocket', async () => {
+      // Wait for WebSocket connection
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Intercept WebSocket messages
+      const wsMessages: any[] = [];
+      await page.addInitScript(() => {
+        const originalSend = WebSocket.prototype.send;
+        WebSocket.prototype.send = function(data: any) {
+          try {
+            const parsed = JSON.parse(data);
+            (window as any).__wsMessages = (window as any).__wsMessages || [];
+            (window as any).__wsMessages.push(parsed);
+          } catch (e) {
+            // Not JSON, ignore
+          }
+          return originalSend.call(this, data);
+        };
+      });
+      
+      // Reload to apply WebSocket interception
+      await page.reload();
+      await page.waitForLoadState('domcontentloaded');
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Start recording
+      const recordButton = page.locator('#recordButton');
+      await recordButton.click();
+      
+      // Wait for audio to be sent (MediaRecorder sends data after 150ms in our mock)
+      await page.waitForTimeout(300);
+      
+      // Get WebSocket messages
+      const messages = await page.evaluate(() => (window as any).__wsMessages || []);
+      
+      // Find audio messages
+      const audioMessages = messages.filter((msg: any) => msg.type === 'audio');
+      
+      // Verify audio message was sent
+      expect(audioMessages.length).toBeGreaterThan(0);
+      
+      const audioMessage = audioMessages[0];
+      expect(audioMessage).toMatchObject({
+        type: 'audio',
+        sessionId: expect.any(String),
+        data: expect.any(String), // base64 encoded
+        isFirstChunk: true,
+        isFinalChunk: false,
+        language: expect.any(String)
+      });
+    });
   });
 
+  // Error Handling Tests
+  test.describe('Error Handling', () => {
   test('should show error if trying to record when speech recognition is unavailable', async ({ browser }) => {
     // This test uses a fresh browser context and page to ensure the init script applies cleanly.
     const context = await browser.newContext();
@@ -150,6 +417,200 @@ test.describe('Teacher Interface - Basic Load', () => {
     // Clean up: close the page and context
     await newPage.close();
     await context.close();
+    });
+
+    test('should handle recording errors gracefully', async () => {
+      // Create a new page with error-triggering speech recognition
+      const context = await page.context();
+      const errorPage = await context.newPage();
+      
+      // Set up error mock before page loads
+      await errorPage.addInitScript(() => {
+        // Mock MediaRecorder (same as before)
+        const mockStream = {
+          getTracks: () => [{
+            kind: 'audio',
+            stop: () => {},
+            enabled: true
+          }],
+          getAudioTracks: () => [{
+            kind: 'audio',
+            stop: () => {},
+            enabled: true
+          }],
+          active: true
+        };
+        
+        (window as any).MediaRecorder = class MockMediaRecorder {
+          state = 'inactive';
+          ondataavailable: ((event: any) => void) | null = null;
+          onstop: (() => void) | null = null;
+          
+          constructor(stream: any, options: any) {
+            console.log('MockMediaRecorder created');
+          }
+          
+          start(timeslice?: number) {
+            this.state = 'recording';
+          }
+          
+          stop() {
+            this.state = 'inactive';
+            if (this.onstop) {
+              this.onstop();
+            }
+          }
+          
+          static isTypeSupported(mimeType: string) {
+            return true;
+          }
+        };
+        
+        Object.defineProperty(navigator, 'mediaDevices', {
+          writable: true,
+          value: {
+            getUserMedia: async (constraints: any) => {
+              return mockStream as any;
+            }
+          }
+        });
+        
+        // Mock Speech Recognition that triggers error
+        (window as any).webkitSpeechRecognition = class MockSpeechRecognition {
+          continuous = false;
+          interimResults = false;
+          lang = 'en-US';
+          onresult: ((event: any) => void) | null = null;
+          onerror: ((event: any) => void) | null = null;
+          onend: (() => void) | null = null;
+          
+          start() {
+            console.log('Speech recognition started (error mock)');
+            // Trigger error after a short delay
+            setTimeout(() => {
+              if (this.onerror) {
+                this.onerror({ error: 'network' });
+              }
+            }, 100);
+          }
+          
+          stop() {
+            if (this.onend) {
+              this.onend();
+            }
+          }
+        };
+      });
+      
+      // Navigate to teacher page
+      await errorPage.goto('http://127.0.0.1:5000/teacher');
+      await errorPage.waitForLoadState('domcontentloaded');
+      
+      // Wait for WebSocket connection
+      await expect(errorPage.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      
+      // Try to start recording
+      const recordButton = errorPage.locator('#recordButton');
+      await recordButton.click();
+      
+      // Wait for error to be processed
+      await errorPage.waitForTimeout(500);
+      
+      // Check error is displayed
+      await expect(errorPage.locator('#status')).toContainText('Speech recognition error: network');
+      
+      // Clean up
+      await errorPage.close();
+    });
+  });
+
+  // Teacher-Student Flow Tests
+  test.describe('Teacher-Student Interaction', () => {
+    test('should handle basic teacher-student interaction', async ({ browser }) => {
+      // Create student context and page
+      const studentContext = await browser.newContext();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        // Wait for teacher to be ready
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+        const classroomCodeElement = page.locator('#classroom-code-display');
+        await expect(classroomCodeElement).toBeVisible();
+        const classroomCode = await classroomCodeElement.textContent();
+        
+        // Student joins with classroom code
+        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await studentPage.waitForLoadState('domcontentloaded');
+        
+        // Verify student connected
+        await expect(studentPage.locator('#status')).toContainText('Connected', { timeout: 10000 });
+        
+        // Verify teacher is ready to record
+        await expect(page.locator('#recordButton')).toBeEnabled();
+        await expect(page.locator('#status')).toContainText('Registered as teacher');
+      } finally {
+        await studentPage.close();
+        await studentContext.close();
+      }
+    });
+
+    test('should handle student language changes', async ({ browser }) => {
+      // Create student context and page
+      const studentContext = await browser.newContext();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        // Setup teacher
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+        const classroomCodeElement = page.locator('#classroom-code-display');
+        const classroomCode = await classroomCodeElement.textContent();
+        
+        // Student joins
+        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await expect(studentPage.locator('#status')).toContainText('Connected', { timeout: 10000 });
+        
+        // Student changes language
+        await studentPage.selectOption('#studentLanguage', 'de-DE');
+        await studentPage.waitForTimeout(1000);
+        
+        // Verify student language change was processed
+        const selectedLang = await studentPage.locator('#studentLanguage').inputValue();
+        expect(selectedLang).toBe('de-DE');
+      } finally {
+        await studentPage.close();
+        await studentContext.close();
+      }
+    });
+
+    test('should handle student reconnection', async ({ browser }) => {
+      // Create student context and page
+      const studentContext = await browser.newContext();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        // Setup teacher
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+        const classroomCodeElement = page.locator('#classroom-code-display');
+        const classroomCode = await classroomCodeElement.textContent();
+        
+        // Student joins
+        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await expect(studentPage.locator('#status')).toContainText('Connected', { timeout: 10000 });
+        
+        // Simulate reconnection by reloading
+        await studentPage.reload();
+        await studentPage.waitForLoadState('domcontentloaded');
+        
+        // Verify student reconnected
+        await expect(studentPage.locator('#status')).toContainText('Connected', { timeout: 10000 });
+        
+        // Verify teacher still shows as registered
+        await expect(page.locator('#status')).toContainText('Registered as teacher');
+      } finally {
+        await studentPage.close();
+        await studentContext.close();
+      }
+    });
   });
 
   test.skip('should handle connection loss and reconnection', async () => {

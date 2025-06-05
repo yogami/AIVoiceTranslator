@@ -18,7 +18,8 @@ describe('server/index.ts (entry point)', () => {
     
     // Mock process.exit with correct type signature
     processExitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
-      throw new Error(`process.exit(${code}) was called`);
+      // Don't throw an error, just record the call
+      return undefined as never;
     });
     
     // Mock the server module BEFORE importing

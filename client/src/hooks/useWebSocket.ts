@@ -4,95 +4,99 @@
  * Provides a clean interface for components to interact with the WebSocket service
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { WebSocketService, WebSocketMessage, UserRole } from '@/services/WebSocketService';
+import { useEffect, useRef, useState, useCallback } from 'react';
 
-export interface UseWebSocketOptions {
-  role: UserRole;
-  languageCode: string;
-  classroomCode?: string;
-  autoConnect?: boolean;
+interface UseWebSocketOptions {
+  onOpen?: () => void;
+  onMessage?: (data: any) => void;
+  onClose?: () => void;
+  onError?: (error: Event) => void;
 }
 
-export interface UseWebSocketReturn {
-  isConnected: boolean;
-  connect: () => Promise<void>;
-  disconnect: () => void;
-  send: (message: WebSocketMessage) => void;
-  updateLanguage: (languageCode: string) => void;
-  on: (messageType: string, handler: (message: WebSocketMessage) => void) => () => void;
-}
-
-export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
-  const { role, languageCode: initialLanguage, classroomCode, autoConnect = true } = options;
-  
+export const useWebSocket = (options: UseWebSocketOptions = {}) => {
   const [isConnected, setIsConnected] = useState(false);
-  const [languageCode, setLanguageCode] = useState(initialLanguage);
-  const wsRef = useRef<WebSocketService | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize WebSocket service
-  useEffect(() => {
-    wsRef.current = new WebSocketService(role, languageCode, classroomCode);
-    
-    // Set up connection state listener
-    const checkConnection = setInterval(() => {
-      if (wsRef.current) {
-        setIsConnected(wsRef.current.isConnected());
-      }
-    }, 1000);
-
-    // Auto-connect if enabled
-    if (autoConnect) {
-      wsRef.current.connect().catch(console.error);
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
     }
 
-    // Cleanup
-    return () => {
-      clearInterval(checkConnection);
-      if (wsRef.current) {
-        wsRef.current.disconnect();
-      }
-    };
-  }, [role, classroomCode]); // Don't include languageCode to avoid reconnects
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
+    try {
+      wsRef.current = new WebSocket(wsUrl);
 
-  const connect = useCallback(async () => {
-    if (wsRef.current) {
-      await wsRef.current.connect();
+      wsRef.current.onopen = () => {
+        console.log('WebSocket connected');
+        setIsConnected(true);
+        options.onOpen?.();
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          options.onMessage?.(data);
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+
+      wsRef.current.onclose = () => {
+        console.log('WebSocket disconnected');
+        setIsConnected(false);
+        options.onClose?.();
+        
+        // Attempt to reconnect after 3 seconds
+        reconnectTimeoutRef.current = setTimeout(() => {
+          console.log('Attempting to reconnect...');
+          connect();
+        }, 3000);
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        options.onError?.(error);
+      };
+    } catch (error) {
+      console.error('Failed to create WebSocket connection:', error);
+    }
+  }, [options]);
+
+  const sendMessage = useCallback((message: any) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+    } else {
+      console.error('WebSocket is not connected');
     }
   }, []);
 
   const disconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    
     if (wsRef.current) {
-      wsRef.current.disconnect();
+      wsRef.current.close();
+      wsRef.current = null;
     }
   }, []);
 
-  const send = useCallback((message: WebSocketMessage) => {
-    if (wsRef.current) {
-      wsRef.current.send(message);
-    }
-  }, []);
-
-  const updateLanguage = useCallback((newLanguageCode: string) => {
-    setLanguageCode(newLanguageCode);
-    if (wsRef.current) {
-      wsRef.current.updateLanguage(newLanguageCode);
-    }
-  }, []);
-
-  const on = useCallback((messageType: string, handler: (message: WebSocketMessage) => void) => {
-    if (wsRef.current) {
-      return wsRef.current.on(messageType, handler);
-    }
-    return () => {}; // Return no-op unsubscribe if no WebSocket
-  }, []);
+  useEffect(() => {
+    connect();
+    
+    return () => {
+      disconnect();
+    };
+  }, [connect, disconnect]);
 
   return {
     isConnected,
+    sendMessage,
     connect,
-    disconnect,
-    send,
-    updateLanguage,
-    on
+    disconnect
   };
-} 
+}; 

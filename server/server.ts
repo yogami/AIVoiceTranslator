@@ -63,17 +63,19 @@ export async function startServer(app: express.Express): Promise<Server> {
   // Serve static files from client/public directory
   app.use(express.static('client/public'));
   
-  // Route for student page
+  // Route for student page - keep for backward compatibility
   app.get('/student', (req, res) => {
-    // Always serve the student.html file.
-    // The client-side JavaScript in student.html will handle
-    // the case where req.query.code is missing.
     res.sendFile(path.resolve('client/public/student.html'));
   });
 
-  // Route for teacher page
+  // Route for teacher page - keep for backward compatibility
   app.get('/teacher', (req, res) => {
     res.sendFile(path.resolve('client/public/teacher.html'));
+  });
+  
+  // Route for diagnostics - keep for backward compatibility
+  app.get('/diagnostics.html', (req, res) => {
+    res.sendFile(path.resolve('client/public/diagnostics.html'));
   });
   
   // Serve index.html for root route

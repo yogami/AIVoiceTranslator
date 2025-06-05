@@ -13,7 +13,7 @@ import {
 } from '../../../server/services/TranslationService';
 import OpenAI from 'openai';
 import { createMockOpenAI, createMockAudioBuffer } from '../utils/test-helpers';
-import { AudioFileHandler } from '../../../server/services/AudioFileHandler';
+import { AudioFileHandler } from '../../../server/services/handlers/AudioFileHandler';
 import { Mocked, MockedFunction } from 'vitest';
 // import { URL } from 'url';
 
@@ -37,13 +37,19 @@ vi.mock('fs', async () => {
       readable.push(null);
       return readable;
     }),
+    // Mock synchronous fs methods to prevent ENOENT errors
+    existsSync: vi.fn().mockReturnValue(true),
+    unlinkSync: vi.fn().mockImplementation(() => {}),
+    readFileSync: vi.fn().mockReturnValue(Buffer.from('mock file content')),
+    writeFileSync: vi.fn().mockImplementation(() => {}),
     promises: {
       ...(actualFs.promises || {}), // Ensure actualFs.promises is not undefined
-      access: vi.fn(), 
-      stat: vi.fn(), 
-      readFile: vi.fn(), 
+      access: vi.fn().mockResolvedValue(undefined), 
+      stat: vi.fn().mockResolvedValue({ size: 1000, mtime: new Date() }), 
+      readFile: vi.fn().mockResolvedValue(Buffer.from('mock file content')), 
       writeFile: vi.fn().mockResolvedValue(undefined), 
-      mkdir: vi.fn().mockResolvedValue(undefined) 
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      unlink: vi.fn().mockResolvedValue(undefined) 
     },
     constants: actualFs.constants, // Ensure constants like F_OK are available
   };
@@ -62,27 +68,11 @@ vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => ({
 }));
 
 // Mock AudioFileHandler with correct path
-vi.mock('../../../server/services/AudioFileHandler', () => ({
-  // Assuming AudioFileHandler is a class and we want to mock its instance methods
-  // Or if it's used as `new AudioFileHandler()`, mock the constructor and prototype.
-  // For now, let's assume it might be a default export or named export of an object/class
-  // If it's a class, the mock should typically be: 
-  // default: vi.fn().mockImplementation(() => ({
-  //   createTempFile: vi.fn().mockResolvedValue('/tmp/test-audio.wav'),
-  //   deleteTempFile: vi.fn().mockResolvedValue(undefined)
-  // }))
-  // Given the original mock was `audioFileHandler: { ... }`, it implies it might have been a named export
-  // of an object, or the intention was to mock a default exported class instance methods.
-  // Let's try to mock it as if it's a class with a default export for now.
+vi.mock('../../../server/services/handlers/AudioFileHandler', () => ({
   AudioFileHandler: vi.fn().mockImplementation(() => ({
     createTempFile: vi.fn().mockResolvedValue('/tmp/test-audio.wav'),
     deleteTempFile: vi.fn().mockResolvedValue(undefined)
   }))
-  // If AudioFileHandler is a default export, it would be:
-  // default: vi.fn().mockImplementation(() => ({
-  //   createTempFile: vi.fn().mockResolvedValue('/tmp/test-audio.wav'),
-  //   deleteTempFile: vi.fn().mockResolvedValue(undefined)
-  // }))
 }));
 
 describe('Translation Services', () => {
@@ -281,7 +271,7 @@ describe('Translation Services', () => {
       
       // Dynamically import the mocked AudioFileHandler module to access its exports
       // The module itself is mocked at the top of the file.
-      const MockedAudioFileHandlerModule = await import('../../../server/services/AudioFileHandler');
+      const MockedAudioFileHandlerModule = await import('../../../server/services/handlers/AudioFileHandler');
       const MockedAudioFileHandlerConstructor = vi.mocked(MockedAudioFileHandlerModule.AudioFileHandler);
 
       // Instantiate OpenAITranscriptionService. 
