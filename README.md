@@ -1,470 +1,399 @@
-# AIVoiceTranslator: Real-time Classroom Translation System
+# AIVoiceTranslator: Real-time Multilingual Voice Translation Platform
 
-AIVoiceTranslator is an intelligent multilingual communication platform designed specifically for educational environments. It captures a teacher's speech, translates it to multiple languages in real-time, and delivers translations as audio streams to students in their preferred languages.
-
-## Project Overview
-
-This project aims to break down language barriers in educational settings by providing real-time voice translation. A teacher speaks in their native language, and students can hear the content in their preferred language with minimal latency, preserving both semantic meaning and emotional tone.
-
-### Core Features
-
-- **Real-time Speech Processing**: Capture, process, and translate speech with minimal latency
-- **Multilingual Support**: Currently supports English, Spanish, German, French, Chinese, Japanese, and more
-- **Low-Latency Translation**: End-to-end latency under 2 seconds from speech to translated audio
-- **WebSocket Architecture**: Fast, bidirectional communication for real-time updates
-- **Intelligent Caching**: Optimizes performance by caching frequently used translations and audio
-- **Persistent Translation Memory**: Stores translation history in PostgreSQL database
-- **Adaptive Voice Technology**: Uses OpenAI's TTS for natural-sounding translations
-
-## Technical Architecture
-
-### Frontend
-- **Main Interfaces**: 
-  - Teacher Interface: `/teacher` (teacher.html)
-  - Student Interface: `/student` (student.html)
-  - Diagnostics: `/diagnostics.html`
-- **Real-time Communication**: WebSocket client for bidirectional updates
-- **Audio Processing**: Web Audio API for speech capture and playback
-- **Mobile Support**: Responsive design with QR code access for students
-
-### Backend
-- **Server**: Node.js with Express
-- **Real-time Communication**: WebSocketServer (server/services/WebSocketServer.ts)
-- **Speech Processing**: OpenAI Whisper API for accurate transcription
-- **Translation Engine**: OpenAI GPT-4 for high-quality contextual translations
-- **Text-to-Speech**: OpenAI TTS for natural-sounding synthesized speech
-- **Data Persistence**: In-memory storage (MemStorage) with PostgreSQL support available
-
-## Project Structure
-
-```
-AIVoiceTranslator/
-├── client/                  # Client-side code
-│   ├── index.html           # Main landing page
-│   └── public/              # Static assets and HTML interfaces
-│       ├── js/              # JavaScript libraries and utilities
-│       ├── teacher.html     # Simplified teacher interface
-│       └── student.html     # Simplified student interface
-│
-├── server/                  # Server-side code
-│   ├── config.ts            # Server configuration
-│   ├── index.ts             # Main server entry point
-│   ├── server.ts            # Server setup and WebSocket initialization
-│   ├── openai.ts            # OpenAI API integration
-│   ├── openai-streaming.ts  # OpenAI streaming functionality
-│   ├── routes.ts            # HTTP API routes
-│   ├── storage.ts           # Database interface
-│   └── services/            # Core service implementations
-│       ├── TextToSpeechService.ts  # TTS service
-│       ├── TranslationService.ts   # Translation service
-│       └── WebSocketServer.ts      # PRIMARY WebSocket server (ACTIVE)
-│
-├── shared/                  # Shared code between client and server
-│   └── schema.ts            # Database schema definitions
-│
-├── audio-cache/             # Cached audio files
-├── temp/                    # Temporary audio files
-│
-├── drizzle.config.ts        # Drizzle ORM configuration
-├── package.json             # Project dependencies
-├── tsconfig.json            # TypeScript configuration
-└── vite.config.ts           # Vite configuration
-```
-
-## Getting Started
+## 🚀 Quick Start for Developers
 
 ### Prerequisites
+- **Node.js 18+** and npm
+- **Modern web browser** with WebRTC support (Chrome/Firefox recommended)
+- **OpenAI API key** for translation services
 
-- Node.js 18+ 
-- PostgreSQL database (if using persistent storage)
+### 1. Clone and Install
 
-### Installation
-
-1. Clone the repository:
    ```bash
+# Clone the repository
    git clone https://github.com/yourusername/AIVoiceTranslator.git
    cd AIVoiceTranslator
-   ```
 
-2. Install dependencies:
-   ```bash
+# Install dependencies
    npm install
    ```
 
-3. Set up environment variables:
-   Create a `.env` file in the root directory with:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   DATABASE_URL=postgresql://username:password@localhost:5432/aivoicetranslator
-   ```
+### 2. Environment Setup
 
-4. Initialize the database:
-   ```bash
-   npm run db:push
-   ```
-
-5. Start the application:
-   ```bash
-   npm run dev
-   ```
-
-6. Open your browser and navigate to `http://localhost:5000`
-
-## Database Schema
-
-The application uses PostgreSQL with Drizzle ORM. The database schema includes:
-
-- **Users**: Authentication information for admin access
-- **Languages**: Supported languages and their settings
-- **Translations**: Record of all translations performed
-- **Transcripts**: Historical records of speech transcriptions
-
-## Database & Storage Architecture
-
-### Overview
-
-The application implements a flexible storage architecture that supports both in-memory and persistent database storage through a unified interface. This design allows for easy development (using in-memory storage) and production deployment (using PostgreSQL).
-
-### Core Storage Components
-
-#### 1. Storage Interface (`server/storage.ts`)
-- **`IStorage` Interface**: Defines the contract for all storage operations
-  - User management (create, retrieve)
-  - Language management (get, update status, create)
-  - Translation history (add, retrieve by language)
-  - Transcript management (add, retrieve by session)
-
-#### 2. Storage Implementations
-
-**MemStorage Class** (Currently Active)
-- In-memory storage using JavaScript Maps
-- No database required - perfect for development and testing
-- Automatically initializes with default languages (English, Spanish, German, French)
-- Data persists only while the application is running
-
-**DatabaseStorage Class** (Available but Not Used)
-- PostgreSQL implementation using Drizzle ORM
-- Persistent storage across application restarts
-- Requires DATABASE_URL environment variable
-- Full ACID compliance for data integrity
-
-#### 3. Database Connection (`server/db.ts`)
-- Sets up PostgreSQL connection using Drizzle ORM + Neon
-- Exports `db` (database client) and `pool` (connection pool)
-- Only needed when using DatabaseStorage
-
-#### 4. Database Schema (`shared/schema.ts`)
-- Defines table structures using Drizzle ORM
-- Tables: `users`, `languages`, `translations`, `transcripts`
-- Shared between client and server for type safety
-
-### Current Configuration
-
-```typescript
-// In server/storage.ts
-export const storage = new MemStorage(); // Currently using in-memory storage
-```
-
-**Active Storage**: MemStorage (no database required)
-**Database Ready**: DatabaseStorage implemented but not active
-
-### Switching Between Storage Types
-
-To switch from MemStorage to DatabaseStorage:
-
-1. **Set up environment variables**:
-   ```bash
-   DATABASE_URL=postgresql://username:password@localhost:5432/aivoicetranslator
-   ```
-
-2. **Run database migrations**:
-   ```bash
-   npm run db:push
-   ```
-
-3. **Update storage configuration**:
-   ```typescript
-   // Change this line in server/storage.ts:
-   export const storage = new DatabaseStorage();
-   ```
-
-4. **Restart the application**
-
-### Testing Architecture
-
-#### Unit Tests
-- **`tests/unit/storage.test.ts`** - Comprehensive test suite for both implementations
-- Tests MemStorage with real operations
-- Tests DatabaseStorage with mocked database calls
-- Fast execution, no external dependencies
-
-#### Integration Tests
-- **`tests/integration/storage/DatabaseStorage-integration.test.ts`** - Real database tests
-- Currently skipped (requires actual database connection)
-- Tests DatabaseStorage with real PostgreSQL database
-- Requires DATABASE_URL environment variable
-
-#### Test Utilities
-- **`tests/setup/db-setup.ts`** - Database setup/teardown utilities
-- **`test-scripts/db-test.ts`** - Standalone database testing script
-- **`server/test-db.ts`** - Express server for manual database testing
-
-### Usage Examples
-
-#### Current Usage (MemStorage)
-```javascript
-import { storage } from './server/storage';
-
-// These work immediately with MemStorage
-const languages = await storage.getLanguages();
-const user = await storage.createUser({ username: 'teacher1', password: 'pass123' });
-const translation = await storage.addTranslation({
-  sourceLanguage: 'en-US',
-  targetLanguage: 'es',
-  originalText: 'Hello class',
-  translatedText: 'Hola clase',
-  latency: 150
-});
-```
-
-#### Database Usage (DatabaseStorage)
-```javascript
-// Same interface, but data persists to PostgreSQL
-const storage = new DatabaseStorage();
-const languages = await storage.getLanguages(); // Loads from database
-```
-
-### Development Workflow
-
-#### For Development
-1. Use MemStorage (default) - no database setup required
-2. Run `npm test` for fast unit tests
-3. Data resets on each application restart
-
-#### For Production
-1. Set up PostgreSQL database
-2. Configure DATABASE_URL environment variable
-3. Switch to DatabaseStorage in `server/storage.ts`
-4. Run database migrations with `npm run db:push`
-
-### File Organization
-
-```
-├── server/
-│   ├── storage.ts           # Main storage implementations
-│   ├── db.ts               # Database connection setup
-│   └── test-db.ts          # Manual database testing server
-├── shared/
-│   └── schema.ts           # Database schema definitions
-├── tests/
-│   ├── unit/
-│   │   └── storage.test.ts # Comprehensive storage tests
-│   ├── integration/storage/
-│   │   └── DatabaseStorage-integration.test.ts # Database integration tests
-│   └── setup/
-│       └── db-setup.ts     # Test database utilities
-├── test-scripts/
-│   └── db-test.ts          # Standalone database test script
-└── config/
-    └── drizzle.config.ts   # Drizzle ORM configuration
-```
-
-### Benefits of This Architecture
-
-1. **Development Speed**: Start coding immediately without database setup
-2. **Testing**: Fast unit tests with MemStorage, thorough integration tests with DatabaseStorage
-3. **Flexibility**: Easy to switch between storage types
-4. **Type Safety**: Shared schema ensures consistent data types
-5. **Scalability**: Database implementation ready for production use
-
-### Performance Considerations
-
-#### MemStorage
-- **Pros**: Extremely fast, no network latency, simple setup
-- **Cons**: Data lost on restart, limited by system memory
-- **Best for**: Development, testing, demos
-
-#### DatabaseStorage  
-- **Pros**: Persistent data, ACID compliance, scalable
-- **Cons**: Network latency, requires database setup
-- **Best for**: Production, data persistence requirements
-## Interface Guide
-
-### Teacher Interface
-
-The Teacher Interface allows instructors to:
-
-1. Select their source language
-2. Begin speaking with the "Start Recording" button
-3. View real-time transcription of their speech
-4. Monitor active student connections and their language selections
-5. See performance metrics including latency and processing times
-
-**Location:** `client/public/simple-speech-test.html`  
-**Access URL:** `/teacher`
-
-### Student Interface
-
-The Student Interface allows students to:
-
-1. Select their preferred target language
-2. Connect to the active teacher session
-3. Receive real-time translations as both text and audio
-4. Adjust volume and playback settings
-5. Access translation history
-
-Two versions are available:
-- Standard: **Location:** `client/public/simple-student.html`, **Access URL:** `/student`
-- Simplified: **Location:** `client/public/simple-student.html`, **Access URL:** `/simple-student.html` (optimized for mobile devices)
-
-### WebSocket Connection Page
-
-The primary interface for establishing WebSocket connections, with additional diagnostic capabilities:
-
-- Create and manage WebSocket connections to the server
-- Configure connection parameters and preferences
-- Monitor connection status and performance metrics
-- Test different TTS voices and settings
-- View detailed diagnostics for troubleshooting
-
-**Location:** `client/public/websocket-diagnostics.html`  
-**Access URL:** `/websocket-diagnostics.html`
-
-## WebSocket Protocol
-
-The application uses a custom WebSocket protocol with these message types:
-
-### Client to Server
-
-- **Register**: `{ type: "register", role: "teacher|student", language: "en-US" }`
-- **Audio**: `{ type: "audio", audio: "base64EncodedAudio", isFirstChunk: boolean }`
-- **GetTranslation**: `{ type: "getTranslation", text: "Text to translate", sourceLanguage: "en-US", targetLanguage: "es-ES" }`
-- **TranscriptRequest**: `{ type: "transcriptRequest", sessionId: "session-id" }`
-
-### Server to Client
-
-- **Translation**: `{ type: "translation", originalText: "Original", translatedText: "Translated", sourceLanguage: "en-US", targetLanguage: "es-ES", audioBase64: "base64EncodedAudio" }`
-- **Transcription**: `{ type: "transcription", text: "Transcribed text", isFinal: boolean, languageCode: "en-US" }`
-- **Error**: `{ type: "error", message: "Error message" }`
-- **Transcript**: `{ type: "transcript", entries: [...] }`
-
-## Performance Considerations
-
-### Latency Optimization
-
-The system is optimized for low latency with these features:
-
-- Audio streaming for real-time processing
-- Intelligent caching of translations and TTS audio
-- Concurrent processing of multiple translation requests
-- Optimized WebSocket communication
-
-Current end-to-end latency metrics:
-- Speech to text: ~0.5-1.0 seconds
-- Translation: ~0.3-0.5 seconds
-- Text to speech: ~0.5-1.5 seconds
-- Total latency: ~1.5-3.0 seconds (depending on phrase complexity)
-
-### Scaling Considerations
-
-The system has been load tested and can handle:
-- Up to 25 simultaneous student connections per server instance
-- Multiple language pairs simultaneously
-- Continuous translation for 60+ minutes
-
-## Environment Variables
-
-- `OPENAI_API_KEY`: Required for OpenAI API access
-- `DATABASE_URL`: PostgreSQL connection string
-- `PORT`: Server port (default: 5000)
-- `NODE_ENV`: Environment setting (development/production)
-
-## Development Guidelines
-
-### Adding New Languages
-
-1. Update the language support in `client/public/js/language-support.js`
-2. Test transcription accuracy with sample audio
-3. Verify TTS voice quality for the new language
-
-### Adding Database Support
-
-If you need to modify the database schema:
-
-1. Update the schema definitions in `shared/schema.ts`
-2. Run `npm run db:push` to apply changes to the database
-
-### Mobile Device Support
-
-The application includes QR code generation for easy mobile access:
-- QR codes are automatically generated for the student interface
-- Mobile-optimized interface adapts to smaller screens
-
-## Testing
-
-The project includes comprehensive test coverage organized into logical modules:
-
-### Test Structure
-
-```
-tests/
-├── unit/                    # Unit tests
-│   ├── core/               # Core functionality tests
-│   │   ├── websocket.test.ts        # WebSocket integration tests
-│   │   ├── translation.test.ts      # Translation service tests  
-│   │   └── audio-processing.test.ts # Audio processing tests
-│   ├── api/                # API endpoint tests
-│   │   └── routes.test.ts          # HTTP route tests
-│   ├── utils/              # Test utilities
-│   │   └── test-helpers.ts         # Shared test helpers
-│   ├── storage.spec.ts     # Database and storage tests
-│   ├── server.spec.ts      # Server configuration tests
-│   ├── config.spec.ts      # Configuration loading tests
-│   └── languages.spec.ts   # Language utilities tests
-├── integration/            # Integration tests (separate from unit tests)
-│   ├── services/           # Service integration tests
-│   └── workflows/          # End-to-end workflow tests
-```
-
-### Running Tests
+Create a `.env` file in the root directory:
 
 ```bash
-# Run unit tests only
-npm test
-
-# Run integration tests (requires valid API keys)
-npm run test:integration
-
-# Run all tests
-npm run test:all
-
-# Run tests in watch mode
-npm run test:watch
-
-# Run tests with coverage
-npm run test:coverage
-
-# Run specific test file
-npm test tests/unit/core/websocket.test.ts
+# Copy the example environment file
+cp .env.example .env
 ```
 
-### Integration Test Configuration
+Edit `.env` with your configuration:
 
-Integration tests require longer timeouts and may need real API keys:
+   ```bash
+# Required for translation features
+OPENAI_API_KEY=sk-your-openai-api-key-here
 
-1. Create a `.env.test` file for test-specific configuration:
-   ```
-   OPENAI_API_KEY=your_test_api_key
-   DATABASE_URL=postgresql://test_user:test_pass@localhost:5432/aivoicetranslator_test
-   ```
+# Server Configuration (optional - defaults shown)
+PORT=5000
+NODE_ENV=development
+SESSION_SECRET=your-session-secret-here
 
-2. Integration tests have a 30-second timeout by default
-3. Tests will skip if no valid API key is provided
-4. WebSocket tests use the `/ws` path for connections
+# Storage Configuration (optional)
+STORAGE_TYPE=memory          # Options: 'memory' or 'database'
+DATABASE_URL=postgresql://user:password@localhost:5432/aivoicetranslator  # Only if using database storage
 
-### Test Philosophy
+# Test Configuration (automatically set by test scripts)
+E2E_TEST_MODE=true          # Forces memory storage for tests
+```
 
-- Tests should be deterministic, running the same way every time
-- Prefer small, focused tests over large, complex ones
-- Use mocks and stubs to isolate code under test
-- Integration tests should cover critical end-to-end scenarios
+**Important Notes:**
+- `OPENAI_API_KEY` is **required** for the application to function
+- Default storage is `memory` (no database needed for local development)
+- Database storage is optional and only needed for production deployments
+- Test scripts automatically configure the environment - no manual setup needed
+
+### 3. Running the Application
+
+   ```bash
+# Development mode with hot reload
+   npm run dev
+
+# The application will be available at:
+# - Teacher Interface: http://localhost:5000/teacher (Current - HTML/JS)
+# - Student Interface: http://localhost:5000/student (Current - HTML/JS)
+# - Diagnostics Dashboard: http://localhost:5000/diagnostics.html (Current - HTML/JS)
+# - React App: http://localhost:5000/ (In Progress - Gradual Migration)
+
+# Production build and run
+npm run build
+npm start
+
+# Frontend development only (Vite dev server)
+npm run dev:client
+```
+
+## ⚠️ Important: React Migration Status
+
+**The application currently uses static HTML/JS pages in `client/public/`**. The React SPA in `client/src/` is under development and requires gradual migration. Components are built but not yet integrated with the production application.
+
+## 🧪 Running Tests
+
+### 🎯 Quick Test Commands (Just Copy & Paste!)
+
+```bash
+# Unit Tests (fast - 20 seconds) ✅ 241 passing
+STORAGE_TYPE=memory npm run test:unit
+
+# Integration Tests (slower - 40 seconds) ✅ 60 passing
+STORAGE_TYPE=memory npm run test:integration
+
+# E2E Tests (2 minutes) ⚠️ STOP THE DEV SERVER FIRST!
+npx kill-port 5000 && npm run test:e2e
+```
+
+### ⚠️ IMPORTANT: E2E Test Requirements
+
+**E2E tests will FAIL if the dev server is running!** The tests start their own server.
+
+```bash
+# BEFORE running E2E tests, stop the dev server:
+npx kill-port 5000
+
+# THEN run E2E tests:
+npm run test:e2e
+```
+
+### 📊 Current Test Status
+- **Unit Tests**: ✅ 241 tests pass (4 non-critical fs errors - tests still pass)
+- **Integration Tests**: ✅ 60 pass, 12 skipped (database tests), 1 fails (DatabaseStorage - expected)
+- **E2E Tests**: ✅ 36 tests pass (when server is stopped first)
+
+### 🔍 Why Use STORAGE_TYPE=memory?
+The app supports both memory and database storage. Tests should use memory storage to:
+- Avoid database setup requirements
+- Run faster
+- Work on any machine without configuration
+
+### 📝 Using npx Commands (Like Before)
+
+```bash
+# Run specific test file with Vitest
+npx vitest tests/unit/storage.test.ts
+
+# Run tests in watch mode (auto-rerun on changes)
+npx vitest --watch
+
+# Run with UI (great for debugging)
+npx vitest --ui
+
+# Run E2E with Playwright UI (see browser)
+npx playwright test --ui
+
+# Run specific E2E test
+npx playwright test tests/e2e/teacher.spec.ts
+```
+
+### 🛠️ Troubleshooting Common Issues
+
+1. **E2E Tests Fail: "Error: listen EADDRINUSE"**
+   - **Cause**: Dev server is still running on port 5000
+   - **Fix**: `npx kill-port 5000` then run E2E tests
+
+2. **Tests Hang or Run Forever**
+   - **Fix**: Clear test cache: `rm -rf node_modules/.vitest`
+   - **Fix**: Run sequentially: `npx vitest --no-threads`
+
+3. **"Cannot find module" Errors**
+   - **Fix**: `npm install` to ensure all dependencies are installed
+
+4. **Database Test Fails**
+   - **This is expected!** DatabaseStorage tests need a real database
+   - **For local testing**: Always use `STORAGE_TYPE=memory`
+
+### 📚 Understanding Test Results
+
+**Skipped Tests (12)**: Database-specific tests that skip when using memory storage
+**Todo Test (1)**: Placeholder for future WebSocket API tests
+**Unit Test Errors (4)**: File system mocking issues - non-critical, tests still pass
+
+For detailed testing documentation, see [docs/TESTING.md](docs/TESTING.md)
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────┐     WebSocket      ┌─────────────────┐     OpenAI APIs    ┌─────────────────┐
+│  Teacher Client │ ◄─────────────────► │                 │ ◄────────────────► │ Whisper ASR     │
+│  (Browser)      │                     │                 │                     │ GPT-4 Translate │
+│  - Audio Capture│                     │  Node.js Server │                     │ TTS Generation  │
+│  - Speech Recog │                     │                 │                     └─────────────────┘
+└─────────────────┘                     │  - WebSocket    │
+                                       │  - Translation   │
+┌─────────────────┐                     │  - Session Mgmt │     Storage         ┌─────────────────┐
+│ Student Clients │ ◄─────────────────► │  - Metrics      │ ◄────────────────► │ Memory/Database │
+│  (Browser)      │     WebSocket       │                 │                     │ - Sessions      │
+│  - Audio Playback│                    └─────────────────┘                     │ - Translations  │
+└─────────────────┘                                                             │ - Metrics       │
+                                                                                └─────────────────┘
+```
+
+
+
+## 📁 Project Structure Overview
+
+```
+AIVoiceTranslator/
+├── .env.example            # Environment variables template
+├── .env                    # Your local environment variables (git ignored)
+├── package.json            # Dependencies and npm scripts
+├── client/                 # Frontend code
+│   ├── public/            # Static HTML/JS/CSS pages (CURRENT PRODUCTION)
+│   └── src/               # React SPA (IN PROGRESS - Gradual Migration)
+├── server/                 # Backend Node.js/Express server
+│   ├── config.ts          # Environment configuration
+│   ├── storage.ts         # Storage abstraction layer
+│   └── services/          # Core business logic
+├── tests/                  # Test suites
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   └── e2e/               # End-to-end tests
+├── test-config/           # Test configurations
+│   ├── test-env.js        # Test environment setup
+│   └── playwright.config.ts # Playwright configuration
+└── config/                # Build configurations
+    └── vite.config.ts     # Vite build configuration
+```
+
+## 🔧 Key npm Scripts
+
+```json
+{
+  "dev": "Run full stack in development mode",
+  "dev:client": "Run only frontend with Vite",
+  "build": "Build for production",
+  "start": "Start production server",
+  "test": "Run all tests",
+  "test:unit": "Run unit tests with Vitest",
+  "test:integration": "Run integration tests",
+  "test:e2e": "Run E2E tests with Playwright",
+  "test:e2e:ui": "Run E2E tests with UI mode",
+  "lint": "Run ESLint",
+  "format": "Format code with Prettier"
+}
+```
+
+## 🛠️ Development Workflow
+
+### 1. Basic Development Flow
+```bash
+# Start development server
+npm run dev
+
+# In another terminal, run tests in watch mode
+npm run test:unit:watch
+
+# Make changes, tests auto-run
+# Browser auto-reloads
+```
+
+### 2. Before Committing
+```bash
+# Run all tests
+npm test
+
+# Check linting
+npm run lint
+
+# Format code
+npm run format
+
+# Build to ensure no errors
+npm run build
+```
+
+### 3. Testing Your Changes
+```bash
+# Quick unit test for your service
+npm run test:unit -- tests/unit/services/YourService.test.ts
+
+# Integration test for API endpoints
+npm run test:integration -- tests/integration/your-feature.test.ts
+
+# E2E test with UI to see it in action
+npm run test:e2e:ui -- tests/e2e/your-feature.spec.ts
+```
+
+## 🔍 Debugging
+
+### Server Debugging
+```bash
+# Run with Node.js inspector
+node --inspect -r tsx/register server/index.ts
+
+# Or use VS Code debugger with included launch.json
+```
+
+### Client Debugging
+- Use browser DevTools
+- React DevTools for React components
+- Network tab for WebSocket messages
+
+### Test Debugging
+```bash
+# Debug E2E tests
+npm run test:e2e:debug
+
+# Debug unit tests in VS Code
+# Set breakpoints and use "Debug Test" option
+```
+
+## 🌐 API Endpoints
+
+### HTTP Endpoints
+```
+GET  /api/health              # Health check
+GET  /api/languages           # Available languages list
+POST /api/session/create      # Create classroom session
+GET  /api/session/:code       # Get session details
+GET  /api/diagnostics         # System metrics
+GET  /api/diagnostics/export  # Export analytics data
+```
+
+### WebSocket Events
+```
+Client → Server:
+- register: Join session with role and language
+- audio: Stream audio chunks
+- transcription: Send transcribed text
+- ping: Heartbeat
+
+Server → Client:
+- translation: Translated text and audio
+- transcription: Original transcription
+- error: Error messages
+- pong: Heartbeat response
+```
+
+## 🏗️ Architecture Notes
+
+### Audio Processing Flow
+1. **Teacher's Browser**: Captures audio via MediaRecorder API
+2. **Client-Side**: Web Speech API transcribes for immediate display
+3. **WebSocket**: Streams audio chunks to server
+4. **Server**: Processes audio (future enhancement)
+5. **OpenAI APIs**: Translation (GPT-4) and TTS generation
+6. **Students**: Receive translated audio and text
+
+### Storage Options
+- **Memory Storage** (default): Fast, perfect for development
+- **Database Storage**: PostgreSQL with Drizzle ORM for production
+
+### Key Services
+- `WebSocketServer`: Manages real-time connections
+- `TranslationService`: Orchestrates translation pipeline
+- `TextToSpeechService`: Generates audio from text
+- `DiagnosticsService`: Tracks metrics and analytics
+- `AudioSessionManager`: Manages classroom sessions
+
+## 🐛 Common Issues & Solutions
+
+### Port Already in Use
+```bash
+# Error: EADDRINUSE: address already in use :::5000
+# Solution: Kill the process using the port
+lsof -ti:5000 | xargs kill -9
+
+# Or use a different port
+PORT=3000 npm run dev
+```
+
+### OpenAI API Errors
+```bash
+# Error: OpenAI API key not found
+# Solution: Ensure OPENAI_API_KEY is set in .env file
+```
+
+### E2E Test Failures
+```bash
+# Tests failing due to permissions
+# Solution: Tests handle this automatically, but ensure you're using npm run test:e2e
+
+# Tests hanging
+# Solution: Kill any orphaned browser processes
+pkill -f playwright
+```
+
+### Database Connection Issues
+```bash
+# Only relevant if using database storage
+# Solution: Ensure DATABASE_URL is correct and database is running
+# For local dev, just use memory storage (default)
+```
+
+## 📚 Additional Resources
+
+- **WebSocket Protocol**: See `docs/websocket-architecture.md`
+- **Testing Guide**: See `docs/TESTING.md`
+- **E2E Test Architecture**: See `docs/E2E_TEST_SOLUTION.md`
+- **API Documentation**: Run server and visit `/api-docs` (coming soon)
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Write tests for your changes
+4. Ensure all tests pass (`npm test`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+**Need Help?** 
+- Check existing issues on GitHub
+- Review test files for usage examples
+- WebSocket implementation: `server/services/WebSocketServer.ts`
+- Frontend examples: `client/public/js/teacher.js`

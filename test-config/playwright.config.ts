@@ -55,12 +55,12 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'npm run dev',
+    command: 'npm run dev:test',
     url: 'http://127.0.0.1:5000',
-    reuseExistingServer: false, // Force Playwright to start the server for this run
-    cwd: '/Users/yamijala/gitprojects/AIVoiceTranslator', // Absolute path
+    reuseExistingServer: !process.env.CI, // Reuse in local dev, fresh in CI
+    cwd: process.cwd(), // Use current working directory
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 300 * 1000, // 5 minutes
+    timeout: 120 * 1000, // 2 minutes
   },
 });

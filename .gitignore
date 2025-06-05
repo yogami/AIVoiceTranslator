@@ -1,13 +1,29 @@
 node_modules
 dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz.env
 .env
+config/vite.config.ts.*
+.DS_Store
+*.log
+coverage
+.nyc_output
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.cache
+.parcel-cache
+.vercel
+.output
+.nuxt
+.nitro
+.netlify
+edge-functions-dist
+.turbo
+server/public
+*.tar.gz.env
 audio-cache/
 temp/
-coverage/
 
 # Test-related redundant files
 server-output.log
@@ -17,6 +33,3 @@ backup/
 .jest-cache/
 test-results/
 cleanup.sh
-
-# Log files
-*.log

@@ -1,11 +1,15 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
+    "target": "ES2020",
     "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "moduleResolution": "Node",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "allowJs": true,
     "baseUrl": "./",
     "paths": {
       "@config/*": ["config/*"],
@@ -17,14 +21,17 @@
       "@storage": ["server/storage"],
       "@helpers/*": ["server/services/helpers/*"],
       "@managers/*": ["server/services/managers/*"],
-      "@handlers/*": ["server/services/handlers/*"]
+      "@handlers/*": ["server/services/handlers/*"],
+      "@/*": ["client/src/*"]
     },
     "types": ["node", "vitest/globals"],
     "outDir": "dist/",
-    "declaration": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": true
+    "jsx": "react-jsx"
   },
-  "include": ["server/**/*", "shared/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist-tests", "coverage"]
+  "include": ["server/**/*", "shared/**/*", "tests/**/*", "client/src/**/*"],
+  "exclude": ["node_modules", "dist", "dist-tests", "coverage", "client/public"],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
 }

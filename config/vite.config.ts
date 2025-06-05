@@ -13,8 +13,10 @@ console.log('Alias configuration:', {
 export default defineConfig({
   plugins: [
     react(),
-    runtimeErrorOverlay(),
-    themePlugin(),
+    ...(process.env.REPL_ID ? [
+      runtimeErrorOverlay(),
+      themePlugin(),
+    ] : []),
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
@@ -24,6 +26,33 @@ export default defineConfig({
         ]
       : []),
   ],
+  root: path.resolve(projectRoot, "client"),
+  publicDir: 'public',
+  build: {
+    outDir: path.resolve(projectRoot, "dist/client"),
+    emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(projectRoot, 'client/index.html'),
+        teacher: path.resolve(projectRoot, 'client/public/teacher.html'),
+        student: path.resolve(projectRoot, 'client/public/student.html'),
+        diagnostics: path.resolve(projectRoot, 'client/public/diagnostics.html')
+      }
+    }
+  },
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      },
+      '/ws': {
+        target: 'ws://localhost:5000',
+        ws: true
+      }
+    }
+  },
   resolve: {
     alias: {
       "@": path.resolve(projectRoot, "client", "src"),
@@ -36,10 +65,5 @@ export default defineConfig({
       "@config": path.resolve(projectRoot, "config"),
       "@websocket": path.resolve(projectRoot, "server/websocket"),
     },
-  },
-  root: path.resolve(projectRoot, "client"),
-  build: {
-    outDir: path.resolve(projectRoot, "dist/public"),
-    emptyOutDir: true,
   },
 });
