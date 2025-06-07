@@ -128,9 +128,16 @@ STORAGE_TYPE=memory
 # Use test OpenAI key (if not in .env)
 OPENAI_API_KEY=test-key-for-testing
 
+# For integration tests with real OpenAI API calls, set a valid key in .env.test:
+# .env.test
+OPENAI_API_KEY=sk-your-real-openai-api-key
+
 # Enable debug output
 DEBUG=true
 ```
+
+- Vitest automatically loads `.env.test` when running tests. No extra CLI flags are needed.
+- If you want integration tests to use the real OpenAI API, ensure your `.env.test` contains a valid `OPENAI_API_KEY`.
 
 ## 🔧 Troubleshooting
 
@@ -216,4 +223,4 @@ Example GitHub Action:
   
 - name: Run E2E Tests
   run: npm run test:e2e
-``` 
+```

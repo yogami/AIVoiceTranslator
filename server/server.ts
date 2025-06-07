@@ -1,6 +1,13 @@
 /**
  * Server setup functionality extracted for easier testing
  */
+// TODO: Temporary fix for TTS service not picking up OPENAI_API_KEY
+// Root cause: If this file is run directly (or imported before index.ts), environment variables from .env are not loaded before TTS is initialized.
+// This causes TTS to use a placeholder API key, breaking audio on the student page.
+// We load dotenv here as a workaround, but this should be investigated further to ensure all entry points load env config before any service initialization.
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import { createServer, Server } from 'http';
 // Use WebSocketServer for WebSocket connections

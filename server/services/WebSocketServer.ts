@@ -750,68 +750,41 @@ export class WebSocketServer {
   private async processTeacherAudio(ws: WebSocketClient, audioData: string): Promise<void> {
     // Validate audio data
     if (!audioData || audioData.length < 100) {
-      console.log('Received invalid or too small audio data (length:', audioData.length, ')');
       return;
     }
-    
-    console.log('Processing audio data (length:', audioData.length, ') from teacher...');
-    
     try {
       // Convert base64 to buffer
       const audioBuffer = Buffer.from(audioData, 'base64');
-      
-      // Skip if buffer is too small
       if (audioBuffer.length < 100) {
-        console.log('Decoded audio buffer too small:', audioBuffer.length);
         return;
       }
-      
-      // Get teacher language and session ID
       const teacherLanguage = this.languages.get(ws) || 'en-US';
       const sessionId = this.sessionIds.get(ws);
-      
       if (!sessionId) {
         console.error('No session ID found for teacher');
         return;
       }
-      
-      // Process the audio through the transcription service
-      try {
-        // Comment out server-side transcription since we're using client-side speech recognition
-        // The client sends both audio chunks and transcriptions separately
-        /*
-        // Transcribe the audio
-        const transcription = await audioTranscriptionService.transcribeAudio(
-          audioBuffer,
-          teacherLanguage
-        );
-        
-        console.log('Transcribed audio:', transcription);
-        
-        // If we got a transcription, process it as a transcription message
-        if (transcription && transcription.trim().length > 0) {
-          await this.handleTranscriptionMessage(ws, {
-            type: 'transcription',
-            text: transcription,
-            timestamp: Date.now(),
-            isFinal: true
-          } as TranscriptionMessageToServer);
-        }
-        */
-        
-        // For now, just log that we received audio
-        console.log('Received audio chunk from teacher, using client-side transcription');
-      } catch (transcriptionError) {
-        console.error('Error transcribing audio:', transcriptionError);
-        
-        // Send error to client
-        const errorMessage: ErrorMessageToClient = {
-          type: 'error',
-          message: 'Failed to transcribe audio',
-          code: 'TRANSCRIPTION_ERROR'
-        };
-        ws.send(JSON.stringify(errorMessage));
+      // Comment out server-side transcription since we're using client-side speech recognition
+      // The client sends both audio chunks and transcriptions separately
+      /*
+      // Transcribe the audio
+      const transcription = await audioTranscriptionService.transcribeAudio(
+        audioBuffer,
+        teacherLanguage
+      );
+      console.log('Transcribed audio:', transcription);
+      // If we got a transcription, process it as a transcription message
+      if (transcription && transcription.trim().length > 0) {
+        await this.handleTranscriptionMessage(ws, {
+          type: 'transcription',
+          text: transcription,
+          timestamp: Date.now(),
+          isFinal: true
+        } as TranscriptionMessageToServer);
       }
+      */
+      // For now, just log that we received audio
+      console.log('Received audio chunk from teacher, using client-side transcription');
     } catch (error) {
       console.error('Error processing teacher audio:', error);
     }

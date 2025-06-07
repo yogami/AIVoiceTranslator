@@ -5,6 +5,8 @@
  * especially in CI/CD pipelines where we want predictable behavior.
  */
 
+require('dotenv').config({ path: '.env.test' });
+
 // Set test environment variables
 process.env.STORAGE_TYPE = process.env.STORAGE_TYPE || 'memory';
 process.env.NODE_ENV = 'test';
@@ -26,4 +28,4 @@ console.log('- Storage Type:', process.env.STORAGE_TYPE);
 console.log('- Node Environment:', process.env.NODE_ENV);
 console.log('- TTS Service:', process.env.TTS_SERVICE_TYPE);
 console.log('- OpenAI Key:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
-console.log('- Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set'); 
+console.log('- Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');

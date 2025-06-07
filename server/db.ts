@@ -5,13 +5,51 @@
  * Uses Neon serverless PostgreSQL with WebSocket support.
  */
 
-import { Pool, neonConfig, PoolConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "../shared/schema";
+import dotenv from 'dotenv';
 
-// Configure Neon to use WebSocket
-neonConfig.webSocketConstructor = ws;
+if (process.env.NODE_ENV === 'test') {
+  dotenv.config({ path: '.env.test', override: true });
+} else {
+  dotenv.config();
+}
+
+import * as schema from "../shared/schema";
+import { Pool, neonConfig, PoolConfig } from '@neondatabase/serverless';
+import { drizzle as neonDrizzle } from 'drizzle-orm/neon-serverless';
+import ws from 'ws';
+import postgres from 'postgres';
+import { drizzle as pgDrizzle } from 'drizzle-orm/postgres-js';
+
+// --- Driver selection logic ---
+// Explicitly type pool and db as any to avoid TypeScript implicit any errors due to dynamic driver switching
+let pool: any;
+let db: any;
+
+const isNeon = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech');
+
+if (process.env.DATABASE_URL) {
+  if (isNeon) {
+    // Neon (production/dev)
+    neonConfig.webSocketConstructor = ws;
+    const dbConfig = validateDatabaseConfig();
+    const poolConfig = {
+      connectionString: dbConfig.connectionString,
+      max: dbConfig.maxConnections,
+      connectionTimeoutMillis: dbConfig.connectionTimeoutMillis,
+    };
+    pool = new Pool(poolConfig);
+    db = neonDrizzle({ client: pool, schema });
+  } else {
+    // Standard Postgres (testcontainers/tests/local)
+    pool = postgres(process.env.DATABASE_URL, { max: 10 });
+    db = pgDrizzle(pool, { schema });
+  }
+} else {
+  pool = null;
+  db = null;
+}
+
+export { pool, db };
 
 /**
  * Database configuration interface
@@ -50,41 +88,6 @@ function validateDatabaseConfig(): DatabaseConfig {
     connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT || '30000', 10),
   };
 }
-
-/**
- * Creates a database pool with the provided configuration
- */
-function createDatabasePool(config: DatabaseConfig): Pool {
-  const poolConfig: PoolConfig = {
-    connectionString: config.connectionString,
-    max: config.maxConnections,
-    connectionTimeoutMillis: config.connectionTimeoutMillis,
-  };
-
-  return new Pool(poolConfig);
-}
-
-// Conditional database initialization - only initialize if DATABASE_URL is present
-let pool: Pool;
-let db: ReturnType<typeof drizzle>;
-
-if (process.env.DATABASE_URL) {
-  // Initialize database configuration
-  const dbConfig = validateDatabaseConfig();
-  
-  // Create database pool
-  pool = createDatabasePool(dbConfig);
-  
-  // Create Drizzle ORM instance
-  db = drizzle({ client: pool, schema });
-} else {
-  // Create placeholder objects for when no database is configured
-  // These will only be used by DatabaseStorage which won't be instantiated without DATABASE_URL
-  pool = null as any;
-  db = null as any;
-}
-
-export { pool, db };
 
 /**
  * Tests database connectivity

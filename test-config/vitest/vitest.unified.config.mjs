@@ -57,6 +57,11 @@ const getTestTimeouts = (mode) => {
   }
 };
 
+const setupFiles = [
+  './test-config/test-env.js',
+  './test-config/vitest/vitest.setup.ts',
+];
+
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
@@ -67,27 +72,27 @@ export default defineConfig({
       '**/node_modules/**', 
       '**/dist/**', 
       '**/build/**',
-      '**/tests/e2e/**',  // Explicitly exclude E2E tests
-      'server/websocket.ts', // Added deprecated websocket.ts
-      'server/services/managers/WebSocketClientManager.ts', // Added empty manager
-      'server/test-db.ts', // Exclude test database setup
-      'server/vite.ts', // Exclude vite specific config
-      'server/services/WebSocketTypes.ts', // Exclude type definitions
-      'server/services/DiagnosticsService.ts', // Exclude unimplemented feature
+      '**/tests/e2e/**',
+      'server/websocket.ts',
+      'server/services/managers/WebSocketClientManager.ts',
+      'server/test-db.ts',
+      'server/vite.ts',
+      'server/services/WebSocketTypes.ts',
+      'server/services/DiagnosticsService.ts',
     ],
     ...getTestTimeouts(testMode),
-    maxConcurrency: testMode === 'integration' ? 1 : 2,  // Sequential for integration tests
-    maxThreads: testMode === 'integration' ? 1 : 2,      // Single thread for integration tests
-    minThreads: 1,               // Use at least one thread
-    silent: false,               // Show full output
-    isolate: true,               // Isolate test environments
-    pool: 'threads',             // Use thread pool for better isolation
+    maxConcurrency: testMode === 'integration' ? 1 : 2,
+    maxThreads: testMode === 'integration' ? 1 : 2,
+    minThreads: 1,
+    silent: false,
+    isolate: true,
+    pool: 'threads',
     poolOptions: {
       threads: {
-        singleThread: testMode === 'integration', // Force single thread for integration tests
+        singleThread: testMode === 'integration',
       }
     },
-    setupFiles: ['./test-config/vitest/vitest.setup.ts'],
+    setupFiles,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -105,10 +110,10 @@ export default defineConfig({
         '**/node_modules/**',
         'server/websocket.ts',
         'server/services/managers/WebSocketClientManager.ts',
-        'server/test-db.ts', // Exclude test database setup
-        'server/vite.ts', // Exclude vite specific config
-        'server/services/WebSocketTypes.ts', // Exclude type definitions
-        'server/services/DiagnosticsService.ts', // Exclude unimplemented feature
+        'server/test-db.ts',
+        'server/vite.ts',
+        'server/services/WebSocketTypes.ts',
+        'server/services/DiagnosticsService.ts',
       ],
       all: true,
       thresholds: {
@@ -125,7 +130,7 @@ export default defineConfig({
       '@services': resolve(projectRoot, 'server/services'),
       '@db': resolve(projectRoot, 'server/db'),
       '@routes': resolve(projectRoot, 'server/routes'),
-      '@websocket': resolve(projectRoot, 'server/websocket'), // The critical one
+      '@websocket': resolve(projectRoot, 'server/websocket'),
       '@openai': resolve(projectRoot, 'server/openai'),
       '@storage': resolve(projectRoot, 'server/storage'),
       '@helpers': resolve(projectRoot, 'server/services/helpers'),

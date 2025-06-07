@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import { promisify } from 'util';
 import { createHash } from 'crypto';
+import { createLogger, format, transports } from 'winston';
+import type { TransformableInfo } from 'logform';
 
 // Promisify file system operations
 const writeFile = promisify(fs.writeFile);
@@ -474,53 +476,63 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
   }
 }
 
+// --- Logging Setup ---
+// Ensure logs directory exists
+const logsDir = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir);
+}
+
+export const ttsLogger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.printf((info: TransformableInfo) => `${info.timestamp} [${String(info.level).toUpperCase()}] ${String(info.message)}`)
+  ),
+  transports: [
+    new transports.File({ filename: path.join(logsDir, 'tts.log') }),
+    new transports.Console()
+  ]
+});
+// --- End Logging Setup ---
+
 /**
  * Text to Speech Factory class
  * Creates and provides different text-to-speech service implementations
  */
 export class TextToSpeechFactory {
   private static instance: TextToSpeechFactory;
-  private openai: OpenAI;
   private services: Map<string, ITextToSpeechService> = new Map();
-  
+
   private constructor() {
-    // Initialize OpenAI client with API key from environment
-    const apiKey = process.env.OPENAI_API_KEY || ''; // Ensure apiKey is a string
-    
-    try {
-      this.openai = new OpenAI({ 
-        apiKey: apiKey || 'sk-placeholder-for-factory-init' // Use a specific placeholder
-      });
-      // Log only if a real API key is configured, otherwise it's expected to use placeholder
-      if (apiKey) {
-        console.log('OpenAI client initialized for TextToSpeechFactory with API key.');
-      } else {
-        console.warn('OpenAI client for TextToSpeechFactory initialized with placeholder API key. OpenAI TTS will fail if used.');
-      }
-    } catch (error) {
-      console.error('Critical error initializing OpenAI client for TextToSpeechFactory:', error);
-      // Fallback to a placeholder client to prevent constructor failure
-      this.openai = new OpenAI({ apiKey: 'sk-placeholder-on-error' });
-    }
-    
-    // Register services
-    this.services.set('openai', new OpenAITextToSpeechService(this.openai));
+    // Do not initialize OpenAI client here
+    // Only register browser and silent services
     this.services.set('browser', new BrowserSpeechSynthesisService());
     this.services.set('silent', new SilentTextToSpeechService());
   }
-  
+
   public static getInstance(): TextToSpeechFactory {
     if (!TextToSpeechFactory.instance) {
       TextToSpeechFactory.instance = new TextToSpeechFactory();
     }
     return TextToSpeechFactory.instance;
   }
-  
+
   public getService(serviceType: string = 'openai'): ITextToSpeechService {
+    if (serviceType.toLowerCase() === 'openai') {
+      // Always create OpenAI service with the latest API key from env
+      const apiKey = process.env.OPENAI_API_KEY || '';
+      if (!apiKey) {
+        ttsLogger.warn('[TTS Factory] OPENAI_API_KEY is missing. Falling back to silent TTS.');
+        return this.services.get('silent')!;
+      }
+      const openai = new OpenAI({ apiKey });
+      return new OpenAITextToSpeechService(openai);
+    }
     const service = this.services.get(serviceType.toLowerCase());
     if (!service) {
-      console.warn(`TTS service '${serviceType}' not found, falling back to openai`);
-      return this.services.get('openai')!;
+      ttsLogger.warn(`TTS service '${serviceType}' not found, falling back to openai`);
+      return this.getService('openai');
     }
     return service;
   }

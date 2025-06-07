@@ -43,7 +43,7 @@
 ### Test Utilities
 - `tests/setup/db-setup.ts` - Database setup/teardown for integration tests
 - `test-scripts/db-test.ts` - Standalone script to test database operations
-- `server/test-db.ts` - Express server for manual database testing via HTTP
+- `server/test-db.ts` - [Obsolete] This file is no longer used. All database testing and integration flows now use the Neon cloud database and the main db.ts connection. This file can be deleted after confirming no manual or legacy workflows depend on it.
 
 ## CONFIGURATION FILES
 - `config/drizzle.config.ts` - Drizzle ORM configuration for migrations

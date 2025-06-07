@@ -3,6 +3,7 @@
  * 
  * Tests the PostgreSQL storage implementation using a real database connection
  */
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { DatabaseStorage } from '../../../server/storage';
 import { db } from '../../../server/db';
@@ -27,7 +28,6 @@ describe('DatabaseStorage Integration Tests', () => {
 
   describe('User operations', () => {
     beforeEach(async () => {
-      // Clean up users before each test
       await db.delete(users);
     });
 
@@ -142,7 +142,6 @@ describe('DatabaseStorage Integration Tests', () => {
 
   describe('Translation operations', () => {
     beforeEach(async () => {
-      // Clean translations before each test
       await db.delete(translations);
     });
 
@@ -201,7 +200,6 @@ describe('DatabaseStorage Integration Tests', () => {
 
   describe('Transcript operations', () => {
     beforeEach(async () => {
-      // Clean transcripts before each test
       await db.delete(transcripts);
     });
 

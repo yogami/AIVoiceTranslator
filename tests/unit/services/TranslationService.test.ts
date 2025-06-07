@@ -23,35 +23,79 @@ import { Mocked, MockedFunction } from 'vitest';
 
 // Mock 'fs' to prevent ENOENT errors from createReadStream
 vi.mock('fs', async () => {
-  const actualFs = await vi.importActual('fs') as any; 
-  const { Readable } = await vi.importActual('stream') as typeof import('stream'); // Added type cast
+  const actualFs = await vi.importActual('fs') as typeof import('fs'); 
+  const { Readable } = await vi.importActual('stream') as typeof import('stream');
+
+  const mockFsPromises = {
+    ...actualFs.promises, // Start with actual promises to ensure all methods are available
+    access: vi.fn().mockResolvedValue(undefined), 
+    stat: vi.fn().mockResolvedValue({ 
+      size: 1000, 
+      mtime: new Date(),
+      isFile: () => true,
+      isDirectory: () => false,
+      isBlockDevice: () => false,
+      isCharacterDevice: () => false,
+      isSymbolicLink: () => false,
+      isFIFO: () => false,
+      isSocket: () => false,
+      dev: 0,
+      ino: 0,
+      mode: 0,
+      nlink: 0,
+      uid: 0,
+      gid: 0,
+      rdev: 0,
+      blksize: 0,
+      blocks: 0,
+      atimeMs: Date.now(),
+      mtimeMs: Date.now(),
+      ctimeMs: Date.now(),
+      birthtimeMs: Date.now(),
+      atime: new Date(),
+      // mtime: new Date(), // already present
+      ctime: new Date(),
+      birthtime: new Date(),
+    }), 
+    readFile: vi.fn().mockResolvedValue(Buffer.from('mock file content')), 
+    writeFile: vi.fn().mockResolvedValue(undefined), 
+    mkdir: vi.fn().mockResolvedValue(undefined), // Added mkdir
+    unlink: vi.fn().mockResolvedValue(undefined) 
+  };
+
+  const mockCreateReadStream = vi.fn().mockImplementation((pathArgument: string) => {
+    const readable = new Readable();
+    readable._read = () => {}; 
+    readable.push(Buffer.from('mock stream data for ' + pathArgument));
+    readable.push(null);
+    // Add properties that might be expected by OpenAI SDK
+    (readable as any).path = pathArgument;
+    (readable as any).readable = true;
+    return readable;
+  });
+
   return {
-    ...actualFs, 
-    createReadStream: vi.fn().mockImplementation((path: string) => { // Added type for path
-      // console.log(`Mocked fs.createReadStream called for path: ${path}`);
-      const readable = new Readable();
-      readable._read = () => {}; // Implement a no-op _read method
-      // Push some minimal data or null to indicate EOF immediately if the mock consumer doesn't read it
-      // For OpenAI transcription mock, it usually doesn't care about the stream content itself.
-      readable.push(Buffer.from('mock stream data'));
-      readable.push(null);
-      return readable;
-    }),
-    // Mock synchronous fs methods to prevent ENOENT errors
+    // For named imports: import { promises, createReadStream } from 'fs';
+    ...actualFs,
+    promises: mockFsPromises,
+    createReadStream: mockCreateReadStream,
     existsSync: vi.fn().mockReturnValue(true),
     unlinkSync: vi.fn().mockImplementation(() => {}),
     readFileSync: vi.fn().mockReturnValue(Buffer.from('mock file content')),
     writeFileSync: vi.fn().mockImplementation(() => {}),
-    promises: {
-      ...(actualFs.promises || {}), // Ensure actualFs.promises is not undefined
-      access: vi.fn().mockResolvedValue(undefined), 
-      stat: vi.fn().mockResolvedValue({ size: 1000, mtime: new Date() }), 
-      readFile: vi.fn().mockResolvedValue(Buffer.from('mock file content')), 
-      writeFile: vi.fn().mockResolvedValue(undefined), 
-      mkdir: vi.fn().mockResolvedValue(undefined),
-      unlink: vi.fn().mockResolvedValue(undefined) 
+    constants: actualFs.constants,
+
+    // For default import: import fs from 'fs';
+    default: {
+      ...actualFs,
+      promises: mockFsPromises,
+      createReadStream: mockCreateReadStream,
+      existsSync: vi.fn().mockReturnValue(true),
+      unlinkSync: vi.fn().mockImplementation(() => {}),
+      readFileSync: vi.fn().mockReturnValue(Buffer.from('mock file content')),
+      writeFileSync: vi.fn().mockImplementation(() => {}),
+      constants: actualFs.constants,
     },
-    constants: actualFs.constants, // Ensure constants like F_OK are available
   };
 });
 

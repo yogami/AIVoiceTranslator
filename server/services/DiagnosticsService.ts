@@ -66,6 +66,17 @@ interface SystemMetrics {
   uptimeFormatted: string;
 }
 
+export interface TimeRange {
+  startDate: Date;
+  endDate: Date;
+}
+
+export interface TimeRangeInfo {
+  preset?: string;
+  startDate: string;
+  endDate: string;
+}
+
 export interface DiagnosticsData {
   connections: ConnectionMetrics;
   translations: TranslationMetrics;
@@ -73,12 +84,15 @@ export interface DiagnosticsData {
   audio: AudioMetrics;
   system: SystemMetrics;
   lastUpdated: string;
+  timeRange?: TimeRangeInfo;
 }
 
 export interface DiagnosticsExportData extends DiagnosticsData {
   exportedAt: string;
   version: string;
 }
+
+export type TimeRangePreset = 'lastHour' | 'last24Hours' | 'last7Days' | 'last30Days';
 
 export class DiagnosticsService {
   private startTime: number;
@@ -180,17 +194,61 @@ export class DiagnosticsService {
     return Math.round((Date.now() - this.startTime) / 1000);
   }
 
-  async getMetrics(): Promise<DiagnosticsData> {
+  private parseTimeRange(timeRangeOrPreset?: TimeRange | TimeRangePreset): TimeRange | undefined {
+    if (!timeRangeOrPreset) {
+      return undefined;
+    }
+
+    // If it's already a TimeRange object, return it
+    if (typeof timeRangeOrPreset === 'object' && 'startDate' in timeRangeOrPreset && 'endDate' in timeRangeOrPreset) {
+      return timeRangeOrPreset;
+    }
+
+    // If it's a preset string, convert to TimeRange
+    if (typeof timeRangeOrPreset === 'string') {
+      const now = new Date();
+      let startDate: Date;
+
+      switch (timeRangeOrPreset) {
+        case 'lastHour':
+          startDate = new Date(now.getTime() - 60 * 60 * 1000);
+          break;
+        case 'last24Hours':
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'last7Days':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'last30Days':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          return undefined;
+      }
+
+      return {
+        startDate,
+        endDate: now
+      };
+    }
+
+    return undefined;
+  }
+
+  async getMetrics(timeRangeOrPreset?: TimeRange | TimeRangePreset): Promise<DiagnosticsData> {
     const translationAvg = this.calculateAverage(this.translationTimes);
     const audioAvg = this.calculateAverage(this.audioGenerationTimes);
     const memoryUsage = this.getMemoryUsage();
     const uptime = this.getUptime();
 
-    // Get real data from storage
+    // Parse time range
+    const timeRange = this.parseTimeRange(timeRangeOrPreset);
+
+    // Get real data from storage with optional time range
     const [sessions, translations, languagePairs] = await Promise.all([
-      storage.getSessionMetrics(),
-      storage.getTranslationMetrics(),
-      storage.getLanguagePairMetrics()
+      storage.getSessionMetrics(timeRange),
+      storage.getTranslationMetrics(timeRange),
+      storage.getLanguagePairMetrics(timeRange)
     ]);
 
     // Get active connection data from WebSocketServer if available
@@ -230,7 +288,7 @@ export class DiagnosticsService {
       duration: session.duration || 0
     }));
 
-    return {
+    const result: DiagnosticsData = {
       connections: {
         total: this.connectionCount,
         active: this.activeConnections
@@ -270,6 +328,17 @@ export class DiagnosticsService {
       },
       lastUpdated: new Date().toISOString()
     };
+
+    // Add time range info if applicable
+    if (timeRange) {
+      result.timeRange = {
+        preset: typeof timeRangeOrPreset === 'string' ? timeRangeOrPreset : undefined,
+        startDate: timeRange.startDate.toISOString(),
+        endDate: timeRange.endDate.toISOString()
+      };
+    }
+
+    return result;
   }
 
   async getExportData(): Promise<DiagnosticsExportData> {

@@ -46,6 +46,11 @@ DATABASE_URL=postgresql://user:password@localhost:5432/aivoicetranslator  # Only
 E2E_TEST_MODE=true          # Forces memory storage for tests
 ```
 
+**Test Environment:**
+- For integration and unit tests, you can set test-specific environment variables in `.env.test` (in the project root).
+- When running tests with Vitest, `.env.test` is loaded automatically (no need to pass extra flags).
+- Make sure your `.env.test` contains a valid `OPENAI_API_KEY` if you want integration tests to use the real OpenAI API.
+
 **Important Notes:**
 - `OPENAI_API_KEY` is **required** for the application to function
 - Default storage is `memory` (no database needed for local development)

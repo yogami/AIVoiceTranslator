@@ -343,4 +343,151 @@ describe('DiagnosticsService', () => {
       expect(formattedDuration).toBe('24.0 hours');
     });
   });
+
+  describe('Timeline-based Filtering', () => {
+    it('should accept time range parameter for metrics', async () => {
+      // Mock storage responses
+      vi.mocked(storage.getSessionMetrics).mockResolvedValue({
+        totalSessions: 10,
+        activeSessions: 2,
+        averageSessionDuration: 300000
+      });
+
+      vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
+        totalTranslations: 100,
+        averageLatency: 150,
+        recentTranslations: 25
+      });
+
+      vi.mocked(storage.getLanguagePairMetrics).mockResolvedValue([]);
+      vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
+
+      const timeRange = {
+        startDate: new Date(Date.now() - 24 * 60 * 60 * 1000), // 24 hours ago
+        endDate: new Date()
+      };
+
+      const metrics = await diagnosticsService.getMetrics(timeRange);
+
+      // Verify storage methods were called with time range
+      expect(storage.getSessionMetrics).toHaveBeenCalledWith(timeRange);
+      expect(storage.getTranslationMetrics).toHaveBeenCalledWith(timeRange);
+      expect(storage.getLanguagePairMetrics).toHaveBeenCalledWith(timeRange);
+    });
+
+    it('should handle predefined time ranges', async () => {
+      // Mock storage responses
+      vi.mocked(storage.getSessionMetrics).mockResolvedValue({
+        totalSessions: 5,
+        activeSessions: 1,
+        averageSessionDuration: 180000
+      });
+
+      vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
+        totalTranslations: 50,
+        averageLatency: 100,
+        recentTranslations: 10
+      });
+
+      vi.mocked(storage.getLanguagePairMetrics).mockResolvedValue([]);
+      vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
+
+      // Test with 'lastHour' preset
+      const metrics = await diagnosticsService.getMetrics('lastHour');
+
+      // Verify storage methods were called
+      expect(storage.getSessionMetrics).toHaveBeenCalled();
+      const callArgs = vi.mocked(storage.getSessionMetrics).mock.calls[0][0];
+      
+      // Check that the time range is approximately 1 hour
+      const timeDiff = callArgs.endDate.getTime() - callArgs.startDate.getTime();
+      expect(timeDiff).toBeCloseTo(60 * 60 * 1000, -10000); // Within 10 seconds
+    });
+
+    it('should support multiple predefined time ranges', async () => {
+      // Mock storage responses
+      vi.mocked(storage.getSessionMetrics).mockResolvedValue({
+        totalSessions: 5,
+        activeSessions: 1,
+        averageSessionDuration: 180000
+      });
+
+      vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
+        totalTranslations: 50,
+        averageLatency: 100,
+        recentTranslations: 10
+      });
+
+      vi.mocked(storage.getLanguagePairMetrics).mockResolvedValue([]);
+      vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
+
+      const timeRanges = ['lastHour', 'last24Hours', 'last7Days', 'last30Days'];
+      const expectedDurations = [
+        60 * 60 * 1000,           // 1 hour
+        24 * 60 * 60 * 1000,      // 24 hours
+        7 * 24 * 60 * 60 * 1000,  // 7 days
+        30 * 24 * 60 * 60 * 1000  // 30 days
+      ];
+
+      for (let i = 0; i < timeRanges.length; i++) {
+        vi.clearAllMocks();
+        await diagnosticsService.getMetrics(timeRanges[i] as any);
+        
+        const callArgs = vi.mocked(storage.getSessionMetrics).mock.calls[0][0];
+        const timeDiff = callArgs.endDate.getTime() - callArgs.startDate.getTime();
+        expect(timeDiff).toBeCloseTo(expectedDurations[i], -10000);
+      }
+    });
+
+    it('should include time range info in response', async () => {
+      // Mock storage responses
+      vi.mocked(storage.getSessionMetrics).mockResolvedValue({
+        totalSessions: 10,
+        activeSessions: 2,
+        averageSessionDuration: 300000
+      });
+
+      vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
+        totalTranslations: 100,
+        averageLatency: 150,
+        recentTranslations: 25
+      });
+
+      vi.mocked(storage.getLanguagePairMetrics).mockResolvedValue([]);
+      vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
+
+      const metrics = await diagnosticsService.getMetrics('last24Hours');
+
+      expect(metrics).toHaveProperty('timeRange');
+      expect(metrics.timeRange).toMatchObject({
+        preset: 'last24Hours',
+        startDate: expect.any(String),
+        endDate: expect.any(String)
+      });
+    });
+
+    it('should handle invalid time range gracefully', async () => {
+      // Mock storage responses
+      vi.mocked(storage.getSessionMetrics).mockResolvedValue({
+        totalSessions: 10,
+        activeSessions: 2,
+        averageSessionDuration: 300000
+      });
+
+      vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
+        totalTranslations: 100,
+        averageLatency: 150,
+        recentTranslations: 25
+      });
+
+      vi.mocked(storage.getLanguagePairMetrics).mockResolvedValue([]);
+      vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
+
+      // Should default to all-time when invalid preset is provided
+      const metrics = await diagnosticsService.getMetrics('invalidPreset' as any);
+
+      expect(metrics).toBeDefined();
+      expect(metrics.timeRange).toBeUndefined();
+    });
+  });
 });
