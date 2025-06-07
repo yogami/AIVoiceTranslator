@@ -89,17 +89,17 @@ export interface IStorage {
   }>;
   
   // Diagnostics methods
-  getSessionMetrics(): Promise<{
+  getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     totalSessions: number;
     activeSessions: number;
     averageSessionDuration: number;
   }>;
-  getTranslationMetrics(): Promise<{
+  getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     totalTranslations: number;
     averageLatency: number;
     recentTranslations: number;
   }>;
-  getLanguagePairMetrics(): Promise<{
+  getLanguagePairMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     sourceLanguage: string;
     targetLanguage: string;
     count: number;
@@ -421,9 +421,27 @@ export class MemStorage implements IStorage {
   /**
    * Get session metrics for diagnostics
    */
-  async getSessionMetrics() {
+  async getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalSessions: number;
+    activeSessions: number;
+    averageSessionDuration: number;
+  }> {
     // In-memory implementation
-    const allSessions = Array.from(this.sessions.values());
+    let allSessions = Array.from(this.sessions.values());
+    
+    // Apply time range filter if provided
+    if (timeRange) {
+      allSessions = allSessions.filter(s => {
+        const sessionStart = new Date(s.startTime).getTime();
+        const sessionEnd = s.endTime ? new Date(s.endTime).getTime() : Date.now();
+        const rangeStart = timeRange.startDate.getTime();
+        const rangeEnd = timeRange.endDate.getTime();
+        
+        // Session overlaps with time range if it started before range end and ended after range start
+        return sessionStart <= rangeEnd && sessionEnd >= rangeStart;
+      });
+    }
+    
     const activeSessions = allSessions.filter(s => s.isActive);
     
     const durations = allSessions
@@ -444,13 +462,31 @@ export class MemStorage implements IStorage {
   /**
    * Get translation metrics for diagnostics
    */
-  async getTranslationMetrics() {
+  async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
+    recentTranslations: number;
+  }> {
     // In-memory implementation
-    const allTranslations = Array.from(this.translations.values());
+    let allTranslations = Array.from(this.translations.values());
+    
+    // Apply time range filter if provided
+    if (timeRange) {
+      allTranslations = allTranslations.filter(t => {
+        if (!t.timestamp) return false;
+        const translationTime = new Date(t.timestamp).getTime();
+        return translationTime >= timeRange.startDate.getTime() && 
+               translationTime <= timeRange.endDate.getTime();
+      });
+    }
+    
     const oneHourAgo = Date.now() - 3600000;
     
-    // For in-memory storage, we don't have timestamps, so count all as recent
-    const recentTranslations = allTranslations.length;
+    // Count recent translations within the filtered set
+    const recentTranslations = allTranslations.filter(t => {
+      if (!t.timestamp) return false;
+      return new Date(t.timestamp).getTime() >= oneHourAgo;
+    }).length;
     
     const avgLatency = allTranslations.length > 0
       ? allTranslations.reduce((sum, t) => sum + (t.latency || 0), 0) / allTranslations.length
@@ -466,11 +502,28 @@ export class MemStorage implements IStorage {
   /**
    * Get language pair metrics for diagnostics
    */
-  async getLanguagePairMetrics() {
+  async getLanguagePairMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    sourceLanguage: string;
+    targetLanguage: string;
+    count: number;
+    averageLatency: number;
+  }[]> {
     // In-memory implementation
+    let translationsToAnalyze = Array.from(this.translations.values());
+    
+    // Apply time range filter if provided
+    if (timeRange) {
+      translationsToAnalyze = translationsToAnalyze.filter(t => {
+        if (!t.timestamp) return false;
+        const translationTime = new Date(t.timestamp).getTime();
+        return translationTime >= timeRange.startDate.getTime() && 
+               translationTime <= timeRange.endDate.getTime();
+      });
+    }
+    
     const pairMap = new Map<string, { count: number; totalLatency: number }>();
     
-    for (const translation of this.translations.values()) {
+    for (const translation of translationsToAnalyze) {
       const key = `${translation.sourceLanguage}-${translation.targetLanguage}`;
       const existing = pairMap.get(key) || { count: 0, totalLatency: 0 };
       pairMap.set(key, {
@@ -751,7 +804,11 @@ export class DatabaseStorage implements IStorage {
   /**
    * Get session metrics for diagnostics
    */
-  async getSessionMetrics() {
+  async getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalSessions: number;
+    activeSessions: number;
+    averageSessionDuration: number;
+  }> {
     const allSessions = await db.select().from(sessions);
     const activeSessions = await db
       .select()
@@ -776,7 +833,11 @@ export class DatabaseStorage implements IStorage {
   /**
    * Get translation metrics for diagnostics
    */
-  async getTranslationMetrics() {
+  async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
+    recentTranslations: number;
+  }> {
     const allTranslations = await db.select().from(translations);
     const oneHourAgo = new Date(Date.now() - 3600000);
     
@@ -799,7 +860,12 @@ export class DatabaseStorage implements IStorage {
   /**
    * Get language pair metrics for diagnostics
    */
-  async getLanguagePairMetrics() {
+  async getLanguagePairMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    sourceLanguage: string;
+    targetLanguage: string;
+    count: number;
+    averageLatency: number;
+  }[]> {
     const allTranslations = await db.select().from(translations);
     const pairMap = new Map<string, { count: number; totalLatency: number }>();
     

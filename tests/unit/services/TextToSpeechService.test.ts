@@ -454,14 +454,18 @@ describe('Text-to-Speech Services', () => {
       expect(service.constructor.name).toBe('OpenAITextToSpeechService'); 
     });
 
-    it('should reuse existing service instances', () => {
+    it('should reuse existing service instances for browser and silent, but not openai', () => {
       const service1 = factory.getService('openai');
       const service2 = factory.getService('openai');
-      expect(service1).toBe(service2);
+      expect(service1).not.toBe(service2); // OpenAI service is NOT singleton anymore
 
       const browserService1 = factory.getService('browser');
       const browserService2 = factory.getService('browser');
       expect(browserService1).toBe(browserService2);
+
+      const silentService1 = factory.getService('silent');
+      const silentService2 = factory.getService('silent');
+      expect(silentService1).toBe(silentService2);
     });
   });
 
@@ -1178,9 +1182,3 @@ describe('Text-to-Speech Services', () => {
 
   });
 });
-
-// Helper to ensure all imports are at the top for TextToSpeechService related classes
-// This is a bit of a hack, but helps if tests do dynamic imports that confuse Vitest/ESM
-// (async () => {
-//   await import('../../../server/services/textToSpeech/TextToSpeechService');
-// })();

@@ -35,54 +35,73 @@ import {
 } from '../../../server/services/TranslationService';
 
 vi.mock('fs', async () => {
-  const actualFs = await vi.importActual('fs') as any;
-  return {
-    default: {
-      createReadStream: vi.fn().mockImplementation((path) => {
-        const { Readable } = require('stream');
-        const mockStream = new Readable({
-          read() {
-            // Simulate reading audio data
-            this.push(Buffer.from('mock audio data'));
-            this.push(null); // End the stream
-          }
-        });
-        
-        // Add properties that might be expected by OpenAI SDK
-        mockStream.path = path;
-        mockStream.readable = true;
-        
-        return mockStream;
-      }),
-      writeFile: actualFs.writeFile,
-      unlink: actualFs.unlink,
-      stat: actualFs.stat,
-      constants: actualFs.constants,
-      promises: {
-        access: vi.fn().mockResolvedValue(undefined),
-        stat: vi.fn().mockResolvedValue({ size: 1000 }),
-        unlink: vi.fn().mockResolvedValue(undefined),
-        writeFile: vi.fn().mockResolvedValue(undefined)
-      }
-    },
-    // Also export named exports
-    createReadStream: vi.fn().mockImplementation((path) => {
-      const { Readable } = require('stream');
-      const mockStream = new Readable({
-        read() {
-          this.push(Buffer.from('mock audio data'));
-          this.push(null);
-        }
-      });
-      mockStream.path = path;
-      mockStream.readable = true;
-      return mockStream;
+  const actualFs = await vi.importActual('fs') as typeof import('fs');
+
+  const mockFsPromises = {
+    access: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({
+      size: 1000,
+      isFile: () => true,
+      isDirectory: () => false,
+      isBlockDevice: () => false,
+      isCharacterDevice: () => false,
+      isSymbolicLink: () => false,
+      isFIFO: () => false,
+      isSocket: () => false,
+      dev: 0,
+      ino: 0,
+      mode: 0,
+      nlink: 0,
+      uid: 0,
+      gid: 0,
+      rdev: 0,
+      blksize: 0,
+      blocks: 0,
+      atimeMs: Date.now(),
+      mtimeMs: Date.now(),
+      ctimeMs: Date.now(),
+      birthtimeMs: Date.now(),
+      atime: new Date(),
+      mtime: new Date(),
+      ctime: new Date(),
+      birthtime: new Date(),
     }),
-    writeFile: actualFs.writeFile,
-    unlink: actualFs.unlink,
-    stat: actualFs.stat,
-    constants: actualFs.constants,
-    promises: actualFs.promises
+    unlink: vi.fn().mockResolvedValue(undefined),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    readFile: vi.fn().mockResolvedValue(Buffer.from('mock file content')),
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    // Add other fs.promises methods if used by SUT, e.g., readdir, copyFile
+  };
+
+  const mockCreateReadStream = vi.fn().mockImplementation(async (pathArgument: string) => {
+    const { Readable } = await vi.importActual('stream') as typeof import('stream');
+    const mockStream = new Readable({
+      read() {
+        this.push(Buffer.from('mock audio data from stream'));
+        this.push(null); // End the stream
+      }
+    });
+    (mockStream as any).path = pathArgument;
+    (mockStream as any).readable = true;
+    return mockStream;
+  });
+
+  return {
+    // For named imports: import { promises, createReadStream } from 'fs';
+    ...actualFs,
+    promises: mockFsPromises,
+    createReadStream: mockCreateReadStream,
+    // Mock other direct fs methods if they are used via named imports and need mocking
+    // e.g., existsSync: vi.fn().mockReturnValue(true),
+
+    // For default import: import fs from 'fs';
+    default: {
+      ...actualFs,
+      promises: mockFsPromises,
+      createReadStream: mockCreateReadStream,
+      // Mock other direct fs methods if they are used via default import (fs.existsSync)
+      // e.g., existsSync: vi.fn().mockReturnValue(true),
+    },
   };
 });
 

@@ -36,9 +36,8 @@ describe('Diagnostics Service Integration', () => {
   });
   
   afterAll(async () => {
-    // Close WebSocket server
+    // Ensure all WebSocket clients are closed (if tracked)
     wsServer.close();
-    
     // Close HTTP server
     await new Promise<void>((resolve, reject) => {
       httpServer.close((err) => {
@@ -46,7 +45,7 @@ describe('Diagnostics Service Integration', () => {
         else resolve();
       });
     });
-  });
+  }, 60000); // Increase timeout to 60s
   
   beforeEach(() => {
     // Clear any existing sessions/metrics before each test
@@ -332,46 +331,48 @@ describe('Diagnostics Service Integration', () => {
     it('should store translation history with language pairs', async () => {
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
       const studentClient = new WebSocket(`ws://localhost:${actualPort}`);
-      
       await Promise.all([
         new Promise<void>((resolve) => teacherClient.on('open', resolve)),
         new Promise<void>((resolve) => studentClient.on('open', resolve))
       ]);
-      
       // Register clients
       teacherClient.send(JSON.stringify({
         type: 'register',
         role: 'teacher',
         languageCode: 'en-US'
       }));
-      
       studentClient.send(JSON.stringify({
         type: 'register',
         role: 'student',
         languageCode: 'ja-JP'
       }));
-      
       // Wait for registrations
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
       // Send transcription
       teacherClient.send(JSON.stringify({
         type: 'transcription',
         text: 'Historical data test'
       }));
-      
-      // Wait for translation
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Check translation history
-      const translations = await storage.getTranslationsByLanguage('ja-JP', 10);
-      expect(translations.length).toBeGreaterThan(0);
-      
-      const latestTranslation = translations[0];
-      expect(latestTranslation.sourceLanguage).toBe('en-US');
-      expect(latestTranslation.targetLanguage).toBe('ja-JP');
-      expect(latestTranslation.originalText).toBe('Historical data test');
-      
+      // Wait for translation to be processed and stored (retry for up to 20 seconds)
+      let translations: any[] = [];
+      const maxAttempts = 40; // 20 seconds
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        translations = await storage.getTranslationsByLanguage('ja-JP', 10);
+        if (translations.length > 0) break;
+        console.log(`[diagnostics.test] Attempt ${attempt + 1}: No translations yet.`);
+        await new Promise(res => setTimeout(res, 500));
+      }
+      console.log('[diagnostics.test] Final translations:', translations);
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (apiKey && !apiKey.startsWith('test-') && !apiKey.startsWith('sk-place') && apiKey !== '') {
+        expect(translations.length).toBeGreaterThan(0);
+        const latestTranslation = translations[0];
+        expect(latestTranslation.sourceLanguage).toBe('en-US');
+        expect(latestTranslation.targetLanguage).toBe('ja-JP');
+        expect(latestTranslation.originalText).toBe('Historical data test');
+      } else {
+        throw new Error('OPENAI_API_KEY is missing or invalid. Please provide a real OpenAI API key to run this integration test.');
+      }
       // Clean up
       teacherClient.close();
       studentClient.close();

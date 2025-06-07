@@ -3,6 +3,9 @@
  * 
  * This script tests the database connection and storage implementation
  */
+
+// TODO: [Obsolete] This file is no longer used. All database testing and integration flows now use the Neon cloud database and the main db.ts connection. This file can be deleted after confirming no manual or legacy workflows depend on it. See https://github.com/neondatabase/neon for details.
+
 import express from 'express';
 import { storage } from './storage';
 
