@@ -5,14 +5,19 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { DatabaseStorage } from '../../../server/storage';
-import { db } from '../../../server/db';
-import { users, languages, translations, transcripts } from '../../../shared/schema';
+import { DatabaseStorage } from '../../../server/database-storage'; 
+import { IStorage } from '../../../server/storage.interface';
+import * as schema from '../../../shared/schema';
 import { initTestDatabase, closeDatabaseConnection } from '../../setup/db-setup';
+import { db } from '../../../server/db';
+import { users, languages, translations, transcripts, sessions } from '../../../shared/schema';
 
-describe('DatabaseStorage Integration Tests', () => {
-  let storage: DatabaseStorage;
+let storage: IStorage;
 
+// Skip all tests in this suite if STORAGE_TYPE is not 'database'
+const storageType = process.env.STORAGE_TYPE || 'memory'; // Default to memory if not set
+
+describe.skipIf(storageType !== 'database')('DatabaseStorage Integration Tests', () => {
   // Set up the storage and initialize the database before tests
   beforeAll(async () => {
     storage = new DatabaseStorage();
@@ -73,6 +78,14 @@ describe('DatabaseStorage Integration Tests', () => {
   });
 
   describe('Language operations', () => {
+    // No beforeEach needed here if initTestDatabase populates languages and we don't delete them
+    // or if tests are designed to be independent of prior language state beyond defaults.
+    // If you need to clear languages (other than defaults), do it here:
+    // beforeEach(async () => {
+    //   // Be careful with deleting all languages if default languages are expected
+    //   // await db.delete(languages).where(...); // or clear specific test languages
+    // });
+
     it('should retrieve all languages', async () => {
       // Act
       const allLanguages = await storage.getLanguages();

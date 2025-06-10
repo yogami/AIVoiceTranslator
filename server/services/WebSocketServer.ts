@@ -65,11 +65,11 @@ export class WebSocketServer {
   // Classroom management
   private classroomSessions: Map<string, ClassroomSession> = new Map();
   private classroomCleanupInterval: NodeJS.Timeout | null = null;
-  
+
   // Stats
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  
+
   constructor(server: Server) {
     this.wss = new WSServer({ server });
     
@@ -1254,5 +1254,56 @@ export class WebSocketServer {
       teachersConnected,
       currentLanguages: Array.from(currentLanguages)
     };
+  }
+
+  // Method to gracefully shut down the WebSocket server
+  public shutdown(): void {
+    console.log('[WebSocketServer] Shutting down...');
+
+    // 1. Clear intervals
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+      console.log('[WebSocketServer] Heartbeat interval cleared.');
+    }
+    if (this.classroomCleanupInterval) {
+      clearInterval(this.classroomCleanupInterval);
+      this.classroomCleanupInterval = null;
+      console.log('[WebSocketServer] Classroom cleanup interval cleared.');
+    }
+
+    // 2. Close all client connections
+    console.log(`[WebSocketServer] Closing ${this.connections.size} client connections...`);
+    this.connections.forEach(client => {
+      client.terminate();
+    });
+    console.log('[WebSocketServer] All client connections terminated.');
+
+    // 3. Clear internal maps and sets
+    this.connections.clear();
+    this.roles.clear();
+    this.languages.clear();
+    this.sessionIds.clear();
+    this.clientSettings.clear();
+    this.classroomSessions.clear();
+    console.log('[WebSocketServer] Internal maps and sets cleared.');
+
+    // 4. Close the underlying WebSocket server instance
+    if (this.wss) {
+      this.wss.close((err) => {
+        if (err) {
+          console.error('[WebSocketServer] Error closing WebSocket server:', err);
+        } else {
+          console.log('[WebSocketServer] WebSocket server closed.');
+        }
+      });
+    }
+    
+    // 5. Unsubscribe from HTTP server 'upgrade' events if we were listening
+    // This depends on how the server was attached. If it was passed in and WSS handles it,
+    // then wss.close() should be enough. If manual listeners were added, they need removal.
+    // Assuming wss.close() handles detaching from the httpServer for now.
+
+    console.log('[WebSocketServer] Shutdown complete.');
   }
 }

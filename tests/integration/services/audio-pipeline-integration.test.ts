@@ -3,6 +3,15 @@
  * 
  * These tests verify the complete audio processing workflow using REAL services
  * without mocking the core system under test components.
+ * 
+ * IMPORTANT FOR SUITE STABILITY:
+ * 1. Ensure Vitest is configured to run tests sequentially (threads: false or equivalent)
+ *    in your vitest.config.ts or vite.config.ts. This is crucial for
+ *    API-heavy integration tests to avoid rate limiting or other concurrency issues.
+ *    (Verified: vitest.unified.config.mjs sets singleThread for integration tests)
+ * 2. The timeouts below have been increased for greater stability in suite runs.
+ *    If timeouts persist, especially for the full pipeline, consider further increases
+ *    or investigate API response times.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -136,7 +145,8 @@ describe('Audio Processing Pipeline Integration Tests (Real Services)', () => {
     translationService = null as any;
     
     // Small delay to prevent rapid API requests when running full suite
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Increased delay for potentially better stability in larger suites.
+    await new Promise(resolve => setTimeout(resolve, 200)); // Increased from 100ms
   });
 
   describe('Real Audio Pipeline Integration', () => {
@@ -174,7 +184,7 @@ describe('Audio Processing Pipeline Integration Tests (Real Services)', () => {
         }
         throw error;
       }
-    }, 30000); // 30 second timeout for API calls
+    }, 45000); // Increased timeout from 30000ms
 
     it('should complete full translation pipeline: audio → transcription → translation → synthesis', async () => {
       // Skip if no API key
@@ -228,7 +238,7 @@ describe('Audio Processing Pipeline Integration Tests (Real Services)', () => {
         }
         throw error;
       }
-    }, 45000); // 45 second timeout for full pipeline
+    }, 120000); // Further increased timeout from 90000ms to 120000ms (2 minutes)
 
     it('should handle pre-transcribed text translation workflow', async () => {
       // Skip if no API key
@@ -273,7 +283,7 @@ describe('Audio Processing Pipeline Integration Tests (Real Services)', () => {
         }
         throw error;
       }
-    }, 30000);
+    }, 45000); // Increased timeout from 30000ms
 
     it('should handle same-language input/output efficiently', async () => {
       // This test verifies that when source and target languages are the same,
@@ -309,7 +319,7 @@ describe('Audio Processing Pipeline Integration Tests (Real Services)', () => {
         }
         throw error;
       }
-    }, 20000);
+    }, 30000); // Increased timeout from 20000ms
 
     it('should handle various audio formats and sizes', async () => {
       // Test with different audio characteristics
@@ -357,6 +367,6 @@ describe('Audio Processing Pipeline Integration Tests (Real Services)', () => {
         }
         throw error;
       }
-    }, 20000);
+    }, 30000); // Increased timeout from 20000ms
   });
 });

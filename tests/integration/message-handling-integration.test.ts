@@ -30,7 +30,7 @@ describe('Message Handler Integration - Unique Tests', () => {
 
   afterAll(async () => {
     // Close WebSocket server
-    wsServer.close();
+    wsServer.shutdown();
     
     // Close HTTP server
     await new Promise<void>((resolve) => {
