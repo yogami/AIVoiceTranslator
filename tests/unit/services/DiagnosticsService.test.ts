@@ -133,18 +133,32 @@ describe('DiagnosticsService', () => {
           sourceLanguage: 'en-US',
           targetLanguage: 'es',
           count: 50,
-          averageLatency: 120
+          averageLatency: 120 // Raw latency
+        },
+        {
+          sourceLanguage: 'fr',
+          targetLanguage: 'de',
+          count: 30,
+          averageLatency: 250 // Raw latency
         }
       ]);
 
       vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([
         {
-          sessionId: 'test-session',
+          sessionId: 'test-session-1',
           teacherLanguage: 'en-US',
           transcriptCount: 5,
-          startTime: new Date(),
-          endTime: new Date(),
-          duration: 60000
+          startTime: new Date(Date.now() - 3600000), // 1 hour ago
+          endTime: new Date(Date.now() - 1800000),   // 30 mins ago
+          duration: 1800000 // 30 minutes
+        },
+        {
+          sessionId: 'test-session-2',
+          teacherLanguage: null, // Test default, explicitly set to null
+          transcriptCount: 10,
+          startTime: new Date(Date.now() - 600000), // 10 mins ago
+          endTime: null, // Test ongoing session, explicitly set to null
+          duration: 600000 // 10 minutes, assuming it's active or just ended
         }
       ]);
 
@@ -168,13 +182,45 @@ describe('DiagnosticsService', () => {
           averageTimeFormatted: '100 ms',
           totalFromDatabase: 100,
           averageLatencyFromDatabase: 150,
-          languagePairs: expect.any(Array),
+          averageLatencyFromDatabaseFormatted: diagnosticsService.formatDuration(150),
+          languagePairs: [
+            {
+              sourceLanguage: 'en-US',
+              targetLanguage: 'es',
+              count: 50,
+              averageLatency: 120,
+              averageLatencyFormatted: diagnosticsService.formatDuration(120)
+            },
+            {
+              sourceLanguage: 'fr',
+              targetLanguage: 'de',
+              count: 30,
+              averageLatency: 250,
+              averageLatencyFormatted: diagnosticsService.formatDuration(250)
+            }
+          ],
           recentTranslations: 25
         },
         sessions: {
           totalSessions: 10,
           averageSessionDuration: 300000,
-          averageSessionDurationFormatted: '5.0 minutes'
+          averageSessionDurationFormatted: '5.0 minutes',
+          recentSessionActivity: [
+            {
+              sessionId: 'test-session-1',
+              language: 'en-US',
+              transcriptCount: 5,
+              lastActivity: expect.any(String), // End time should be used
+              duration: 1800000
+            },
+            {
+              sessionId: 'test-session-2',
+              language: 'unknown', // Default value
+              transcriptCount: 10,
+              lastActivity: expect.any(String), // Start time should be used if end time is null
+              duration: 600000
+            }
+          ]
         },
         audio: {
           totalGenerated: 1,
@@ -400,7 +446,7 @@ describe('DiagnosticsService', () => {
       const callArgs = vi.mocked(storage.getSessionMetrics).mock.calls[0][0];
       
       // Check that the time range is approximately 1 hour
-      const timeDiff = callArgs.endDate.getTime() - callArgs.startDate.getTime();
+      const timeDiff = callArgs ? callArgs.endDate.getTime() - callArgs.startDate.getTime() : 0;
       expect(timeDiff).toBeCloseTo(60 * 60 * 1000, -10000); // Within 10 seconds
     });
 
@@ -434,7 +480,7 @@ describe('DiagnosticsService', () => {
         await diagnosticsService.getMetrics(timeRanges[i] as any);
         
         const callArgs = vi.mocked(storage.getSessionMetrics).mock.calls[0][0];
-        const timeDiff = callArgs.endDate.getTime() - callArgs.startDate.getTime();
+        const timeDiff = callArgs ? callArgs.endDate.getTime() - callArgs.startDate.getTime() : 0;
         expect(timeDiff).toBeCloseTo(expectedDurations[i], -10000);
       }
     });

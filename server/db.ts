@@ -19,6 +19,7 @@ import { drizzle as neonDrizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
 import postgres from 'postgres';
 import { drizzle as pgDrizzle } from 'drizzle-orm/postgres-js';
+import { sql } from 'drizzle-orm/sql'; // Add this import
 
 // --- Driver selection logic ---
 // Explicitly type pool and db as any to avoid TypeScript implicit any errors due to dynamic driver switching
@@ -49,7 +50,7 @@ if (process.env.DATABASE_URL) {
   db = null;
 }
 
-export { pool, db };
+export { pool, db, sql }; // Add sql to exports
 
 /**
  * Database configuration interface
