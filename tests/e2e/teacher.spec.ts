@@ -644,6 +644,73 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentContext.close();
       }
     });
+
+    test('should transmit teacher\'s speech to student as translated text and enable audio playback', async ({ browser }) => {
+      // 1. Teacher Setup
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      const classroomCodeElement = page.locator('#classroom-code-display');
+      await expect(classroomCodeElement).toBeVisible();
+      const classroomCode = await classroomCodeElement.textContent();
+      expect(classroomCode).toBeTruthy();
+      if (classroomCode) { // Type guard for classroomCode
+        expect(classroomCode).toMatch(/^[A-Z0-9]{6}$/);
+      } else {
+        throw new Error("Classroom code was null or empty");
+      }
+
+      // 2. Student Setup
+      const studentContext = await browser.newContext();
+      const studentPage = await studentContext.newPage();
+      try {
+        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await studentPage.waitForLoadState('domcontentloaded');
+
+        // Student selects Spanish
+        await studentPage.selectOption('#language-dropdown', 'es-ES');
+        // Assuming the #selected-language display updates like: "Selected: 🇪🇸 Spanish (Spain)"
+        await expect(studentPage.locator('#selected-language')).toContainText('Selected: 🇪🇸 Spanish (Spain)', { timeout: 2000 });
+
+        // Student connects
+        await studentPage.click('#connect-btn');
+        await expect(studentPage.locator('#connection-status span')).toContainText('Connected', { timeout: 10000 });
+        await expect(studentPage.locator('#translation-display')).toContainText('Waiting for teacher to start speaking...');
+
+        // 3. Teacher Action
+        const recordButton = page.locator('#recordButton');
+        await recordButton.click(); // Start recording
+        await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
+
+        const teacherTranscription = 'Hello, this is a test transcription';
+        // Wait for teacher's UI to show the mock transcription
+        await expect(page.locator('#transcription')).toContainText(teacherTranscription, { timeout: 3000 });
+
+        // 4. Student Verification
+        const studentTranslationDisplay = studentPage.locator('#translation-display');
+        
+        // Check for original text on student page
+        await expect(studentTranslationDisplay).toContainText(teacherTranscription, { timeout: 15000 });
+        
+        // Check that the "waiting" message is gone
+        await expect(studentTranslationDisplay).not.toContainText('Waiting for teacher to start speaking...');
+        
+        // Check for translated text (EXAMPLE - this might need adjustment based on actual translation service output)
+        const expectedSpanishTranslation = 'Hola, esta es una transcripción de prueba'; 
+        await expect(studentTranslationDisplay).toContainText(expectedSpanishTranslation, { timeout: 10000 }); 
+
+        // Stop recording
+        await recordButton.click(); 
+        await expect(page.locator('#status')).toContainText('Recording stopped');
+
+        // Check if Play Audio button is enabled (assuming server sends TTS audio)
+        const playButton = studentPage.locator('#play-button');
+        await expect(playButton).toBeEnabled({ timeout: 5000 });
+
+      } finally {
+        // Cleanup
+        await studentPage.close();
+        await studentContext.close();
+      }
+    });
   });
 
   // TODO: Revisit this test. Simulating network disconnection reliably in E2E is complex.
