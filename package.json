@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "dev:test": "NODE_ENV=development E2E_TEST_MODE=true tsx server/index.ts",
+    "dev:test": "NODE_ENV=development E2E_TEST_MODE=true LOG_LEVEL=info tsx server/index.ts",
     "dev:client": "vite --config config/vite.config.ts",
     "build": "vite build --config config/vite.config.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",

@@ -15,6 +15,7 @@ import { WebSocketServer } from './services/WebSocketServer';
 import { apiRoutes, apiErrorHandler } from './routes';
 import './config';
 import path from 'path';
+import logger from './logger';
 
 /**
  * Configure CORS middleware
@@ -46,10 +47,10 @@ export const configureCorsMiddleware = (app: express.Express): void => {
 export async function startServer(app: express.Express): Promise<Server> {
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
-    console.warn('⚠️ No OPENAI_API_KEY found in environment variables');
-    console.warn('Translation functionality will be limited');
+    logger.warn('⚠️ No OPENAI_API_KEY found in environment variables');
+    logger.warn('Translation functionality will be limited');
   } else {
-    console.log('OpenAI API key found and client configured.');
+    logger.info('OpenAI API key found and client configured.');
   }
   
   // Apply CORS middleware (Open/Closed Principle - extending functionality without modifying existing code)
@@ -101,7 +102,7 @@ export async function startServer(app: express.Express): Promise<Server> {
   return new Promise((resolve, reject) => {
     const server = httpServer.listen(port, () => {
       const actualPort = (httpServer.address() as any)?.port || port;
-      console.log(`${new Date().toLocaleTimeString()} [express] serving on port ${actualPort}`);
+      logger.info(`${new Date().toLocaleTimeString()} [express] serving on port ${actualPort}`);
       
       // Initialize WebSocket server
       const wsServer = new WebSocketServer(httpServer);
@@ -109,7 +110,7 @@ export async function startServer(app: express.Express): Promise<Server> {
       // Make WebSocketServer globally accessible for diagnostics
       (global as any).wsServer = wsServer;
       
-      console.log('Server started successfully');
+      logger.info('Server started successfully');
       resolve(httpServer);
     });
     
@@ -119,5 +120,5 @@ export async function startServer(app: express.Express): Promise<Server> {
 
 // Main entry point - start the server if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startServer(express()).catch(console.error);
+  startServer(express()).catch(error => logger.error('Failed to start server from main entry point', {error}));
 }

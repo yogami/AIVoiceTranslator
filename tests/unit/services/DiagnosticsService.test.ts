@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { DiagnosticsService } from '../../../server/services/DiagnosticsService';
+import { DiagnosticsService, type TimeRangePreset } from '../../../server/services/DiagnosticsService'; // Added TimeRangePreset import
 import { storage } from '../../../server/storage';
 
 // Mock the storage module
@@ -119,7 +119,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 5 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -205,6 +206,10 @@ describe('DiagnosticsService', () => {
           totalSessions: 10,
           averageSessionDuration: 300000,
           averageSessionDurationFormatted: '5.0 minutes',
+          // sessionsLast24Hours is part of the raw data from storage,
+          // but not directly asserted here in the final metrics.sessions object
+          // as DiagnosticsService might transform or use it differently.
+          // The key is that the mock now provides it.
           recentSessionActivity: [
             {
               sessionId: 'test-session-1',
@@ -255,7 +260,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 3 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -282,7 +288,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 7 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -310,7 +317,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 4 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -361,7 +369,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 0,
         activeSessions: 0,
-        averageSessionDuration: 0
+        averageSessionDuration: 0,
+        sessionsLast24Hours: 0 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -396,7 +405,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 6 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -426,7 +436,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 5,
         activeSessions: 1,
-        averageSessionDuration: 180000
+        averageSessionDuration: 180000,
+        sessionsLast24Hours: 2 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -439,13 +450,14 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
 
       // Test with 'lastHour' preset
-      const metrics = await diagnosticsService.getMetrics('lastHour');
+      const metrics = await diagnosticsService.getMetrics('lastHour'); // Removed 'as any'
 
       // Verify storage methods were called
       expect(storage.getSessionMetrics).toHaveBeenCalled();
       const callArgs = vi.mocked(storage.getSessionMetrics).mock.calls[0][0];
       
       // Check that the time range is approximately 1 hour
+      expect(callArgs).toBeDefined(); // Ensure callArgs is defined before accessing properties
       const timeDiff = callArgs ? callArgs.endDate.getTime() - callArgs.startDate.getTime() : 0;
       expect(timeDiff).toBeCloseTo(60 * 60 * 1000, -10000); // Within 10 seconds
     });
@@ -455,7 +467,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 5,
         activeSessions: 1,
-        averageSessionDuration: 180000
+        averageSessionDuration: 180000,
+        sessionsLast24Hours: 1 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -477,9 +490,10 @@ describe('DiagnosticsService', () => {
 
       for (let i = 0; i < timeRanges.length; i++) {
         vi.clearAllMocks();
-        await diagnosticsService.getMetrics(timeRanges[i] as any);
+        await diagnosticsService.getMetrics(timeRanges[i] as TimeRangePreset); // Changed 'as any' to 'as TimeRangePreset'
         
         const callArgs = vi.mocked(storage.getSessionMetrics).mock.calls[0][0];
+        expect(callArgs).toBeDefined(); // Ensure callArgs is defined
         const timeDiff = callArgs ? callArgs.endDate.getTime() - callArgs.startDate.getTime() : 0;
         expect(timeDiff).toBeCloseTo(expectedDurations[i], -10000);
       }
@@ -490,7 +504,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 8 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -517,7 +532,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getSessionMetrics).mockResolvedValue({
         totalSessions: 10,
         activeSessions: 2,
-        averageSessionDuration: 300000
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 9 // Added missing property
       });
 
       vi.mocked(storage.getTranslationMetrics).mockResolvedValue({
@@ -530,7 +546,8 @@ describe('DiagnosticsService', () => {
       vi.mocked(storage.getRecentSessionActivity).mockResolvedValue([]);
 
       // Should default to all-time when invalid preset is provided
-      const metrics = await diagnosticsService.getMetrics('invalidPreset' as any);
+      // 'as any' is appropriate here to test passing an invalid string
+      const metrics = await diagnosticsService.getMetrics('invalidPreset' as any); 
 
       expect(metrics).toBeDefined();
       expect(metrics.timeRange).toBeUndefined();

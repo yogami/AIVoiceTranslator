@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mocked } from 'vi
 import express from 'express';
 import request from 'supertest';
 import * as http from 'http'; // Import the mocked http to access its members
+import logger from '../../server/logger'; // Import the logger
 
 // Mock http module
 vi.mock('http', async (importOriginal) => {
@@ -159,21 +160,23 @@ describe('Server Unit Tests', () => {
     it('should log warning if OPENAI_API_KEY is missing', async () => {
       const originalKey = process.env.OPENAI_API_KEY;
       delete process.env.OPENAI_API_KEY;
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const loggerWarnSpy = vi.spyOn(logger, 'warn').mockImplementation(function(this: any, ...args: any[]) { return this; }); // Spy on logger.warn
       const app = express();
       server = await startServer(app);
-      expect(consoleSpy).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
-      consoleSpy.mockRestore();
+      expect(loggerWarnSpy).toHaveBeenCalledWith('⚠️ No OPENAI_API_KEY found in environment variables');
+      // Winston might be called twice for the two warnings
+      expect(loggerWarnSpy).toHaveBeenCalledWith('Translation functionality will be limited');
+      loggerWarnSpy.mockRestore();
       if (originalKey) process.env.OPENAI_API_KEY = originalKey;
     });
 
     it('should log success if OPENAI_API_KEY is present', async () => {
       process.env.OPENAI_API_KEY = 'test-key';
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const loggerInfoSpy = vi.spyOn(logger, 'info').mockImplementation(function(this: any, ...args: any[]) { return this; }); // Spy on logger.info
       const app = express();
       server = await startServer(app);
-      expect(consoleSpy).toHaveBeenCalledWith('OpenAI API key found and client configured.');
-      consoleSpy.mockRestore();
+      expect(loggerInfoSpy).toHaveBeenCalledWith('OpenAI API key found and client configured.');
+      loggerInfoSpy.mockRestore();
     });
 
     it('should use PORT environment variable or default for tests', async () => {
@@ -190,7 +193,7 @@ describe('Server Unit Tests', () => {
     it('should default to port 5000 if NODE_ENV is not \'test\' and PORT is not set', async () => {
       const originalNodeEnv = process.env.NODE_ENV;
       const originalPort = process.env.PORT;
-      const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const loggerInfoSpy = vi.spyOn(logger, 'info').mockImplementation(function(this: any, ...args: any[]) { return this; }); // Spy on logger.info
       const mockedHttpInstance = getMockedHttpServerInstance();
       const mockedCreateServerSpy = getMockedCreateServer();
 
@@ -203,9 +206,11 @@ describe('Server Unit Tests', () => {
         const app = express();
         server = await startServer(app);
         expect(mockedHttpInstance.listen).toHaveBeenCalledWith(5000, expect.any(Function));
-        expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('[express] serving on port 5000'));
+        // Check that logger.info was called with the message about serving on port 5000
+        // It will also be called for 'Server started successfully'
+        expect(loggerInfoSpy).toHaveBeenCalledWith(expect.stringContaining('[express] serving on port 5000'));
       } finally {
-        consoleLogSpy.mockRestore();
+        loggerInfoSpy.mockRestore();
         process.env.NODE_ENV = originalNodeEnv;
         if (originalPort !== undefined) process.env.PORT = originalPort; else delete process.env.PORT;
       }

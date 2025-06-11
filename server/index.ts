@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
+import logger from './logger';
 
 // Determine the root directory relative to server/index.ts
 const __filename = fileURLToPath(import.meta.url);
@@ -23,10 +24,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const app = express();
   startServer(app)
     .then(() => {
-      console.log('Server started successfully');
+      logger.info('Server started successfully');
     })
     .catch((error) => {
-      console.error('Error starting server:', error);
+      logger.error('Error starting server:', { error });
       process.exit(1);
     });
 }
