@@ -1,7 +1,7 @@
 import { type Language, type InsertLanguage, languages } from "../../shared/schema";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
-import { StorageError } from "../storage.error";
+import { StorageError, StorageErrorCode } from "../storage.error";
 
 export interface ILanguageStorage {
   getLanguage(id: number): Promise<Language | undefined>;
@@ -61,10 +61,10 @@ export class MemLanguageStorage implements ILanguageStorage {
 
   async createLanguage(language: InsertLanguage): Promise<Language> {
     if (!language.code || !language.name) {
-      throw new StorageError("Language code and name are required", "VALIDATION_ERROR");
+      throw new StorageError("Language code and name are required", StorageErrorCode.VALIDATION_ERROR);
     }
     if (this.languagesByCodeMap.has(language.code)) {
-      throw new StorageError(`Language with code '${language.code}' already exists`, "DUPLICATE_ENTRY");
+      throw new StorageError(`Language with code '${language.code}' already exists`, StorageErrorCode.DUPLICATE_ENTRY);
     }
     const newLanguage: Language = {
       id: this.idCounter.value++,
@@ -112,12 +112,12 @@ export class DbLanguageStorage implements ILanguageStorage {
 
   async createLanguage(language: InsertLanguage): Promise<Language> {
     if (!language.code || !language.name) {
-      throw new StorageError("Language code and name are required for DB language creation", "VALIDATION_ERROR");
+      throw new StorageError("Language code and name are required for DB language creation", StorageErrorCode.VALIDATION_ERROR);
     }
     try {
         const result = await db.insert(languages).values(language).returning();
         if (!result || result.length === 0) {
-            throw new StorageError("Failed to create language in DB, no data returned.", "CREATE_FAILED");
+            throw new StorageError("Failed to create language in DB, no data returned.", StorageErrorCode.CREATE_FAILED);
         }
         return result[0];
     } catch (error: any) {
@@ -125,10 +125,10 @@ export class DbLanguageStorage implements ILanguageStorage {
             throw error; // Re-throw it directly
         }
         if (error.message && error.message.includes("duplicate key value violates unique constraint")) {
-             throw new StorageError(`Language with code '${language.code}' already exists in DB.`, "DUPLICATE_ENTRY", error);
+             throw new StorageError(`Language with code '${language.code}' already exists in DB.`, StorageErrorCode.DUPLICATE_ENTRY, error);
         }
         // For other types of errors, wrap them
-        throw new StorageError("Error creating language in DB.", "STORAGE_ERROR", error);
+        throw new StorageError("Error creating language in DB.", StorageErrorCode.STORAGE_ERROR, error);
     }
   }
 
@@ -150,5 +150,33 @@ export class DbLanguageStorage implements ILanguageStorage {
       .where(eq(languages.code, code))
       .returning();
     return result[0];
+  }
+
+  async initializeDefaultLanguages(): Promise<void> { // Added
+    const defaultLanguagesData = [
+      { code: 'en-US', name: 'English (United States)', isActive: true },
+      { code: 'es', name: 'Spanish', isActive: true },
+      { code: 'fr', name: 'French', isActive: true },
+      { code: 'de', name: 'German', isActive: true },
+      { code: 'it', name: 'Italian', isActive: true },
+      { code: 'pt', name: 'Portuguese', isActive: true },
+      { code: 'ru', name: 'Russian', isActive: true },
+      { code: 'ja', name: 'Japanese', isActive: true },
+      { code: 'ko', name: 'Korean', isActive: true },
+      { code: 'zh', name: 'Chinese (Simplified)', isActive: true }
+    ];
+
+    for (const langData of defaultLanguagesData) {
+      const existingLang = await this.getLanguageByCode(langData.code);
+      if (!existingLang) {
+        try {
+          await this.createLanguage(langData);
+        } catch (error) {
+          // Log or handle the error if a specific default language fails to insert,
+          // but allow the process to continue for other languages.
+          console.error(`Failed to insert default language ${langData.code}:`, error);
+        }
+      }
+    }
   }
 }
