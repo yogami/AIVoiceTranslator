@@ -682,13 +682,15 @@
                 autoRefreshInterval = null;
                 isAutoRefreshEnabled = false;
                 button.textContent = '⏰ Auto-refresh: OFF';
-                button.style.backgroundColor = '#3498db';
+                button.style.backgroundColor = 'var(--primary-color)'; // Use CSS variable
+                button.classList.remove('auto-refresh-on');
             } else {
                 // Enable auto-refresh
                 autoRefreshInterval = setInterval(loadDiagnostics, 5000); // Refresh every 5 seconds
                 isAutoRefreshEnabled = true;
                 button.textContent = '⏰ Auto-refresh: ON';
-                button.style.backgroundColor = '#2ecc71';
+                button.style.backgroundColor = 'var(--secondary-color)'; // Use CSS variable
+                button.classList.add('auto-refresh-on');
                 loadDiagnostics(); // Load immediately
             }
         }
