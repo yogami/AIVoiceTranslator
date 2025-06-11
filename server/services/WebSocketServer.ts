@@ -12,6 +12,7 @@ import { speechTranslationService } from './TranslationService';
 import { audioTranscriptionService } from './transcription/AudioTranscriptionService';
 import { URL } from 'url';
 import { storage } from '../storage';
+import logger from '../logger';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -98,7 +99,7 @@ export class WebSocketServer {
    * Handle new WebSocket connection
    */
   private handleConnection(ws: WebSocketClient, request?: any): void {
-    console.log('New WebSocket connection established');
+    logger.info('New WebSocket connection established');
     
     // Mark as alive
     ws.isAlive = true;
@@ -114,7 +115,7 @@ export class WebSocketServer {
       if (classroomCode) {
         // Validate classroom code
         if (!this.isValidClassroomCode(classroomCode)) {
-          console.log(`Invalid classroom code attempted: ${classroomCode}`);
+          logger.warn(`Invalid classroom code attempted: ${classroomCode}`);
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Classroom session expired or invalid. Please ask teacher for new link.',
@@ -128,7 +129,7 @@ export class WebSocketServer {
         const session = this.classroomSessions.get(classroomCode);
         if (session) {
           sessionId = session.sessionId;
-          console.log(`Client joining classroom ${classroomCode} with session ${sessionId}`);
+          logger.info(`Client joining classroom ${classroomCode} with session ${sessionId}`);
         }
       }
     }
@@ -139,7 +140,7 @@ export class WebSocketServer {
     
     // Create session in storage for metrics tracking
     this.createSessionInStorage(sessionId).catch(error => {
-      console.error('Failed to create session in storage:', error);
+      logger.error('Failed to create session in storage:', { error });
       // Continue without metrics - don't break core functionality
     });
     
@@ -163,7 +164,7 @@ export class WebSocketServer {
     
     // Set up error handler
     ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
+      logger.error('WebSocket error:', { error });
     });
   }
 
@@ -179,7 +180,7 @@ export class WebSocketServer {
       });
     } catch (error) {
       // Log but don't throw - metrics should not break core functionality
-      console.error('Failed to create session in storage:', error);
+      logger.error('Failed to create session in storage:', { error });
     }
   }
 
@@ -203,7 +204,7 @@ export class WebSocketServer {
       
       ws.send(JSON.stringify(message));
     } catch (error) {
-      console.error('Error sending connection confirmation:', error);
+      logger.error('Error sending connection confirmation:', { error });
     }
   }
   
@@ -246,10 +247,10 @@ export class WebSocketServer {
           break;
           
         default:
-          console.warn('Unknown message type:', message.type);
+          logger.warn('Unknown message type:', { type: (message as any).type });
       }
     } catch (error) {
-      console.error('Error handling message:', error);
+      logger.error('Error handling message:', { error, data });
     }
   }
   
@@ -257,15 +258,15 @@ export class WebSocketServer {
    * Handle registration message
    */
   private handleRegisterMessage(ws: WebSocketClient, message: RegisterMessageToServer): void {
-    console.log('Processing message type=register from connection:', 
-      `role=${message.role}, languageCode=${message.languageCode}`);
+    logger.info('Processing message type=register from connection:', 
+      { role: message.role, languageCode: message.languageCode });
     
     const currentRole = this.roles.get(ws);
     
     // Update role if provided
     if (message.role) {
       if (currentRole !== message.role) {
-        console.log(`Changing connection role from ${currentRole} to ${message.role}`);
+        logger.info(`Changing connection role from ${currentRole} to ${message.role}`);
       }
       this.roles.set(ws, message.role);
       
@@ -281,7 +282,7 @@ export class WebSocketServer {
             this.updateSessionInStorage(sessionId, {
               teacherLanguage: message.languageCode
             }).catch(error => {
-              console.error('Failed to update session with teacher language:', error);
+              logger.error('Failed to update session with teacher language:', { error });
             });
           }
           
@@ -293,7 +294,7 @@ export class WebSocketServer {
           };
           ws.send(JSON.stringify(response));
           
-          console.log(`Generated classroom code ${classroomCode} for teacher session ${sessionId}`);
+          logger.info(`Generated classroom code ${classroomCode} for teacher session ${sessionId}`);
         }
       }
     }
@@ -309,14 +310,14 @@ export class WebSocketServer {
     // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
       settings.ttsServiceType = message.settings.ttsServiceType;
-      console.log(`Client requested TTS service type: ${settings.ttsServiceType}`);
+      logger.info(`Client requested TTS service type: ${settings.ttsServiceType}`);
     }
     
     // Store updated settings
     this.clientSettings.set(ws, settings);
     
-    console.log('Updated connection:', 
-      `role=${this.roles.get(ws)}, languageCode=${this.languages.get(ws)}, ttsService=${settings.ttsServiceType || 'default'}`);
+    logger.info('Updated connection:', 
+      { role: this.roles.get(ws), languageCode: this.languages.get(ws), ttsService: settings.ttsServiceType || 'default' });
     
     // Send confirmation
     const response: RegisterResponseToClient = {
@@ -339,7 +340,7 @@ export class WebSocketServer {
     try {
       await storage.updateSession(sessionId, updates);
     } catch (error) {
-      console.error('Failed to update session in storage:', error);
+      logger.error('Failed to update session in storage:', { error });
     }
   }
   
@@ -347,13 +348,14 @@ export class WebSocketServer {
    * Handle transcription message
    */
   private async handleTranscriptionMessage(ws: WebSocketClient, message: TranscriptionMessageToServer): Promise<void> {
-    console.log('Received transcription from', this.roles.get(ws), ':', message.text);
+    logger.info('Received transcription from', { role: this.roles.get(ws), text: message.text });
     
     // Start tracking latency when transcription is received
     const startTime = Date.now();
     const latencyTracking = {
       start: startTime,
-      components: {
+      components:
+      {
         preparation: 0,
         translation: 0,
         tts: 0,
@@ -366,7 +368,7 @@ export class WebSocketServer {
     
     // Only process transcriptions from teacher
     if (role !== 'teacher') {
-      console.warn('Ignoring transcription from non-teacher role:', role);
+      logger.warn('Ignoring transcription from non-teacher role:', { role });
       return;
     }
     
@@ -374,7 +376,7 @@ export class WebSocketServer {
     const { studentConnections, studentLanguages } = this.getStudentConnectionsAndLanguages();
     
     if (studentConnections.length === 0) {
-      console.log('No students connected, skipping translation');
+      logger.info('No students connected, skipping translation');
       return;
     }
     
@@ -486,7 +488,7 @@ export class WebSocketServer {
     // Translate for each language
     for (const targetLanguage of targetLanguages) {
       try {
-        console.log(`Using OpenAI TTS service for language '${targetLanguage}' (overriding teacher's selection)`);
+        logger.info(`Using OpenAI TTS service for language '${targetLanguage}' (overriding teacher's selection)`);
         
         // Measure translation and TTS latency
         const translationStartTime = Date.now();
@@ -525,7 +527,7 @@ export class WebSocketServer {
         // Also store just the text for backward compatibility
         translations[targetLanguage] = result.translatedText;
       } catch (error) {
-        console.error(`Error translating to ${targetLanguage}:`, error);
+        logger.error(`Error translating to ${targetLanguage}:`, { error });
         translations[targetLanguage] = text; // Fallback to original text
         translationResults[targetLanguage] = {
           originalText: text,
@@ -609,7 +611,7 @@ export class WebSocketServer {
           result.translatedText,
           totalLatency
         ).catch(error => {
-          console.error('Failed to store translation metrics:', error);
+          logger.error('Failed to store translation metrics:', { error });
         });
       }
     });
@@ -635,7 +637,7 @@ export class WebSocketServer {
         // timestamp is automatically set by the database default
       });
     } catch (error) {
-      console.error('Failed to store translation metrics:', error);
+      logger.error('Failed to store translation metrics:', { error });
     }
   }
   
@@ -694,13 +696,13 @@ export class WebSocketServer {
       
       if (bufferString.startsWith('{"type":"browser-speech"')) {
         // This is a marker for browser-based speech synthesis
-        console.log(`Using client browser speech synthesis for ${studentLanguage}`);
+        logger.info(`Using client browser speech synthesis for ${studentLanguage}`);
         translationMessage.useClientSpeech = true;
         try {
           translationMessage.speechParams = JSON.parse(bufferString);
-          console.log(`Successfully parsed speech params for ${studentLanguage}`);
+          logger.info(`Successfully parsed speech params for ${studentLanguage}`);
         } catch (jsonError) {
-          console.error('Error parsing speech params:', jsonError);
+          logger.error('Error parsing speech params:', { jsonError });
           translationMessage.speechParams = {
             type: 'browser-speech',
             text: translatedText,
@@ -714,15 +716,15 @@ export class WebSocketServer {
         translationMessage.useClientSpeech = false; // Explicitly set to false
         
         // Log audio data details for debugging
-        console.log(`Sending ${audioBuffer.length} bytes of audio data to client`);
-        console.log(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
-        console.log(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
+        logger.debug(`Sending ${audioBuffer.length} bytes of audio data to client`);
+        logger.debug(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
+        logger.debug(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
       } else {
         // Log a warning when no audio data is available
-        console.log(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
+        logger.warn(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
       }
     } catch (error) {
-      console.error('Error processing audio data for translation:', error);
+      logger.error('Error processing audio data for translation:', { error });
     }
   }
   
@@ -734,7 +736,7 @@ export class WebSocketServer {
     
     // Only process audio from teacher
     if (role !== 'teacher') {
-      console.log('Ignoring audio from non-teacher role:', role);
+      logger.info('Ignoring audio from non-teacher role:', { role });
       return;
     }
     
@@ -761,10 +763,10 @@ export class WebSocketServer {
       const teacherLanguage = this.languages.get(ws) || 'en-US';
       const sessionId = this.sessionIds.get(ws);
       if (!sessionId) {
-        console.error('No session ID found for teacher');
+        logger.error('No session ID found for teacher');
         return;
       }
-      // Comment out server-side transcription since we're using client-side speech recognition
+      // Comment out server-side transcription since we\'re using client-side speech recognition
       // The client sends both audio chunks and transcriptions separately
       /*
       // Transcribe the audio
@@ -772,11 +774,11 @@ export class WebSocketServer {
         audioBuffer,
         teacherLanguage
       );
-      console.log('Transcribed audio:', transcription);
+      console.log(\'Transcribed audio:\', transcription);
       // If we got a transcription, process it as a transcription message
       if (transcription && transcription.trim().length > 0) {
         await this.handleTranscriptionMessage(ws, {
-          type: 'transcription',
+          type: \'transcription\',
           text: transcription,
           timestamp: Date.now(),
           isFinal: true
@@ -784,9 +786,9 @@ export class WebSocketServer {
       }
       */
       // For now, just log that we received audio
-      console.log('Received audio chunk from teacher, using client-side transcription');
+      logger.debug('Received audio chunk from teacher, using client-side transcription');
     } catch (error) {
-      console.error('Error processing teacher audio:', error);
+      logger.error('Error processing teacher audio:', { error });
     }
   }
   
@@ -828,7 +830,7 @@ export class WebSocketServer {
         await this.sendTTSErrorResponse(ws, 'Failed to generate audio');
       }
     } catch (error) {
-      console.error('Error handling TTS request:', error);
+      logger.error('Error handling TTS request:', { error });
       await this.sendTTSErrorResponse(ws, 'TTS generation error');
     }
   }
@@ -838,12 +840,12 @@ export class WebSocketServer {
    */
   private validateTTSRequest(text: string, languageCode: string): boolean {
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      console.error('Invalid TTS text:', text);
+      logger.error('Invalid TTS text:', { text });
       return false;
     }
     
     if (!languageCode || typeof languageCode !== 'string') {
-      console.error('Invalid TTS language code:', languageCode);
+      logger.error('Invalid TTS language code:', { languageCode });
       return false;
     }
     
@@ -871,7 +873,7 @@ export class WebSocketServer {
       
       return result.audioBuffer;
     } catch (error) {
-      console.error('Error generating TTS audio:', error);
+      logger.error('Error generating TTS audio:', { error });
       return Buffer.from(''); // Return empty buffer on error
     }
   }
@@ -905,7 +907,7 @@ export class WebSocketServer {
         try {
           response.speechParams = JSON.parse(bufferString);
         } catch (error) {
-          console.error('Error parsing speech params:', error);
+          logger.error('Error parsing speech params:', { error });
           response.speechParams = {
             type: 'browser-speech',
             text,
@@ -921,14 +923,14 @@ export class WebSocketServer {
       
       // Send response
       ws.send(JSON.stringify(response as TTSResponseMessageToClient));
-      console.log(`TTS response sent successfully for language '${languageCode}'`);
+      logger.info(`TTS response sent successfully for language '${languageCode}'`);
     } catch (error) {
-      console.error('Error sending TTS response:', error);
+      logger.error('Error sending TTS response:', { error });
       // Try to send error message if possible
       try {
         await this.sendTTSErrorResponse(ws, 'Failed to send audio data');
       } catch (sendError) {
-        console.error('Error sending TTS error response:', sendError);
+        logger.error('Error sending TTS error response:', { sendError });
       }
     }
   }
@@ -953,9 +955,9 @@ export class WebSocketServer {
       };
       
       ws.send(JSON.stringify(ttsErrorResponse));
-      console.error(`TTS error response sent: ${messageText}`);
+      logger.error(`TTS error response sent: ${messageText}`);
     } catch (error) {
-      console.error('Error sending TTS error response:', error);
+      logger.error('Error sending TTS error response:', { error });
     }
   }
   
@@ -976,7 +978,7 @@ export class WebSocketServer {
     // Special handling for ttsServiceType since it can be specified outside settings object
     if (message.ttsServiceType) {
       settings.ttsServiceType = message.ttsServiceType;
-      console.log(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
+      logger.info(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
     }
     
     // Store updated settings
@@ -1009,7 +1011,7 @@ export class WebSocketServer {
     try {
       ws.send(JSON.stringify(response));
     } catch (error) {
-      console.error('Error sending pong response:', error);
+      logger.error('Error sending pong response:', { error });
     }
   }
   
@@ -1018,7 +1020,7 @@ export class WebSocketServer {
    */
   private handleClose(ws: WebSocketClient): void {
     const sessionId = this.sessionIds.get(ws);
-    console.log('WebSocket disconnected, sessionId:', sessionId);
+    logger.info('WebSocket disconnected, sessionId:', { sessionId });
     
     // Remove from tracking
     this.connections.delete(ws);
@@ -1032,7 +1034,7 @@ export class WebSocketServer {
       const hasOtherConnections = Array.from(this.sessionIds.values()).includes(sessionId);
       if (!hasOtherConnections) {
         this.endSessionInStorage(sessionId).catch(error => {
-          console.error('Failed to end session in storage:', error);
+          logger.error('Failed to end session in storage:', { error });
         });
       }
     }
@@ -1045,7 +1047,7 @@ export class WebSocketServer {
     try {
       await storage.endSession(sessionId);
     } catch (error) {
-      console.error('Failed to end session in storage:', error);
+      logger.error('Failed to end session in storage:', { error });
     }
   }
   
@@ -1058,7 +1060,7 @@ export class WebSocketServer {
         const client = ws as WebSocketClient;
         
         if (!client.isAlive) {
-          console.log('Terminating dead connection');
+          logger.info('Terminating dead connection', { sessionId: client.sessionId });
           return client.terminate();
         }
         
@@ -1134,7 +1136,7 @@ export class WebSocketServer {
     };
     
     this.classroomSessions.set(code, session);
-    console.log(`Created new classroom session: ${code} for session ${sessionId}`);
+    logger.info(`Created new classroom session: ${code} for session ${sessionId}`);
     
     return code;
   }
@@ -1156,7 +1158,7 @@ export class WebSocketServer {
     // Check expiration
     if (Date.now() > session.expiresAt) {
       this.classroomSessions.delete(code);
-      console.log(`Classroom code ${code} expired and removed`);
+      logger.info(`Classroom code ${code} expired and removed`);
       return false;
     }
     
@@ -1182,7 +1184,7 @@ export class WebSocketServer {
       }
       
       if (cleaned > 0) {
-        console.log(`Cleaned up ${cleaned} expired classroom sessions`);
+        logger.info(`Cleaned up ${cleaned} expired classroom sessions`);
       }
     }, 15 * 60 * 1000); // 15 minutes
   }
@@ -1258,26 +1260,26 @@ export class WebSocketServer {
 
   // Method to gracefully shut down the WebSocket server
   public shutdown(): void {
-    console.log('[WebSocketServer] Shutting down...');
+    logger.info('[WebSocketServer] Shutting down...');
 
     // 1. Clear intervals
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
-      console.log('[WebSocketServer] Heartbeat interval cleared.');
+      logger.info('[WebSocketServer] Heartbeat interval cleared.');
     }
     if (this.classroomCleanupInterval) {
       clearInterval(this.classroomCleanupInterval);
       this.classroomCleanupInterval = null;
-      console.log('[WebSocketServer] Classroom cleanup interval cleared.');
+      logger.info('[WebSocketServer] Classroom cleanup interval cleared.');
     }
 
     // 2. Close all client connections
-    console.log(`[WebSocketServer] Closing ${this.connections.size} client connections...`);
+    logger.info(`[WebSocketServer] Closing ${this.connections.size} client connections...`);
     this.connections.forEach(client => {
       client.terminate();
     });
-    console.log('[WebSocketServer] All client connections terminated.');
+    logger.info('[WebSocketServer] All client connections terminated.');
 
     // 3. Clear internal maps and sets
     this.connections.clear();
@@ -1286,15 +1288,15 @@ export class WebSocketServer {
     this.sessionIds.clear();
     this.clientSettings.clear();
     this.classroomSessions.clear();
-    console.log('[WebSocketServer] Internal maps and sets cleared.');
+    logger.info('[WebSocketServer] Internal maps and sets cleared.');
 
     // 4. Close the underlying WebSocket server instance
     if (this.wss) {
       this.wss.close((err) => {
         if (err) {
-          console.error('[WebSocketServer] Error closing WebSocket server:', err);
+          logger.error('[WebSocketServer] Error closing WebSocket server:', { err });
         } else {
-          console.log('[WebSocketServer] WebSocket server closed.');
+          logger.info('[WebSocketServer] WebSocket server closed.');
         }
       });
     }
@@ -1304,6 +1306,6 @@ export class WebSocketServer {
     // then wss.close() should be enough. If manual listeners were added, they need removal.
     // Assuming wss.close() handles detaching from the httpServer for now.
 
-    console.log('[WebSocketServer] Shutdown complete.');
+    logger.info('[WebSocketServer] Shutdown complete.');
   }
 }
