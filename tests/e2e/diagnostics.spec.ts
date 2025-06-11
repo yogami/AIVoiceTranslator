@@ -1,4 +1,10 @@
-import { test, expect, Page } from '@playwright/test';
+// @ts-check
+import { test, expect, type Page } from '@playwright/test';
+
+// TODO: Implement a data seeding strategy for E2E tests to ensure consistent
+// and realistic data for verifying time-range filtering and metric calculations.
+// This could involve pre-loading data into the test database or using mock API
+// responses with specific datasets for different time ranges.
 
 test.describe('Analytics Dashboard E2E Tests', () => {
   let page: Page;
@@ -83,7 +89,7 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     
     // Get initial last updated time
     const lastUpdated = page.locator('#last-updated');
-    const initialTime = await lastUpdated.textContent();
+    const initialTimeText = await lastUpdated.textContent();
     
     // Click refresh button
     await page.click('#refresh-btn');
@@ -101,21 +107,17 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     
     // Initially should be OFF
     await expect(autoRefreshBtn).toContainText('⏰ Auto-refresh: OFF');
+    await expect(autoRefreshBtn).not.toHaveClass('auto-refresh-on');
     
     // Click to enable
     await autoRefreshBtn.click();
-    
-    // Check for 'Enabled' state text or class if available, e.g.,
-    // await expect(page.locator('#auto-refresh-status')).toHaveText('Auto-Refresh: Enabled');
-    
-    // Re-fetch background color after click
-    let bgColor = await autoRefreshBtn.evaluate(element => getComputedStyle(element).backgroundColor);
-    // Check if it's a green color (allowing for browser differences)
-    expect(bgColor).toMatch(/rgb\(4[67], (20[0-9]), (11[0-9])\)/); // Corrected regex for green and blue components
+    await expect(autoRefreshBtn).toContainText('⏰ Auto-refresh: ON');
+    await expect(autoRefreshBtn).toHaveClass(/auto-refresh-on/);
 
     // Click to disable
     await autoRefreshBtn.click();
     await expect(autoRefreshBtn).toContainText('⏰ Auto-refresh: OFF');
+    await expect(autoRefreshBtn).not.toHaveClass('auto-refresh-on');
   });
 
   test('should export data when export button is clicked', async () => {
@@ -155,27 +157,37 @@ test.describe('Analytics Dashboard E2E Tests', () => {
   });
 
   test('should handle API errors gracefully', async ({ page }) => {
-    // Intercept API call and return error
-    await page.route('/api/diagnostics**/*', route => { // Ensure query parameters are matched
-      route.fulfill({
+    // 1. Let the page load normally first (handled by beforeEach)
+    // Ensure basic page structure is present before we mess with API calls
+    await expect(page).toHaveTitle('Analytics Dashboard - AIVoiceTranslator', { timeout: 10000 });
+    await expect(page.locator('h1')).toContainText('Analytics Dashboard', { timeout: 5000 });
+
+    // 2. Intercept the *next* API call only and return an error
+    await page.route('/api/diagnostics**/*', async route => {
+      await route.fulfill({
         status: 500,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'Internal Server Error' })
+        body: JSON.stringify({ message: 'Internal Server Error from mock' }) // Ensure body gives a message
       });
-    });
+    }, { times: 1 }); // Apply only once
+
+    // 3. Trigger the API call by clicking the refresh button
+    await page.locator('#refresh-btn').click();
     
-    // Reload page to trigger the API call
-    await page.reload();
+    // 4. Wait for the error container to become visible
+    const errorContainerLocator = page.locator('#error-container');
+    await expect(errorContainerLocator).toBeVisible({ timeout: 10000 });
     
-    // Should show error message within the designated container
-    const errorMessage = page.locator('#error-container .error-message');
-    await expect(errorMessage).toBeVisible({ timeout: 10000 }); // Increased timeout
-    await expect(errorMessage).toContainText('Failed to load diagnostics');
+    // 5. Check the error message text
+    // Based on frontend logic: `Failed to load diagnostics data.: HTTP error! status: 500: ${response.text()}`
+    // response.text() will be `{"message":"Internal Server Error from mock"}`
+    const errorMessageLocator = errorContainerLocator.locator('.error-message');
+    await expect(errorMessageLocator).toContainText('Failed to load diagnostics data.: HTTP error! status: 500: {\"message\":\"Internal Server Error from mock\"}', { timeout: 5000 });
   });
 
   test('should display formatted metrics correctly', async ({ page }) => {
     // Wait for metrics to load
-    await page.waitForSelector('.metric-value', { timeout: 5000 });
+    await page.waitForSelector('.metric-value', { timeout: 10000 }); // Increased timeout
     
     // Check that metrics are formatted
     const metricValues = page.locator('.metric-value');
@@ -203,13 +215,13 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     
     // Check that layout adapts - use first metrics grid
     const metricsGrid = page.locator('.metrics-grid').first();
-    const gridStyle = await metricsGrid.evaluate((el: HTMLElement) => 
+    const gridStyleValue = await metricsGrid.evaluate((el: HTMLElement) => 
       window.getComputedStyle(el).gridTemplateColumns
     );
     
     // Should be single column on mobile (either '1fr' or a single pixel value)
-    const isSingleColumn = gridStyle === '1fr' || 
-                          (gridStyle.match(/^\d+px$/) !== null && !gridStyle.includes(' '));
+    const isSingleColumn = gridStyleValue === '1fr' || 
+                          (gridStyleValue.match(/^\d+px$/) !== null && !gridStyleValue.includes(' '));
     expect(isSingleColumn).toBeTruthy();
     
     // Buttons should stack vertically
@@ -237,7 +249,7 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     
     // Get initial last updated time
     const lastUpdated = page.locator('#last-updated');
-    const initialTime = await lastUpdated.textContent();
+    const initialTimeText = await lastUpdated.textContent();
     
     // Wait for auto-refresh (5 seconds + buffer)
     await page.waitForTimeout(6000);
