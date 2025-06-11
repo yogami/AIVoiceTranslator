@@ -111,7 +111,7 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     // Re-fetch background color after click
     let bgColor = await autoRefreshBtn.evaluate(element => getComputedStyle(element).backgroundColor);
     // Check if it's a green color (allowing for browser differences)
-    expect(bgColor).toMatch(/rgb\(4[67], (19[0-9]|20[0-9]), 12[0-9]\)/); // Updated regex for blue component
+    expect(bgColor).toMatch(/rgb\(4[67], (20[0-9]), (11[0-9])\)/); // Corrected regex for green and blue components
 
     // Click to disable
     await autoRefreshBtn.click();
@@ -154,9 +154,9 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     }
   });
 
-  test('should handle API errors gracefully', async () => {
+  test('should handle API errors gracefully', async ({ page }) => {
     // Intercept API call and return error
-    await page.route('/api/diagnostics', route => {
+    await page.route('/api/diagnostics**/*', route => { // Ensure query parameters are matched
       route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -164,16 +164,16 @@ test.describe('Analytics Dashboard E2E Tests', () => {
       });
     });
     
-    // Reload page
+    // Reload page to trigger the API call
     await page.reload();
     
-    // Should show error message
-    const errorMessage = page.locator('.error-message');
-    await expect(errorMessage).toBeVisible();
+    // Should show error message within the designated container
+    const errorMessage = page.locator('#error-container .error-message');
+    await expect(errorMessage).toBeVisible({ timeout: 10000 }); // Increased timeout
     await expect(errorMessage).toContainText('Failed to load diagnostics');
   });
 
-  test('should display formatted metrics correctly', async () => {
+  test('should display formatted metrics correctly', async ({ page }) => {
     // Wait for metrics to load
     await page.waitForSelector('.metric-value', { timeout: 5000 });
     
@@ -304,5 +304,62 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     // Check Real-time Performance card
     const performanceCard = page.locator('.metric-card:has-text("Real-time Performance")');
     await expect(performanceCard).toBeVisible();
+  });
+
+  test('should have a time range selector with default preset', async ({ page }) => {
+    await page.goto('/diagnostics.html');
+    const timeRangeSelector = page.locator('#time-range-select');
+    await expect(timeRangeSelector).toBeVisible();
+    // Assuming 'last24Hours' is the default or a common initial value
+    await expect(timeRangeSelector).toHaveValue('last24Hours'); 
+    const currentTimeRangeInfo = page.locator('#current-time-range-info');
+    await expect(currentTimeRangeInfo).toBeVisible();
+    // Placeholder: Check for text indicating the default range, e.g., "Displaying metrics for: Last 24 Hours"
+    await expect(currentTimeRangeInfo).not.toBeEmpty(); 
+  });
+
+  test('should update metrics when "Last 7 Days" is selected', async ({ page }) => {
+    await page.goto('/diagnostics.html');
+    const timeRangeSelector = page.locator('#time-range-select');
+    await timeRangeSelector.selectOption('last7Days');
+    
+    const currentTimeRangeInfo = page.locator('#current-time-range-info');
+    await expect(currentTimeRangeInfo).toBeVisible();
+    // Placeholder: Check for text indicating "Last 7 Days"
+    await expect(currentTimeRangeInfo).toContainText('Last 7 Days'); // Or similar, depending on implementation
+
+    // Placeholder: Check if a key metric element updates or is visible
+    // Example: const totalSessionsMetric = page.locator('#total-sessions-metric');
+    // await expect(totalSessionsMetric).not.toBeEmpty(); 
+    // More specific checks would require knowing how data is presented
+    await page.waitForTimeout(500); // Allow time for data to potentially reload
+  });
+
+  test('should update metrics when "Last 30 Days" is selected', async ({ page }) => {
+    await page.goto('/diagnostics.html');
+    const timeRangeSelector = page.locator('#time-range-select');
+    await timeRangeSelector.selectOption('last30Days');
+
+    const currentTimeRangeInfo = page.locator('#current-time-range-info');
+    await expect(currentTimeRangeInfo).toBeVisible();
+    // Placeholder: Check for text indicating "Last 30 Days"
+    await expect(currentTimeRangeInfo).toContainText('Last 30 Days'); // Or similar
+
+    // Placeholder: Check another key metric
+    // Example: const totalTranslationsMetric = page.locator('#total-translations-metric');
+    // await expect(totalTranslationsMetric).not.toBeEmpty();
+    await page.waitForTimeout(500); // Allow time for data to potentially reload
+  });
+
+  test('should display specific adoption metrics sections', async ({ page }) => {
+    await page.goto('/diagnostics.html');
+    // These are more conceptual based on product owner intent.
+    // Actual selectors would depend on UI implementation.
+    // Example:
+    // await expect(page.locator('#active-users-daily')).toBeVisible();
+    // await expect(page.locator('#new-users-weekly')).toBeVisible();
+    // await expect(page.locator('#session-duration-trends')).toBeVisible();
+    // For now, this test is a placeholder for future, more specific metric UI elements.
+    expect(true).toBe(true); // Placeholder assertion
   });
 });

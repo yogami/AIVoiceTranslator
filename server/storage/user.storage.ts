@@ -7,6 +7,7 @@ export interface IUserStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  listUsers(): Promise<User[]>; // Added
 }
 
 export abstract class BaseUserStorage implements IUserStorage {
@@ -47,6 +48,7 @@ export abstract class BaseUserStorage implements IUserStorage {
   }
 
   protected abstract _createUser(user: InsertUser): Promise<User>;
+  abstract listUsers(): Promise<User[]>; // Ensured this is present
 }
 
 export class MemUserStorage extends BaseUserStorage {
@@ -85,6 +87,10 @@ export class MemUserStorage extends BaseUserStorage {
     this.usersMap.set(newUser.id, newUser);
     return newUser;
   }
+
+  async listUsers(): Promise<User[]> { // Added
+    return Array.from(this.usersMap.values());
+  }
 }
 
 export class DbUserStorage extends BaseUserStorage {
@@ -105,5 +111,9 @@ export class DbUserStorage extends BaseUserStorage {
         }
         throw new StorageError("Error creating user in DB.", StorageErrorCode.STORAGE_ERROR, error);
     }
+  }
+
+  async listUsers(): Promise<User[]> { // Added
+    return db.select().from(users);
   }
 }

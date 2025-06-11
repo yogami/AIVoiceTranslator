@@ -73,7 +73,7 @@ E2E_TEST_MODE=true          # Forces memory storage for tests
 # The application will be available at:
 # - Teacher Interface: http://localhost:5000/teacher (Current - HTML/JS)
 # - Student Interface: http://localhost:5000/student (Current - HTML/JS)
-# - Diagnostics Dashboard: http://localhost:5000/diagnostics.html (Current - HTML/JS)
+# - Diagnostics Dashboard: http://localhost:5000/diagnostics.html (Tracks product adoption and usage metrics)
 # - React App: http://localhost:5000/ (In Progress - Gradual Migration)
 
 # Production build and run

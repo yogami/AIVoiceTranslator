@@ -15,6 +15,9 @@ import { db } from '../../server/db'; // Import to be mocked
 vi.mock('../../server/db', () => {
   // Create a chainable mock that always returns itself until the end
   const createChainableMock = (finalValue: any = []) => {
+    const mockExecute = vi.fn().mockResolvedValue(finalValue);
+    const mockPrepare = vi.fn(() => ({ execute: mockExecute }));
+
     const mock: any = vi.fn(() => mock);
     mock.from = vi.fn(() => mock);
     mock.where = vi.fn(() => mock);
@@ -25,12 +28,18 @@ vi.mock('../../server/db', () => {
     mock.values = vi.fn(() => mock);
     mock.set = vi.fn(() => mock);
     mock.$dynamic = vi.fn(() => mock);
+    mock.prepare = mockPrepare; // Add prepare to the chain
     
-    // Make it a thenable to resolve to the final value
-    mock.then = (resolve: any) => Promise.resolve(finalValue).then(resolve);
+    // Make it a thenable to resolve to the final value (for direct awaits on the chain)
+    // This might not be strictly necessary if .execute() is always called
+    mock.then = (resolve: any) => Promise.resolve(finalValue).then(resolve); 
     
     return mock;
   };
+
+  const mockDbExecute = vi.fn();
+  const mockDbPrepare = vi.fn((_queryName: string) => ({ execute: mockDbExecute }));
+
 
   return {
     db: {
@@ -38,6 +47,7 @@ vi.mock('../../server/db', () => {
       insert: vi.fn(() => createChainableMock([])),
       update: vi.fn(() => createChainableMock([])),
       delete: vi.fn(() => createChainableMock({ rowCount: 1 })),
+      prepare: mockDbPrepare, // Add top-level prepare mock
       // Mock Drizzle operators
       eq: vi.fn((column, value) => ({ type: 'operator', op: 'eq', column, value })),
       desc: vi.fn(column => ({ type: 'operator', op: 'desc', column })),

@@ -333,8 +333,15 @@
         <button id="refresh-btn">🔄 Refresh Data</button>
         <button id="export-btn" class="export-btn">📥 Export Data</button>
         <button id="auto-refresh-btn">⏰ Auto-refresh: OFF</button>
+        <select id="time-range-select">
+            <option value="last24Hours">Last 24 Hours</option>
+            <option value="last7Days">Last 7 Days</option>
+            <option value="last30Days">Last 30 Days</option>
+            <option value="allTime">All Time</option>
+        </select>
     </div>
     
+    <div id="current-time-range-info" style="text-align: center; margin-bottom: 20px; color: var(--text-light);"></div>
     <div id="error-container"></div>
     <div id="loading" class="loading" style="display: none;">Loading analytics data...</div>
     
@@ -385,6 +392,16 @@
     <script>
         let autoRefreshInterval = null;
         let isAutoRefreshEnabled = false;
+        let currentTimeRange = 'last24Hours'; // Default time range
+
+        function updateCurrentTimeRangeDisplay() {
+            const selectElement = document.getElementById('time-range-select');
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            const displayElement = document.getElementById('current-time-range-info');
+            if (displayElement) {
+                displayElement.textContent = `Displaying metrics for: ${selectedOption.text}`;
+            }
+        }
         
         function showError(message) {
             const container = document.getElementById('error-container');
@@ -412,8 +429,8 @@
             document.getElementById('error-container').innerHTML = '';
             
             try {
-                console.log('Fetching diagnostics from /api/diagnostics');
-                const response = await fetch('/api/diagnostics');
+                console.log(`Fetching diagnostics from /api/diagnostics?timeRange=${currentTimeRange}`);
+                const response = await fetch(`/api/diagnostics?timeRange=${currentTimeRange}`);
                 console.log('Response status:', response.status);
                 
                 if (!response.ok) {
@@ -435,6 +452,7 @@
         function displayDiagnostics(data) {
             // Display adoption metrics
             displayAdoptionMetrics(data);
+            updateCurrentTimeRangeDisplay(); // Update display after loading
             
             // Display usage analytics
             displayUsageAnalytics(data);
@@ -679,9 +697,14 @@
         document.getElementById('refresh-btn').addEventListener('click', loadDiagnostics);
         document.getElementById('export-btn').addEventListener('click', exportDiagnostics);
         document.getElementById('auto-refresh-btn').addEventListener('click', toggleAutoRefresh);
+        document.getElementById('time-range-select').addEventListener('change', (event) => {
+            currentTimeRange = event.target.value;
+            loadDiagnostics(); // Reload data when time range changes
+        });
         
         // Load diagnostics on page load
         loadDiagnostics();
+        updateCurrentTimeRangeDisplay(); // Initial display
     </script>
 </body>
 </html>
