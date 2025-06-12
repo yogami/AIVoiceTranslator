@@ -14,6 +14,7 @@ import { audioTranscriptionService } from './transcription/AudioTranscriptionSer
 import { storage } from '../storage'; // Changed to named import
 import { config } from '../config'; // Removed AppConfig, already have config instance
 import { URL } from 'url';
+import { diagnosticsService } from './DiagnosticsService';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -181,7 +182,24 @@ export class WebSocketServer {
         isActive: true
         // startTime is automatically set by the database default
       });
-    } catch (error) {
+    } catch (error: any) {
+      // If error is a duplicate key (session already exists), treat as idempotent
+      if (error && (error.code === '23505' || error.message?.includes('already exists'))) {
+        logger.info('Session already exists in storage (idempotent):', { sessionId });
+        // Fetch the existing session to ensure metrics/state are up to date
+        try {
+          const existingSession = await storage.getActiveSession(sessionId);
+          if (!existingSession) {
+            logger.warn('Duplicate session error but no active session found in storage:', { sessionId });
+          } else {
+            // Reactivate session to ensure metrics/state are correct
+            await storage.updateSession(sessionId, { isActive: true });
+          }
+        } catch (fetchErr) {
+          logger.warn('Failed to fetch existing session after duplicate key error:', { sessionId, fetchErr });
+        }
+        return;
+      }
       // Log but don't throw - metrics should not break core functionality
       logger.error('Failed to create session in storage:', { error });
     }
@@ -334,6 +352,23 @@ export class WebSocketServer {
     };
     
     ws.send(JSON.stringify(response));
+    
+    // If registering as student, increment studentsCount in storage
+    if (message.role === 'student') {
+      const sessionId = this.sessionIds.get(ws);
+      if (sessionId) {
+        // Fetch current session to get current studentsCount
+        storage.getActiveSession(sessionId).then(session => {
+          const currentCount = session?.studentsCount || 0;
+          // Always ensure session is active when a student joins
+          this.updateSessionInStorage(sessionId, { studentsCount: currentCount + 1, isActive: true }).catch(error => {
+            logger.error('Failed to increment studentsCount for session:', { error });
+          });
+        }).catch(error => {
+          logger.error('Failed to fetch session for incrementing studentsCount:', { error });
+        });
+      }
+    }
   }
   
   /**
@@ -616,6 +651,8 @@ export class WebSocketServer {
         ).catch(error => {
           logger.error('Failed to store translation metrics:', { error });
         });
+        // Record translation in diagnostics for real-time metrics
+        diagnosticsService.recordTranslation(totalLatency);
       }
     });
   }

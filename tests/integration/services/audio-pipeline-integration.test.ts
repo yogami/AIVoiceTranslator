@@ -14,7 +14,7 @@
  *    or investigate API response times.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { translateSpeech } from '../../../server/openai';
 import { 
   SpeechTranslationService, 
