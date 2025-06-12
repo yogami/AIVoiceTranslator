@@ -23,8 +23,10 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
       return;
     }
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = (import.meta as any).env.VITE_WS_URL;
+    if (!wsUrl) {
+      throw new Error('VITE_WS_URL environment variable must be set.');
+    }
     
     try {
       wsRef.current = new WebSocket(wsUrl);
@@ -99,4 +101,4 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     connect,
     disconnect
   };
-}; 
+};

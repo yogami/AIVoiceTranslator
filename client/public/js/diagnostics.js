@@ -11,6 +11,12 @@ const lastUpdatedElement = document.getElementById('last-updated');
 const systemStatusElement = document.getElementById('system-status');
 const autoRefreshBtn = document.getElementById('auto-refresh-btn');
 
+// TODO: Replace with injected API URL at build time or via global variable
+if (!window.VITE_API_URL) {
+  throw new Error('VITE_API_URL must be set as a global variable or injected at build time.');
+}
+const apiUrl = window.VITE_API_URL;
+
 // Utility Functions
 function showError(message) {
     errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
@@ -456,4 +462,4 @@ window.addEventListener('beforeunload', () => {
     if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
     }
-}); 
+});

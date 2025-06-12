@@ -1,3 +1,17 @@
+// Set all required env vars for strict config at the very top (no fallbacks)
+process.env.PORT = '5001';
+process.env.HOST = '127.0.0.1';
+process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_8VHatecgqv4Z@ep-silent-sun-a29jrxc7-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require';
+process.env.OPENAI_API_KEY = 'sk-test-key';
+process.env.VITE_API_URL = 'http://127.0.0.1:5001';
+process.env.VITE_WS_URL = 'ws://127.0.0.1:5001';
+process.env.NODE_ENV = 'test';
+process.env.LOG_LEVEL = 'info';
+
+['PORT','HOST','DATABASE_URL','OPENAI_API_KEY','VITE_API_URL','VITE_WS_URL','NODE_ENV','LOG_LEVEL'].forEach((key) => {
+  if (!process.env[key]) throw new Error(`Missing required env var: ${key}`);
+});
+
 /**
  * API Routes Tests (Consolidated)
  * 

@@ -24,7 +24,7 @@
       "@handlers/*": ["server/services/handlers/*"],
       "@/*": ["client/src/*"]
     },
-    "types": ["node", "vitest/globals"],
+    "types": ["node", "vitest/globals", "vite/client"],
     "outDir": "dist/",
     "jsx": "react-jsx"
   },

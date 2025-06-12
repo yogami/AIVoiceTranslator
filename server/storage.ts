@@ -13,7 +13,7 @@ import {
   type Session, type InsertSession,
 } from "../shared/schema"; // Corrected path
 import { db } from "./db"; // Corrected path
-import { getStorageType } from "./config"; // Corrected path
+import { config } from "./config"; // Corrected path, import config directly
 
 // Import sub-storage interfaces
 import { IUserStorage } from "./storage/user.storage";
@@ -33,10 +33,10 @@ import { DatabaseStorage } from "./database-storage";
 
 // Export storage instance - use configuration to determine which storage to use
 export const storage = (() => {
-  const storageType = getStorageType();
+  const storageType = config.storage.type; // Use config.storage.type
   
   if (storageType === 'database') {
-    if (!process.env.DATABASE_URL) {
+    if (!process.env.DATABASE_URL) { // This check is now also in config.ts, but good for safety here too
       throw new Error('DATABASE_URL must be set when storage type is database');
     }
     console.log('[Storage] Using DatabaseStorage');

@@ -64,6 +64,8 @@ E2E_TEST_MODE=true          # Forces memory storage for tests
 - For database storage, ensure `DATABASE_URL` is set in `.env` (for development) and `.env.test` (for testing).
 - Test scripts automatically configure the environment - no manual setup needed beyond the `.env` files.
 
+**Important:** All environment variables must be set explicitly in `.env`, `.env.test`, and `.env.example`. No defaults or localhost values are allowed. See the `.env.example` file for required variables.
+
 ### 3. Running the Application
 
    ```bash
@@ -342,8 +344,6 @@ AIVoiceTranslator/
 {
   "dev": "Run full stack in development mode",
   "dev:client": "Run only frontend with Vite",
-  "build": "Build for production",
-  "start": "Start production server",
   "db:migrations:generate": "Generate SQL migration files from schema changes",
   "db:migrations:apply": "Apply pending migrations to the development database",
   "db:migrations:apply:test": "Apply pending migrations to the test database",

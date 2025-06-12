@@ -20,23 +20,9 @@ interface AppConfig {
     environment: 'development' | 'production' | 'test';
     logLevel: 'debug' | 'info' | 'warn' | 'error';
   };
-}
-
-/**
- * Validates and returns a port number
- */
-function validatePort(port: string | undefined, defaultPort: number): number {
-  const parsedPort = parseInt(port || '', 10);
-  return isNaN(parsedPort) ? defaultPort : parsedPort;
-}
-
-/**
- * Validates environment type
- */
-function validateEnvironment(env: string | undefined): AppConfig['app']['environment'] {
-  const validEnvironments: AppConfig['app']['environment'][] = ['development', 'production', 'test'];
-  const environment = (env || 'development').toLowerCase() as AppConfig['app']['environment'];
-  return validEnvironments.includes(environment) ? environment : 'development';
+  storage: { // Added storage configuration
+    type: 'database' | 'memory';
+  };
 }
 
 /**
@@ -47,12 +33,42 @@ export const config: AppConfig = {
     apiKey: process.env.OPENAI_API_KEY,
   },
   server: {
-    port: validatePort(process.env.PORT, 3001),
-    host: process.env.HOST || 'localhost',
+    port: (() => {
+      if (!process.env.PORT) throw new Error('PORT environment variable must be set.');
+      const parsedPort = parseInt(process.env.PORT, 10);
+      if (isNaN(parsedPort)) throw new Error('PORT environment variable must be a valid number.');
+      return parsedPort;
+    })(),
+    host: (() => {
+      if (!process.env.HOST) throw new Error('HOST environment variable must be set.');
+      return process.env.HOST;
+    })(),
   },
   app: {
-    environment: validateEnvironment(process.env.NODE_ENV),
-    logLevel: (process.env.LOG_LEVEL || 'info') as AppConfig['app']['logLevel'],
+    environment: (() => {
+      if (!process.env.NODE_ENV) throw new Error('NODE_ENV environment variable must be set.');
+      const validEnvironments: AppConfig['app']['environment'][] = ['development', 'production', 'test'];
+      const environment = process.env.NODE_ENV.toLowerCase() as AppConfig['app']['environment'];
+      if (!validEnvironments.includes(environment)) throw new Error('NODE_ENV must be one of development, production, or test.');
+      return environment;
+    })(),
+    logLevel: (() => {
+      if (!process.env.LOG_LEVEL) throw new Error('LOG_LEVEL environment variable must be set.');
+      const validLogLevels: AppConfig['app']['logLevel'][] = ['debug', 'info', 'warn', 'error'];
+      const logLevel = process.env.LOG_LEVEL.toLowerCase() as AppConfig['app']['logLevel'];
+      if (!validLogLevels.includes(logLevel)) throw new Error('LOG_LEVEL must be one of debug, info, warn, or error.');
+      return logLevel;
+    })(),
+  },
+  storage: { // Added storage type reading
+    type: (() => {
+      if (!process.env.STORAGE_TYPE) throw new Error('STORAGE_TYPE environment variable must be set.');
+      const storageType = process.env.STORAGE_TYPE.toLowerCase() as AppConfig['storage']['type'];
+      if (storageType !== 'database' && storageType !== 'memory') {
+        throw new Error('STORAGE_TYPE must be either "database" or "memory".');
+      }
+      return storageType;
+    })(),
   },
 };
 
@@ -68,6 +84,21 @@ export function validateConfig(): void {
 
   if (!config.openai.apiKey && config.app.environment === 'production') {
     errors.push('OPENAI_API_KEY is required in production environment');
+  }
+
+  if (!config.server.port) {
+    errors.push('PORT is required');
+  }
+
+  if (!config.server.host) {
+    errors.push('HOST is required');
+  }
+
+  // Added STORAGE_TYPE validation
+  if (!config.storage.type) {
+    errors.push('STORAGE_TYPE is required');
+  } else if (config.storage.type === 'database' && !process.env.DATABASE_URL) {
+    errors.push('DATABASE_URL is required when STORAGE_TYPE is "database"');
   }
 
   if (errors.length > 0) {
@@ -94,23 +125,3 @@ export function getConfigValue<T>(path: string, fallback: T): T {
 
 // Remove the entire PATHS object as it seems unused
 // export const PATHS = { ... };
-
-// Test mode detection
-export const isE2ETestMode = process.env.E2E_TEST_MODE === 'true' || 
-  (process.env.NODE_ENV === 'test' && process.argv.includes('--e2e'));
-
-// Storage configuration
-export const getStorageType = (): 'memory' | 'database' => {
-  // Force memory storage for E2E tests
-  if (isE2ETestMode) {
-    return 'memory';
-  }
-  
-  // Check explicit STORAGE_TYPE setting
-  if (process.env.STORAGE_TYPE === 'database' || process.env.STORAGE_TYPE === 'memory') {
-    return process.env.STORAGE_TYPE;
-  }
-  
-  // Fallback to DATABASE_URL check for backward compatibility
-  return process.env.DATABASE_URL ? 'database' : 'memory';
-};

@@ -126,10 +126,11 @@
             }
 
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            // Ensure classroomCode for WebSocket URL matches server expectation (e.g. ?code= or ?class=)
-            // Based on server/routes.ts /join route and student.html URL parsing, 'code' is used.
-            // WebSocketServer.ts also parses for 'class' or 'code'. Using 'code' for consistency.
-            const wsUrl = `${protocol}//${window.location.host}/ws?code=${classroomCode}`;
+            // TODO: Replace with injected WS URL at build time or via global variable
+            if (!window.VITE_WS_URL) {
+              throw new Error('VITE_WS_URL must be set as a global variable or injected at build time.');
+            }
+            const wsUrl = window.VITE_WS_URL;
             
             // console.log('Connecting to WebSocket:', wsUrl, 'Lang:', appState.selectedLanguage);
             appState.ws = new WebSocket(wsUrl);
@@ -319,4 +320,4 @@
         window.handleWebSocketMessage = (data) => webSocketHandler.handleMessage({data: JSON.stringify(data)}); // Adapt if test calls with object
     }
 
-})(); // End of IIFE 
+})(); // End of IIFE

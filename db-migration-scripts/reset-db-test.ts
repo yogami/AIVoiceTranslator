@@ -28,10 +28,8 @@ const tableNames = [
 
 const resetTestDatabase = async () => {
   const dbUrl = process.env.DATABASE_URL;
-
   if (!dbUrl) {
-    console.error('🔴 DATABASE_URL environment variable is not set. Ensure it is present in your .env.test file.');
-    process.exit(1);
+    throw new Error('DATABASE_URL environment variable must be set.');
   }
 
   const urlParts = dbUrl.split('@');
