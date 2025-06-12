@@ -21,6 +21,7 @@ beforeAll(() => {
   process.env.HOST = 'localhost';
   process.env.NODE_ENV = 'test';
   process.env.LOG_LEVEL = 'info';
+  process.env.STORAGE_TYPE = 'memory'; // Added this line
   process.env.TEST_DB_URL = 'postgres://user:pass@localhost:5432/testdb';
   process.env.TEST_REDIS_URL = 'redis://localhost:6379';
   process.env.TEST_PORT = '1234';
@@ -87,24 +88,33 @@ describe('server/index.ts (entry point)', () => {
 
   it('logs error and exits if startServer rejects', async () => {
     const fakeError = new Error('Failed to start');
+    // Ensure fakeError has a stack for consistent testing, as error.stack can sometimes be undefined
+    if (!fakeError.stack) {
+      fakeError.stack = 'mocked stack trace for testing';
+    }
     
     vi.resetModules(); // Reset module cache first
 
     // --- Mocks specific to this test case, applied after resetModules ---
-    const mockLoggerErrorMethod = vi.fn();
+    // Mock for logger.error, in case other parts of server/index.ts (e.g., validateConfig) use it.
+    // Not directly asserted for the main catch block of startServer rejection.
+    const specificTestLoggerErrorMock = vi.fn();
     vi.doMock('../../server/logger', () => ({
-      default: { // Assuming logger.ts exports the logger as default
+      default: { 
         info: vi.fn(),
         warn: vi.fn(),
-        error: mockLoggerErrorMethod, // server/index.ts will use this specific mock
+        error: specificTestLoggerErrorMock, 
         debug: vi.fn(),
       }
     }));
 
-    const isolatedStartServerMock = vi.fn().mockRejectedValue(fakeError);
-    vi.doMock('../../server/server', () => ({ // Mock the server module for this import
+    const isolatedStartServerMock = vi.fn().mockImplementation(() => { throw fakeError; });
+    vi.doMock('../../server/server', () => ({ 
       startServer: isolatedStartServerMock
     }));
+
+    // Spy on console.error for this test, as server/index.ts uses it in the catch block
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Spy on the global process.exit for this test
     const localProcessExitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
@@ -133,11 +143,21 @@ describe('server/index.ts (entry point)', () => {
     
     // Assert against the mocks and spies created specifically for this test
     expect(isolatedStartServerMock).toHaveBeenCalledTimes(1);
-    expect(mockLoggerErrorMethod).toHaveBeenCalledTimes(1); 
-    expect(mockLoggerErrorMethod).toHaveBeenCalledWith('Error starting server:', { error: fakeError }); 
+    
+    // Assert console.error calls based on server/index.ts's catch block
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(2); 
+    expect(consoleErrorSpy).toHaveBeenNthCalledWith(1, 
+      expect.stringContaining('CRITICAL ERROR during initialization:'), 
+      fakeError
+    );
+    // The second call in server/index.ts logs a string: `...Error stack: ${error.stack}`
+    expect(consoleErrorSpy).toHaveBeenNthCalledWith(2, 
+      expect.stringContaining('Error stack: ' + fakeError.stack)
+    );
+    
     expect(localProcessExitSpy).toHaveBeenCalledWith(1);
     
-    // localProcessExitSpy will be restored by afterEach's vi.restoreAllMocks()
+    // consoleErrorSpy and localProcessExitSpy will be restored by afterEach's vi.restoreAllMocks()
     // The vi.doMock for logger and server will be cleared by afterEach's vi.resetModules()
   });
 });
