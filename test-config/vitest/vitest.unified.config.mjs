@@ -58,7 +58,7 @@ const getTestTimeouts = (mode) => {
 };
 
 const setupFiles = [
-  './test-config/test-env.js',
+  './test-config/test-env.js',  // This will now handle all env var checks and loading from .env.test
   './test-config/vitest/vitest.setup.ts',
 ];
 

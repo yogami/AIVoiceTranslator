@@ -1,3 +1,14 @@
+// Strictly require all env vars for config at the very top
+process.env.PORT = '3002'; // Use a different port if necessary to avoid conflicts, or same if server instance is mocked/not started
+process.env.HOST = 'localhost';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/testdb';
+process.env.OPENAI_API_KEY = 'test_openai_key';
+process.env.VITE_API_URL = 'http://localhost:3001/api';
+process.env.VITE_WS_URL = 'ws://localhost:3001';
+process.env.NODE_ENV = 'test';
+process.env.TEST_REDIS_URL = 'redis://localhost:6380';
+process.env.LOG_LEVEL = 'silent';
+
 // TODO: [Technical Debt - Test Cleanup & Coverage]
 // This test file needs a full review and refactoring/rewrite.
 // - Ensure robust and maintainable mocking for the 'ws' library (WebSocket and WebSocketServer classes).
@@ -18,7 +29,7 @@
  * Consolidated from multiple test files
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { Server as HttpServer } from 'http';
 import { WebSocketServer } from '../../../server/services/WebSocketServer';
 import { createMockWebSocketClient, createMockRequest } from '../utils/test-helpers';

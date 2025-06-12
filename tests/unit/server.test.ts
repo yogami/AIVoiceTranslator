@@ -92,6 +92,17 @@ const getWebSocketServerMockConstructor = () => (WSService as any)._webSocketSer
 describe('Server Unit Tests', () => {
   let server: any;
   
+  // Set required env vars for config strictness
+  beforeAll(() => {
+    process.env.PORT = '1234';
+    process.env.HOST = 'localhost';
+    process.env.NODE_ENV = 'test';
+    process.env.LOG_LEVEL = 'info';
+    process.env.TEST_REDIS_URL = 'redis://localhost:6379';
+    process.env.TEST_PORT = '1234';
+    process.env.TEST_HOST = 'localhost';
+  });
+
   beforeEach(() => {
     vi.clearAllMocks(); 
     

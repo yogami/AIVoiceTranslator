@@ -11,10 +11,8 @@ const __dirname = path.dirname(__filename);
 
 const runMigrations = async () => {
   const dbUrl = process.env.DATABASE_URL;
-
   if (!dbUrl) {
-    console.error('🔴 DATABASE_URL environment variable is not set. Make sure it is present in your .env file or set in your environment.');
-    process.exit(1);
+    throw new Error('DATABASE_URL environment variable must be set.');
   }
 
   // Mask credentials for logging

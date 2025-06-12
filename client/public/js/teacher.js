@@ -6,7 +6,10 @@
 // Implement/fix the "Connected Students: <span id="studentCount">0</span>" display logic.
 // This involves WebSocket messages from the server to update the count and potentially list.
 
+console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
+
 (function() {
+    console.log('[DEBUG] teacher.js: IIFE executed.');
     const appState = {
         ws: null,
         isRecording: false,
@@ -84,66 +87,124 @@
 
     const webSocketHandler = {
         connect: function() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            uiUpdater.updateStatus('Connecting to server...');
-            appState.ws = new WebSocket(wsUrl);
+            console.log('[DEBUG] teacher.js: webSocketHandler.connect called.');
+            
+            const viteWsUrlFromWindow = window.VITE_WS_URL;
+            console.log('[DEBUG] teacher.js: Value of window.VITE_WS_URL is:', viteWsUrlFromWindow);
+
+            if (!viteWsUrlFromWindow) {
+                const errorMessage = 'CRITICAL ERROR: window.VITE_WS_URL is not defined. WebSocket cannot connect. Ensure Vite dev server is running and configured.';
+                console.error(errorMessage);
+                uiUpdater.updateStatus(errorMessage, 'error');
+                if (domElements.studentUrlDisplay) domElements.studentUrlDisplay.textContent = 'Configuration Error!';
+                return; // Stop further execution
+            }
+
+            const wsUrl = viteWsUrlFromWindow;
+            uiUpdater.updateStatus('Connecting to server at ' + wsUrl + '...');
+            
+            try {
+                appState.ws = new WebSocket(wsUrl);
+                console.log('[DEBUG] teacher.js: WebSocket object created for URL:', wsUrl);
+            } catch (e) {
+                console.error('[DEBUG] teacher.js: Error creating WebSocket object:', e);
+                uiUpdater.updateStatus('Error creating WebSocket connection: ' + e.message, 'error');
+                return;
+            }
             
             appState.ws.onopen = () => {
+                console.log('[DEBUG] teacher.js: WebSocket onopen event fired.');
                 uiUpdater.updateStatus('Connected to server');
-                // Registration is now typically triggered by server's 'connection' message
+                // Registration is now typically triggered by server's 'connection' message or explicitly
+                // Let's explicitly call register after connection for teacher
+                this.register(); 
             };
-            appState.ws.onmessage = (event) => this.handleMessage(event); // Use arrow function or .bind for correct 'this'
-            appState.ws.onclose = () => {
-                uiUpdater.updateStatus('Disconnected from server');
-                if (domElements.classroomCodeDisplay) domElements.classroomCodeDisplay.textContent = 'DISCONNECTED';
-                setTimeout(() => this.connect(), 3000); // Reconnect via the handler method
+            appState.ws.onmessage = (event) => {
+                console.log('[DEBUG] teacher.js: WebSocket onmessage event fired. Data:', event.data);
+                this.handleMessage(event);
+            }; // Use arrow function or .bind for correct 'this'
+            appState.ws.onclose = (event) => {
+                console.log('[DEBUG] teacher.js: WebSocket onclose event fired. Was clean:', event.wasClean, 'Code:', event.code, 'Reason:', event.reason);
+                uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                // Reconnect logic might need adjustment based on why it closed.
+                // Avoid immediate aggressive reconnection if it was a config error.
+                if (viteWsUrlFromWindow) { // Only attempt reconnect if the URL was initially valid
+                    setTimeout(() => this.connect(), 5000); // Increased timeout
+                }
             };
             appState.ws.onerror = (error) => {
-                uiUpdater.updateStatus('Connection error');
-                console.error('WebSocket error:', error);
+                console.error('[DEBUG] teacher.js: WebSocket onerror event fired:', error);
+                uiUpdater.updateStatus('WebSocket connection error.', 'error');
             };
         },
 
         register: function() {
+            console.log('[DEBUG] teacher.js: webSocketHandler.register called.');
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 const message = {
                     type: 'register',
                     role: 'teacher',
                     languageCode: appState.selectedLanguage
                 };
+                console.log('[DEBUG] teacher.js: Sending register message:', message);
                 appState.ws.send(JSON.stringify(message));
+            } else {
+                console.warn('[DEBUG] teacher.js: WebSocket not open. Cannot send register message. State:', appState.ws ? appState.ws.readyState : 'null');
             }
         },
 
         handleMessage: function(event) {
             const data = JSON.parse(event.data);
+            // console.log('[DEBUG] teacher.js: WebSocket onmessage event fired. Data:', event.data); // Original log for line 123
+
             switch (data.type) {
                 case 'connection':
-                    uiUpdater.updateStatus('Connected to server');
-                    appState.sessionId = data.sessionId; // Store session ID
-                    this.register(); // Call internal method
-                    break;
-                case 'register':
-                    if (data.status === 'success') uiUpdater.updateStatus('Registered as teacher');
-                    break;
-                case 'classroom_code':
-                    uiUpdater.displayClassroomCode(data.code, data.expiresAt);
-                    break;
-                case 'transcription': 
-                    uiUpdater.displayTranscription(data.text, data.isFinal);
-                    break; 
-                case 'error':
-                    console.error('Server error:', data.message);
-                    // Don't show transcription errors in the UI since we're using client-side speech recognition
-                    if (data.code !== 'TRANSCRIPTION_ERROR') {
-                        uiUpdater.updateStatus(`Error: ${data.message}`, 'error');
+                    console.log('Connection message received:', data); // Original log for line 162
+                    if (data.status === 'connected' && data.sessionId) {
+                        appState.sessionId = data.sessionId;
+                        console.log('Session ID received on connection:', appState.sessionId); // Original log for line 176
                     }
                     break;
+
+                case 'register':
+                    console.log('Register response received:', data); // Original log for line 185
+                    if (data.status === 'success') {
+                        uiUpdater.updateStatus('Successfully registered with server.', 'success');
+                        console.log('Teacher registration successful:', data);
+                        // Add any specific actions needed after successful teacher registration
+                    } else {
+                        const errorMessage = 'Registration failed: ' + (data.message || (data.data ? JSON.stringify(data.data) : 'Unknown reason'));
+                        uiUpdater.updateStatus(errorMessage, 'error');
+                        console.error('Registration failed:', data); // This was line 197, now correctly in the failure path
+                    }
+                    break;
+
+                case 'classroom_code':
+                    console.log('Classroom code message received:', data); // Original log for line 202
+                    if (data.code) {
+                        uiUpdater.displayClassroomCode(data.code, data.expiresAt); // Implied by line 54 log
+                    }
+                    break;
+
+                case 'transcription': 
+                    // console.log('Transcription message received:', data);
+                    if (data.text) {
+                        uiUpdater.displayTranscription(data.text, data.isFinal || false);
+                    }
+                    break;
+ 
+                case 'error':
+                    console.error('Error message from server:', data.message || data);
+                    uiUpdater.updateStatus('Error: ' + (data.message || JSON.stringify(data)), 'error');
+                    break;
+
                 case 'ping':
+                    // console.log('Ping received from server, sending pong.');
                     this.sendPong();
                     break;
-                default: console.log('Unknown message type:', data.type);
+
+                default: 
+                    console.log('Unknown message type received by teacher:', data.type, data);
             }
         },
 
@@ -323,6 +384,7 @@
     };
 
     document.addEventListener('DOMContentLoaded', function main() {
+        console.log('[DEBUG] teacher.js: DOMContentLoaded event fired.');
         // Initialize DOM element references
         domElements.languageSelect = document.getElementById('teacherLanguage');
         domElements.classroomInfo = document.getElementById('classroomInfo');
@@ -348,7 +410,7 @@
             domElements.recordButton.addEventListener('click', () => speechHandler.toggle()); // Call speechHandler.toggle
         }
         
-        webSocketHandler.connect(); // Initial connection
+        webSocketHandler.connect();
         speechHandler.setup(); // Call speechHandler.setup
     });
 
@@ -367,4 +429,4 @@
         }
     }
 
-})(); 
+})();

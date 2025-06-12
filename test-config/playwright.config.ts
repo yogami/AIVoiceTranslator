@@ -64,3 +64,13 @@ export default defineConfig({
     timeout: 120 * 1000, // 2 minutes
   },
 });
+
+const baseURL = process.env.PLAYWRIGHT_BASE_URL;
+if (!baseURL) {
+  // Provide a fallback for local/dev, but throw in CI
+  if (process.env.CI) {
+    throw new Error('PLAYWRIGHT_BASE_URL environment variable must be set for Playwright tests.');
+  } else {
+    process.env.PLAYWRIGHT_BASE_URL = 'http://localhost:5000';
+  }
+}

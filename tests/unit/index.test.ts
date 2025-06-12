@@ -2,8 +2,30 @@
  * Server Entry Point Tests
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// Ensure required env vars for strict config at the very top
+process.env.PORT = process.env.PORT || '5001';
+process.env.HOST = process.env.HOST || '127.0.0.1';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://user:pass@localhost:5432/testdb';
+process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY || 'sk-test-key';
+process.env.VITE_API_URL = process.env.VITE_API_URL || 'http://127.0.0.1:5001';
+process.env.VITE_WS_URL = process.env.VITE_WS_URL || 'ws://127.0.0.1:5001';
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+process.env.TEST_DB_URL = process.env.TEST_DB_URL || 'postgres://user:pass@localhost:5432/testdb';
+
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import logger from '../../server/logger'; // Import the logger
+
+// Set required env vars for config strictness
+beforeAll(() => {
+  process.env.PORT = '1234';
+  process.env.HOST = 'localhost';
+  process.env.NODE_ENV = 'test';
+  process.env.LOG_LEVEL = 'info';
+  process.env.TEST_DB_URL = 'postgres://user:pass@localhost:5432/testdb';
+  process.env.TEST_REDIS_URL = 'redis://localhost:6379';
+  process.env.TEST_PORT = '1234';
+  process.env.TEST_HOST = 'localhost';
+});
 
 describe('server/index.ts (entry point)', () => {
   let startServerMock: any;

@@ -66,11 +66,14 @@ export class WebSocketService {
    */
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = (import.meta as any).env.VITE_WS_URL;
+      if (!wsUrl) {
+        throw new Error('VITE_WS_URL environment variable must be set.');
+      }
       const params = this.classroomCode ? `?code=${this.classroomCode}` : '';
-      const wsUrl = `${protocol}//${window.location.host}/ws${params}`;
+      const fullUrl = `${wsUrl}${params}`;
 
-      this.ws = new WebSocket(wsUrl);
+      this.ws = new WebSocket(fullUrl);
       this.isIntentionallyClosed = false;
 
       this.ws.onopen = () => {
@@ -217,4 +220,4 @@ export class WebSocketService {
   isConnected(): boolean {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
-} 
+}

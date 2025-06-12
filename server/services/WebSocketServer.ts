@@ -6,13 +6,14 @@
  * 
  * IMPORTANT: This is the implementation currently used by server.ts
  */
-import { Server } from 'http';
-import { WebSocketServer as WSServer } from 'ws';
-import { speechTranslationService } from './TranslationService';
-import { audioTranscriptionService } from './transcription/AudioTranscriptionService';
-import { URL } from 'url';
-import { storage } from '../storage';
+import { WebSocketServer as WSServer, WebSocket } from 'ws';
+import * as http from 'http'; // Changed to namespace import
 import logger from '../logger';
+import { speechTranslationService } from './TranslationService'; // Corrected import path
+import { audioTranscriptionService } from './transcription/AudioTranscriptionService'; // Corrected import path
+import { storage } from '../storage'; // Changed to named import
+import { config } from '../config'; // Removed AppConfig, already have config instance
+import { URL } from 'url';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -71,7 +72,7 @@ export class WebSocketServer {
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  constructor(server: Server) {
+  constructor(server: http.Server) { // Use http.Server type
     this.wss = new WSServer({ server });
     
     // Set up event handlers
@@ -109,7 +110,9 @@ export class WebSocketServer {
     let classroomCode: string | null = null;
     
     if (request?.url) {
-      const url = new URL(request.url, 'http://localhost');
+      // Construct the base URL using the configured host and port
+      const baseUrl = `http://${config.server.host}:${config.server.port}`;
+      const url = new URL(request.url, baseUrl);
       classroomCode = url.searchParams.get('class') || url.searchParams.get('code');
       
       if (classroomCode) {
