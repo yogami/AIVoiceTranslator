@@ -44,6 +44,7 @@ describe('Config Module (server/config.ts)', () => {
     process.env.HOST = 'localhost-test';
     process.env.PORT = '6789'; 
     process.env.LOG_LEVEL = 'debug';
+    process.env.STORAGE_TYPE = 'memory'; // Ensure STORAGE_TYPE is always set unless a test unsets it
     // OPENAI_API_KEY is specifically set or unset by individual tests
   });
 
