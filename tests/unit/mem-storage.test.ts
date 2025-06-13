@@ -14,7 +14,10 @@ describe('MemStorage', () => {
       const sessionData: InsertSession = {
         sessionId: 'test-session-123',
         isActive: true,
-        startTime: new Date(),
+        teacherLanguage: 'en-US', 
+        studentsCount: 0,
+        totalTranslations: 0,
+        averageLatency: 0,
       };
       const createdSession = await memStorage.createSession(sessionData);
       
@@ -33,19 +36,19 @@ describe('MemStorage', () => {
       const sessionData: InsertSession = {
         sessionId: 'test-session-inactive-456',
         isActive: false, // Initially inactive or became inactive
-        startTime: new Date(),
-        endTime: new Date(),
+        teacherLanguage: 'en-US',
+        studentsCount: 0,
+        totalTranslations: 0,
+        averageLatency: 0,
       };
-      // Directly add to sessionStorage's map as createSession might enforce active status
-      // This requires access to the internal sessionStorage or a way to make it inactive.
-      // For simplicity, we'll create it then make it inactive if MemSessionStorage allows.
-      // If MemSessionStorage.createSession always makes it active, this test needs adjustment
-      // or direct manipulation of the underlying map if MemSessionStorage.endSession is used.
 
       const createdActiveSession = await memStorage.createSession({
         sessionId: 'test-session-inactive-456',
         isActive: true,
-        startTime: new Date(),
+        teacherLanguage: 'en-US',
+        studentsCount: 0,
+        totalTranslations: 0,
+        averageLatency: 0,
       });
       await memStorage.endSession('test-session-inactive-456'); // Make it inactive
 
