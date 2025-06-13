@@ -94,6 +94,9 @@ export class DatabaseStorage implements IStorage {
   async getActiveSession(sessionId: string) { return this.sessionStorage.getActiveSession(sessionId); }
   async getAllActiveSessions() { return this.sessionStorage.getAllActiveSessions(); }
   async endSession(sessionId: string) { return this.sessionStorage.endSession(sessionId); }
+  async getSessionById(sessionId: string): Promise<Session | undefined> { // Add getSessionById
+    return this.sessionStorage.getSessionById(sessionId);
+  }
   
   // Make sure the return type matches IStorage or the specific implementation in DbSessionStorage
   async getRecentSessionActivity(limit: number = 5): Promise<Array<{

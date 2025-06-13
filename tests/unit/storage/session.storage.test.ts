@@ -211,13 +211,19 @@ describe('Session Storage', () => {
       expect(mockedDb.returning).toHaveBeenCalled();
     });
 
+    it('should throw StorageError with CREATE_FAILED code on unique constraint violation in createSession', async () => {
+      const newSessionData: InsertSession = { sessionId: 'db-duplicate', teacherLanguage: 'en' };
+      // Simulate a DB error for unique constraint violation
+      const dbError = new Error('duplicate key value violates unique constraint');
+      (mockedDb.returning as Mock).mockImplementationOnce(() => { throw dbError; });
+      await expect(dbSessionStorage.createSession(newSessionData)).rejects.toThrow(StorageError);
+      await expect(dbSessionStorage.createSession(newSessionData)).rejects.toSatisfy((e: StorageError) => e.code === 'CREATE_FAILED');
+    });
+
     it('should throw StorageError if DB returns no data after insert for createSession', async () => {
       const newSessionData: InsertSession = { sessionId: 'db-sess-fail', teacherLanguage: 'es' };
       (mockedDb.returning as Mock).mockResolvedValueOnce([]);
-      
       await expect(dbSessionStorage.createSession(newSessionData)).rejects.toThrow(StorageError);
-      
-      (mockedDb.returning as Mock).mockResolvedValueOnce([]);
       await expect(dbSessionStorage.createSession(newSessionData)).rejects.toSatisfy((e: StorageError) => e.code === 'CREATE_FAILED');
     });
 
@@ -403,11 +409,15 @@ describe('Session Storage', () => {
 
     it('should throw StorageError on DB error during getRecentSessionActivity', async () => {
       const dbError = new Error('DB query failed');
-      ((mockedDb as any).then as Mock).mockImplementationOnce((_resolve: any, reject: any) => reject(dbError));
-      
+      // Create a thenable that always rejects
+      const rejectingThenable = { then: (_resolve: any, reject: any) => reject(dbError) };
+      (mockedDb.select as Mock).mockReturnValue(rejectingThenable);
+      (mockedDb.from as Mock).mockReturnValue(rejectingThenable);
+      (mockedDb.leftJoin as Mock).mockReturnValue(rejectingThenable);
+      (mockedDb.groupBy as Mock).mockReturnValue(rejectingThenable);
+      (mockedDb.orderBy as Mock).mockReturnValue(rejectingThenable);
+      (mockedDb.limit as Mock).mockReturnValue(rejectingThenable);
       await expect(dbSessionStorage.getRecentSessionActivity(3)).rejects.toThrow(StorageError);
-      
-      ((mockedDb as any).then as Mock).mockImplementationOnce((_resolve: any, reject: any) => reject(dbError));
       await expect(dbSessionStorage.getRecentSessionActivity(3)).rejects.toSatisfy((e: StorageError) => e.code === 'STORAGE_ERROR');
     });
   });

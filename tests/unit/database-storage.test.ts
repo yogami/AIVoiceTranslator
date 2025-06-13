@@ -16,8 +16,9 @@ process.env.LOG_LEVEL = 'info'; // Set LOG_LEVEL for tests, ensuring it's define
 
 import { describe, it, expect, beforeEach, vi, afterEach, beforeAll } from 'vitest';
 import { DatabaseStorage } from '../../server/database-storage';
+import { DbSessionStorage } from '../../server/storage/session.storage';
 import { IStorage } from '../../server/storage.interface';
-import { sessions, translations } from '../../shared/schema';
+import { Session, sessions, translations } from '../../shared/schema';
 
 // Mock the sub-storages
 vi.mock('../../server/storage/user.storage');
@@ -217,6 +218,44 @@ describe('DatabaseStorage Metrics', () => {
       ]);
        expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query');
        expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({}); // Changed from no arguments to an empty object
+    });
+  });
+
+  describe('getSessionById', () => {
+    // storage is an instance of DatabaseStorage, as per outer beforeEach
+    // DbSessionStorage is mocked via vi.mock('../../server/storage/session.storage');
+    // So, (storage as any).sessionStorage will be a mock instance of DbSessionStorage.
+    // Its methods like getSessionById will be vi.fn() by default.
+
+    it('should delegate to sessionStorage.getSessionById and return a session if found', async () => {
+      const mockSessionData: Session = {
+        id: 1,
+        sessionId: 'test-session-db-1',
+        isActive: true,
+        startTime: new Date(),
+        endTime: null,
+        teacherLanguage: 'en-US',
+        studentsCount: 0,
+        totalTranslations: 0, 
+        averageLatency: null,
+      };
+      
+      const mockSessionStorageInstance = (storage as any).sessionStorage;
+      // The method on the auto-mocked instance is already a vi.fn()
+      (mockSessionStorageInstance.getSessionById as import('vitest').Mock).mockResolvedValue(mockSessionData);
+
+      const session = await storage.getSessionById('test-session-db-1');
+      expect(session).toEqual(mockSessionData);
+      expect(mockSessionStorageInstance.getSessionById).toHaveBeenCalledWith('test-session-db-1');
+    });
+
+    it('should delegate to sessionStorage.getSessionById and return undefined if not found', async () => {
+      const mockSessionStorageInstance = (storage as any).sessionStorage;
+      (mockSessionStorageInstance.getSessionById as import('vitest').Mock).mockResolvedValue(undefined);
+
+      const session = await storage.getSessionById('non-existent-db-session');
+      expect(session).toBeUndefined();
+      expect(mockSessionStorageInstance.getSessionById).toHaveBeenCalledWith('non-existent-db-session');
     });
   });
 });
