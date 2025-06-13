@@ -43,6 +43,7 @@ export interface IStorage {
     endTime: Date | null;
     duration: number;
   }[]>;
+  getSessionById(sessionId: string): Promise<Session | undefined>; // Added getSessionById
   
   // Analytics methods
   getSessionAnalytics(sessionId: string): Promise<{

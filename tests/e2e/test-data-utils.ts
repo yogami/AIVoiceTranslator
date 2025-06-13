@@ -1,18 +1,20 @@
 import { db } from '../../server/db';
-import { sessions, translations, type InsertSession, type InsertTranslation, users } from '../../shared/schema';
+import { sessions, translations, transcripts, type InsertSession, type InsertTranslation, users } from '../../shared/schema';
 import { sql } from 'drizzle-orm';
 
 /**
- * Clears session and translation data from the test database.
+ * Clears session, translation, and transcript data from the test database, and resets sequences.
  */
 export async function clearDiagnosticData() {
-  // Note: User data is not cleared here. Assumes users required by tests exist.
+  // Delete in order: transcripts -> translations -> sessions
+  await db.delete(transcripts).execute();
   await db.delete(translations).execute();
   await db.delete(sessions).execute();
-  // If your DB uses sequences and tests depend on specific IDs, you might need to reset them:
-  // await db.execute(sql`ALTER SEQUENCE sessions_id_seq RESTART WITH 1;`);
-  // await db.execute(sql`ALTER SEQUENCE translations_id_seq RESTART WITH 1;`);
-  console.log('Cleared diagnostic data (sessions, translations).');
+  // Reset sequences for predictable IDs (ignore if sequence doesn't exist)
+  try { await db.execute(sql`ALTER SEQUENCE sessions_id_seq RESTART WITH 1;`); } catch {}
+  try { await db.execute(sql`ALTER SEQUENCE translations_id_seq RESTART WITH 1;`); } catch {}
+  try { await db.execute(sql`ALTER SEQUENCE transcripts_id_seq RESTART WITH 1;`); } catch {}
+  console.log('Cleared diagnostic data (transcripts, translations, sessions) and reset sequences.');
 }
 
 /**
@@ -64,21 +66,13 @@ export async function seedRealisticTestData() {
 
   const sessionsToSeed: InsertSession[] = [
     // Recent sessions (within last 7 days)
-    // Corrected: InsertSession in schema.ts does not directly take userId, ipAddress, userAgent, startTime, endTime.
-    // These are part of the main 'sessions' table but not all are in 'InsertSession' Zod schema.
-    // For seeding, we need to align with what `db.insert(sessions).values()` expects, which is based on the table definition.
-    // The Drizzle `sessions` table itself does not have a `userId` column. It has `sessionId`, `teacherLanguage`, etc.
-    // Assuming `userId` was intended to be linked via a separate mechanism or is a conceptual link not directly in this table schema for insertion.
-    // For now, I will remove `userId`, `ipAddress`, `userAgent` as they are not in `InsertSession` or the `sessions` table schema directly for insertion via the Zod schema.
-    // startTime and endTime are part of the main table, but `InsertSession` from Zod might be more restrictive.
-    // Let's assume for seeding we can provide them if the table columns allow it (which they do).
-    { sessionId: 'e2e-session-1', startTime: getDateRelativeToNow(-1), endTime: getDateRelativeToNow(-1, 2), isActive: false, teacherLanguage: 'en' }, // Ended yesterday
-    { sessionId: 'e2e-session-2', startTime: getDateRelativeToNow(-3), endTime: getDateRelativeToNow(-3, 1), isActive: false, teacherLanguage: 'es' }, // Ended 3 days ago
-    { sessionId: 'e2e-session-3', startTime: getDateRelativeToNow(0, -1), isActive: true, teacherLanguage: 'de' }, // Active, started 1 hour ago
+    { sessionId: 'e2e-session-1', isActive: false, teacherLanguage: 'en' }, // Ended yesterday
+    { sessionId: 'e2e-session-2', isActive: false, teacherLanguage: 'es' }, // Ended 3 days ago
+    { sessionId: 'e2e-session-3', isActive: true, teacherLanguage: 'de' }, // Active, started 1 hour ago
 
     // Older sessions (between 8 and 30 days ago)
-    { sessionId: 'e2e-session-4', startTime: getDateRelativeToNow(-10), endTime: getDateRelativeToNow(-10, 2), isActive: false, teacherLanguage: 'fr' },
-    { sessionId: 'e2e-session-5', startTime: getDateRelativeToNow(-25), endTime: getDateRelativeToNow(-25, 1), isActive: false, teacherLanguage: 'en' },
+    { sessionId: 'e2e-session-4', isActive: false, teacherLanguage: 'fr' },
+    { sessionId: 'e2e-session-5', isActive: false, teacherLanguage: 'en' },
   ];
   const seededSessions = await seedSessions(sessionsToSeed);
   

@@ -106,6 +106,7 @@ export class MemStorage implements IStorage {
   async getAllActiveSessions() { return this.sessionStorage.getAllActiveSessions(); }
   async endSession(sessionId: string) { return this.sessionStorage.endSession(sessionId); }
   async getRecentSessionActivity(limit?: number) { return this.sessionStorage.getRecentSessionActivity(limit); }
+  async getSessionById(sessionId: string): Promise<Session | undefined> { return this.sessionStorage.getSessionById(sessionId); }
 
   // Analytics methods
   async getSessionAnalytics(sessionId: string): Promise<{

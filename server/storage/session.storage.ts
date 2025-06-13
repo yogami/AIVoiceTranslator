@@ -26,6 +26,7 @@ export interface ISessionStorage {
     endTime: Date | null;
     duration: number;
   }[]>;
+  getSessionById(sessionId: string): Promise<Session | undefined>; // New method
 }
 
 export class MemSessionStorage implements ISessionStorage {
@@ -125,13 +126,21 @@ export class MemSessionStorage implements ISessionStorage {
       };
     });
   }
+
+  async getSessionById(sessionId: string): Promise<Session | undefined> {
+    return Array.from(this.sessions.values()).find(s => s.sessionId === sessionId);
+  }
 }
 
 export class DbSessionStorage implements ISessionStorage {
   async createSession(session: InsertSession): Promise<Session> {
     try {
-      const result = await db // db from ../db
-        .insert(sessions) // sessions from ../../shared/schema
+      console.log('[DbSessionStorage.createSession] Attempting to insert session:', {
+        sessionId: session.sessionId,
+        values: { ...session }
+      });
+      const result = await db
+        .insert(sessions)
         .values({
           ...session,
           startTime: new Date(),
@@ -140,10 +149,16 @@ export class DbSessionStorage implements ISessionStorage {
         })
         .returning();
       if (!result[0]) {
+        console.error('[DbSessionStorage.createSession] Insert returned no result for sessionId:', session.sessionId);
         throw new StorageError('Failed to create session', StorageErrorCode.CREATE_FAILED);
       }
+      console.log('[DbSessionStorage.createSession] Successfully inserted session:', result[0]);
       return result[0];
     } catch (error: any) {
+      console.error('[DbSessionStorage.createSession] Error inserting session:', {
+        sessionId: session.sessionId,
+        error: error && error.message ? error.message : error
+      });
       if (error instanceof StorageError) throw error;
       throw new StorageError(`Failed to create session: ${error.message}`, StorageErrorCode.CREATE_FAILED, error);
     }
@@ -248,6 +263,19 @@ export class DbSessionStorage implements ISessionStorage {
     } catch (error: any) {
       if (error instanceof StorageError) throw error;
       throw new StorageError(`Failed to get recent session activity: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+    }
+  }
+
+  async getSessionById(sessionId: string): Promise<Session | undefined> {
+    try {
+      const result = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.sessionId, sessionId))
+        .limit(1);
+      return result[0];
+    } catch (error: any) {
+      throw new StorageError(`Failed to get session by ID ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
 }

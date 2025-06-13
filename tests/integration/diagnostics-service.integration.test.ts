@@ -75,13 +75,26 @@ describe('Diagnostics Service Integration', () => {
       // Use persistent storage for historical metrics
       if (!(storage instanceof DatabaseStorage)) {
         // @ts-ignore
+        process.env.STORAGE_TYPE = 'database'; // Force database for this test
+        // @ts-ignore
         global.storage = new DatabaseStorage();
       }
+      // Hard-delete all rows from sessions, translations, transcripts, users before each test
+      if (storage instanceof DatabaseStorage) {
+        // Use clearDiagnosticData utility for DB cleanup (typed)
+        await clearDiagnosticData();
+      }
       await clearDiagnosticData();
+      // Add a short delay to ensure DB is fully committed
+      await new Promise(res => setTimeout(res, 200));
+      // Log all sessionIds after cleanup
+      const sessionsAfterCleanup = await storage.getAllActiveSessions();
+      console.log('[Test Setup] Sessions after cleanup:', sessionsAfterCleanup.map(s => s.sessionId));
     } else {
       // Use in-memory storage for all other tests
       if (storage instanceof DatabaseStorage) {
         // @ts-ignore
+        process.env.STORAGE_TYPE = 'memory'; // Force memory for non-historical tests
         const { MemStorage } = await import('../../server/mem-storage');
         // @ts-ignore
         global.storage = new MemStorage();
@@ -96,10 +109,9 @@ describe('Diagnostics Service Integration', () => {
         if (s.transcripts instanceof Map) s.transcripts.clear();
         if (s.users instanceof Map) s.users.clear();
         // Re-initialize default languages if they are managed as an array in MemStorage
-        // This part might need adjustment based on the actual MemStorage implementation
         if (s.languages && typeof s.getLanguages === 'function' && typeof s.createLanguage === 'function') {
           const currentLangs = await s.getLanguages();
-          if (currentLangs.length === 0) { // Or some other logic to reset languages
+          if (currentLangs.length === 0) {
               await s.createLanguage({ code: 'en', name: 'English', isActive: true });
               await s.createLanguage({ code: 'es', name: 'Spanish', isActive: true });
               await s.createLanguage({ code: 'ja-JP', name: 'Japanese', isActive: true });
@@ -273,6 +285,9 @@ describe('Diagnostics Service Integration', () => {
         console.warn('Skipping historical metrics test: not running with DatabaseStorage');
         return;
       }
+      // Log all sessions before test
+      const beforeSessions = await storage.getAllActiveSessions();
+      console.log('[Historical Test] DB sessions before test:', beforeSessions);
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
       const teacherMessages: any[] = [];
       const studentMessages: any[] = [];
@@ -307,15 +322,71 @@ describe('Diagnostics Service Integration', () => {
       teacherClient.close();
       studentClient.close();
       await new Promise(resolve => setTimeout(resolve, 300));
+      // Log all sessions after test
+      const afterSessions = await storage.getAllActiveSessions();
+      console.log('[Historical Test] DB active sessions after test:', afterSessions);
       // Query persistent storage for sessionId
-      const sessionIdToFind = classroomCodeMessage?.sessionId;
-      const allSessions = await storage.getAllActiveSessions();
-      console.log('[Historical Test] allSessions:', allSessions);
-      const persistedSession = allSessions.find(s => s.sessionId === sessionIdToFind);
+      // The expect(classroomCodeMessage).toBeDefined() above ensures classroomCodeMessage is not null/undefined
+      expect(classroomCodeMessage.sessionId).toBeDefined();
+      expect(typeof classroomCodeMessage.sessionId).toBe('string');
+      const sessionIdToFind: string = classroomCodeMessage.sessionId; // Now guaranteed to be a string
+
+      // const persistedSession = afterSessions.find(s => s.sessionId === sessionIdToFind);
+      // Fetch session by ID directly, regardless of active status
+      const persistedSession = await storage.getSessionById(sessionIdToFind);
       console.log('[Historical Test] Looking for sessionId:', sessionIdToFind, 'Found:', persistedSession);
       expect(persistedSession).toBeDefined();
       if (persistedSession) {
         expect(persistedSession.studentsCount).toBeGreaterThanOrEqual(1);
+      }
+    }, 5000);
+
+    it('should retrieve historical metrics by classroom code', async () => {
+      if (!(storage.constructor && storage.constructor.name === 'DatabaseStorage')) {
+        console.warn('Skipping historical metrics test: not running with DatabaseStorage');
+        return;
+      }
+      // Step 1: Create a session (teacher + student)
+      const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
+      const teacherMessages: any[] = [];
+      teacherClient.on('message', (data: WebSocket.Data) => {
+        const msg = JSON.parse(data.toString());
+        teacherMessages.push(msg);
+      });
+      await new Promise(resolve => teacherClient.on('open', resolve));
+      teacherClient.send(JSON.stringify({ type: 'register', role: 'teacher', languageCode: 'en-US' }));
+      await waitForMessage(teacherMessages, 'classroom_code', 3000);
+      const classroomCodeMessage = teacherMessages.find(m => m.type === 'classroom_code');
+      expect(classroomCodeMessage).toBeDefined();
+      const classroomCode = classroomCodeMessage?.code;
+      // Student joins
+      const studentClient = new WebSocket(`ws://localhost:${actualPort}/ws?code=${classroomCode}`);
+      const studentMessages: any[] = [];
+      studentClient.on('message', (data: WebSocket.Data) => {
+        const msg = JSON.parse(data.toString());
+        studentMessages.push(msg);
+      });
+      await new Promise(resolve => studentClient.on('open', resolve));
+      studentClient.send(JSON.stringify({ type: 'register', role: 'student', classroomCode, languageCode: 'en-US' }));
+      await waitForMessage(studentMessages, 'register', 3000);
+      teacherClient.close();
+      studentClient.close();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // Step 2: Query persistent storage for session by classroom code (sessionId)
+      // The expect(classroomCodeMessage).toBeDefined() above ensures classroomCodeMessage is not null/undefined
+      expect(classroomCodeMessage.sessionId).toBeDefined();
+      expect(typeof classroomCodeMessage.sessionId).toBe('string');
+      const sessionIdToFind: string = classroomCodeMessage.sessionId; // Now guaranteed to be a string
+
+      // const allSessions = await storage.getAllActiveSessions();
+      // const sessionByCode = allSessions.find(s => s.sessionId === sessionIdToFind);
+      // Fetch session by ID directly, regardless of active status
+      const sessionByCode = await storage.getSessionById(sessionIdToFind);
+      console.log('[Historical Test - By Classroom Code] Looking for sessionId:', sessionIdToFind, 'Found:', sessionByCode);
+      expect(sessionByCode).toBeDefined();
+      if (sessionByCode) {
+        expect(sessionByCode.sessionId === sessionIdToFind).toBeTruthy();
+        expect(sessionByCode.studentsCount).toBeGreaterThanOrEqual(1);
       }
     }, 5000);
   });
