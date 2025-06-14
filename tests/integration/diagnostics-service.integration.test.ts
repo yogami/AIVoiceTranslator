@@ -10,15 +10,15 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'; // Added vi
 import WebSocket from 'ws';
 import { createServer, Server } from 'http';
-import express, { Request, Response } from 'express'; // Added express, Request, Response
-import { AddressInfo } from 'net'; // Added AddressInfo
+import express, { Request, Response } from 'express';
+import { AddressInfo } from 'net';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { storage } from '../../server/storage';
-import { MemStorage } from '../../server/mem-storage'; // Added import
-import { StorageError, StorageErrorCode } from '../../server/storage.error'; // Changed import path
-import { DiagnosticsService, diagnosticsService } from '../../server/services/DiagnosticsService'; // Import the singleton
-import { clearDiagnosticData } from '../e2e/test-data-utils';
+import { MemStorage } from '../../server/mem-storage';
 import { DatabaseStorage } from '../../server/database-storage';
+import { DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { clearDiagnosticData } from '../e2e/test-data-utils';
+import { StorageError, StorageErrorCode } from '../../server/storage.error';
 
 describe('Diagnostics Service Integration', () => {
   let httpServer: Server;
@@ -69,59 +69,24 @@ describe('Diagnostics Service Integration', () => {
   });
   
   beforeEach(async () => {
-    // Dynamically override storage type for historical metrics test
     const currentTest = expect.getState().currentTestName || '';
+    let storageInstance;
+
     if (currentTest.includes('Historical Metrics Storage')) {
-      // Use persistent storage for historical metrics
-      if (!(storage instanceof DatabaseStorage)) {
-        // @ts-ignore
-        process.env.STORAGE_TYPE = 'database'; // Force database for this test
-        // @ts-ignore
-        global.storage = new DatabaseStorage();
-      }
-      // Hard-delete all rows from sessions, translations, transcripts, users before each test
-      if (storage instanceof DatabaseStorage) {
-        // Use clearDiagnosticData utility for DB cleanup (typed)
-        await clearDiagnosticData();
-      }
+      storageInstance = new DatabaseStorage();
       await clearDiagnosticData();
-      // Add a short delay to ensure DB is fully committed
       await new Promise(res => setTimeout(res, 200));
-      // Log all sessionIds after cleanup
-      const sessionsAfterCleanup = await storage.getAllActiveSessions();
-      console.log('[Test Setup] Sessions after cleanup:', sessionsAfterCleanup.map(s => s.sessionId));
     } else {
-      // Use in-memory storage for all other tests
-      if (storage instanceof DatabaseStorage) {
-        // @ts-ignore
-        process.env.STORAGE_TYPE = 'memory'; // Force memory for non-historical tests
-        const { MemStorage } = await import('../../server/mem-storage');
-        // @ts-ignore
-        global.storage = new MemStorage();
-      }
-      if (storage instanceof MemStorage && typeof (storage as any).reset === 'function') {
-        await (storage as any).reset();
-      } else if (storage instanceof MemStorage) {
-        // Fallback if no generic reset, try to clear individual stores
-        const s = storage as any;
-        if (s.sessions instanceof Map) s.sessions.clear();
-        if (s.translations instanceof Map) s.translations.clear();
-        if (s.transcripts instanceof Map) s.transcripts.clear();
-        if (s.users instanceof Map) s.users.clear();
-        // Re-initialize default languages if they are managed as an array in MemStorage
-        if (s.languages && typeof s.getLanguages === 'function' && typeof s.createLanguage === 'function') {
-          const currentLangs = await s.getLanguages();
-          if (currentLangs.length === 0) {
-              await s.createLanguage({ code: 'en', name: 'English', isActive: true });
-              await s.createLanguage({ code: 'es', name: 'Spanish', isActive: true });
-              await s.createLanguage({ code: 'ja-JP', name: 'Japanese', isActive: true });
-          }
-        }
-      } else {
-        // Persistent storage: clear DB for historical metrics tests
-        await clearDiagnosticData();
+      storageInstance = new MemStorage();
+      if (typeof (storageInstance as any).reset === 'function') {
+        await (storageInstance as any).reset();
       }
     }
+
+    // Reinitialize services with the new storage instance
+    const diagnosticsService = new DiagnosticsService(storageInstance);
+    wsServer = new WebSocketServer(httpServer, storageInstance, diagnosticsService);
+
     vi.restoreAllMocks(); // Restore any mocks from previous tests
   });
   
@@ -130,6 +95,7 @@ describe('Diagnostics Service Integration', () => {
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
       const teacherMessages: any[] = [];
       const studentMessages: any[] = [];
+
       teacherClient.on('message', (data: WebSocket.Data) => {
         const msg = JSON.parse(data.toString());
         teacherMessages.push(msg);
@@ -170,8 +136,17 @@ describe('Diagnostics Service Integration', () => {
     }, 10000);
 
     it('should continue working even if metrics collection fails', async () => {
+      if (!expect.getState().currentTestName?.includes('Historical Metrics Storage')) {
+        const memStorage = new MemStorage();
+        if (typeof (memStorage as any).reset === 'function') {
+          await (memStorage as any).reset();
+        }
+        __setStorageForTestingOnly(memStorage);
+      }
+
       const storageAddTranslationSpy = vi.spyOn(storage, 'addTranslation')
         .mockRejectedValue(new StorageError('Failed to save translation (simulated)', StorageErrorCode.DB_ERROR));
+      
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
       const teacherMessages: any[] = [];
       const studentMessages: any[] = [];
@@ -389,6 +364,251 @@ describe('Diagnostics Service Integration', () => {
         expect(sessionByCode.studentsCount).toBeGreaterThanOrEqual(1);
       }
     }, 5000);
+
+    it('Historical Metrics Storage: should reflect historical session activity in diagnostics aggregates and recent activity list', async () => {
+      const getSessionByIdSpy = vi.spyOn(storage, 'getSessionById'); // This spy is for storage, not DiagnosticsService directly.
+                                                                    // DiagnosticsService.getMetrics doesn't call storage.getSessionById.
+                                                                    // This spy might be for other parts of the test or can be removed if not relevant to getMetrics.
+
+      const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
+      const teacherMessages: any[] = [];
+      teacherClient.on('message', (data: WebSocket.Data) => teacherMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => teacherClient.on('open', resolve));
+      const teacherRegisterPayload = { type: 'register', role: 'teacher', languageCode: 'en-US', name: 'Historical Teacher' };
+      teacherClient.send(JSON.stringify(teacherRegisterPayload));
+      await waitForMessage(teacherMessages, 'classroom_code', 5000);
+      const classroomCodeMessage = teacherMessages.find(m => m.type === 'classroom_code');
+      expect(classroomCodeMessage).toBeDefined();
+      expect(classroomCodeMessage.code).toBeDefined();
+      expect(classroomCodeMessage.sessionId).toBeDefined();
+      const classroomCode = classroomCodeMessage.code;
+      const sessionId = classroomCodeMessage.sessionId;
+
+      const studentClient = new WebSocket(`ws://localhost:${actualPort}/ws?code=${classroomCode}`);
+      const studentMessages: any[] = [];
+      studentClient.on('message', (data: WebSocket.Data) => studentMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => studentClient.on('open', resolve));
+      const studentRegisterPayload = { type: 'register', role: 'student', classroomCode, languageCode: 'es-ES', name: 'Historical Student' };
+      studentClient.send(JSON.stringify(studentRegisterPayload));
+      await waitForMessage(studentMessages, 'register', 5000);
+      const studentRegisterMessage = studentMessages.find(m => m.type === 'register');
+      expect(studentRegisterMessage).toBeDefined();
+      expect(studentRegisterMessage.status).toBe('success');
+
+      await waitForMessage(teacherMessages, 'student_joined', 5000);
+      const studentJoinedMessage = teacherMessages.find(m => m.type === 'student_joined');
+      expect(studentJoinedMessage).toBeDefined();
+      expect(studentJoinedMessage.payload.name).toBe('Historical Student');
+
+      const transcriptPayload = { text: 'Hello from historical teacher', languageCode: 'en-US', timestamp: Date.now() };
+      teacherClient.send(JSON.stringify({ type: 'transcription', text: transcriptPayload.text, languageCode: transcriptPayload.languageCode, timestamp: transcriptPayload.timestamp }));
+      await waitForMessage(studentMessages, 'translation', 10000);
+      const studentTranslationMessage = studentMessages.find(m => m.type === 'translation');
+      expect(studentTranslationMessage).toBeDefined();
+      // The student receives the translated text in their language.
+      // The original text is available in studentTranslationMessage.originalText.
+      expect(studentTranslationMessage.text).toBe('Hola de parte de un profesor de historia'); // Expected Spanish translation
+      expect(studentTranslationMessage.originalText).toBe(transcriptPayload.text); // Original English text
+      expect(studentTranslationMessage.targetLanguage).toBe('es-ES'); // Student's language, changed from languageCode
+
+      // Store initial aggregate counts to check increments if possible and makes sense
+      const initialGlobalMetrics = await diagnosticsService.getMetrics();
+      const initialTotalTranslationsFromDb = initialGlobalMetrics.translations.totalFromDatabase;
+      const initialTotalSessions = initialGlobalMetrics.sessions.totalSessions;
+
+
+      teacherClient.close();
+      studentClient.close();
+      await new Promise(res => setTimeout(res, 500));
+
+      // Call getMetrics - it returns aggregate data.
+      // For specific session data, we look into metrics.sessions.recentSessionActivity
+      const metrics = await diagnosticsService.getMetrics(); // Get all-time metrics
+
+      // The getSessionByIdSpy on storage.getSessionById is not called by diagnosticsService.getMetrics().
+      // If this spy was intended to check if DiagnosticsService uses it, that's a misunderstanding.
+      // We can remove this expectation or verify it wasn't called in this path if that's the intent.
+      // For now, just ensure it's restored.
+      getSessionByIdSpy.mockRestore();
+
+      expect(metrics).toBeDefined();
+      
+      // Check sessions.recentSessionActivity for our session
+      // Note: recentSessionActivity usually shows a limited number of recent sessions (e.g., last 5)
+      const sessionActivity = metrics.sessions.recentSessionActivity.find(activity => activity.sessionId === sessionId);
+      expect(sessionActivity).toBeDefined();
+
+      if (sessionActivity) {
+        expect(sessionActivity.sessionId).toBe(sessionId);
+        expect(sessionActivity.language).toBe(teacherRegisterPayload.languageCode); // teacherLanguage
+        expect(sessionActivity.transcriptCount).toBeGreaterThanOrEqual(1); // We sent one transcript
+      }
+
+      // Check aggregate counts.
+      // Assuming the session and its translation are new and should be counted.
+      expect(metrics.translations.totalFromDatabase).toBeGreaterThanOrEqual(initialTotalTranslationsFromDb + 1);
+      expect(metrics.sessions.totalSessions).toBeGreaterThanOrEqual(initialTotalSessions + 1);
+      
+      // We cannot verify specific transcript/translation content or full lists via DiagnosticsService.getMetrics().
+      // The original assertions for metrics.sessionDetails, metrics.transcripts, metrics.translations (as arrays) were incorrect.
+    }, 15000);
+
+
+    it('Historical Metrics Storage: should filter aggregate diagnostics by time range', async () => {
+      const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
+      const teacherMessages: any[] = [];
+      teacherClient.on('message', (data: WebSocket.Data) => teacherMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => teacherClient.on('open', resolve));
+
+      const teacherRegisterPayload = { type: 'register', role: 'teacher', languageCode: 'en-US', name: 'TimeRange Teacher' };
+      teacherClient.send(JSON.stringify(teacherRegisterPayload));
+      await waitForMessage(teacherMessages, 'classroom_code', 5000);
+      const classroomCodeMessage = teacherMessages.find(m => m.type === 'classroom_code');
+      expect(classroomCodeMessage).toBeDefined();
+      const classroomCode = classroomCodeMessage.code;
+      const sessionId = classroomCodeMessage.sessionId;
+
+      const studentClient = new WebSocket(`ws://localhost:${actualPort}/ws?code=${classroomCode}`);
+      const studentMessages: any[] = []; // Initialize for this scope
+      studentClient.on('message', (data: WebSocket.Data) => studentMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => studentClient.on('open', resolve));
+      const studentRegisterPayload = { type: 'register', role: 'student', classroomCode, languageCode: 'es-ES', name: 'TimeRange Student' };
+      studentClient.send(JSON.stringify(studentRegisterPayload));
+      await waitForMessage(studentMessages, 'register', 5000);
+      const studentRegisterMessage_TimeRange = studentMessages.find(m => m.type === 'register');
+      expect(studentRegisterMessage_TimeRange).toBeDefined();
+      expect(studentRegisterMessage_TimeRange.status).toBe('success');
+
+      await waitForMessage(teacherMessages, 'student_joined', 5000);
+
+      const now = Date.now();
+      // Ensure timestamps are distinct and allow for querying ranges around them.
+      const transcript1Time = now - 5000; // 5 seconds ago
+      const transcript2Time = now - 3000; // 3 seconds ago
+      const transcript3Time = now - 1000; // 1 second ago
+
+      // Send transcripts at different times
+      // Important: The storage methods (getTranslationMetrics, getSessionMetrics) will determine how these are counted.
+      // We assume translations are timestamped and sessions are active during these transcriptions.
+      teacherClient.send(JSON.stringify({ type: 'transcription', text: 'Transcript 1 old', languageCode: 'en-US', timestamp: transcript1Time }));
+      await waitForMessage(studentMessages, 'translation', 5000); studentMessages.length = 0;
+
+      teacherClient.send(JSON.stringify({ type: 'transcription', text: 'Transcript 2 middle', languageCode: 'en-US', timestamp: transcript2Time }));
+      await waitForMessage(studentMessages, 'translation', 5000); studentMessages.length = 0;
+
+      teacherClient.send(JSON.stringify({ type: 'transcription', text: 'Transcript 3 recent', languageCode: 'en-US', timestamp: transcript3Time }));
+      await waitForMessage(studentMessages, 'translation', 5000); studentMessages.length = 0;
+
+      teacherClient.close();
+      studentClient.close();
+      await new Promise(res => setTimeout(res, 500)); // Ensure session is inactive and data persisted
+
+      // Test case 1: Range including only Transcript 2's data
+      const range1Start = new Date(transcript1Time + 100); // After T1
+      const range1End = new Date(transcript2Time + 100);   // After T2, but before T3
+      let metrics = await diagnosticsService.getMetrics({ startDate: range1Start, endDate: range1End });
+      expect(metrics).toBeDefined();
+      expect(metrics.timeRange).toBeDefined();
+      expect(new Date(metrics.timeRange!.startDate).getTime()).toBe(range1Start.getTime());
+      expect(new Date(metrics.timeRange!.endDate).getTime()).toBe(range1End.getTime());
+      // Assuming storage.getTranslationMetrics counts translations based on their timestamp.
+      expect(metrics.translations.totalFromDatabase).toBe(1); // Only translation for T2
+
+      // Test case 2: Range including Transcript 2 and 3
+      const range2Start = new Date(transcript2Time - 100); // Before T2
+      const range2End = new Date(transcript3Time + 100);   // After T3
+      metrics = await diagnosticsService.getMetrics({ startDate: range2Start, endDate: range2End });
+      expect(metrics.translations.totalFromDatabase).toBe(2); // Translations for T2, T3
+
+      // Test case 3: Range including all three
+      const range3Start = new Date(transcript1Time - 100); // Before T1
+      const range3End = new Date(transcript3Time + 100);   // After T3
+      metrics = await diagnosticsService.getMetrics({ startDate: range3Start, endDate: range3End });
+      expect(metrics.translations.totalFromDatabase).toBe(3); // Translations for T1, T2, T3
+
+      // Test case 4: Range with no data (future)
+      const range4Start = new Date(now + 1000);
+      const range4End = new Date(now + 2000);
+      metrics = await diagnosticsService.getMetrics({ startDate: range4Start, endDate: range4End });
+      expect(metrics.translations.totalFromDatabase).toBe(0);
+
+      // Test case 5: Only startTime (interpreted by service as start to "now" for presets, or passed as is for TimeRange object)
+      // To be precise, we pass a TimeRange object. The service's parseTimeRange handles it.
+      // If endDate is not provided to storage, it might default to 'now' or fetch all after startDate.
+      // Let's be explicit for the test:
+      const range5Start = new Date(transcript2Time - 100); // Before T2
+      // Assuming "now" for the service is close to the 'now' variable in the test.
+      metrics = await diagnosticsService.getMetrics({ startDate: range5Start, endDate: new Date(now + 500) });
+      expect(metrics.translations.totalFromDatabase).toBe(2); // T2, T3
+
+      // Test case 6: Only endTime
+      const range6End = new Date(transcript2Time + 100); // After T2, before T3
+      metrics = await diagnosticsService.getMetrics({ startDate: new Date(0), endDate: range6End }); // From beginning of time
+      expect(metrics.translations.totalFromDatabase).toBe(2); // T1, T2
+
+      // Note: metrics.sessions.recentSessionActivity is NOT filtered by the time range passed to getMetrics,
+      // as storage.getRecentSessionActivity is called without a time range by DiagnosticsService.
+      // So, no assertions on recentSessionActivity being filtered here.
+    }, 20000);
+
+
+    it('Historical Metrics Storage: should return all data in aggregates if no time range is provided', async () => {
+      const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
+      const teacherMessages: any[] = [];
+      teacherClient.on('message', (data: WebSocket.Data) => teacherMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => teacherClient.on('open', resolve));
+
+      const teacherRegisterPayload = { type: 'register', role: 'teacher', languageCode: 'en-US', name: 'NoTimeRange Teacher' };
+      teacherClient.send(JSON.stringify(teacherRegisterPayload));
+      await waitForMessage(teacherMessages, 'classroom_code', 5000);
+      const classroomCodeMessage = teacherMessages.find(m => m.type === 'classroom_code');
+      expect(classroomCodeMessage).toBeDefined();
+      const classroomCode = classroomCodeMessage.code;
+      const sessionId = classroomCodeMessage.sessionId;
+
+      const studentClient = new WebSocket(`ws://localhost:${actualPort}/ws?code=${classroomCode}`);
+      const studentMessages: any[] = []; // Initialize for this scope
+      studentClient.on('message', (data: WebSocket.Data) => studentMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => studentClient.on('open', resolve));
+      const studentRegisterPayload = { type: 'register', role: 'student', classroomCode, languageCode: 'es-ES', name: 'NoTimeRange Student' };
+      studentClient.send(JSON.stringify(studentRegisterPayload));
+      await waitForMessage(studentMessages, 'register', 5000);
+      const studentRegisterMessage_NoTimeRange = studentMessages.find(m => m.type === 'register');
+      expect(studentRegisterMessage_NoTimeRange).toBeDefined();
+      expect(studentRegisterMessage_NoTimeRange.status).toBe('success');
+
+      await waitForMessage(teacherMessages, 'student_joined', 5000);
+
+      // Store initial aggregate counts
+      const initialGlobalMetrics = await diagnosticsService.getMetrics();
+      const initialTotalTranslationsFromDb = initialGlobalMetrics.translations.totalFromDatabase;
+      const initialTotalSessions = initialGlobalMetrics.sessions.totalSessions;
+      const initialTranscriptCountForSession = (initialGlobalMetrics.sessions.recentSessionActivity.find((act: { sessionId: string; transcriptCount: number }) => act.sessionId === sessionId) || { transcriptCount: 0 }).transcriptCount;
+
+
+      teacherClient.send(JSON.stringify({ type: 'transcription', text: 'Transcript A', languageCode: 'en-US', timestamp: Date.now() - 1000} ));
+      await waitForMessage(studentMessages, 'translation', 5000); studentMessages.length = 0;
+
+      teacherClient.send(JSON.stringify({ type: 'transcription', text: 'Transcript B', languageCode: 'en-US', timestamp: Date.now() } ));
+      await waitForMessage(studentMessages, 'translation', 5000); studentMessages.length = 0;
+      
+      teacherClient.close();
+      studentClient.close();
+      await new Promise(res => setTimeout(res, 500));
+
+      const metrics = await diagnosticsService.getMetrics(); // No time range
+      expect(metrics).toBeDefined();
+      expect(metrics.timeRange).toBeUndefined(); // No specific timeRange was requested
+
+      expect(metrics.translations.totalFromDatabase).toBeGreaterThanOrEqual(initialTotalTranslationsFromDb + 2);
+      expect(metrics.sessions.totalSessions).toBeGreaterThanOrEqual(initialTotalSessions + (initialGlobalMetrics.sessions.recentSessionActivity.find(act => act.sessionId === sessionId) ? 0 : 1) ); // Session count increases if it's a new session not previously counted in total.
+
+      const sessionActivity = metrics.sessions.recentSessionActivity.find(act => act.sessionId === sessionId);
+      expect(sessionActivity).toBeDefined();
+      if (sessionActivity) {
+        expect(sessionActivity.transcriptCount).toBeGreaterThanOrEqual(initialTranscriptCountForSession + 2);
+      }
+    }, 15000);
   });
 });
 

@@ -5,7 +5,7 @@
  * Tracks performance metrics, system health, and provides user-friendly formatting.
  */
 
-import { storage } from '../storage';
+import { IStorage } from '../storage.interface';
 import { WebSocketServer } from './WebSocketServer';
 
 interface ConnectionMetrics {
@@ -43,7 +43,7 @@ interface SessionMetrics {
   recentSessionActivity: SessionActivity[];
 }
 
-interface SessionActivity {
+export interface SessionActivity {
   sessionId: string;
   language: string;
   transcriptCount: number;
@@ -95,6 +95,7 @@ export interface DiagnosticsExportData extends DiagnosticsData {
 export type TimeRangePreset = 'lastHour' | 'last24Hours' | 'last7Days' | 'last30Days';
 
 export class DiagnosticsService {
+  private storage: IStorage;
   private startTime: number;
   private connectionCount: number = 0;
   private activeConnections: number = 0;
@@ -102,7 +103,8 @@ export class DiagnosticsService {
   private audioGenerationTimes: number[] = [];
   private audioCacheSize: number = 0;
 
-  constructor() {
+  constructor(storage: IStorage) {
+    this.storage = storage;
     this.startTime = Date.now();
   }
 
@@ -244,12 +246,21 @@ export class DiagnosticsService {
     // Parse time range
     const timeRange = this.parseTimeRange(timeRangeOrPreset);
 
+    // Debugging logs
+    console.log('Metrics calculation started');
+    console.log('Parsed time range:', timeRange);
+
     // Get real data from storage with optional time range
     const [sessions, translations, languagePairs] = await Promise.all([
-      storage.getSessionMetrics(timeRange),
-      storage.getTranslationMetrics(timeRange),
-      storage.getLanguagePairMetrics(timeRange)
+      this.storage.getSessionMetrics(timeRange),
+      this.storage.getTranslationMetrics(timeRange),
+      this.storage.getLanguagePairMetrics(timeRange)
     ]);
+
+    // Debugging logs
+    console.log('Session metrics:', sessions);
+    console.log('Translation metrics:', translations);
+    console.log('Language pair metrics:', languagePairs);
 
     // Get active connection data from WebSocketServer if available
     let activeSessionData = {
@@ -260,6 +271,19 @@ export class DiagnosticsService {
     };
 
     try {
+      // TODO: Decouple DiagnosticsService from WebSocketServer.
+      // Currently, DiagnosticsService directly accesses a global WebSocketServer instance (global.wsServer)
+      // to retrieve active session metrics. This creates a tight coupling between the two services.
+      //
+      // To decouple:
+      // 1. Define an interface (e.g., IActiveSessionMetricsProvider) that outlines the contract for
+      //    providing active session metrics (e.g., getActiveSessionMetrics(): ActiveSessionData).
+      // 2. Make WebSocketServer implement this interface.
+      // 3. Inject an instance of IActiveSessionMetricsProvider into DiagnosticsService via its constructor.
+      // 4. DiagnosticsService will then call the method on the injected provider instead of the global wsServer.
+      //
+      // This change will improve modularity, testability, and maintainability by adhering to the
+      // Dependency Inversion Principle.
       // Get WebSocketServer instance if it exists
       const wsServer = (global as any).wsServer as WebSocketServer;
       if (wsServer) {
@@ -279,10 +303,18 @@ export class DiagnosticsService {
     }));
 
     // Get recent session activity
-    const recentSessions = await storage.getRecentSessionActivity(5);
+    const recentSessions = await this.storage.getRecentSessionActivity(5) as Array<{
+      sessionId: string;
+      teacherLanguage: string | null;
+      currentLanguage: string;
+      transcriptCount: number;
+      startTime: Date | null;
+      endTime: Date | null;
+      duration: number;
+    }>;
     const recentSessionActivity = recentSessions.map(session => ({
       sessionId: session.sessionId,
-      language: session.teacherLanguage || 'unknown',
+      language: session.teacherLanguage || session.currentLanguage || 'unknown', // Use currentLanguage as fallback
       transcriptCount: session.transcriptCount || 0,
       lastActivity: (session.endTime || session.startTime)?.toISOString() || new Date().toISOString(),
       duration: session.duration || 0
@@ -301,7 +333,7 @@ export class DiagnosticsService {
         averageLatencyFromDatabase: translations.averageLatency,
         averageLatencyFromDatabaseFormatted: this.formatDuration(translations.averageLatency),
         languagePairs: formattedLanguagePairs,
-        recentTranslations: translations.recentTranslations
+        recentTranslations: translations.recentTranslations || 0 // Ensure default value
       },
       sessions: {
         activeSessions: activeSessionData.activeSessions,
@@ -359,6 +391,3 @@ export class DiagnosticsService {
     this.startTime = Date.now();
   }
 }
-
-// Export a singleton instance
-export const diagnosticsService = new DiagnosticsService();

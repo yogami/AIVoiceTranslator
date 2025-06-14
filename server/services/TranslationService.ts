@@ -17,7 +17,7 @@ import path from 'path';
 import * as os from 'os';
 
 import OpenAI from 'openai';
-import { storage } from '../storage';
+import { IStorage } from '../storage.interface';
 import { textToSpeechService, ttsFactory } from './textToSpeech/TextToSpeechService';
 import { promisify } from 'util';
 import dotenv from 'dotenv';

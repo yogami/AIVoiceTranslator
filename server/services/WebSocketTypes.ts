@@ -5,6 +5,7 @@ export interface BaseWebSocketMessage {
 
 export interface ClientSettings {
   ttsServiceType?: string;
+  useClientSpeech?: boolean; // Added this line
   // Add other potential client-specific settings here
 }
 
@@ -14,6 +15,7 @@ export interface RegisterMessageToServer extends BaseWebSocketMessage {
   type: 'register';
   role: 'teacher' | 'student';
   languageCode: string;
+  name?: string; // Added name property for student identification
   settings?: Partial<ClientSettings>; // Allow partial updates
   ttsServiceType?: string; // Kept for backward compatibility, but settings.ttsServiceType is preferred
 }
@@ -147,6 +149,15 @@ export interface ErrorMessageToClient extends BaseWebSocketMessage {
   code?: string;
 }
 
+export interface StudentJoinedMessageToClient extends BaseWebSocketMessage {
+  type: 'student_joined';
+  payload: {
+    studentId: string;
+    name: string;
+    languageCode: string;
+  };
+}
+
 // Union type for messages received by the server
 export type WebSocketMessageToServer =
   | RegisterMessageToServer
@@ -167,4 +178,5 @@ export type WebSocketMessageToClient =
   | SettingsResponseToClient
   | PongMessageToClient
   | ErrorMessageToClient
-  | BaseWebSocketMessage; // Fallback for ping etc. 
+  | StudentJoinedMessageToClient // Added here
+  | BaseWebSocketMessage; // Fallback for ping etc.

@@ -21,6 +21,7 @@ export interface ISessionStorage {
   getRecentSessionActivity(limit?: number): Promise<{
     sessionId: string;
     teacherLanguage: string | null;
+    currentLanguage: string; // Ensure currentLanguage is included
     transcriptCount: number;
     startTime: Date | null;
     endTime: Date | null;
@@ -119,6 +120,7 @@ export class MemSessionStorage implements ISessionStorage {
       return {
         sessionId: s.sessionId,
         teacherLanguage: s.teacherLanguage,
+        currentLanguage: s.teacherLanguage || 'unknown', // Populate currentLanguage with a fallback
         transcriptCount,
         startTime: s.startTime,
         endTime: s.endTime,
@@ -166,13 +168,16 @@ export class DbSessionStorage implements ISessionStorage {
 
   async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined> {
     try {
+      console.log('[DbSessionStorage.updateSession] Attempting to update session:', { sessionId, updates }); // Added log
       const result = await db // db from ../db
         .update(sessions) // sessions from ../../shared/schema
         .set(updates)
         .where(eq(sessions.sessionId, sessionId)) // eq from drizzle-orm, sessions from ../../shared/schema
         .returning();
+      console.log('[DbSessionStorage.updateSession] Successfully updated session:', result[0]); // Added log
       return result[0];
     } catch (error: any) {
+      console.error('[DbSessionStorage.updateSession] Error updating session:', { sessionId, updates, error: error && error.message ? error.message : error }); // Added log
       throw new StorageError(`Failed to update session ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
@@ -228,6 +233,7 @@ export class DbSessionStorage implements ISessionStorage {
       type ActivityRow = {
         sessionId: string;
         teacherLanguage: string | null;
+        currentLanguage: string; // Add currentLanguage here
         transcriptCount: number; // This will be a number due to .mapWith(Number)
         startTime: Date | null;
         endTime: Date | null;
@@ -238,6 +244,7 @@ export class DbSessionStorage implements ISessionStorage {
         .select({
           sessionId: sessions.sessionId, // sessions from ../../shared/schema
           teacherLanguage: sessions.teacherLanguage,
+          currentLanguage: sessions.teacherLanguage, // Add currentLanguage with fallback
           transcriptCount: drizzleCount(transcripts.id).mapWith(Number), // drizzleCount from drizzle-orm, transcripts from ../../shared/schema
           startTime: sessions.startTime,
           endTime: sessions.endTime,

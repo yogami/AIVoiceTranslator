@@ -158,6 +158,7 @@ export class DatabaseStorage implements IStorage {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+    const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
     const totalSessionsQuery = drizzleDB // Use drizzleDB
       .select({
         totalSessions: count(sessions.id),
@@ -168,7 +169,7 @@ export class DatabaseStorage implements IStorage {
       totalSessionsQuery.where(whereClause);
     }
     
-    const totalSessionsResult = await totalSessionsQuery.prepare("total_sessions_query").execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
+    const totalSessionsResult = await totalSessionsQuery.prepare(totalSessionsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
     const totalSessionsCount = Number(totalSessionsResult[0]?.totalSessions) || 0;
 
     let averageSessionDurationValue = 0; // Renamed variable
@@ -182,6 +183,7 @@ export class DatabaseStorage implements IStorage {
         validEndedSessionConditions.push(lte(sessions.startTime, placeholder('endDate')));
       }
 
+      const sumDurationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
       const sumDurationQuery = drizzleDB // Use drizzleDB
         .select({
           totalDuration: sql<number>`SUM(EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})))`.mapWith(Number),
@@ -190,7 +192,7 @@ export class DatabaseStorage implements IStorage {
         .from(sessions)
         .where(and(...validEndedSessionConditions));
       
-      const durationResult = await sumDurationQuery.prepare("sum_duration_query").execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
+      const durationResult = await sumDurationQuery.prepare(sumDurationQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
 
       if (durationResult[0] && durationResult[0].totalDuration != null && durationResult[0].countSessions > 0) {
         averageSessionDurationValue = durationResult[0].totalDuration / durationResult[0].countSessions;
@@ -201,7 +203,7 @@ export class DatabaseStorage implements IStorage {
       .select({ count: count() })
       .from(sessions)
       .where(eq(sessions.isActive, true))
-      .prepare("active_sessions_query")
+      .prepare("active_sessions_query_unique_name") // Ensure this is unique if used elsewhere or make it dynamic
       .execute();
     const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
 
@@ -227,6 +229,7 @@ export class DatabaseStorage implements IStorage {
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+    const translationMetricsQueryName = timeRange ? "translation_metrics_query_with_time_range" : "translation_metrics_query_without_time_range";
     const query = drizzleDB // Use drizzleDB
       .select({
         totalTranslations: count(translations.id),
@@ -238,7 +241,7 @@ export class DatabaseStorage implements IStorage {
       query.where(whereClause);
     }
     
-    const result = await query.prepare("translation_metrics_query").execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
+    const result = await query.prepare(translationMetricsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
     const metrics = result[0] || { totalTranslations: 0, averageLatency: null }; 
 
     // For recentTranslations, if a timeRange is provided, it's the count within that range.
@@ -273,7 +276,7 @@ export class DatabaseStorage implements IStorage {
     // Drizzle ORM might require a subquery or raw SQL for this if not directly supported.
     // For now, returning a placeholder for averageLatency.
     // This will likely need further refinement.
-
+    const languagePairMetricsQueryName = timeRange ? "language_pair_metrics_query_with_time_range" : "language_pair_metrics_query_without_time_range";
     const query = drizzleDB // Use drizzleDB
       .select({
         sourceLanguage: translations.sourceLanguage,
@@ -291,7 +294,7 @@ export class DatabaseStorage implements IStorage {
       .groupBy(translations.sourceLanguage, translations.targetLanguage)
       .orderBy(desc(count(translations.id)));
 
-    const results = await query.prepare("language_pair_metrics_query").execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
+    const results = await query.prepare(languagePairMetricsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
     logger.debug('DatabaseStorage.getLanguagePairMetrics results', { results });
     
     return results.map((r: { sourceLanguage: string | null; targetLanguage: string | null; count: number; averageLatency: string | null }) => ({

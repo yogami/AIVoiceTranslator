@@ -118,8 +118,8 @@ describe('DatabaseStorage Metrics', () => {
         averageSessionDuration: 0,
         activeSessions: 0,
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query');
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query_without_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query_unique_name');
     });
 
     it('should calculate session metrics correctly with a time range', async () => {
@@ -137,9 +137,9 @@ describe('DatabaseStorage Metrics', () => {
         averageSessionDuration: 1000,
         activeSessions: 2,
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query');
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sum_duration_query');
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query_with_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sum_duration_query_with_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query_unique_name');
       
       expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate }); // USE __testHooks
       expect(__testHooks.mockDbExecute.mock.calls[1][0]).toEqual({ startDate, endDate }); // USE __testHooks
@@ -156,7 +156,7 @@ describe('DatabaseStorage Metrics', () => {
         averageLatency: 0,
         recentTranslations: 0,
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_query_without_time_range');
     });
 
     it('should calculate translation metrics correctly with a time range', async () => {
@@ -170,7 +170,7 @@ describe('DatabaseStorage Metrics', () => {
         averageLatency: 150,
         recentTranslations: 10, // Ensure this is expected
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_query_with_time_range');
       expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({ startDate, endDate }); // USE __testHooks
     });
   });
@@ -180,7 +180,7 @@ describe('DatabaseStorage Metrics', () => {
       __testHooks.mockDbExecute.mockResolvedValueOnce([]); // USE __testHooks
       const metrics = await storage.getLanguagePairMetrics();
       expect(metrics).toEqual([]);
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query_without_time_range');
     });
 
     it('should return language pair metrics correctly with a time range', async () => {
@@ -198,7 +198,7 @@ describe('DatabaseStorage Metrics', () => {
         { sourceLanguage: 'en', targetLanguage: 'fr', count: 50, averageLatency: 150 },
       ]);
       expect(__testHooks.mockDbGroupBy).toHaveBeenCalledWith(translations.sourceLanguage, translations.targetLanguage);
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query_with_time_range');
       expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({ startDate, endDate }); // USE __testHooks
     });
 
@@ -216,7 +216,7 @@ describe('DatabaseStorage Metrics', () => {
         { sourceLanguage: 'en', targetLanguage: 'unknown', count: 3, averageLatency: 200 },
         { sourceLanguage: 'unknown', targetLanguage: 'unknown', count: 1, averageLatency: 300 },
       ]);
-       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query');
+       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query_without_time_range');
        expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({}); // Changed from no arguments to an empty object
     });
   });
