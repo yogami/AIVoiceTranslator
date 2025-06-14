@@ -11,10 +11,9 @@ import * as http from 'http'; // Changed to namespace import
 import logger from '../logger';
 import { speechTranslationService } from './TranslationService'; // Corrected import path
 import { audioTranscriptionService } from './transcription/AudioTranscriptionService'; // Corrected import path
-import { storage } from '../storage'; // Changed to named import
 import { config } from '../config'; // Removed AppConfig, already have config instance
 import { URL } from 'url';
-import { diagnosticsService } from './DiagnosticsService';
+import { DiagnosticsService } from './DiagnosticsService';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -32,8 +31,11 @@ import type {
   TTSResponseMessageToClient,
   SettingsResponseToClient,
   PongMessageToClient,
-  ErrorMessageToClient
+  ErrorMessageToClient,
+  StudentJoinedMessageToClient // Added import
 } from './WebSocketTypes';
+import { type InsertSession } from '../../shared/schema'; // Added import
+import { IStorage } from '../storage.interface';
 
 // Custom WebSocketClient type for our server
 type WebSocketClient = WebSocket & {
@@ -56,6 +58,9 @@ interface ClassroomSession {
 
 export class WebSocketServer {
   private wss: WSServer;
+  private storage: IStorage;
+  private diagnosticsService: DiagnosticsService;
+  
   // We use the speechTranslationService facade
   
   // Connection tracking
@@ -73,8 +78,10 @@ export class WebSocketServer {
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  constructor(server: http.Server) { // Use http.Server type
+  constructor(server: http.Server, storage: IStorage, diagnosticsService: DiagnosticsService) { // Use http.Server type
     this.wss = new WSServer({ server });
+    this.storage = storage;
+    this.diagnosticsService = diagnosticsService;
     
     // Set up event handlers
     this.setupEventHandlers();
@@ -177,31 +184,26 @@ export class WebSocketServer {
    */
   private async createSessionInStorage(sessionId: string): Promise<void> {
     try {
-      await storage.createSession({
+      // Check if a session with this ID already exists
+      const existingSession = await this.storage.getSessionById(sessionId);
+      if (existingSession) {
+        logger.info('Session already exists in storage, ensuring it is active:', { sessionId });
+        if (!existingSession.isActive) {
+          await this.storage.updateSession(sessionId, { isActive: true });
+        }
+        return;
+      }
+
+      // If not, create a new session
+      await this.storage.createSession({
         sessionId,
         isActive: true
         // startTime is automatically set by the database default
       });
+      logger.info('Successfully created new session in storage:', { sessionId });
     } catch (error: any) {
-      // If error is a duplicate key (session already exists), treat as idempotent
-      if (error && (error.code === '23505' || error.message?.includes('already exists'))) {
-        logger.info('Session already exists in storage (idempotent):', { sessionId });
-        // Fetch the existing session to ensure metrics/state are up to date
-        try {
-          const existingSession = await storage.getActiveSession(sessionId);
-          if (!existingSession) {
-            logger.warn('Duplicate session error but no active session found in storage:', { sessionId });
-          } else {
-            // Reactivate session to ensure metrics/state are correct
-            await storage.updateSession(sessionId, { isActive: true });
-          }
-        } catch (fetchErr) {
-          logger.warn('Failed to fetch existing session after duplicate key error:', { sessionId, fetchErr });
-        }
-        return;
-      }
-      // Log but don't throw - metrics should not break core functionality
-      logger.error('Failed to create session in storage:', { error });
+      // Log other errors but don't throw - metrics should not break core functionality
+      logger.error('Failed to create or update session in storage:', { sessionId, error });
     }
   }
 
@@ -278,9 +280,9 @@ export class WebSocketServer {
   /**
    * Handle registration message
    */
-  private handleRegisterMessage(ws: WebSocketClient, message: RegisterMessageToServer): void {
+  private async handleRegisterMessage(ws: WebSocketClient, message: RegisterMessageToServer): Promise<void> { // MODIFIED: Made async
     logger.info('Processing message type=register from connection:', 
-      { role: message.role, languageCode: message.languageCode });
+      { role: message.role, languageCode: message.languageCode, name: message.name }); // Added name to log
     
     const currentRole = this.roles.get(ws);
     
@@ -300,7 +302,7 @@ export class WebSocketServer {
           
           // Update session with teacher language
           if (message.languageCode) {
-            this.updateSessionInStorage(sessionId, {
+            await this.updateSessionInStorage(sessionId, { // MODIFIED: Added await
               teacherLanguage: message.languageCode
             }).catch(error => {
               logger.error('Failed to update session with teacher language:', { error });
@@ -353,19 +355,43 @@ export class WebSocketServer {
     
     ws.send(JSON.stringify(response));
     
-    // If registering as student, increment studentsCount in storage
+    // If registering as student, increment studentsCount in storage and notify teacher
     if (message.role === 'student') {
-      const sessionId = this.sessionIds.get(ws);
-      if (sessionId) {
+      const studentSessionId = this.sessionIds.get(ws); // This is the classroom session ID
+      const studentName = message.name || 'Unknown Student';
+      const studentLanguage = message.languageCode || 'unknown'; // Default if not provided
+
+      if (studentSessionId) {
         // Fetch current session to get current studentsCount
-        storage.getActiveSession(sessionId).then(session => {
+        this.storage.getActiveSession(studentSessionId).then(session => {
           const currentCount = session?.studentsCount || 0;
           // Always ensure session is active when a student joins
-          this.updateSessionInStorage(sessionId, { studentsCount: currentCount + 1, isActive: true }).catch(error => {
+          this.updateSessionInStorage(studentSessionId, { studentsCount: currentCount + 1, isActive: true }).catch(error => {
             logger.error('Failed to increment studentsCount for session:', { error });
           });
         }).catch(error => {
           logger.error('Failed to fetch session for incrementing studentsCount:', { error });
+        }); // Corrected: ensure this catch is properly placed
+
+        // Notify the teacher(s) in the same session
+        this.connections.forEach(client => {
+          if (client !== ws && this.roles.get(client) === 'teacher' && this.sessionIds.get(client) === studentSessionId) {
+            const studentJoinedMessage: StudentJoinedMessageToClient = {
+              type: 'student_joined',
+              payload: {
+                // Generate a simple unique ID for the student for this message
+                studentId: `student-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                name: studentName,
+                languageCode: studentLanguage,
+              }
+            };
+            try {
+              client.send(JSON.stringify(studentJoinedMessage));
+              logger.info(`Sent 'student_joined' to teacher for student: ${studentName} in session ${studentSessionId}`);
+            } catch (error) {
+              logger.error(`Failed to send 'student_joined' message to teacher:`, { error });
+            }
+          }
         });
       }
     }
@@ -374,9 +400,9 @@ export class WebSocketServer {
   /**
    * Update session in storage
    */
-  private async updateSessionInStorage(sessionId: string, updates: any): Promise<void> {
+  private async updateSessionInStorage(sessionId: string, updates: Partial<InsertSession>): Promise<void> { // MODIFIED: Added Partial<InsertSession>
     try {
-      await storage.updateSession(sessionId, updates);
+      await this.storage.updateSession(sessionId, updates);
     } catch (error) {
       logger.error('Failed to update session in storage:', { error });
     }
@@ -592,180 +618,45 @@ export class WebSocketServer {
       audioBuffer: Buffer;
     }>,
     startTime: number,
-    latencyTracking: {
-      start: number;
-      components: {
-        preparation: number;
-        translation: number;
-        tts: number;
-        processing: number;
-      };
-    }
+    latencyTracking: any
   ): void {
-    // Send translations to each student
     studentConnections.forEach(student => {
       const studentLanguage = this.languages.get(student);
+      const studentSettings = this.clientSettings.get(student) || {};
       
-      if (studentLanguage && translationResults[studentLanguage]) {
-        const result = translationResults[studentLanguage];
-        const currentTime = Date.now();
-        const totalLatency = currentTime - startTime;
-        
-        // Get TTS service type for this student
-        const studentSettings = this.clientSettings.get(student) || {};
-        const ttsServiceType = studentSettings.ttsServiceType || 'openai';
-        
-        // Create translation message
-        const translationMessage = this.createTranslationMessage(
-          result.translatedText,
-          originalText,
-          sourceLanguage,
-          studentLanguage,
-          ttsServiceType,
-          totalLatency,
-          currentTime,
-          latencyTracking
-        );
-        
-        // Add audio data if available
-        if (result.audioBuffer && result.audioBuffer.length > 0) {
-          this.addAudioDataToMessage(
-            translationMessage,
-            result.audioBuffer,
-            studentLanguage,
-            result.translatedText,
-            ttsServiceType
-          );
-        }
-        
-        // Send the translation message
-        student.send(JSON.stringify(translationMessage));
-        
-        // Store translation in storage for metrics
-        this.storeTranslationMetrics(
-          sourceLanguage,
-          studentLanguage,
-          originalText,
-          result.translatedText,
-          totalLatency
-        ).catch(error => {
-          logger.error('Failed to store translation metrics:', { error });
-        });
-        // Record translation in diagnostics for real-time metrics
-        diagnosticsService.recordTranslation(totalLatency);
-      }
-    });
-  }
-  
-  /**
-   * Store translation metrics in storage
-   */
-  private async storeTranslationMetrics(
-    sourceLanguage: string,
-    targetLanguage: string,
-    originalText: string,
-    translatedText: string,
-    latency: number
-  ): Promise<void> {
-    try {
-      await storage.addTranslation({
-        sourceLanguage,
-        targetLanguage,
-        originalText,
-        translatedText,
-        latency
-        // timestamp is automatically set by the database default
-      });
-    } catch (error) {
-      logger.error('Failed to store translation metrics:', { error });
-    }
-  }
-  
-  /**
-   * Create a translation message
-   */
-  private createTranslationMessage(
-    translatedText: string,
-    originalText: string,
-    sourceLanguage: string,
-    targetLanguage: string,
-    ttsServiceType: string,
-    totalLatency: number,
-    currentTime: number,
-    latencyTracking: {
-      components: {
-        translation: number;
-        tts: number;
-        processing: number;
-      };
-    }
-  ): TranslationMessageToClient {
-    return {
-      type: 'translation',
-      text: translatedText,
-      originalText: originalText,
-      sourceLanguage: sourceLanguage,
-      targetLanguage: targetLanguage,
-      ttsServiceType: ttsServiceType,
-      latency: {
-        total: totalLatency,
-        serverCompleteTime: currentTime,
-        components: {
-          translation: latencyTracking.components.translation,
-          tts: latencyTracking.components.tts,
-          processing: latencyTracking.components.processing,
-          network: 0
-        }
-      }
-    };
-  }
-  
-  /**
-   * Add audio data to a translation message
-   */
-  private addAudioDataToMessage(
-    translationMessage: TranslationMessageToClient,
-    audioBuffer: Buffer,
-    studentLanguage: string,
-    translatedText: string,
-    ttsServiceType: string
-  ): void {
-    try {
-      // Check if this is a special marker for browser speech synthesis
-      const bufferString = audioBuffer.toString('utf8');
-      
-      if (bufferString.startsWith('{"type":"browser-speech"')) {
-        // This is a marker for browser-based speech synthesis
-        logger.info(`Using client browser speech synthesis for ${studentLanguage}`);
-        translationMessage.useClientSpeech = true;
-        try {
-          translationMessage.speechParams = JSON.parse(bufferString);
-          logger.info(`Successfully parsed speech params for ${studentLanguage}`);
-        } catch (jsonError) {
-          logger.error('Error parsing speech params:', { jsonError });
+      if (studentLanguage && translations[studentLanguage]) {
+        const translationMessage: TranslationMessageToClient = {
+          type: 'translation',
+          text: translations[studentLanguage],
+          originalText: originalText,
+          sourceLanguage: sourceLanguage,
+          targetLanguage: studentLanguage,
+          ttsServiceType: studentSettings.ttsServiceType || 'openai', // Default to OpenAI if not set
+          latency: {
+            total: 0, // Will be calculated on client
+            serverCompleteTime: Date.now(),
+            components: latencyTracking.components
+          },
+          audioData: translationResults[studentLanguage]?.audioBuffer?.toString('base64') || '',
+          useClientSpeech: studentSettings.useClientSpeech || false
+        };
+
+        if (studentSettings.useClientSpeech) {
           translationMessage.speechParams = {
             type: 'browser-speech',
-            text: translatedText,
-            languageCode: studentLanguage,
+            text: translations[studentLanguage],
+            languageCode: studentLanguage, // Added languageCode
             autoPlay: true
           };
         }
-      } else if (audioBuffer.length > 0) {
-        // This is actual audio data - encode as base64
-        translationMessage.audioData = audioBuffer.toString('base64');
-        translationMessage.useClientSpeech = false; // Explicitly set to false
         
-        // Log audio data details for debugging
-        logger.debug(`Sending ${audioBuffer.length} bytes of audio data to client`);
-        logger.debug(`Using OpenAI TTS service for ${studentLanguage} (teacher preference: ${ttsServiceType})`);
-        logger.debug(`First 16 bytes of audio: ${Array.from(audioBuffer.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
-      } else {
-        // Log a warning when no audio data is available
-        logger.warn(`Warning: No audio buffer available for language ${studentLanguage} with TTS service ${ttsServiceType}`);
+        try {
+          student.send(JSON.stringify(translationMessage));
+        } catch (error) {
+          logger.error('Error sending translation to student:', { error });
+        }
       }
-    } catch (error) {
-      logger.error('Error processing audio data for translation:', { error });
-    }
+    });
   }
   
   /**
@@ -817,6 +708,11 @@ export class WebSocketServer {
       console.log(\'Transcribed audio:\', transcription);
       // If we got a transcription, process it as a transcription message
       if (transcription && transcription.trim().length > 0) {
+        await this.handleTranscriptionMessage(ws, {
+          type: \'transcription\',
+          text: transcription,
+          timestamp: Date.now(),
+      if (transcription && transcriptions.trim().length > 0) {
         await this.handleTranscriptionMessage(ws, {
           type: \'transcription\',
           text: transcription,
@@ -1085,7 +981,7 @@ export class WebSocketServer {
    */
   private async endSessionInStorage(sessionId: string): Promise<void> {
     try {
-      await storage.endSession(sessionId);
+      await this.storage.endSession(sessionId);
     } catch (error) {
       logger.error('Failed to end session in storage:', { error });
     }

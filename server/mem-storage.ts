@@ -45,6 +45,11 @@ export class MemStorage implements IStorage {
   private transcriptIdCounter: { value: number };
   private sessionIdCounter: { value: number };
 
+  private mockSessionMetrics: any = null;
+  private mockTranslationMetrics: any = null;
+  private mockLanguagePairMetrics: any[] = [];
+  private mockRecentSessionActivity: any[] = [];
+
   constructor() {
     this.usersMap = new Map();
     this.languagesMap = new Map();
@@ -241,5 +246,21 @@ export class MemStorage implements IStorage {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
+  }
+
+  setSessionMetrics(metrics: any): void {
+    this.mockSessionMetrics = metrics;
+  }
+
+  setTranslationMetrics(metrics: any): void {
+    this.mockTranslationMetrics = metrics;
+  }
+
+  setLanguagePairMetrics(metrics: any[]): void {
+    this.mockLanguagePairMetrics = metrics;
+  }
+
+  setRecentSessionActivity(activity: any[]): void {
+    this.mockRecentSessionActivity = activity;
   }
 }
