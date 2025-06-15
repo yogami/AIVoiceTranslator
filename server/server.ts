@@ -109,7 +109,7 @@ export async function startServer(app: express.Express): Promise<Server> {
   const httpServer = createServer(app);
   const diagnosticsService = new DiagnosticsService(storage, null);
   const wss = new WebSocketServer(httpServer, storage);
-  wss.setDiagnosticsService(diagnosticsService);
+  
   diagnosticsService.setActiveSessionProvider(wss);
 
   const apiRoutes = createApiRoutes(storage, diagnosticsService, wss);
