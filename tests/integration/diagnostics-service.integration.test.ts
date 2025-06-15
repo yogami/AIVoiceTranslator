@@ -48,8 +48,7 @@ describe('Diagnostics Service Integration', () => {
 
     // Instantiate WebSocketServer
     wsServer = new WebSocketServer(httpServer, testStorage);
-    // Perform setter injection for DiagnosticsService on WebSocketServer
-    wsServer.setDiagnosticsService(diagnosticsServiceInstance);
+   
     // Perform setter injection for IActiveSessionProvider on DiagnosticsService
     diagnosticsServiceInstance.setActiveSessionProvider(wsServer);
 

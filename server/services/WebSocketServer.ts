@@ -13,7 +13,7 @@ import { speechTranslationService } from './TranslationService'; // Corrected im
 import { audioTranscriptionService } from './transcription/AudioTranscriptionService'; // Corrected import path
 import { config } from '../config'; // Removed AppConfig, already have config instance
 import { URL } from 'url';
-import { DiagnosticsService } from './DiagnosticsService';
+
 import { IActiveSessionProvider } from './IActiveSessionProvider'; // Added import
 import type {
   ClientSettings,
@@ -60,7 +60,6 @@ interface ClassroomSession {
 export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
-  private diagnosticsService: DiagnosticsService | null = null; // Initialize to null
   
   // We use the speechTranslationService facade
   
@@ -79,10 +78,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  constructor(server: http.Server, storage: IStorage) { // Removed diagnosticsService from constructor
+  constructor(server: http.Server, storage: IStorage) { 
     this.wss = new WSServer({ server });
     this.storage = storage;
-    // this.diagnosticsService is set via setter
+   
     
     // Set up event handlers
     this.setupEventHandlers();
@@ -91,13 +90,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.setupClassroomCleanup();
   }
 
-  /**
-   * Setter for DiagnosticsService to enable dependency injection.
-   * @param diagnosticsService The DiagnosticsService instance.
-   */
-  public setDiagnosticsService(diagnosticsService: DiagnosticsService): void {
-    this.diagnosticsService = diagnosticsService;
-  }
 
   /**
    * Get the number of active WebSocket connections.
