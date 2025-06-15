@@ -12,22 +12,24 @@ import { StorageError, StorageErrorCode } from "../storage.error";
 
 export const DEFAULT_SESSION_QUERY_LIMIT = 10;
 
+export type SessionActivity = {
+  sessionId: string;
+  teacherLanguage: string | null;
+  transcriptCount: number;
+  studentCount: number;
+  startTime: Date | null;
+  endTime: Date | null;
+  duration: number;
+};
+
 export interface ISessionStorage {
   createSession(session: InsertSession): Promise<Session>;
   updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined>;
   getActiveSession(sessionId: string): Promise<Session | undefined>;
   getAllActiveSessions(): Promise<Session[]>;
   endSession(sessionId: string): Promise<Session | undefined>;
-  getRecentSessionActivity(limit?: number): Promise<{
-    sessionId: string;
-    teacherLanguage: string | null;
-    currentLanguage: string; // Ensure currentLanguage is included
-    transcriptCount: number;
-    startTime: Date | null;
-    endTime: Date | null;
-    duration: number;
-  }[]>;
-  getSessionById(sessionId: string): Promise<Session | undefined>; // New method
+  getRecentSessionActivity(limit?: number): Promise<SessionActivity[]>;
+  getSessionById(sessionId: string): Promise<Session | undefined>;
 }
 
 export class MemSessionStorage implements ISessionStorage {
@@ -61,9 +63,9 @@ export class MemSessionStorage implements ISessionStorage {
       teacherLanguage: insertSession.teacherLanguage ?? null,
       startTime: new Date(),
       endTime: null,
-      studentsCount: insertSession.studentsCount ?? null,
-      totalTranslations: insertSession.totalTranslations ?? null,
-      averageLatency: insertSession.averageLatency ?? null,
+      studentsCount: insertSession.studentsCount ?? 0, // Ensure default is 0, not null
+      totalTranslations: insertSession.totalTranslations ?? 0, // Default to 0
+      averageLatency: insertSession.averageLatency ?? 0, // Default to 0
       isActive: insertSession.isActive ?? true
     };
     this.sessions.set(id, session);
@@ -102,12 +104,13 @@ export class MemSessionStorage implements ISessionStorage {
     return updatedSession;
   }
 
-  async getRecentSessionActivity(limit: number = 5) {
+  async getRecentSessionActivity(limit: number = 5): Promise<SessionActivity[]> { // Update return type to SessionActivity[]
     const recentSessions = Array.from(this.sessions.values())
       .sort((a: Session, b: Session) => {
+        // Ensure startTime is valid before getTime()
         const aTime = a.startTime ? new Date(a.startTime).getTime() : 0;
         const bTime = b.startTime ? new Date(b.startTime).getTime() : 0;
-        return bTime - aTime;
+        return bTime - aTime; // Sort by startTime descending
       })
       .slice(0, limit);
 
@@ -116,12 +119,12 @@ export class MemSessionStorage implements ISessionStorage {
         .filter((t: Transcript) => t.sessionId === s.sessionId).length;
       const duration = s.startTime && s.endTime
         ? new Date(s.endTime).getTime() - new Date(s.startTime).getTime()
-        : 0;
+        : (s.startTime && s.isActive ? Date.now() - new Date(s.startTime).getTime() : 0); // Calculate duration for active sessions
       return {
         sessionId: s.sessionId,
         teacherLanguage: s.teacherLanguage,
-        currentLanguage: s.teacherLanguage || 'unknown', // Populate currentLanguage with a fallback
         transcriptCount,
+        studentCount: s.studentsCount ?? 0, // Added studentCount
         startTime: s.startTime,
         endTime: s.endTime,
         duration
@@ -228,48 +231,65 @@ export class DbSessionStorage implements ISessionStorage {
     }
   }
 
-  async getRecentSessionActivity(limit: number = 5) {
+  async getRecentSessionActivity(limit: number = DEFAULT_SESSION_QUERY_LIMIT): Promise<SessionActivity[]> { // Update return type to SessionActivity[]
     try {
-      type ActivityRow = {
-        sessionId: string;
-        teacherLanguage: string | null;
-        currentLanguage: string; // Add currentLanguage here
-        transcriptCount: number; // This will be a number due to .mapWith(Number)
-        startTime: Date | null;
-        endTime: Date | null;
-      };
-
-      // Use dbSql for raw SQL parts if needed, or drizzleCount for aggregates
-      const activityResults: ActivityRow[] = await db // db from ../db
+      // Subquery to count transcripts per session
+      const transcriptCountsSubquery = db
         .select({
-          sessionId: sessions.sessionId, // sessions from ../../shared/schema
+          sq_sessionId: transcripts.sessionId, // Aliased to avoid conflicts and for clarity
+          num_transcripts: drizzleCount(transcripts.id).as("num_transcripts"), // Aggregate aliased by key
+        })
+        .from(transcripts)
+        .groupBy(transcripts.sessionId) // Group by the original column
+        .as("transcript_counts"); // Alias for the subquery itself
+
+      const recentSessionsData = await db
+        .select({
+          sessionId: sessions.sessionId,
           teacherLanguage: sessions.teacherLanguage,
-          currentLanguage: sessions.teacherLanguage, // Add currentLanguage with fallback
-          transcriptCount: drizzleCount(transcripts.id).mapWith(Number), // drizzleCount from drizzle-orm, transcripts from ../../shared/schema
+          studentsCount: sessions.studentsCount,
           startTime: sessions.startTime,
           endTime: sessions.endTime,
+          isActive: sessions.isActive, // Include isActive to calculate duration for active sessions
+          transcriptCount: transcriptCountsSubquery.num_transcripts, // Use the aliased aggregate from subquery
         })
-        .from(sessions) // sessions from ../../shared/schema
-        .leftJoin(transcripts, eq(sessions.sessionId, transcripts.sessionId)) // transcripts, eq from drizzle-orm, sessions from ../../shared/schema
-        .groupBy(
-          sessions.id, 
-          sessions.sessionId, 
-          sessions.teacherLanguage, 
-          sessions.startTime, 
-          sessions.endTime
+        .from(sessions)
+        .leftJoin(
+          transcriptCountsSubquery,
+          eq(sessions.sessionId, transcriptCountsSubquery.sq_sessionId) // Join using the aliased sessionId from subquery
         )
-        .orderBy(desc(sessions.startTime)) // desc from drizzle-orm, sessions from ../../shared/schema
+        .orderBy(desc(sessions.startTime))
         .limit(limit);
 
-      return activityResults.map((row: ActivityRow) => ({
-        ...row,
-        duration: row.startTime && row.endTime
-          ? new Date(row.endTime).getTime() - new Date(row.startTime).getTime()
-          : 0,
-      }));
+      return recentSessionsData.map((s: {
+        sessionId: string;
+        teacherLanguage: string | null;
+        studentsCount: number | null;
+        startTime: Date | null;
+        endTime: Date | null;
+        isActive: boolean | null;
+        transcriptCount: number | null;
+      }) => {
+        const duration = s.startTime && s.endTime
+          ? new Date(s.endTime).getTime() - new Date(s.startTime).getTime()
+          : (s.startTime && s.isActive ? Date.now() - new Date(s.startTime).getTime() : 0);
+        return {
+          sessionId: s.sessionId,
+          teacherLanguage: s.teacherLanguage,
+          transcriptCount: s.transcriptCount || 0,
+          studentCount: s.studentsCount ?? 0,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          duration,
+        };
+      });
     } catch (error: any) {
-      if (error instanceof StorageError) throw error;
-      throw new StorageError(`Failed to get recent session activity: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+      console.error("[DbSessionStorage.getRecentSessionActivity] Error:", error);
+      throw new StorageError(
+        `Failed to get recent session activity: ${error.message}`,
+        StorageErrorCode.STORAGE_ERROR,
+        error
+      );
     }
   }
 

@@ -13,20 +13,21 @@ import { createServer, Server } from 'http';
 import express, { Request, Response } from 'express';
 import { AddressInfo } from 'net';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
-import { storage } from '../../server/storage';
 import { MemStorage } from '../../server/mem-storage';
 import { DatabaseStorage } from '../../server/database-storage';
-import { DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { DiagnosticsService, type SessionActivity } from '../../server/services/DiagnosticsService'; // Import SessionActivity
 import { clearDiagnosticData } from '../e2e/test-data-utils';
 import { StorageError, StorageErrorCode } from '../../server/storage.error';
+import { IStorage } from '../../server/storage.interface'; // Correct import for IStorage
 
 describe('Diagnostics Service Integration', () => {
   let httpServer: Server;
   let wsServer: WebSocketServer;
   let actualPort: number;
-  
+  let testStorage: IStorage; // Use IStorage interface
+  let diagnosticsServiceInstance: DiagnosticsService; // Renamed to avoid conflict
+
   beforeAll(async () => {
-    // Start HTTP server
     const app = express();
     // Mock the /api/languages endpoint if your WebSocketServer or other services depend on it during startup
     app.get('/api/languages', (req: Request, res: Response) => { // Typed req and res
@@ -40,56 +41,52 @@ describe('Diagnostics Service Integration', () => {
 
     httpServer = createServer(app);
     
-    // Initialize WebSocketServer
-    wsServer = new WebSocketServer(httpServer);
-    (global as any).wsServer = wsServer; // Make wsServer globally available for the diagnosticsService singleton
+    testStorage = new MemStorage(); 
+    
+    // Instantiate DiagnosticsService first, passing null for IActiveSessionProvider
+    diagnosticsServiceInstance = new DiagnosticsService(testStorage, null); 
+
+    // Instantiate WebSocketServer
+    wsServer = new WebSocketServer(httpServer, testStorage);
+    // Perform setter injection for DiagnosticsService on WebSocketServer
+    wsServer.setDiagnosticsService(diagnosticsServiceInstance);
+    // Perform setter injection for IActiveSessionProvider on DiagnosticsService
+    diagnosticsServiceInstance.setActiveSessionProvider(wsServer);
+
+    (global as any).wsServer = wsServer; 
 
     await new Promise<void>(resolve => {
-      httpServer.listen(0, () => {
+      httpServer.listen(0, () => { 
         const address = httpServer.address() as AddressInfo;
         actualPort = address.port;
         console.log(`Test server running on port ${actualPort}`);
         resolve();
       });
     });
-  }, 60000); // Increase timeout to 60s
+  }, 60000); 
   
   afterAll(async () => {
-    // wsServer.closeAllConnections();
-    // wsServer.stopHeartbeat();
-    // wsServer.stopClassroomCleanup();
     if (wsServer) {
-      wsServer.shutdown(); // Updated to use the new shutdown method
+      wsServer.shutdown(); 
     }
     if (httpServer) {
       await new Promise<void>(resolve => httpServer.close(() => resolve()));
     }
-    delete (global as any).wsServer; // Clean up global wsServer
+    delete (global as any).wsServer; 
     vi.restoreAllMocks();
   });
   
   beforeEach(async () => {
-    const currentTest = expect.getState().currentTestName || '';
-    let storageInstance;
-
-    if (currentTest.includes('Historical Metrics Storage')) {
-      storageInstance = new DatabaseStorage();
-      await clearDiagnosticData();
-      await new Promise(res => setTimeout(res, 200));
-    } else {
-      storageInstance = new MemStorage();
-      if (typeof (storageInstance as any).reset === 'function') {
-        await (storageInstance as any).reset();
-      }
+    // Clear data before each test
+    if (testStorage instanceof MemStorage) {
+      await testStorage.reset(); 
     }
-
-    // Reinitialize services with the new storage instance
-    const diagnosticsService = new DiagnosticsService(storageInstance);
-    wsServer = new WebSocketServer(httpServer, storageInstance, diagnosticsService);
-
-    vi.restoreAllMocks(); // Restore any mocks from previous tests
+    // else if (testStorage instanceof DatabaseStorage) {
+    //   await clearDiagnosticData(); // For actual DB tests
+    // }
+    // diagnosticsServiceInstance is NOT re-created here. It uses the reset testStorage.
   });
-  
+
   describe('Non-Interference with Core Functionality', () => {
     it('should establish WebSocket connections for teacher and student', async () => {
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
@@ -136,15 +133,8 @@ describe('Diagnostics Service Integration', () => {
     }, 10000);
 
     it('should continue working even if metrics collection fails', async () => {
-      if (!expect.getState().currentTestName?.includes('Historical Metrics Storage')) {
-        const memStorage = new MemStorage();
-        if (typeof (memStorage as any).reset === 'function') {
-          await (memStorage as any).reset();
-        }
-        __setStorageForTestingOnly(memStorage);
-      }
-
-      const storageAddTranslationSpy = vi.spyOn(storage, 'addTranslation')
+      // Spy on the existing testStorage instance's addTranslation method
+      const storageAddTranslationSpy = vi.spyOn(testStorage, 'addTranslation')
         .mockRejectedValue(new StorageError('Failed to save translation (simulated)', StorageErrorCode.DB_ERROR));
       
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
@@ -197,6 +187,10 @@ describe('Diagnostics Service Integration', () => {
         expect(translation.text).toBeDefined();
       }
       expect(storageAddTranslationSpy).toHaveBeenCalled();
+      // Ensure spy is restored if not automatically handled by vi.restoreAllMocks() for this specific case,
+      // though usually it is. If issues persist, explicit restore here or in a local afterEach.
+      // storageAddTranslationSpy.mockRestore(); // Typically not needed with global restoreAllMocks
+
       expect(teacherClient.readyState).toBe(WebSocket.OPEN);
       expect(studentClient.readyState).toBe(WebSocket.OPEN);
       teacherClient.close();
@@ -246,7 +240,7 @@ describe('Diagnostics Service Integration', () => {
       if (receivedTranslation) {
         expect(receivedTranslation.text).toBeDefined();
       }
-      const currentMetrics = await diagnosticsService.getMetrics();
+      const currentMetrics = await diagnosticsServiceInstance.getMetrics();
       expect(currentMetrics.sessions.activeSessions).toBeGreaterThanOrEqual(1);
       expect(currentMetrics.translations.total).toBeGreaterThanOrEqual(1);
       teacherClient.close();
@@ -256,12 +250,12 @@ describe('Diagnostics Service Integration', () => {
   
   describe('Historical Metrics Storage', () => {
     it('should persist session data for later analysis', async () => {
-      if (!(storage.constructor && storage.constructor.name === 'DatabaseStorage')) {
+      if (!(testStorage.constructor && testStorage.constructor.name === 'DatabaseStorage')) {
         console.warn('Skipping historical metrics test: not running with DatabaseStorage');
         return;
       }
       // Log all sessions before test
-      const beforeSessions = await storage.getAllActiveSessions();
+      const beforeSessions = await testStorage.getAllActiveSessions();
       console.log('[Historical Test] DB sessions before test:', beforeSessions);
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
       const teacherMessages: any[] = [];
@@ -298,7 +292,7 @@ describe('Diagnostics Service Integration', () => {
       studentClient.close();
       await new Promise(resolve => setTimeout(resolve, 300));
       // Log all sessions after test
-      const afterSessions = await storage.getAllActiveSessions();
+      const afterSessions = await testStorage.getAllActiveSessions();
       console.log('[Historical Test] DB active sessions after test:', afterSessions);
       // Query persistent storage for sessionId
       // The expect(classroomCodeMessage).toBeDefined() above ensures classroomCodeMessage is not null/undefined
@@ -308,7 +302,7 @@ describe('Diagnostics Service Integration', () => {
 
       // const persistedSession = afterSessions.find(s => s.sessionId === sessionIdToFind);
       // Fetch session by ID directly, regardless of active status
-      const persistedSession = await storage.getSessionById(sessionIdToFind);
+      const persistedSession = await testStorage.getSessionById(sessionIdToFind);
       console.log('[Historical Test] Looking for sessionId:', sessionIdToFind, 'Found:', persistedSession);
       expect(persistedSession).toBeDefined();
       if (persistedSession) {
@@ -317,7 +311,7 @@ describe('Diagnostics Service Integration', () => {
     }, 5000);
 
     it('should retrieve historical metrics by classroom code', async () => {
-      if (!(storage.constructor && storage.constructor.name === 'DatabaseStorage')) {
+      if (!(testStorage.constructor && testStorage.constructor.name === 'DatabaseStorage')) {
         console.warn('Skipping historical metrics test: not running with DatabaseStorage');
         return;
       }
@@ -356,7 +350,7 @@ describe('Diagnostics Service Integration', () => {
       // const allSessions = await storage.getAllActiveSessions();
       // const sessionByCode = allSessions.find(s => s.sessionId === sessionIdToFind);
       // Fetch session by ID directly, regardless of active status
-      const sessionByCode = await storage.getSessionById(sessionIdToFind);
+      const sessionByCode = await testStorage.getSessionById(sessionIdToFind);
       console.log('[Historical Test - By Classroom Code] Looking for sessionId:', sessionIdToFind, 'Found:', sessionByCode);
       expect(sessionByCode).toBeDefined();
       if (sessionByCode) {
@@ -366,7 +360,7 @@ describe('Diagnostics Service Integration', () => {
     }, 5000);
 
     it('Historical Metrics Storage: should reflect historical session activity in diagnostics aggregates and recent activity list', async () => {
-      const getSessionByIdSpy = vi.spyOn(storage, 'getSessionById'); // This spy is for storage, not DiagnosticsService directly.
+      const getSessionByIdSpy = vi.spyOn(testStorage, 'getSessionById'); // This spy is for storage, not DiagnosticsService directly.
                                                                     // DiagnosticsService.getMetrics doesn't call storage.getSessionById.
                                                                     // This spy might be for other parts of the test or can be removed if not relevant to getMetrics.
 
@@ -412,7 +406,7 @@ describe('Diagnostics Service Integration', () => {
       expect(studentTranslationMessage.targetLanguage).toBe('es-ES'); // Student's language, changed from languageCode
 
       // Store initial aggregate counts to check increments if possible and makes sense
-      const initialGlobalMetrics = await diagnosticsService.getMetrics();
+      const initialGlobalMetrics = await diagnosticsServiceInstance.getMetrics();
       const initialTotalTranslationsFromDb = initialGlobalMetrics.translations.totalFromDatabase;
       const initialTotalSessions = initialGlobalMetrics.sessions.totalSessions;
 
@@ -423,7 +417,7 @@ describe('Diagnostics Service Integration', () => {
 
       // Call getMetrics - it returns aggregate data.
       // For specific session data, we look into metrics.sessions.recentSessionActivity
-      const metrics = await diagnosticsService.getMetrics(); // Get all-time metrics
+      const metrics = await diagnosticsServiceInstance.getMetrics(); // Get all-time metrics
 
       // The getSessionByIdSpy on storage.getSessionById is not called by diagnosticsService.getMetrics().
       // If this spy was intended to check if DiagnosticsService uses it, that's a misunderstanding.
@@ -435,7 +429,7 @@ describe('Diagnostics Service Integration', () => {
       
       // Check sessions.recentSessionActivity for our session
       // Note: recentSessionActivity usually shows a limited number of recent sessions (e.g., last 5)
-      const sessionActivity = metrics.sessions.recentSessionActivity.find(activity => activity.sessionId === sessionId);
+      const sessionActivity = metrics.sessions.recentSessionActivity.find((activity: SessionActivity) => activity.sessionId === sessionId);
       expect(sessionActivity).toBeDefined();
 
       if (sessionActivity) {
@@ -506,7 +500,7 @@ describe('Diagnostics Service Integration', () => {
       // Test case 1: Range including only Transcript 2's data
       const range1Start = new Date(transcript1Time + 100); // After T1
       const range1End = new Date(transcript2Time + 100);   // After T2, but before T3
-      let metrics = await diagnosticsService.getMetrics({ startDate: range1Start, endDate: range1End });
+      let metrics = await diagnosticsServiceInstance.getMetrics({ startDate: range1Start, endDate: range1End });
       expect(metrics).toBeDefined();
       expect(metrics.timeRange).toBeDefined();
       expect(new Date(metrics.timeRange!.startDate).getTime()).toBe(range1Start.getTime());
@@ -517,19 +511,19 @@ describe('Diagnostics Service Integration', () => {
       // Test case 2: Range including Transcript 2 and 3
       const range2Start = new Date(transcript2Time - 100); // Before T2
       const range2End = new Date(transcript3Time + 100);   // After T3
-      metrics = await diagnosticsService.getMetrics({ startDate: range2Start, endDate: range2End });
+      metrics = await diagnosticsServiceInstance.getMetrics({ startDate: range2Start, endDate: range2End });
       expect(metrics.translations.totalFromDatabase).toBe(2); // Translations for T2, T3
 
       // Test case 3: Range including all three
       const range3Start = new Date(transcript1Time - 100); // Before T1
       const range3End = new Date(transcript3Time + 100);   // After T3
-      metrics = await diagnosticsService.getMetrics({ startDate: range3Start, endDate: range3End });
+      metrics = await diagnosticsServiceInstance.getMetrics({ startDate: range3Start, endDate: range3End });
       expect(metrics.translations.totalFromDatabase).toBe(3); // Translations for T1, T2, T3
 
       // Test case 4: Range with no data (future)
       const range4Start = new Date(now + 1000);
       const range4End = new Date(now + 2000);
-      metrics = await diagnosticsService.getMetrics({ startDate: range4Start, endDate: range4End });
+      metrics = await diagnosticsServiceInstance.getMetrics({ startDate: range4Start, endDate: range4End });
       expect(metrics.translations.totalFromDatabase).toBe(0);
 
       // Test case 5: Only startTime (interpreted by service as start to "now" for presets, or passed as is for TimeRange object)
@@ -538,12 +532,12 @@ describe('Diagnostics Service Integration', () => {
       // Let's be explicit for the test:
       const range5Start = new Date(transcript2Time - 100); // Before T2
       // Assuming "now" for the service is close to the 'now' variable in the test.
-      metrics = await diagnosticsService.getMetrics({ startDate: range5Start, endDate: new Date(now + 500) });
+      metrics = await diagnosticsServiceInstance.getMetrics({ startDate: range5Start, endDate: new Date(now + 500) });
       expect(metrics.translations.totalFromDatabase).toBe(2); // T2, T3
 
       // Test case 6: Only endTime
       const range6End = new Date(transcript2Time + 100); // After T2, before T3
-      metrics = await diagnosticsService.getMetrics({ startDate: new Date(0), endDate: range6End }); // From beginning of time
+      metrics = await diagnosticsServiceInstance.getMetrics({ startDate: new Date(0), endDate: range6End }); // From beginning of time
       expect(metrics.translations.totalFromDatabase).toBe(2); // T1, T2
 
       // Note: metrics.sessions.recentSessionActivity is NOT filtered by the time range passed to getMetrics,
@@ -580,10 +574,10 @@ describe('Diagnostics Service Integration', () => {
       await waitForMessage(teacherMessages, 'student_joined', 5000);
 
       // Store initial aggregate counts
-      const initialGlobalMetrics = await diagnosticsService.getMetrics();
+      const initialGlobalMetrics = await diagnosticsServiceInstance.getMetrics();
       const initialTotalTranslationsFromDb = initialGlobalMetrics.translations.totalFromDatabase;
       const initialTotalSessions = initialGlobalMetrics.sessions.totalSessions;
-      const initialTranscriptCountForSession = (initialGlobalMetrics.sessions.recentSessionActivity.find((act: { sessionId: string; transcriptCount: number }) => act.sessionId === sessionId) || { transcriptCount: 0 }).transcriptCount;
+      const initialTranscriptCountForSession = (initialGlobalMetrics.sessions.recentSessionActivity.find((act: SessionActivity) => act.sessionId === sessionId) || { transcriptCount: 0 }).transcriptCount;
 
 
       teacherClient.send(JSON.stringify({ type: 'transcription', text: 'Transcript A', languageCode: 'en-US', timestamp: Date.now() - 1000} ));
@@ -596,14 +590,14 @@ describe('Diagnostics Service Integration', () => {
       studentClient.close();
       await new Promise(res => setTimeout(res, 500));
 
-      const metrics = await diagnosticsService.getMetrics(); // No time range
+      const metrics = await diagnosticsServiceInstance.getMetrics(); // No time range
       expect(metrics).toBeDefined();
       expect(metrics.timeRange).toBeUndefined(); // No specific timeRange was requested
 
       expect(metrics.translations.totalFromDatabase).toBeGreaterThanOrEqual(initialTotalTranslationsFromDb + 2);
-      expect(metrics.sessions.totalSessions).toBeGreaterThanOrEqual(initialTotalSessions + (initialGlobalMetrics.sessions.recentSessionActivity.find(act => act.sessionId === sessionId) ? 0 : 1) ); // Session count increases if it's a new session not previously counted in total.
+      expect(metrics.sessions.totalSessions).toBeGreaterThanOrEqual(initialTotalSessions + (initialGlobalMetrics.sessions.recentSessionActivity.find((act: SessionActivity) => act.sessionId === sessionId) ? 0 : 1) ); // Session count increases if it's a new session not previously counted in total.
 
-      const sessionActivity = metrics.sessions.recentSessionActivity.find(act => act.sessionId === sessionId);
+      const sessionActivity = metrics.sessions.recentSessionActivity.find((act: SessionActivity) => act.sessionId === sessionId);
       expect(sessionActivity).toBeDefined();
       if (sessionActivity) {
         expect(sessionActivity.transcriptCount).toBeGreaterThanOrEqual(initialTranscriptCountForSession + 2);

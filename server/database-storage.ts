@@ -2,15 +2,14 @@ import {
   type User, users, type InsertUser,
   type Session, sessions, type InsertSession,
   type Translation, translations, type InsertTranslation,
-  type Language, type InsertLanguage,
-  type Transcript, type InsertTranscript,
-  languages // Assuming languages might be needed, if not, this can be removed too.
-} from '../shared/schema'; // Correct: ../shared/schema
-import { StorageError, StorageErrorCode } from './storage.error'; // Corrected path
-import { IStorage } from './storage.interface'; // Corrected IStorage import path
-import logger from './logger'; // Corrected: import default export
-import { avg, count, desc, eq, gte, lte, and, sql, isNotNull, placeholder } from 'drizzle-orm';
-import { db as drizzleDB } from './db'; // Corrected path, using drizzleDB alias
+  type Language, languages, type InsertLanguage, // Added languages table object
+  type Transcript, transcripts as transcriptsTable, type InsertTranscript // Added transcripts table object and aliased to avoid conflict
+} from '../shared/schema';
+import { StorageError, StorageErrorCode } from './storage.error';
+import { IStorage } from './storage.interface';
+import logger from './logger';
+import { avg, count, desc, eq, gte, lte, and, sql, isNotNull } from 'drizzle-orm';
+import { db as drizzleDB } from './db';
 
 // Import sub-storage classes
 import { DbUserStorage } from './storage/user.storage';
@@ -18,8 +17,7 @@ import { DbLanguageStorage } from './storage/language.storage';
 import { DbTranslationStorage } from './storage/translation.storage';
 import { DbTranscriptStorage } from './storage/transcript.storage';
 import { DbSessionStorage } from './storage/session.storage';
-
-// const logger = WinstonLogger.getInstance(); // REMOVED - logger is imported directly
+import type { SessionActivity } from './storage/session.storage'; // Import SessionActivity from session.storage
 
 export class DatabaseStorage implements IStorage {
   private userStorage: DbUserStorage;
@@ -27,7 +25,6 @@ export class DatabaseStorage implements IStorage {
   private translationStorage: DbTranslationStorage;
   private transcriptStorage: DbTranscriptStorage;
   private sessionStorage: DbSessionStorage;
-  // Removed private db member, will use drizzleDB directly
 
   constructor() {
     this.userStorage = new DbUserStorage();
@@ -41,13 +38,12 @@ export class DatabaseStorage implements IStorage {
   async getUser(id: number) { return this.userStorage.getUser(id); }
   async getUserByUsername(username: string) { return this.userStorage.getUserByUsername(username); }
   async createUser(user: InsertUser) { return this.userStorage.createUser(user); }
-  async listUsers(): Promise<User[]> { // Ensure listUsers is implemented from IStorage
+  async listUsers(): Promise<User[]> {
     return this.userStorage.listUsers();
   }
 
-
   // Language methods (delegated)
-  async getLanguage(id: number): Promise<Language | undefined> { // Ensure getLanguage is implemented
+  async getLanguage(id: number): Promise<Language | undefined> {
     return this.languageStorage.getLanguage(id);
   }
   async getLanguages() { return this.languageStorage.getLanguages(); }
@@ -55,59 +51,49 @@ export class DatabaseStorage implements IStorage {
   async getLanguageByCode(code: string) { return this.languageStorage.getLanguageByCode(code); }
   async createLanguage(language: InsertLanguage) { return this.languageStorage.createLanguage(language); }
   async updateLanguageStatus(code: string, isActive: boolean) { return this.languageStorage.updateLanguageStatus(code, isActive); }
-  async listLanguages(): Promise<Language[]> { // Ensure listLanguages is implemented
+  async listLanguages(): Promise<Language[]> {
     return this.languageStorage.listLanguages();
   }
   async initializeDefaultLanguages(): Promise<void> {
-    if (this.languageStorage.initializeDefaultLanguages) {
-      await this.languageStorage.initializeDefaultLanguages();
-    } else {
-      logger.warn('initializeDefaultLanguages not implemented on the current language sub-storage');
-    }
+    await this.languageStorage.initializeDefaultLanguages();
   }
 
-  // Translation methods (delegated for some, specific for metrics)
-  async getTranslation(id: number): Promise<Translation | undefined> { // Ensure getTranslation is implemented
+  // Translation methods
+  async getTranslation(id: number): Promise<Translation | undefined> {
     return this.translationStorage.getTranslation(id);
-  }
-  async createTranslation(translation: InsertTranslation): Promise<Translation> { // Ensure createTranslation is implemented
-    return this.translationStorage.createTranslation(translation);
   }
   async addTranslation(translation: InsertTranslation) { return this.translationStorage.addTranslation(translation); }
   async getTranslationsByLanguage(targetLanguage: string, limit?: number) { return this.translationStorage.getTranslationsByLanguage(targetLanguage, limit); }
-  async getTranslations(limit?: number, offset?: number): Promise<Translation[]> { // Added offset to match IStorage if necessary
+  async getTranslations(limit?: number, offset?: number): Promise<Translation[]> {
      return this.translationStorage.getTranslations(limit, offset);
   }
   async getTranslationsByDateRange(startDate: Date, endDate: Date): Promise<Translation[]> {
     return this.translationStorage.getTranslationsByDateRange(startDate, endDate);
   }
 
-
   // Transcript methods (delegated)
   async addTranscript(transcript: InsertTranscript) { return this.transcriptStorage.addTranscript(transcript); }
   async getTranscriptsBySession(sessionId: string, language: string, limit?: number) { return this.transcriptStorage.getTranscriptsBySession(sessionId, language, limit); }
 
-
-  // Session methods (delegated for some, specific for metrics)
-  async createSession(session: InsertSession) { return this.sessionStorage.createSession(session); }
-  async updateSession(sessionId: string, updates: Partial<InsertSession>) { return this.sessionStorage.updateSession(sessionId, updates); }
+  // Session methods
   async getActiveSession(sessionId: string) { return this.sessionStorage.getActiveSession(sessionId); }
   async getAllActiveSessions() { return this.sessionStorage.getAllActiveSessions(); }
   async endSession(sessionId: string) { return this.sessionStorage.endSession(sessionId); }
-  async getSessionById(sessionId: string): Promise<Session | undefined> { // Add getSessionById
-    return this.sessionStorage.getSessionById(sessionId);
+
+  async getRecentSessionActivity(limit: number = 5): Promise<SessionActivity[]> {
+    return this.sessionStorage.getRecentSessionActivity(limit);
   }
   
-  // Make sure the return type matches IStorage or the specific implementation in DbSessionStorage
-  async getRecentSessionActivity(limit: number = 5): Promise<Array<{
-    sessionId: string; // Changed from id to sessionId to match DbSessionStorage
-    teacherLanguage: string | null; // Added to match DbSessionStorage
-    transcriptCount: number; // Added to match DbSessionStorage
-    startTime: Date | null; // Changed from Date to Date | null
-    endTime: Date | null;   // Changed from Date to Date | null
-    duration: number; // Added to match DbSessionStorage
-  }>> {
-    return this.sessionStorage.getRecentSessionActivity(limit);
+  async getSessionById(sessionId: string): Promise<Session | undefined> {
+    return this.sessionStorage.getSessionById(sessionId);
+  }
+
+  async createSession(sessionData: InsertSession): Promise<Session> {
+    return this.sessionStorage.createSession(sessionData);
+  }
+
+  async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined> {
+    return this.sessionStorage.updateSession(sessionId, updates);
   }
 
   // Analytics methods
@@ -116,7 +102,7 @@ export class DatabaseStorage implements IStorage {
     averageLatency: number;
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }> {
-    const translationsForSession: Translation[] = await drizzleDB.select() // Use drizzleDB
+    const translationsForSession: Translation[] = await drizzleDB.select() // Added .select()
       .from(translations)
       .where(eq(translations.sessionId, sessionId));
 
@@ -124,9 +110,9 @@ export class DatabaseStorage implements IStorage {
         return { totalTranslations: 0, averageLatency: 0, languagePairs: [] };
     }
 
-    const totalTranslations = translationsForSession.length;
+    const totalTranslationsCount = translationsForSession.length;
     const totalLatencySum = translationsForSession.reduce((sum: number, t: Translation) => sum + (t.latency || 0), 0);
-    const averageLatency = totalTranslations > 0 ? totalLatencySum / totalTranslations : 0;
+    const averageLatencyValue = totalTranslationsCount > 0 ? totalLatencySum / totalTranslationsCount : 0;
 
     const languagePairsMap = new Map<string, { sourceLanguage: string; targetLanguage: string; count: number }>();
     for (const t of translationsForSession) {
@@ -140,168 +126,175 @@ export class DatabaseStorage implements IStorage {
             }
         }
     }
-    return { totalTranslations, averageLatency, languagePairs: Array.from(languagePairsMap.values()) };
+    return { totalTranslations: totalTranslationsCount, averageLatency: averageLatencyValue, languagePairs: Array.from(languagePairsMap.values()) };
   }
 
   async getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     totalSessions: number;
-    averageSessionDuration: number; // Renamed from averageDuration
+    averageSessionDuration: number;
     activeSessions: number;
+    sessionsLast24Hours: number;
   }> {
     logger.debug('DatabaseStorage.getSessionMetrics called', { timeRange });
 
-    const conditions = [];
-    if (timeRange) {
-      conditions.push(gte(sessions.startTime, placeholder('startDate')));
-      conditions.push(lte(sessions.startTime, placeholder('endDate'))); // Corrected to use placeholder for endDate as well
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
     const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
-    const totalSessionsQuery = drizzleDB // Use drizzleDB
-      .select({
-        totalSessions: count(sessions.id),
-      })
-      .from(sessions);
-
-    if (whereClause) {
-      totalSessionsQuery.where(whereClause);
-    }
-    
-    const totalSessionsResult = await totalSessionsQuery.prepare(totalSessionsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
+    const totalSessionsResult = await drizzleDB
+      .select({ totalSessions: count() })
+      .from(sessions)
+      .where(timeRange ? and(gte(sessions.startTime, timeRange.startDate), lte(sessions.startTime, timeRange.endDate)) : undefined)
+      .prepare(totalSessionsQueryName)
+      .execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : undefined);
     const totalSessionsCount = Number(totalSessionsResult[0]?.totalSessions) || 0;
 
-    let averageSessionDurationValue = 0; // Renamed variable
+    let averageSessionDurationValue = 0;
     if (totalSessionsCount > 0) {
-      const validEndedSessionConditions = [];
-      validEndedSessionConditions.push(isNotNull(sessions.endTime));
-      validEndedSessionConditions.push(isNotNull(sessions.startTime));
-
-      if (timeRange) {
-        validEndedSessionConditions.push(gte(sessions.startTime, placeholder('startDate')));
-        validEndedSessionConditions.push(lte(sessions.startTime, placeholder('endDate')));
-      }
-
-      const sumDurationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
-      const sumDurationQuery = drizzleDB // Use drizzleDB
+      const durationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
+      const durationResult = await drizzleDB
         .select({
-          totalDuration: sql<number>`SUM(EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})))`.mapWith(Number),
-          countSessions: count(sessions.id)
+          totalDuration: sql<string>`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
+          countSessions: count(sessions.id),
         })
         .from(sessions)
-        .where(and(...validEndedSessionConditions));
-      
-      const durationResult = await sumDurationQuery.prepare(sumDurationQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
+        .where(timeRange ?
+          and(gte(sessions.startTime, timeRange.startDate), lte(sessions.startTime, timeRange.endDate), isNotNull(sessions.endTime)) :
+          isNotNull(sessions.endTime)
+        )
+        .prepare(durationQueryName)
+        .execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : undefined);
 
-      if (durationResult[0] && durationResult[0].totalDuration != null && durationResult[0].countSessions > 0) {
-        averageSessionDurationValue = durationResult[0].totalDuration / durationResult[0].countSessions;
+      if (durationResult && durationResult.length > 0 && durationResult[0].countSessions && Number(durationResult[0].countSessions) > 0) {
+        averageSessionDurationValue = (Number(durationResult[0].totalDuration) || 0) / (Number(durationResult[0].countSessions));
       }
     }
 
-    const activeSessionsResult = await drizzleDB // Use drizzleDB
+    const activeSessionsResult = await drizzleDB
       .select({ count: count() })
       .from(sessions)
       .where(eq(sessions.isActive, true))
-      .prepare("active_sessions_query_unique_name") // Ensure this is unique if used elsewhere or make it dynamic
+      .prepare("active_sessions_query")
       .execute();
     const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
 
-    logger.debug('DatabaseStorage.getSessionMetrics results', { totalSessionsCount, averageSessionDuration: averageSessionDurationValue, activeSessionsCount });
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const sessionsLast24HoursResult = await drizzleDB
+      .select({ count: count() })
+      .from(sessions)
+      .where(gte(sessions.startTime, twentyFourHoursAgo))
+      .prepare("sessions_last_24_hours_query")
+      .execute();
+    const sessionsLast24HoursCount = Number(sessionsLast24HoursResult[0]?.count) || 0;
+
+    logger.debug('DatabaseStorage.getSessionMetrics results', { totalSessionsCount, averageSessionDuration: averageSessionDurationValue, activeSessionsCount, sessionsLast24Hours: sessionsLast24HoursCount });
     return {
       totalSessions: totalSessionsCount,
-      averageSessionDuration: averageSessionDurationValue, // Renamed field
+      averageSessionDuration: averageSessionDurationValue,
       activeSessions: activeSessionsCount,
+      sessionsLast24Hours: sessionsLast24HoursCount,
     };
   }
 
   async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     totalTranslations: number;
     averageLatency: number;
-    recentTranslations: number; // Added back to match IStorage
+    recentTranslations: number;
   }> {
     logger.debug('DatabaseStorage.getTranslationMetrics called', { timeRange });
+    const mainQueryName = timeRange ? "translation_metrics_main_with_range" : "translation_metrics_main_no_range";
 
-    const conditions = [];
-    if (timeRange) {
-      conditions.push(gte(translations.timestamp, placeholder('startDate')));
-      conditions.push(lte(translations.timestamp, placeholder('endDate')));
-    }
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const translationMetricsQueryName = timeRange ? "translation_metrics_query_with_time_range" : "translation_metrics_query_without_time_range";
-    const query = drizzleDB // Use drizzleDB
+    let query = drizzleDB
       .select({
-        totalTranslations: count(translations.id),
-        averageLatency: avg(translations.latency),
+        total_translations: count(translations.id),
+        avg_latency: avg(translations.latency),
       })
       .from(translations);
 
-    if (whereClause) {
-      query.where(whereClause);
+    if (timeRange) {
+      query = query.where(and(gte(translations.timestamp, timeRange.startDate), lte(translations.timestamp, timeRange.endDate))) as any;
     }
-    
-    const result = await query.prepare(translationMetricsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
-    const metrics = result[0] || { totalTranslations: 0, averageLatency: null }; 
 
-    // For recentTranslations, if a timeRange is provided, it's the count within that range.
-    // If no timeRange, it's the total count, same as totalTranslations.
-    // This interpretation aligns with how it was before, but now explicitly tied to the timeRange if present.
-    const recentTranslationsCount = Number(metrics.totalTranslations) || 0;
+    const mainMetricsResult = await query.prepare(mainQueryName).execute(timeRange);
 
-    logger.debug('DatabaseStorage.getTranslationMetrics results', { metrics, recentTranslationsCount });
-    return {
-      totalTranslations: Number(metrics.totalTranslations) || 0,
-      averageLatency: Number(metrics.averageLatency) || 0,
-      recentTranslations: recentTranslationsCount, // Added back
-    };
+    let totalTranslationsValue = 0;
+    let averageLatencyValue = 0;
+
+    if (mainMetricsResult && mainMetricsResult.length > 0) {
+      totalTranslationsValue = Number(mainMetricsResult[0].total_translations) || 0;
+      averageLatencyValue = Math.round(Number(mainMetricsResult[0].avg_latency)) || 0;
+    }
+
+    const recentTranslationsQueryName = "translation_metrics_recent";
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentTranslationsResult = await drizzleDB
+      .select({ count: count(translations.id) })
+      .from(translations)
+      .where(gte(translations.timestamp, oneHourAgo))
+      .prepare(recentTranslationsQueryName)
+      .execute();
+
+    let recentTranslationsCount = 0;
+    if (recentTranslationsResult && recentTranslationsResult.length > 0 && recentTranslationsResult[0].count !== null) {
+      recentTranslationsCount = Number(recentTranslationsResult[0].count) || 0;
+    }
+
+    logger.debug('DatabaseStorage.getTranslationMetrics results', { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount });
+    return { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount };
   }
 
-  async getLanguagePairMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<Array<{
+  async getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<Array<{
     sourceLanguage: string;
     targetLanguage: string;
     count: number;
-    averageLatency: number; // Added to match IStorage
+    averageLatency: number;
   }>> {
-    logger.debug('DatabaseStorage.getLanguagePairMetrics called', { timeRange });
+    logger.debug('DatabaseStorage.getLanguagePairUsage called', { timeRange });
+    const queryName = timeRange ? "language_pair_usage_query_with_range" : "language_pair_usage_query_no_range";
 
-    const conditions = [];
-    if (timeRange) {
-      conditions.push(gte(translations.timestamp, placeholder('startDate'))); // Corrected typo here
-      conditions.push(lte(translations.timestamp, placeholder('endDate')));
-    }
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    // To calculate averageLatency per pair, we need to adjust the query.
-    // Drizzle ORM might require a subquery or raw SQL for this if not directly supported.
-    // For now, returning a placeholder for averageLatency.
-    // This will likely need further refinement.
-    const languagePairMetricsQueryName = timeRange ? "language_pair_metrics_query_with_time_range" : "language_pair_metrics_query_without_time_range";
-    const query = drizzleDB // Use drizzleDB
+    let queryBuilder = drizzleDB
       .select({
-        sourceLanguage: translations.sourceLanguage,
-        targetLanguage: translations.targetLanguage,
-        count: count(translations.id),
-        averageLatency: avg(translations.latency) // Added avg latency
+        source_language: translations.sourceLanguage,
+        target_language: translations.targetLanguage,
+        pair_count: count(translations.id),
+        avg_latency: avg(translations.latency),
       })
       .from(translations);
 
-    if (whereClause) {
-      query.where(whereClause);
+    if (timeRange) {
+      queryBuilder = queryBuilder.where(and(gte(translations.timestamp, timeRange.startDate), lte(translations.timestamp, timeRange.endDate))) as any;
     }
-    
-    query
+
+    const finalQuery = queryBuilder
       .groupBy(translations.sourceLanguage, translations.targetLanguage)
       .orderBy(desc(count(translations.id)));
 
-    const results = await query.prepare(languagePairMetricsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : {});
-    logger.debug('DatabaseStorage.getLanguagePairMetrics results', { results });
-    
-    return results.map((r: { sourceLanguage: string | null; targetLanguage: string | null; count: number; averageLatency: string | null }) => ({
-      sourceLanguage: r.sourceLanguage || 'unknown',
-      targetLanguage: r.targetLanguage || 'unknown',
-      count: Number(r.count) || 0,
-      averageLatency: Number(r.averageLatency) || 0, // Added, ensure type conversion is correct
+    const results = await finalQuery.prepare(queryName).execute(timeRange);
+
+    if (!results || results.length === 0) {
+      return [];
+    }
+
+    return results.map((row: any) => ({
+      sourceLanguage: row.source_language ?? "unknown",
+      targetLanguage: row.target_language ?? "unknown",
+      count: Number(row.pair_count) || 0,
+      averageLatency: Math.round(Number(row.avg_latency)) || 0,
     }));
+  }
+
+  async createTranslation(translationData: InsertTranslation): Promise<Translation> {
+    return this.translationStorage.createTranslation(translationData);
+  }
+
+  async reset(): Promise<void> {
+    if (process.env.NODE_ENV === 'test') {
+      await drizzleDB.delete(translations).execute();
+      await drizzleDB.delete(transcriptsTable).execute(); // Use aliased import
+      await drizzleDB.delete(sessions).execute();
+      await drizzleDB.delete(users).execute();
+      await drizzleDB.delete(languages).execute();
+      logger.info('DatabaseStorage reset complete for test environment.');
+    } else {
+      logger.warn('DatabaseStorage.reset() called outside of test environment. Operation aborted.');
+      throw new Error('Database reset is only allowed in test environments.');
+    }
   }
 }

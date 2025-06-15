@@ -39,6 +39,7 @@ export interface IStorage {
     sessionId: string;
     teacherLanguage: string | null;
     transcriptCount: number;
+    studentCount: number; // Added studentCount
     startTime: Date | null;
     endTime: Date | null;
     duration: number;
@@ -57,13 +58,15 @@ export interface IStorage {
     totalSessions: number;
     activeSessions: number;
     averageSessionDuration: number;
+    sessionsLast24Hours: number; // Added from MemStorage, ensure DBStorage has it or defaults
   }>;
   getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     totalTranslations: number;
     averageLatency: number;
     recentTranslations: number;
   }>;
-  getLanguagePairMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+  // Renamed from getLanguagePairMetrics to getLanguagePairUsage for consistency
+  getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     sourceLanguage: string;
     targetLanguage: string;
     count: number;

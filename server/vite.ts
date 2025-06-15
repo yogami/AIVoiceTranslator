@@ -1,158 +1,157 @@
-import express, { type Express } from "express";
-import fs from "fs";
-import path from "path";
-import { createServer } from "vite";
-import { type Server } from "http";
-import viteConfig from "../config/vite.config";
-import { nanoid } from "nanoid";
-import { fileURLToPath } from "url";
+import express from 'express';
+import { createServer as createViteServer, type ViteDevServer, type UserConfig } from 'vite';
+import path from 'path';
+import fsPromises from 'fs/promises'; // For async operations in setupVite
+import fsSync from 'fs'; // For sync operations like existsSync in serveStatic
+import logger from './logger';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let vite: ViteDevServer | null = null;
 
-const viteLogger = createLogger();
+export async function setupVite(app: express.Express): Promise<void> {
+  const viteConfigPath = path.resolve(process.cwd(), 'config', 'vite.config.ts');
+  logger.info(`[VITE DEV] Attempting to load Vite config from: ${viteConfigPath}`);
 
-export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
+  try {
+    const configModule = await import(viteConfigPath /* @vite-ignore */);
+    
+    let resolvedViteConfig: UserConfig;
+    if (typeof configModule.default === 'function') {
+      resolvedViteConfig = await configModule.default({ command: 'serve', mode: 'development' });
+    } else {
+      resolvedViteConfig = configModule.default;
+    }
 
-  console.log(`${formattedTime} [${source}] ${message}`);
+    if (!resolvedViteConfig) {
+      throw new Error('Vite config loaded as undefined or null.');
+    }
+    logger.info(`[VITE DEV] Successfully loaded Vite config. Root: ${resolvedViteConfig.root || path.resolve(process.cwd(), 'client')}, Base: ${resolvedViteConfig.base || '/'}`);
+    
+    vite = await createViteServer({
+      configFile: viteConfigPath,
+      server: { 
+        middlewareMode: true,
+      },
+      appType: 'custom',
+    });
+
+    logger.info('[VITE DEV] Vite server created successfully.');
+
+    if (vite) {
+      app.use(vite.middlewares);
+      logger.info('[VITE DEV] Vite asset/HMR middleware configured.');
+
+      const inputs = resolvedViteConfig.build?.rollupOptions?.input;
+      // const clientRoot = resolvedViteConfig.root || path.resolve(process.cwd(), 'client'); // Already have filePath
+
+      if (typeof inputs === 'object' && inputs !== null) {
+        for (const [name, filePath] of Object.entries(inputs)) {
+          if (typeof filePath !== 'string') continue;
+
+          let urlPath: string;
+          if (name === 'main') {
+            urlPath = '/';
+          } else if (filePath.endsWith('.html') && name === path.basename(filePath, '.html')) {
+            urlPath = name === 'diagnostics' ? '/diagnostics.html' : `/${name}`;
+          } else {
+            logger.warn(`[VITE DEV] Skipping HTML route for entry '${name}' due to unclear path mapping from ${filePath}`);
+            continue;
+          }
+          
+          if (name === 'main' && urlPath === '/') {
+            app.get('/index.html', async (req, res, next) => {
+              try {
+                const html = await fsPromises.readFile(filePath, 'utf-8');
+                const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
+                logger.info(`[VITE DEV] Serving transformed /index.html (explicitly) from ${filePath}`);
+                res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
+              } catch (e: any) {
+                logger.error(`[VITE DEV] Error transforming HTML for ${req.originalUrl} (explicit /index.html): ${e.message}`);
+                return next(e);
+              }
+            });
+          }
+
+          app.get(urlPath, async (req, res, next) => {
+            try {
+              const html = await fsPromises.readFile(filePath, 'utf-8');
+              const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
+              logger.info(`[VITE DEV] Serving transformed ${urlPath} from ${filePath} for originalUrl ${req.originalUrl}`);
+              res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
+            } catch (e: any) {
+              logger.error(`[VITE DEV] Error transforming HTML for ${req.originalUrl} (path ${urlPath}): ${e.message}`);
+              return next(e);
+            }
+          });
+          logger.info(`[VITE DEV] Configured HTML route: ${urlPath} -> ${filePath}`);
+        }
+      } else {
+        logger.warn('[VITE DEV] No HTML entry points found in Vite config (build.rollupOptions.input) to set up routes.');
+      }
+      logger.info('[VITE DEV] Vite HTML transformation routes configured.');
+
+    } else {
+      logger.error('[VITE DEV SETUP] Vite server instance was not created. Middleware not applied.');
+      throw new Error('Vite server instance is null after creation attempt.');
+    }
+
+  } catch (error: any) {
+    logger.error(`[VITE DEV SETUP] Failed to create Vite server or apply middleware: ${error.message}`);
+    logger.error(`[VITE DEV SETUP] Error stack: ${error.stack}`);
+    app.use((req, res, next) => {
+      if (req.path.startsWith('/api/')) return next(); 
+      res.status(500).send('Vite server setup failed. Please check server logs for more details.');
+    });
+  }
 }
 
-export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true,
-    hmr: { server },
-    allowedHosts: ["localhost"],
+export function serveStatic(app: express.Express): void {
+  const clientDistPath = path.resolve(process.cwd(), 'dist', 'client');
+  logger.info(`[PROD STATIC] Configuring static file serving from: ${clientDistPath}`);
+
+  if (!fsSync.existsSync(clientDistPath)) { // Use fsSync for existsSync
+    logger.error(`[PROD STATIC] Distribution directory not found: ${clientDistPath}. Static serving will not work.`);
+    app.get('*', (req, res, next) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api/')) {
+        logger.warn(`[PROD STATIC] Attempted to serve ${req.path} but dist folder is missing.`);
+        res.status(503).send("Static assets are not available. The application may not have been built correctly.");
+      } else {
+        next();
+      }
+    });
+    return;
+  }
+  
+  app.use(express.static(clientDistPath, { index: false })); 
+
+  const htmlEntries: { [key: string]: string } = {
+    '/': 'index.html',
+    '/teacher': 'teacher.html',
+    '/student': 'student.html',
+    '/diagnostics.html': 'diagnostics.html'
   };
 
-  const vite = await createServer({
-    ...viteConfig,
-    configFile: false,
-    customLogger: {
-      ...viteLogger,
-      error: (msg, options) => {
-        viteLogger.error(msg, options);
-        process.exit(1);
-      },
-    },
-    server: serverOptions,
-    appType: "custom",
-  });
-
-  app.use(vite.middlewares);
-  app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
-
-    try {
-      const clientTemplate = path.resolve(
-        import.meta.dirname,
-        "..",
-        "client",
-        "index.html",
-      );
-
-      // always reload the index.html file from disk incase it changes
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
-      );
-      const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
-    } catch (e) {
-      vite.ssrFixStacktrace(e as Error);
-      next(e);
+  Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
+    const filePath = path.join(clientDistPath, fileName);
+    // Use synchronous file check for simplicity in this part of the code, or adapt to async if preferred.
+    if (fsSync.existsSync(filePath)) { 
+      app.get(routePath, (req, res) => {
+        logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path}`);
+        res.sendFile(filePath);
+      });
+      if (fileName === 'index.html' && routePath === '/') {
+        app.get('/index.html', (req, res) => {
+            logger.info(`[PROD STATIC] Serving ${filePath} for /index.html (explicit)`);
+            res.sendFile(filePath);
+        });
+      }
+    } else {
+      logger.warn(`[PROD STATIC] HTML file not found for route ${routePath}: ${filePath}. This route will result in a 404 if not handled otherwise.`);
     }
   });
-}
-
-export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
-
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
-  }
-
-  app.use(express.static(distPath));
-
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
-  });
-}
-
-export async function createViteServer(server: Server) {
-  const vite = await createServer({
-    ...viteConfig,
-    server: {
-      ...viteConfig.server,
-      middlewareMode: true,
-      hmr: {
-        port: 5173,
-      },
-    },
-    appType: "custom",
-  });
-
-  return vite;
-}
-
-export async function buildClient() {
-  const { build } = await import("vite");
   
-  await build({
-    ...viteConfig,
-    build: {
-      ...viteConfig.build,
-      // Ensure we're building from the correct root
-      rollupOptions: {
-        ...viteConfig.build?.rollupOptions,
-        input: {
-          main: path.resolve(__dirname, "../client/index.html"),
-          teacher: path.resolve(__dirname, "../client/public/teacher.html"),
-          student: path.resolve(__dirname, "../client/public/student.html"),
-          diagnostics: path.resolve(__dirname, "../client/public/diagnostics.html"),
-        },
-      },
-    },
-  });
+  logger.info(`[PROD STATIC] Static serving configured for assets and specific HTML files.`);
 }
 
-// Development server integration
-export function setupViteDevServer(app: any, vite: any) {
-  // Use vite's connect instance as middleware
-  app.use(vite.middlewares);
-
-  // Serve HTML pages with vite's transformations
-  app.get("/", async (req: any, res: any, next: any) => {
-    try {
-      const url = req.originalUrl;
-      const template = await vite.transformIndexHtml(
-        url,
-        `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AIVoiceTranslator</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>`
-      );
-      res.status(200).set({ "Content-Type": "text/html" }).end(template);
-    } catch (e) {
-      vite.ssrFixStacktrace(e);
-      next(e);
-    }
-  });
+export function getViteInstance(): ViteDevServer | null {
+  return vite;
 }
