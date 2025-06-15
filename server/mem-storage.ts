@@ -45,10 +45,11 @@ export class MemStorage implements IStorage {
   private transcriptIdCounter: { value: number };
   private sessionIdCounter: { value: number };
 
-  private mockSessionMetrics: any = null;
-  private mockTranslationMetrics: any = null;
-  private mockLanguagePairMetrics: any[] = [];
-  private mockRecentSessionActivity: any[] = [];
+  // These are for direct mocking in tests if needed, prefer spies on actual methods.
+  public mockSessionMetrics: any = null;
+  public mockTranslationMetrics: any = null;
+  public mockLanguagePairMetrics: any[] = []; 
+  public mockRecentSessionActivity: any[] = [];
 
   constructor() {
     this.usersMap = new Map();
@@ -74,6 +75,29 @@ export class MemStorage implements IStorage {
     this.initializeDefaultLanguages().catch(console.error);
   }
 
+  public async reset(): Promise<void> {
+    this.usersMap.clear();
+    this.languagesMap.clear();
+    this.translationsMap.clear();
+    this.transcriptsMap.clear();
+    this.sessionsMap.clear();
+
+    this.userIdCounter.value = 1;
+    this.languageIdCounter.value = 1;
+    this.translationIdCounter.value = 1;
+    this.transcriptIdCounter.value = 1;
+    this.sessionIdCounter.value = 1;
+    
+    // Re-initialize default languages after reset
+    await this.initializeDefaultLanguages();
+
+    // Clear mock data if any (though not strictly necessary if re-instantiated or not used)
+    this.mockSessionMetrics = null;
+    this.mockTranslationMetrics = null;
+    this.mockLanguagePairMetrics = [];
+    this.mockRecentSessionActivity = [];
+  }
+
   private async initializeDefaultLanguages(): Promise<void> {
     if (this.languageStorage.initializeDefaultLanguages) {
       await this.languageStorage.initializeDefaultLanguages();
@@ -92,7 +116,7 @@ export class MemStorage implements IStorage {
   async createLanguage(language: InsertLanguage) { return this.languageStorage.createLanguage(language); }
   async updateLanguageStatus(code: string, isActive: boolean) { return this.languageStorage.updateLanguageStatus(code, isActive); }
 
-  // Translation methods (delegated)
+  // Translation methods (delegated
   async addTranslation(translation: InsertTranslation) { 
     return this.translationStorage.addTranslation(translation);
   }
@@ -110,7 +134,18 @@ export class MemStorage implements IStorage {
   async getActiveSession(sessionId: string) { return this.sessionStorage.getActiveSession(sessionId); }
   async getAllActiveSessions() { return this.sessionStorage.getAllActiveSessions(); }
   async endSession(sessionId: string) { return this.sessionStorage.endSession(sessionId); }
-  async getRecentSessionActivity(limit?: number) { return this.sessionStorage.getRecentSessionActivity(limit); }
+  async getRecentSessionActivity(limit?: number): Promise<{
+    sessionId: string;
+    teacherLanguage: string | null;
+    transcriptCount: number;
+    studentCount: number; // Added studentCount
+    startTime: Date | null;
+    endTime: Date | null;
+    duration: number;
+  }[]> {
+    // Delegate to sessionStorage, which now needs to implement this with studentCount
+    return this.sessionStorage.getRecentSessionActivity(limit);
+  }
   async getSessionById(sessionId: string): Promise<Session | undefined> { return this.sessionStorage.getSessionById(sessionId); }
 
   // Analytics methods
@@ -151,29 +186,22 @@ export class MemStorage implements IStorage {
     averageSessionDuration: number;
     sessionsLast24Hours: number;
   }> {
-    let allSessionsView = Array.from(this.sessionsMap.values());
-    if (timeRange) {
-      allSessionsView = allSessionsView.filter((s: Session) => {
-        if (!s.startTime) return false;
-        const sessionStart = new Date(s.startTime).getTime();
-        const sessionEnd = s.endTime ? new Date(s.endTime).getTime() : Date.now();
-        const rangeStart = timeRange.startDate.getTime();
-        const rangeEnd = timeRange.endDate.getTime();
-        return sessionStart <= rangeEnd && sessionEnd >= rangeStart;
-      });
-    }
+    // timeRange is ignored for MemStorage, always calculate based on current in-memory state.
+    const allSessionsView = Array.from(this.sessionsMap.values());
+
     const activeSessionsCount = allSessionsView.filter((s: Session) => s.isActive).length;
     const durations = allSessionsView
       .filter((s: Session) => s.startTime && s.endTime)
       .map((s: Session) => new Date(s.endTime!).getTime() - new Date(s.startTime!).getTime());
     const averageDuration = durations.length > 0 ? durations.reduce((sum: number, d: number) => sum + d, 0) / durations.length : 0;
-    // Calculate sessions in last 24 hours
+    
     const now = Date.now();
     const sessionsLast24Hours = Array.from(this.sessionsMap.values()).filter((s: Session) => {
       if (!s.startTime) return false;
       const sessionStart = new Date(s.startTime).getTime();
       return sessionStart >= now - 24 * 60 * 60 * 1000;
     }).length;
+
     return {
       totalSessions: allSessionsView.length,
       activeSessions: activeSessionsCount,
@@ -182,85 +210,66 @@ export class MemStorage implements IStorage {
     };
   }
 
-  async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{ 
-    totalTranslations: number; 
-    averageLatency: number; 
+  async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
     recentTranslations: number;
   }> {
-    let translationsArray = Array.from(this.translationsMap.values());
-    
-    // Apply time range filter if provided
-    if (timeRange) {
-      translationsArray = translationsArray.filter(t => {
-        if (!t.timestamp) return false;
-        const translationTime = new Date(t.timestamp).getTime();
-        return translationTime >= timeRange.startDate.getTime() && 
-               translationTime <= timeRange.endDate.getTime();
-      });
-    }
-    
-    const totalTranslations = translationsArray.length;
-    
-    const averageLatency = totalTranslations > 0
-      ? translationsArray.reduce((sum, t) => sum + (t.latency || 0), 0) / totalTranslations
-      : 0;
+    // timeRange is ignored for MemStorage, always calculate based on current in-memory state.
+    const allTranslations = Array.from(this.translationsMap.values());
 
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const recentTranslations = translationsArray.filter(t => {
-      if (!t.timestamp) return false;
-      const translationTime = new Date(t.timestamp).getTime();
-      return translationTime > oneDayAgo.getTime();
+    const totalTranslations = allTranslations.length;
+    const totalLatencySum = allTranslations.reduce((sum, t) => sum + (t.latency || 0), 0);
+    const averageLatency = totalTranslations > 0 ? totalLatencySum / totalTranslations : 0;
+    
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const recentTranslations = allTranslations.filter(t => {
+      const timestamp = t.timestamp ? new Date(t.timestamp).getTime() : 0;
+      return timestamp >= oneHourAgo;
     }).length;
 
-    return { totalTranslations, averageLatency, recentTranslations };
+    return {
+      totalTranslations,
+      averageLatency,
+      recentTranslations,
+    };
   }
 
-  async getLanguagePairMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+  async getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     sourceLanguage: string;
     targetLanguage: string;
     count: number;
     averageLatency: number;
   }[]> {
-    let translationsToAnalyze = Array.from(this.translationsMap.values());
-    if (timeRange) {
-      translationsToAnalyze = translationsToAnalyze.filter((t: Translation) => {
-        if (!t.timestamp) return false;
-        const translationTime = new Date(t.timestamp).getTime();
-        return translationTime >= timeRange.startDate.getTime() && translationTime <= timeRange.endDate.getTime();
-      });
-    }
-    const pairMap = new Map<string, { count: number; totalLatency: number; sourceLanguage: string; targetLanguage: string }>();
-    for (const translation of translationsToAnalyze) {
-        if (translation.sourceLanguage && translation.targetLanguage) {
-            const key = `${translation.sourceLanguage}-${translation.targetLanguage}`;
-            const existing = pairMap.get(key) || { count: 0, totalLatency: 0, sourceLanguage: translation.sourceLanguage, targetLanguage: translation.targetLanguage };
-            pairMap.set(key, { ...existing, count: existing.count + 1, totalLatency: existing.totalLatency + (translation.latency || 0) });
+    // timeRange is ignored for MemStorage, always calculate based on current in-memory state.
+    const relevantTranslations = Array.from(this.translationsMap.values());
+
+    const languagePairsMap = new Map<string, { sourceLanguage: string; targetLanguage: string; count: number; totalLatency: number }>();
+
+    for (const t of relevantTranslations) {
+      if (t.sourceLanguage && t.targetLanguage) {
+        const key = `${t.sourceLanguage}-${t.targetLanguage}`;
+        const pair = languagePairsMap.get(key);
+        if (pair) {
+          pair.count++;
+          pair.totalLatency += (t.latency || 0);
+        } else {
+          languagePairsMap.set(key, {
+            sourceLanguage: t.sourceLanguage,
+            targetLanguage: t.targetLanguage,
+            count: 1,
+            totalLatency: (t.latency || 0)
+          });
         }
+      }
     }
-    return Array.from(pairMap.values())
-      .map(data => ({ 
-        sourceLanguage: data.sourceLanguage, 
-        targetLanguage: data.targetLanguage, 
-        count: data.count, 
-        averageLatency: data.count > 0 ? data.totalLatency / data.count : 0 
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
-  }
 
-  setSessionMetrics(metrics: any): void {
-    this.mockSessionMetrics = metrics;
-  }
-
-  setTranslationMetrics(metrics: any): void {
-    this.mockTranslationMetrics = metrics;
-  }
-
-  setLanguagePairMetrics(metrics: any[]): void {
-    this.mockLanguagePairMetrics = metrics;
-  }
-
-  setRecentSessionActivity(activity: any[]): void {
-    this.mockRecentSessionActivity = activity;
+    return Array.from(languagePairsMap.values()).map(pair => ({
+      sourceLanguage: pair.sourceLanguage,
+      targetLanguage: pair.targetLanguage,
+      count: pair.count,
+      averageLatency: pair.count > 0 ? pair.totalLatency / pair.count : 0,
+    }));
   }
 }

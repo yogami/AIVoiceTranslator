@@ -7,7 +7,9 @@
     "dev": "dotenv -e .env -- tsx server/index.ts",
     "dev:test": "NODE_ENV=development E2E_TEST_MODE=true LOG_LEVEL=info tsx server/index.ts",
     "dev:client": "dotenv -e .env -- vite --config config/vite.config.ts",
-    "build": "vite build --config config/vite.config.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build --config config/vite.config.ts",
+    "build:server": "esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
@@ -148,6 +150,6 @@
     "vite-tsconfig-paths": "^5.1.4"
   },
   "optionalDependencies": {
-    "bufferutil": "^4.0.8"
+    "@replit/vite-plugin-cartographer": "^0.0.10"
   }
 }

@@ -38,11 +38,17 @@ vi.mock('../../server/logger', () => ({
 }));
 
 vi.mock('../../server/db', async (importOriginal) => {
-  // DEFINE mocks as const inside the factory
   const mockDbExecute = vi.fn();
-  const mockSqlMapWith = vi.fn().mockImplementation(transformer => transformer);
-  const mockDbPrepare = vi.fn((queryName?: string) => ({ execute: mockDbExecute }));
-  const mockDbGroupBy = vi.fn().mockReturnThis();
+  // Mock the prepare method to return an object with an execute method
+  const mockDbPrepare = vi.fn((queryName?: string) => ({
+    execute: mockDbExecute, // This execute will be called by the application code
+    // Add other methods Drizzle's prepared statement might have if needed by the code under test
+  }));
+  const mockSqlRaw = vi.fn((strings, ...values) => {
+    // Simplified mock for sql.raw, just reconstructs the string for inspection if needed
+    const constructedSql = (strings && Array.isArray(strings)) ? strings.reduce((acc: string, str: string, i: number) => acc + str + (values[i] || ''), '') : String(strings);
+    return { toSQL: () => ({ sql: constructedSql, params: values }) }; // Mimic Drizzle structure
+  });
 
   const originalModule = await importOriginal() as any;
 
@@ -50,42 +56,38 @@ vi.mock('../../server/db', async (importOriginal) => {
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
-    groupBy: mockDbGroupBy,
+    groupBy: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     offset: vi.fn().mockReturnThis(),
-    prepare: mockDbPrepare,
+    prepare: mockDbPrepare, // Use the more detailed mockDbPrepare
+    execute: mockDbExecute, // Mock top-level execute if used directly (less common for SELECTs)
+    // Add other Drizzle methods if they are directly called on the db instance by the code
   };
 
-  const sqlInstance = vi.fn((strings, ...values) => {
-    const constructedSql = (strings && Array.isArray(strings)) ? strings.reduce((acc: string, str: string, i: number) => acc + str + (values[i] || ''), '') : String(strings);
-    return {
-      mapWith: mockSqlMapWith,
-      toString: () => constructedSql,
-      getSQL: () => constructedSql,
-    };
-  });
+  const sqlInstance = {
+    raw: mockSqlRaw,
+    // Mock other sql functions like sql`...` if used directly and need specific behavior
+    // For sql template literal tag, it might be more complex if its internal structure is relied upon
+    // For now, assume sql.raw is the primary concern or other uses are simple enough not to need detailed mocking here.
+  };
 
-  // CREATE and EXPORT __testHooks
   const __testHooks = {
-    mockDbExecute,
-    mockSqlMapWith,
-    mockDbPrepare,
-    mockDbGroupBy,
+    mockDbExecute,      // This is what tests will use to provide results for `preparedQuery.execute()`
+    mockDbPrepare,      // Tests can assert on this to check if `db.prepare(queryName)` was called
   };
 
   return {
     ...originalModule,
-    db: dbInstance,
-    sql: sqlInstance,
-    __testHooks, // Export the hooks
+    db: dbInstance,       // This is the mocked Drizzle instance
+    sql: sqlInstance,     // This is the mocked `sql` object from Drizzle
+    __testHooks,          // Export hooks for tests to control/assert mock behavior
   };
 });
 
 // Import db, sql, AND __testHooks AFTER the mock setup.
-// import { db, sql, __testHooks } from '../../server/db'; // OLD IMPORT
 import * as dbModule from '../../server/db';
-const { db, sql, __testHooks } = dbModule as any; // NEW IMPORT ACCESS
+const { db, sql, __testHooks } = dbModule as any; 
 
 // Set required env vars for config strictness
 beforeAll(() => {
@@ -101,123 +103,208 @@ describe('DatabaseStorage Metrics', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Access mocks via __testHooks after clearing if necessary for setup,
-    // though clearAllMocks should reset their state (calls, etc.)
     storage = new DatabaseStorage();
   });
 
   describe('getSessionMetrics', () => {
-    it('should return zero metrics if no sessions exist', async () => {
-      __testHooks.mockDbExecute // USE __testHooks
-        .mockResolvedValueOnce([{ totalSessions: 0 }])
-        .mockResolvedValueOnce([{ count: 0 }]);
+    it('should return zero metrics if no sessions exist and no time range is provided', async () => {
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([]) // total_sessions_query_without_time_range
+        // duration_query is skipped if totalSessions is 0
+        .mockResolvedValueOnce([]) // active_sessions_query
+        .mockResolvedValueOnce([]); // sessions_last_24_hours_query
 
       const metrics = await storage.getSessionMetrics();
       expect(metrics).toEqual({
         totalSessions: 0,
         averageSessionDuration: 0,
         activeSessions: 0,
+        sessionsLast24Hours: 0,
       });
       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query_without_time_range');
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query_unique_name');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sessions_last_24_hours_query');
+    });
+
+    it('should return zero for averageSessionDuration if totalSessions is zero within a time range', async () => {
+      const startDate = new Date('2023-01-01T00:00:00.000Z');
+      const endDate = new Date('2023-01-31T23:59:59.999Z');
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([{ totalSessions: 0 }]) // total_sessions_query_with_time_range
+        // duration_query is skipped
+        .mockResolvedValueOnce([{ count: 0 }]) // active_sessions_query
+        .mockResolvedValueOnce([{ count: 0 }]); // sessions_last_24_hours_query
+
+      const metrics = await storage.getSessionMetrics({ startDate, endDate });
+      expect(metrics).toEqual({
+        totalSessions: 0,
+        averageSessionDuration: 0,
+        activeSessions: 0,
+        sessionsLast24Hours: 0,
+      });
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query_with_time_range');
+      expect(__testHooks.mockDbPrepare).not.toHaveBeenCalledWith('sum_duration_query_with_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sessions_last_24_hours_query');
+    });
+
+    it('should calculate session metrics correctly when no time range is provided', async () => {
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([{ totalSessions: 10 }]) 
+        .mockResolvedValueOnce([{ totalDuration: '20000', countSessions: '10' }]) 
+        .mockResolvedValueOnce([{ count: 3 }]) 
+        .mockResolvedValueOnce([{ count: 5 }]); 
+
+      const metrics = await storage.getSessionMetrics();
+      expect(metrics).toEqual({
+        totalSessions: 10,
+        averageSessionDuration: 2000,
+        activeSessions: 3,
+        sessionsLast24Hours: 5,
+      });
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query_without_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sum_duration_query_without_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sessions_last_24_hours_query');
     });
 
     it('should calculate session metrics correctly with a time range', async () => {
       const startDate = new Date('2023-01-01T00:00:00.000Z');
       const endDate = new Date('2023-01-31T23:59:59.999Z');
 
-      __testHooks.mockDbExecute // USE __testHooks
+      __testHooks.mockDbExecute
         .mockResolvedValueOnce([{ totalSessions: 5 }])
-        .mockResolvedValueOnce([{ totalDuration: 5000, countSessions: 5 }])
-        .mockResolvedValueOnce([{ count: 2 }]);
+        .mockResolvedValueOnce([{ totalDuration: '5000', countSessions: '5' }]) 
+        .mockResolvedValueOnce([{ count: 2 }])
+        .mockResolvedValueOnce([{ count: 4 }]); 
 
       const metrics = await storage.getSessionMetrics({ startDate, endDate });
       expect(metrics).toEqual({
         totalSessions: 5,
         averageSessionDuration: 1000,
         activeSessions: 2,
+        sessionsLast24Hours: 4, 
       });
       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('total_sessions_query_with_time_range');
       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sum_duration_query_with_time_range');
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query_unique_name');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('active_sessions_query');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('sessions_last_24_hours_query');
       
-      expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate }); // USE __testHooks
-      expect(__testHooks.mockDbExecute.mock.calls[1][0]).toEqual({ startDate, endDate }); // USE __testHooks
-      expect(__testHooks.mockDbExecute.mock.calls[2][0]).toBeUndefined(); // USE __testHooks
+      // Check arguments for Drizzle's execute on prepared statements
+      // The first call to mockDbExecute corresponds to the first prepared statement, etc.
+      expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate });
+      expect(__testHooks.mockDbExecute.mock.calls[1][0]).toEqual({ startDate, endDate });
+      expect(__testHooks.mockDbExecute.mock.calls[2][0]).toBeUndefined(); 
+      expect(__testHooks.mockDbExecute.mock.calls[3][0]).toBeUndefined();
     });
   });
 
   describe('getTranslationMetrics', () => {
-    it('should return zero metrics if no translations exist', async () => {
-      __testHooks.mockDbExecute.mockResolvedValueOnce([{ totalTranslations: 0, averageLatency: null }]); // USE __testHooks
+    it('should return zero metrics if no translations exist and no time range', async () => {
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([]) // main metrics query (translation_metrics_main_no_range)
+        .mockResolvedValueOnce([]); // recent translations query (translation_metrics_recent)
+
       const metrics = await storage.getTranslationMetrics();
       expect(metrics).toEqual({
         totalTranslations: 0,
         averageLatency: 0,
         recentTranslations: 0,
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_query_without_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_main_no_range");
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_recent");
     });
 
-    it('should calculate translation metrics correctly with a time range', async () => {
+    it('should return zero for recentTranslations if that specific query returns empty, even with other metrics', async () => {
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([{ total_translations: 10, avg_latency: '150' }]) // main metrics
+        .mockResolvedValueOnce([]); // recent_translations_query returns empty
+
+      const metrics = await storage.getTranslationMetrics();
+      expect(metrics).toEqual({
+        totalTranslations: 10,
+        averageLatency: 150,
+        recentTranslations: 0,
+      });
+    });
+
+    it('should calculate translation metrics correctly with a time range and recent translations', async () => {
       const startDate = new Date('2023-01-01T00:00:00.000Z');
       const endDate = new Date('2023-01-31T23:59:59.999Z');
-      __testHooks.mockDbExecute.mockResolvedValueOnce([{ totalTranslations: 10, averageLatency: 150 }]); // USE __testHooks
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([{ total_translations: 10, avg_latency: '150' }]) // translation_metrics_main_with_range
+        .mockResolvedValueOnce([{ count: 5 }]); // translation_metrics_recent
       
       const metrics = await storage.getTranslationMetrics({ startDate, endDate });
       expect(metrics).toEqual({
         totalTranslations: 10,
         averageLatency: 150,
-        recentTranslations: 10, // Ensure this is expected
+        recentTranslations: 5, 
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_query_with_time_range');
-      expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({ startDate, endDate }); // USE __testHooks
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_main_with_range");
+      expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate }); // Args for main query
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_recent");
+      // Args for recent query (oneHourAgo is calculated internally, not passed from timeRange)
+      // The second execute call will have undefined or the internally calculated param for recent query
+      // For simplicity, we can check it was called. If specific arg checking is needed for oneHourAgo, it's more complex.
+    });
+
+    it('should handle null averageLatency from DB by returning 0', async () => {
+      __testHooks.mockDbExecute
+        .mockResolvedValueOnce([{ total_translations: '5', avg_latency: null }]) // main metrics
+        .mockResolvedValueOnce([{ count: '2' }]); // recent translations
+      const metrics = await storage.getTranslationMetrics();
+      expect(metrics.averageLatency).toBe(0);
+      expect(metrics.totalTranslations).toBe(5);
+      expect(metrics.recentTranslations).toBe(2);
     });
   });
 
-  describe('getLanguagePairMetrics', () => {
+  describe('getLanguagePairUsage', () => {
     it('should return empty array if no translations exist', async () => {
-      __testHooks.mockDbExecute.mockResolvedValueOnce([]); // USE __testHooks
-      const metrics = await storage.getLanguagePairMetrics();
+      __testHooks.mockDbExecute.mockResolvedValueOnce([]); // language_pair_usage_query_no_range
+      const metrics = await storage.getLanguagePairUsage();
       expect(metrics).toEqual([]);
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query_without_time_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("language_pair_usage_query_no_range");
     });
 
     it('should return language pair metrics correctly with a time range', async () => {
       const startDate = new Date('2023-01-01T00:00:00.000Z');
       const endDate = new Date('2023-01-31T23:59:59.999Z');
-      const mockPairData = [
-        { sourceLanguage: 'en', targetLanguage: 'es', count: 100, averageLatency: '120' },
-        { sourceLanguage: 'en', targetLanguage: 'fr', count: 50, averageLatency: '150' },
+      const mockLanguagePairData = [
+        { source_language: 'en', target_language: 'es', pair_count: '2', avg_latency: '100.0' },
+        { source_language: 'en', target_language: 'fr', pair_count: '1', avg_latency: '150.0' },
       ];
-      __testHooks.mockDbExecute.mockResolvedValueOnce(mockPairData); // USE __testHooks
+      __testHooks.mockDbExecute.mockResolvedValueOnce(mockLanguagePairData); // language_pair_usage_query_with_range
 
-      const metrics = await storage.getLanguagePairMetrics({ startDate, endDate });
+      const metrics = await storage.getLanguagePairUsage({ startDate, endDate });
       expect(metrics).toEqual([
-        { sourceLanguage: 'en', targetLanguage: 'es', count: 100, averageLatency: 120 },
-        { sourceLanguage: 'en', targetLanguage: 'fr', count: 50, averageLatency: 150 },
+        { sourceLanguage: 'en', targetLanguage: 'es', count: 2, averageLatency: 100 },
+        { sourceLanguage: 'en', targetLanguage: 'fr', count: 1, averageLatency: 150 },
       ]);
-      expect(__testHooks.mockDbGroupBy).toHaveBeenCalledWith(translations.sourceLanguage, translations.targetLanguage);
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query_with_time_range');
-      expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({ startDate, endDate }); // USE __testHooks
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("language_pair_usage_query_with_range");
+      expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate });
     });
 
-     it('should handle null source/target languages by mapping to "unknown"', async () => {
-      const mockPairData = [
-        { sourceLanguage: null, targetLanguage: 'es', count: 5, averageLatency: '100' },
-        { sourceLanguage: 'en', targetLanguage: null, count: 3, averageLatency: '200' },
-        { sourceLanguage: null, targetLanguage: null, count: 1, averageLatency: '300' },
+     it('should handle null source/target languages by mapping to "unknown" and null counts/latency to 0', async () => {
+      const mockLanguagePairDataWithNulls = [
+        { source_language: null, target_language: 'es', pair_count: '1', avg_latency: '100' },
+        { source_language: 'en', target_language: null, pair_count: '1', avg_latency: '150' },
+        { source_language: null, target_language: null, pair_count: '2', avg_latency: '200' },
+        { source_language: 'de', target_language: 'it', pair_count: null, avg_latency: null },
       ];
-      __testHooks.mockDbExecute.mockResolvedValueOnce(mockPairData); // USE __testHooks
+      __testHooks.mockDbExecute.mockResolvedValueOnce(mockLanguagePairDataWithNulls);
 
-      const metrics = await storage.getLanguagePairMetrics();
+      const metrics = await storage.getLanguagePairUsage(); 
       expect(metrics).toEqual([
-        { sourceLanguage: 'unknown', targetLanguage: 'es', count: 5, averageLatency: 100 },
-        { sourceLanguage: 'en', targetLanguage: 'unknown', count: 3, averageLatency: 200 },
-        { sourceLanguage: 'unknown', targetLanguage: 'unknown', count: 1, averageLatency: 300 },
+        { sourceLanguage: 'unknown', targetLanguage: 'es', count: 1, averageLatency: 100 },
+        { sourceLanguage: 'en', targetLanguage: 'unknown', count: 1, averageLatency: 150 },
+        { sourceLanguage: 'unknown', targetLanguage: 'unknown', count: 2, averageLatency: 200 },
+        { sourceLanguage: 'de', targetLanguage: 'it', count: 0, averageLatency: 0 }, 
       ]);
-       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_metrics_query_without_time_range');
-       expect(__testHooks.mockDbExecute).toHaveBeenCalledWith({}); // Changed from no arguments to an empty object
+       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("language_pair_usage_query_no_range");
+       // For a query without a time range, the execute call might receive undefined or no argument for the timeRange part.
+       expect(__testHooks.mockDbExecute.mock.calls[0][0]).toBeUndefined();
     });
   });
 

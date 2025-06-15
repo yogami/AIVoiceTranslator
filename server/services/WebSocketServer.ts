@@ -14,6 +14,7 @@ import { audioTranscriptionService } from './transcription/AudioTranscriptionSer
 import { config } from '../config'; // Removed AppConfig, already have config instance
 import { URL } from 'url';
 import { DiagnosticsService } from './DiagnosticsService';
+import { IActiveSessionProvider } from './IActiveSessionProvider'; // Added import
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -56,10 +57,10 @@ interface ClassroomSession {
   expiresAt: number;
 }
 
-export class WebSocketServer {
+export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
-  private diagnosticsService: DiagnosticsService;
+  private diagnosticsService: DiagnosticsService | null = null; // Initialize to null
   
   // We use the speechTranslationService facade
   
@@ -78,16 +79,72 @@ export class WebSocketServer {
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  constructor(server: http.Server, storage: IStorage, diagnosticsService: DiagnosticsService) { // Use http.Server type
+  constructor(server: http.Server, storage: IStorage) { // Removed diagnosticsService from constructor
     this.wss = new WSServer({ server });
     this.storage = storage;
-    this.diagnosticsService = diagnosticsService;
+    // this.diagnosticsService is set via setter
     
     // Set up event handlers
     this.setupEventHandlers();
     
     // Set up classroom session cleanup
     this.setupClassroomCleanup();
+  }
+
+  /**
+   * Setter for DiagnosticsService to enable dependency injection.
+   * @param diagnosticsService The DiagnosticsService instance.
+   */
+  public setDiagnosticsService(diagnosticsService: DiagnosticsService): void {
+    this.diagnosticsService = diagnosticsService;
+  }
+
+  /**
+   * Get the number of active WebSocket connections.
+   * Implements IActiveSessionProvider.
+   * @returns The number of active connections.
+   */
+  public getActiveSessionCount(): number {
+    return this.connections.size;
+  }
+
+  /**
+   * Get the number of active WebSocket connections (alias for getActiveSessionCount).
+   * Implements IActiveSessionProvider.
+   * @returns The number of active connections.
+   */
+  public getActiveSessionsCount(): number { // Renamed from getActiveSessionCount to getActiveSessionsCount
+    return this.connections.size;
+  }
+
+  /**
+   * Get the number of active student connections.
+   * Implements IActiveSessionProvider.
+   * @returns The number of active student connections.
+   */
+  public getActiveStudentCount(): number {
+    let studentCount = 0;
+    for (const role of this.roles.values()) {
+      if (role === 'student') {
+        studentCount++;
+      }
+    }
+    return studentCount;
+  }
+
+  /**
+   * Get the number of active teacher connections.
+   * Implements IActiveSessionProvider.
+   * @returns The number of active teacher connections.
+   */
+  public getActiveTeacherCount(): number {
+    let teacherCount = 0;
+    for (const role of this.roles.values()) {
+      if (role === 'teacher') {
+        teacherCount++;
+      }
+    }
+    return teacherCount;
   }
   
   /**
@@ -1022,11 +1079,6 @@ export class WebSocketServer {
   }
   
   /**
-   * Get connection role
-   */
-  public getRole(client: WebSocketClient): string | undefined {
-    return this.roles.get(client);
-  }
   
   /**
    * Get connection language
