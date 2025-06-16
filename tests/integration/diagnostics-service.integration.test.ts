@@ -44,7 +44,7 @@ describe('Diagnostics Service Integration', () => {
 
     httpServer = createServer(app);
     
-    testStorage = new MemStorage(); 
+    testStorage = new MemStorage(new DatabaseStorage()); 
     
     // Instantiate DiagnosticsService first, passing null for IActiveSessionProvider
     diagnosticsServiceInstance = new DiagnosticsService(testStorage, null); 

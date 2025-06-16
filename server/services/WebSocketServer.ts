@@ -37,7 +37,6 @@ import type {
 } from './WebSocketTypes';
 import { type InsertSession } from '../../shared/schema'; // Added import
 import { IStorage } from '../storage.interface';
-import { DiagnosticsService } from './DiagnosticsService'; // Added import
 
 // Custom WebSocketClient type for our server
 type WebSocketClient = WebSocket & {
@@ -61,7 +60,6 @@ interface ClassroomSession {
 export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
-  private diagnosticsService: DiagnosticsService | null; // Added diagnosticsService property
   
   // We use the speechTranslationService facade
   
@@ -80,10 +78,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  constructor(server: http.Server, storage: IStorage, diagnosticsService: DiagnosticsService | null) { // Added diagnosticsService parameter
+  constructor(server: http.Server, storage: IStorage) { 
     this.wss = new WSServer({ server });
     this.storage = storage;
-    this.diagnosticsService = diagnosticsService; // Assign diagnosticsService
+   
     
     // Set up event handlers
     this.setupEventHandlers();
@@ -500,16 +498,21 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     
     // Perform translations for all required languages
     const { translations, translationResults, latencyInfo } = 
-      await speechTranslationService.translateTextToMultipleLanguages(
-        message.text,
-        teacherLanguage,
-        studentLanguages
+      await this.translateToMultipleLanguages(
+        message.text, 
+        teacherLanguage, 
+        studentLanguages,
+        startTime,
+        latencyTracking
       );
-      
-    // Record overall translation latency (from teacher sending transcription to translations ready)
-    const overallTranslationLatency = Date.now() - startTime;
-    this.diagnosticsService?.recordTranslation(overallTranslationLatency); // Call recordTranslation
-
+    
+    // Update latency tracking with the results
+    Object.assign(latencyTracking.components, latencyInfo);
+    
+    // Calculate processing latency before sending translations
+    const processingEndTime = Date.now();
+    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
+    
     // Send translations to students
     this.sendTranslationsToStudents(
       studentConnections,
@@ -709,9 +712,17 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
             const translatedText = translations[studentLanguage];
             const translationLatency = latencyTracking.components?.translation || 0;
 
+            logger.info('WebSocketServer: About to persist translation', {
+              classroomSessionId,
+              translatedText,
+              translationLatency,
+              originalText,
+              sourceLanguage,
+              targetLanguage: studentLanguage
+            });
+
             if (this.storage && classroomSessionId) {
               logger.info('WebSocketServer: Attempting to call this.storage.addTranslation (detailed logging enabled)');
-              // Using an immediately-invoked async function as forEach is synchronous
               (async () => {
                 try {
                   await this.storage.addTranslation({
@@ -721,7 +732,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
                     originalText: originalText,
                     translatedText: translatedText,
                     latency: translationLatency,
-                    // Add any other relevant fields your addTranslation method might expect
                   });
                   logger.info('WebSocketServer: this.storage.addTranslation finished successfully', { sessionId: classroomSessionId });
                 } catch (storageError) {

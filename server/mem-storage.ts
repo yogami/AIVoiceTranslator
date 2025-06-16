@@ -14,126 +14,42 @@ import {
   IStorage,
 } from "./storage.interface"; // Updated IStorage import
 import { StorageError } from "./storage.error";
-import { MemUserStorage } from "./storage/user.storage";
-import { MemLanguageStorage } from "./storage/language.storage";
-import { MemTranslationStorage } from "./storage/translation.storage";
-import { MemTranscriptStorage } from "./storage/transcript.storage";
-import { MemSessionStorage } from "./storage/session.storage";
 
 export class MemStorage implements IStorage {
-  // User storage part
-  private userStorage: MemUserStorage;
-  // Language storage part
-  private languageStorage: MemLanguageStorage;
-  // Translation storage part
-  private translationStorage: MemTranslationStorage;
-  // Transcript storage part
-  private transcriptStorage: MemTranscriptStorage;
-  // Session storage part
-  private sessionStorage: MemSessionStorage;
+  private backend: IStorage;
 
-  // Shared data structures for MemStorage sub-modules to reference the same data
-  private readonly usersMap: Map<number, User>;
-  private readonly languagesMap: Map<number, Language>;
-  private readonly translationsMap: Map<number, Translation>;
-  private readonly transcriptsMap: Map<number, Transcript>;
-  private readonly sessionsMap: Map<number, Session>;
-
-  private userIdCounter: { value: number };
-  private languageIdCounter: { value: number };
-  private translationIdCounter: { value: number };
-  private transcriptIdCounter: { value: number };
-  private sessionIdCounter: { value: number };
-
-  // These are for direct mocking in tests if needed, prefer spies on actual methods.
-  public mockSessionMetrics: any = null;
-  public mockTranslationMetrics: any = null;
-  public mockLanguagePairMetrics: any[] = []; 
-  public mockRecentSessionActivity: any[] = [];
-
-  constructor() {
-    this.usersMap = new Map();
-    this.languagesMap = new Map();
-    this.translationsMap = new Map();
-    this.transcriptsMap = new Map();
-    this.sessionsMap = new Map();
-
-    // Initialize counters as objects for reference passing
-    this.userIdCounter = { value: 1 };
-    this.languageIdCounter = { value: 1 };
-    this.translationIdCounter = { value: 1 };
-    this.transcriptIdCounter = { value: 1 };
-    this.sessionIdCounter = { value: 1 };
-
-    this.userStorage = new MemUserStorage(this.usersMap, this.userIdCounter);
-    this.languageStorage = new MemLanguageStorage(this.languagesMap, this.languageIdCounter);
-    this.translationStorage = new MemTranslationStorage(this.translationsMap, this.translationIdCounter);
-    this.transcriptStorage = new MemTranscriptStorage(this.transcriptsMap, this.transcriptIdCounter);
-    this.sessionStorage = new MemSessionStorage(this.sessionsMap, this.sessionIdCounter, this.transcriptsMap);
-    
-    // Initialize default languages after creating the storage instances
-    this.initializeDefaultLanguages().catch(console.error);
+  constructor(backend: IStorage) {
+    this.backend = backend;
   }
 
-  public async reset(): Promise<void> {
-    this.usersMap.clear();
-    this.languagesMap.clear();
-    this.translationsMap.clear();
-    this.transcriptsMap.clear();
-    this.sessionsMap.clear();
+  // User methods
+  async getUser(id: number) { return this.backend.getUser(id); }
+  async getUserByUsername(username: string) { return this.backend.getUserByUsername(username); }
+  async createUser(user: InsertUser) { return this.backend.createUser(user); }
 
-    this.userIdCounter.value = 1;
-    this.languageIdCounter.value = 1;
-    this.translationIdCounter.value = 1;
-    this.transcriptIdCounter.value = 1;
-    this.sessionIdCounter.value = 1;
-    
-    // Re-initialize default languages after reset
-    await this.initializeDefaultLanguages();
+  // Language methods
+  async getLanguages() { return this.backend.getLanguages(); }
+  async getActiveLanguages() { return this.backend.getActiveLanguages(); }
+  async getLanguageByCode(code: string) { return this.backend.getLanguageByCode(code); }
+  async createLanguage(language: InsertLanguage) { return this.backend.createLanguage(language); }
+  async updateLanguageStatus(code: string, isActive: boolean) { return this.backend.updateLanguageStatus(code, isActive); }
 
-    // Clear mock data if any (though not strictly necessary if re-instantiated or not used)
-    this.mockSessionMetrics = null;
-    this.mockTranslationMetrics = null;
-    this.mockLanguagePairMetrics = [];
-    this.mockRecentSessionActivity = [];
-  }
+  // Translation methods
+  async addTranslation(translation: InsertTranslation) { return this.backend.addTranslation(translation); }
+  async getTranslationsByLanguage(targetLanguage: string, limit?: number) { return this.backend.getTranslationsByLanguage(targetLanguage, limit); }
+  async getTranslations(limit?: number) { return this.backend.getTranslations(limit); }
+  async getTranslationsByDateRange(startDate: Date, endDate: Date) { return this.backend.getTranslationsByDateRange(startDate, endDate); }
 
-  private async initializeDefaultLanguages(): Promise<void> {
-    if (this.languageStorage.initializeDefaultLanguages) {
-      await this.languageStorage.initializeDefaultLanguages();
-    }
-  }
+  // Transcript methods
+  async addTranscript(transcript: InsertTranscript) { return this.backend.addTranscript(transcript); }
+  async getTranscriptsBySession(sessionId: string, language: string, limit?: number) { return this.backend.getTranscriptsBySession(sessionId, language, limit); }
 
-  // User methods (delegated)
-  async getUser(id: number) { return this.userStorage.getUser(id); }
-  async getUserByUsername(username: string) { return this.userStorage.getUserByUsername(username); }
-  async createUser(user: InsertUser) { return this.userStorage.createUser(user); }
-
-  // Language methods (delegated)
-  async getLanguages() { return this.languageStorage.getLanguages(); }
-  async getActiveLanguages() { return this.languageStorage.getActiveLanguages(); }
-  async getLanguageByCode(code: string) { return this.languageStorage.getLanguageByCode(code); }
-  async createLanguage(language: InsertLanguage) { return this.languageStorage.createLanguage(language); }
-  async updateLanguageStatus(code: string, isActive: boolean) { return this.languageStorage.updateLanguageStatus(code, isActive); }
-
-  // Translation methods (delegated
-  async addTranslation(translation: InsertTranslation) { 
-    return this.translationStorage.addTranslation(translation);
-  }
-  async getTranslationsByLanguage(targetLanguage: string, limit?: number) { return this.translationStorage.getTranslationsByLanguage(targetLanguage, limit); }
-  async getTranslations(limit?: number) { return this.translationStorage.getTranslations(limit); }
-  async getTranslationsByDateRange(startDate: Date, endDate: Date) { return this.translationStorage.getTranslationsByDateRange(startDate, endDate); }
-
-  // Transcript methods (delegated)
-  async addTranscript(transcript: InsertTranscript) { return this.transcriptStorage.addTranscript(transcript); }
-  async getTranscriptsBySession(sessionId: string, language: string, limit?: number) { return this.transcriptStorage.getTranscriptsBySession(sessionId, language, limit); }
-
-  // Session methods (delegated)
-  async createSession(session: InsertSession) { return this.sessionStorage.createSession(session); }
-  async updateSession(sessionId: string, updates: Partial<InsertSession>) { return this.sessionStorage.updateSession(sessionId, updates); }
-  async getActiveSession(sessionId: string) { return this.sessionStorage.getActiveSession(sessionId); }
-  async getAllActiveSessions() { return this.sessionStorage.getAllActiveSessions(); }
-  async endSession(sessionId: string) { return this.sessionStorage.endSession(sessionId); }
+  // Session methods
+  async createSession(session: InsertSession) { return this.backend.createSession(session); }
+  async updateSession(sessionId: string, updates: Partial<InsertSession>) { return this.backend.updateSession(sessionId, updates); }
+  async getActiveSession(sessionId: string) { return this.backend.getActiveSession(sessionId); }
+  async getAllActiveSessions() { return this.backend.getAllActiveSessions(); }
+  async endSession(sessionId: string) { return this.backend.endSession(sessionId); }
   async getRecentSessionActivity(limit?: number): Promise<{
     sessionId: string;
     teacherLanguage: string | null;
@@ -144,9 +60,9 @@ export class MemStorage implements IStorage {
     duration: number;
   }[]> {
     // Delegate to sessionStorage, which now needs to implement this with studentCount
-    return this.sessionStorage.getRecentSessionActivity(limit);
+    return this.backend.getRecentSessionActivity(limit);
   }
-  async getSessionById(sessionId: string): Promise<Session | undefined> { return this.sessionStorage.getSessionById(sessionId); }
+  async getSessionById(sessionId: string): Promise<Session | undefined> { return this.backend.getSessionById(sessionId); }
 
   // Analytics methods
   async getSessionAnalytics(sessionId: string): Promise<{
@@ -154,60 +70,17 @@ export class MemStorage implements IStorage {
     averageLatency: number;
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }> {
-    const relevantTranslations = Array.from(this.translationsMap.values())
-        .filter(t => t.sessionId === sessionId);
-
-    if (relevantTranslations.length === 0) {
-        return { totalTranslations: 0, averageLatency: 0, languagePairs: [] };
-    }
-
-    const totalTranslations = relevantTranslations.length;
-    const totalLatencySum = relevantTranslations.reduce((sum: number, t: Translation) => sum + (t.latency || 0), 0);
-    const averageLatency = totalTranslations > 0 ? totalLatencySum / totalTranslations : 0;
-    
-    const languagePairsMap = new Map<string, { sourceLanguage: string; targetLanguage: string; count: number }>();
-    for (const t of relevantTranslations) {
-        if (t.sourceLanguage && t.targetLanguage) {
-            const key = `${t.sourceLanguage}-${t.targetLanguage}`;
-            const pair = languagePairsMap.get(key);
-            if (pair) {
-                pair.count++;
-            } else {
-                languagePairsMap.set(key, { sourceLanguage: t.sourceLanguage, targetLanguage: t.targetLanguage, count: 1 });
-            }
-        }
-    }
-    return { totalTranslations, averageLatency, languagePairs: Array.from(languagePairsMap.values()) };
+    return this.backend.getSessionAnalytics(sessionId);
   }
-  
+
+  // Diagnostics methods
   async getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
     totalSessions: number;
     activeSessions: number;
     averageSessionDuration: number;
     sessionsLast24Hours: number;
   }> {
-    // timeRange is ignored for MemStorage, always calculate based on current in-memory state.
-    const allSessionsView = Array.from(this.sessionsMap.values());
-
-    const activeSessionsCount = allSessionsView.filter((s: Session) => s.isActive).length;
-    const durations = allSessionsView
-      .filter((s: Session) => s.startTime && s.endTime)
-      .map((s: Session) => new Date(s.endTime!).getTime() - new Date(s.startTime!).getTime());
-    const averageDuration = durations.length > 0 ? durations.reduce((sum: number, d: number) => sum + d, 0) / durations.length : 0;
-    
-    const now = Date.now();
-    const sessionsLast24Hours = Array.from(this.sessionsMap.values()).filter((s: Session) => {
-      if (!s.startTime) return false;
-      const sessionStart = new Date(s.startTime).getTime();
-      return sessionStart >= now - 24 * 60 * 60 * 1000;
-    }).length;
-
-    return {
-      totalSessions: allSessionsView.length,
-      activeSessions: activeSessionsCount,
-      averageSessionDuration: averageDuration,
-      sessionsLast24Hours
-    };
+    return this.backend.getSessionMetrics(timeRange);
   }
 
   async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
@@ -215,25 +88,7 @@ export class MemStorage implements IStorage {
     averageLatency: number;
     recentTranslations: number;
   }> {
-    // timeRange is ignored for MemStorage, always calculate based on current in-memory state.
-    const allTranslations = Array.from(this.translationsMap.values());
-
-    const totalTranslations = allTranslations.length;
-    const totalLatencySum = allTranslations.reduce((sum, t) => sum + (t.latency || 0), 0);
-    const averageLatency = totalTranslations > 0 ? totalLatencySum / totalTranslations : 0;
-    
-    const now = Date.now();
-    const oneHourAgo = now - 60 * 60 * 1000;
-    const recentTranslations = allTranslations.filter(t => {
-      const timestamp = t.timestamp ? new Date(t.timestamp).getTime() : 0;
-      return timestamp >= oneHourAgo;
-    }).length;
-
-    return {
-      totalTranslations,
-      averageLatency,
-      recentTranslations,
-    };
+    return this.backend.getTranslationMetrics(timeRange);
   }
 
   async getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<{
@@ -242,34 +97,9 @@ export class MemStorage implements IStorage {
     count: number;
     averageLatency: number;
   }[]> {
-    // timeRange is ignored for MemStorage, always calculate based on current in-memory state.
-    const relevantTranslations = Array.from(this.translationsMap.values());
-
-    const languagePairsMap = new Map<string, { sourceLanguage: string; targetLanguage: string; count: number; totalLatency: number }>();
-
-    for (const t of relevantTranslations) {
-      if (t.sourceLanguage && t.targetLanguage) {
-        const key = `${t.sourceLanguage}-${t.targetLanguage}`;
-        const pair = languagePairsMap.get(key);
-        if (pair) {
-          pair.count++;
-          pair.totalLatency += (t.latency || 0);
-        } else {
-          languagePairsMap.set(key, {
-            sourceLanguage: t.sourceLanguage,
-            targetLanguage: t.targetLanguage,
-            count: 1,
-            totalLatency: (t.latency || 0)
-          });
-        }
-      }
-    }
-
-    return Array.from(languagePairsMap.values()).map(pair => ({
-      sourceLanguage: pair.sourceLanguage,
-      targetLanguage: pair.targetLanguage,
-      count: pair.count,
-      averageLatency: pair.count > 0 ? pair.totalLatency / pair.count : 0,
-    }));
+    return this.backend.getLanguagePairUsage(timeRange);
   }
+
+  // Optionally, add a reset method if needed for tests
+  async reset() { if (typeof (this.backend as any).reset === 'function') { await (this.backend as any).reset(); } }
 }
