@@ -28,6 +28,9 @@ describe('Diagnostics Service Integration', () => {
   let diagnosticsServiceInstance: DiagnosticsService; // Renamed to avoid conflict
 
   beforeAll(async () => {
+    // Set environment variable for testing persistence
+    process.env.ENABLE_DETAILED_TRANSLATION_LOGGING = 'true';
+
     const app = express();
     // Mock the /api/languages endpoint if your WebSocketServer or other services depend on it during startup
     app.get('/api/languages', (req: Request, res: Response) => { // Typed req and res

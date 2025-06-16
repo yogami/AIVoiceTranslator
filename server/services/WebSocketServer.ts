@@ -37,6 +37,7 @@ import type {
 } from './WebSocketTypes';
 import { type InsertSession } from '../../shared/schema'; // Added import
 import { IStorage } from '../storage.interface';
+import { DiagnosticsService } from './DiagnosticsService'; // Added import
 
 // Custom WebSocketClient type for our server
 type WebSocketClient = WebSocket & {
@@ -60,6 +61,7 @@ interface ClassroomSession {
 export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
+  private diagnosticsService: DiagnosticsService | null; // Added diagnosticsService property
   
   // We use the speechTranslationService facade
   
@@ -78,10 +80,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
-  constructor(server: http.Server, storage: IStorage) { 
+  constructor(server: http.Server, storage: IStorage, diagnosticsService: DiagnosticsService | null) { // Added diagnosticsService parameter
     this.wss = new WSServer({ server });
     this.storage = storage;
-   
+    this.diagnosticsService = diagnosticsService; // Assign diagnosticsService
     
     // Set up event handlers
     this.setupEventHandlers();
@@ -498,21 +500,16 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     
     // Perform translations for all required languages
     const { translations, translationResults, latencyInfo } = 
-      await this.translateToMultipleLanguages(
-        message.text, 
-        teacherLanguage, 
-        studentLanguages,
-        startTime,
-        latencyTracking
+      await speechTranslationService.translateTextToMultipleLanguages(
+        message.text,
+        teacherLanguage,
+        studentLanguages
       );
-    
-    // Update latency tracking with the results
-    Object.assign(latencyTracking.components, latencyInfo);
-    
-    // Calculate processing latency before sending translations
-    const processingEndTime = Date.now();
-    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
-    
+      
+    // Record overall translation latency (from teacher sending transcription to translations ready)
+    const overallTranslationLatency = Date.now() - startTime;
+    this.diagnosticsService?.recordTranslation(overallTranslationLatency); // Call recordTranslation
+
     // Send translations to students
     this.sendTranslationsToStudents(
       studentConnections,
@@ -669,9 +666,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     startTime: number,
     latencyTracking: any
   ): void {
-    studentConnections.forEach(student => {
-      const studentLanguage = this.languages.get(student);
-      const studentSettings = this.clientSettings.get(student) || {};
+    logger.info('WebSocketServer: sendTranslationsToStudents started');
+    studentConnections.forEach(studentWs => {
+      const studentLanguage = this.languages.get(studentWs);
+      const studentSettings = this.clientSettings.get(studentWs) || {};
       
       if (studentLanguage && translations[studentLanguage]) {
         const translationMessage: TranslationMessageToClient = {
@@ -700,12 +698,49 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
         }
         
         try {
-          student.send(JSON.stringify(translationMessage));
+          studentWs.send(JSON.stringify(translationMessage));
+          logger.info('WebSocketServer: Translation message sent to student', { studentSessionId: this.sessionIds.get(studentWs), targetLanguage: studentLanguage });
+
+          // Persist translation for diagnostics and product usage, if enabled
+          const enableDetailedTranslationLogging = process.env.ENABLE_DETAILED_TRANSLATION_LOGGING === 'true';
+
+          if (enableDetailedTranslationLogging) {
+            const classroomSessionId = this.sessionIds.get(studentWs);
+            const translatedText = translations[studentLanguage];
+            const translationLatency = latencyTracking.components?.translation || 0;
+
+            if (this.storage && classroomSessionId) {
+              logger.info('WebSocketServer: Attempting to call this.storage.addTranslation (detailed logging enabled)');
+              // Using an immediately-invoked async function as forEach is synchronous
+              (async () => {
+                try {
+                  await this.storage.addTranslation({
+                    sessionId: classroomSessionId,
+                    sourceLanguage: sourceLanguage,
+                    targetLanguage: studentLanguage,
+                    originalText: originalText,
+                    translatedText: translatedText,
+                    latency: translationLatency,
+                    // Add any other relevant fields your addTranslation method might expect
+                  });
+                  logger.info('WebSocketServer: this.storage.addTranslation finished successfully', { sessionId: classroomSessionId });
+                } catch (storageError) {
+                  logger.error('WebSocketServer: Error calling this.storage.addTranslation. This will not affect student-facing functionality.', { error: storageError, sessionId: classroomSessionId });
+                }
+              })();
+            } else {
+              logger.warn('WebSocketServer: Detailed translation logging enabled, but this.storage or classroomSessionId not available, skipping storage.addTranslation', { hasStorage: !!this.storage, hasSessionId: !!classroomSessionId });
+            }
+          } else {
+            logger.info('WebSocketServer: Detailed translation logging is disabled via environment variable ENABLE_DETAILED_TRANSLATION_LOGGING, skipping storage.addTranslation');
+          }
+
         } catch (error) {
-          logger.error('Error sending translation to student:', { error });
+          logger.error('Error sending translation to student:', { error, studentSessionId: this.sessionIds.get(studentWs) });
         }
       }
     });
+    logger.info('WebSocketServer: sendTranslationsToStudents finished');
   }
   
   /**
