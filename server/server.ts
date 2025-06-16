@@ -98,7 +98,7 @@ export async function startServer(app: express.Express): Promise<Server> {
 
   let storage: IStorage;
   if (process.env.NODE_ENV === 'test' || config.storage.type === 'memory') {
-    storage = new MemStorage();
+    storage = new MemStorage(new DatabaseStorage());
     logger.info('[INIT] Using memory storage.');
   } else {
     storage = new DatabaseStorage();

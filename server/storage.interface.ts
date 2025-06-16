@@ -6,6 +6,36 @@ import {
   type Session, type InsertSession,
 } from "../shared/schema";
 
+export interface StorageTranslationMetrics {
+  totalTranslations: number;
+  averageLatency: number;
+  recentTranslations: number; // This field's definition (e.g., count in last X time) should be clear in implementations
+}
+
+export interface StorageSessionMetrics {
+  totalSessions: number;
+  activeSessions: number; // Typically, count of sessions marked isActive:true in DB for the range
+  averageSessionDuration: number;
+  sessionsLast24Hours: number;
+}
+
+export interface StorageLanguagePairUsageData {
+  sourceLanguage: string;
+  targetLanguage: string;
+  count: number;
+  averageLatency: number;
+}
+
+export interface StorageRecentSessionActivity {
+  sessionId: string;
+  teacherLanguage: string | null;
+  transcriptCount: number;
+  studentCount: number;
+  startTime: Date | null;
+  endTime: Date | null;
+  duration: number; // Duration in milliseconds
+}
+
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
@@ -35,41 +65,18 @@ export interface IStorage {
   getActiveSession(sessionId: string): Promise<Session | undefined>;
   getAllActiveSessions(): Promise<Session[]>;
   endSession(sessionId: string): Promise<Session | undefined>;
-  getRecentSessionActivity(limit?: number): Promise<{
-    sessionId: string;
-    teacherLanguage: string | null;
-    transcriptCount: number;
-    studentCount: number; // Added studentCount
-    startTime: Date | null;
-    endTime: Date | null;
-    duration: number;
-  }[]>;
-  getSessionById(sessionId: string): Promise<Session | undefined>; // Added getSessionById
+  getRecentSessionActivity(limit?: number): Promise<StorageRecentSessionActivity[]>;
+  getSessionById(sessionId: string): Promise<Session | undefined>;
   
   // Analytics methods
-  getSessionAnalytics(sessionId: string): Promise<{
+  getSessionAnalytics(sessionId: string): Promise<{ // Consider defining a type for this return
     totalTranslations: number;
     averageLatency: number;
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }>;
   
   // Diagnostics methods
-  getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
-    totalSessions: number;
-    activeSessions: number;
-    averageSessionDuration: number;
-    sessionsLast24Hours: number; // Added from MemStorage, ensure DBStorage has it or defaults
-  }>;
-  getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
-    totalTranslations: number;
-    averageLatency: number;
-    recentTranslations: number;
-  }>;
-  // Renamed from getLanguagePairMetrics to getLanguagePairUsage for consistency
-  getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<{
-    sourceLanguage: string;
-    targetLanguage: string;
-    count: number;
-    averageLatency: number;
-  }[]>;
+  getSessionMetrics(timeRange?: { startDate: Date; endDate: Date } | { preset: string }): Promise<StorageSessionMetrics>;
+  getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date } | { preset: string }): Promise<StorageTranslationMetrics>;
+  getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date } | { preset: string }): Promise<StorageLanguagePairUsageData[]>;
 }

@@ -20,6 +20,7 @@ import { IStorage } from '../../server/storage.interface';
 import * as schema from '../../shared/schema';
 import { StorageError } from '../../server/storage.error';
 import { db } from '../../server/db'; // Import to be mocked
+import type { User, Language, Translation, Transcript, Session, InsertUser, InsertLanguage, InsertTranslation, InsertTranscript, InsertSession } from '../../shared/schema';
 
 // Mock the db module for all DatabaseStorage unit tests
 vi.mock('../../server/db', () => {
@@ -68,14 +69,148 @@ vi.mock('../../server/db', () => {
   };
 });
 
+// Minimal in-memory IStorage mock for unit tests
+class InMemoryStorageMock implements IStorage {
+  users: Map<string, User> = new Map();
+  languages: Map<string, Language> = new Map([
+    ['en-US', { id: 1, code: 'en-US', name: 'English (United States)', isActive: true }],
+    ['es', { id: 2, code: 'es', name: 'Spanish', isActive: true }]
+  ]);
+  translations: Translation[] = [];
+  transcripts: Transcript[] = [];
+  sessions: Session[] = [];
+  userId = 1;
+  languageId = 3;
+  translationId = 1;
+  transcriptId = 1;
+  sessionId = 1;
+
+  async getLanguages(): Promise<Language[]> { return Array.from(this.languages.values()); }
+  async getActiveLanguages(): Promise<Language[]> { return Array.from(this.languages.values()).filter(l => l.isActive); }
+  async getLanguageByCode(code: string): Promise<Language | undefined> { return this.languages.get(code); }
+  async createLanguage(lang: InsertLanguage): Promise<Language> {
+    const newLang: Language = { ...lang, id: this.languageId++, isActive: lang.isActive ?? true };
+    this.languages.set(lang.code, newLang);
+    return newLang;
+  }
+  async updateLanguageStatus(code: string, isActive: boolean): Promise<Language | undefined> {
+    const lang = this.languages.get(code);
+    if (lang) { lang.isActive = isActive; this.languages.set(code, lang); return lang; }
+    return undefined;
+  }
+  async getUser(id: number): Promise<User | undefined> { return Array.from(this.users.values()).find(u => u.id === id); }
+  async getUserByUsername(username: string): Promise<User | undefined> { return this.users.get(username); }
+  async createUser(user: InsertUser): Promise<User> {
+    const newUser: User = { ...user, id: this.userId++ };
+    this.users.set(newUser.username, newUser);
+    return newUser;
+  }
+  async addTranslation(t: InsertTranslation): Promise<Translation> {
+    const newT: Translation = { ...t, id: this.translationId++, timestamp: t.timestamp ?? new Date() } as Translation;
+    this.translations.push(newT);
+    return newT;
+  }
+  async getTranslationsByLanguage(targetLanguage: string): Promise<Translation[]> { return this.translations.filter(t => t.targetLanguage === targetLanguage); }
+  async getTranslations(): Promise<Translation[]> { return this.translations; }
+  async getTranslationsByDateRange(): Promise<Translation[]> { return this.translations; }
+  async addTranscript(tr: InsertTranscript): Promise<Transcript> {
+    const newTr: Transcript = { ...tr, id: this.transcriptId++ } as Transcript;
+    this.transcripts.push(newTr);
+    return newTr;
+  }
+  async getTranscriptsBySession(sessionId: string): Promise<Transcript[]> { return this.transcripts.filter(t => t.sessionId === sessionId); }
+  async createSession(s: InsertSession): Promise<Session> {
+    const now = new Date();
+    const newS: Session = { ...(s as any), id: this.sessionId++, studentsCount: (s as any).studentsCount ?? 0, isActive: s.isActive ?? true, startTime: (s as any).startTime ?? now, endTime: (s as any).endTime ?? null, totalTranslations: (s as any).totalTranslations ?? 0, averageLatency: (s as any).averageLatency ?? 0 };
+    this.sessions.push(newS);
+    return newS;
+  }
+  async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined> {
+    const idx = this.sessions.findIndex(s => s.sessionId === sessionId);
+    if (idx >= 0) { this.sessions[idx] = { ...this.sessions[idx], ...(updates as any) }; return this.sessions[idx]; }
+    return undefined;
+  }
+  async endSession(sessionId: string): Promise<Session | undefined> {
+    const idx = this.sessions.findIndex(s => s.sessionId === sessionId);
+    if (idx >= 0) {
+      this.sessions[idx] = { ...this.sessions[idx], isActive: false, endTime: new Date() };
+      return this.sessions[idx];
+    }
+    return undefined;
+  }
+  async getActiveSession(sessionId: string): Promise<Session | undefined> { return this.sessions.find(s => s.sessionId === sessionId && s.isActive); }
+  async getAllActiveSessions(): Promise<Session[]> { return this.sessions.filter(s => s.isActive); }
+  async getRecentSessionActivity(limit = 5): Promise<any[]> {
+    // Sort by startTime descending
+    const sorted = [...this.sessions].sort((a, b) => {
+      const aTime = a.startTime ? new Date(a.startTime).getTime() : 0;
+      const bTime = b.startTime ? new Date(b.startTime).getTime() : 0;
+      return bTime - aTime;
+    });
+    return sorted.slice(0, limit).map(s => ({
+      sessionId: s.sessionId,
+      teacherLanguage: s.teacherLanguage,
+      transcriptCount: this.transcripts.filter(t => t.sessionId === s.sessionId).length,
+      studentCount: (s as any).studentsCount ?? 0,
+      startTime: s.startTime || null,
+      endTime: s.endTime || null,
+      duration: s.startTime && s.endTime ? (new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) : 0
+    }));
+  }
+  async getSessionById(sessionId: string): Promise<Session | undefined> { return this.sessions.find(s => s.sessionId === sessionId); }
+  async getSessionAnalytics(): Promise<any> { return { totalTranslations: this.translations.length, averageLatency: 0, languagePairs: [] }; }
+  async getSessionMetrics(): Promise<any> {
+    const now = Date.now();
+    const totalSessions = this.sessions.length;
+    const activeSessions = this.sessions.filter(s => s.isActive).length;
+    const durations = this.sessions.filter(s => s.startTime && s.endTime).map(s => new Date(s.endTime!).getTime() - new Date(s.startTime!).getTime());
+    const averageSessionDuration = durations.length > 0 ? durations.reduce((sum, d) => sum + d, 0) / durations.length : 0;
+    const sessionsLast24Hours = this.sessions.filter(s => s.startTime && (new Date(s.startTime).getTime() >= now - 24 * 60 * 60 * 1000)).length;
+    return { totalSessions, activeSessions, averageSessionDuration, sessionsLast24Hours };
+  }
+  async getTranslationMetrics(): Promise<any> {
+    const now = Date.now();
+    const totalTranslations = this.translations.length;
+    const totalLatencySum = this.translations.reduce((sum, t) => sum + (t.latency || 0), 0);
+    const averageLatency = totalTranslations > 0 ? totalLatencySum / totalTranslations : 0;
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const recentTranslations = this.translations.filter(t => {
+      const timestamp = t.timestamp ? new Date(t.timestamp).getTime() : 0;
+      return timestamp >= oneHourAgo;
+    }).length;
+    return { totalTranslations, averageLatency, recentTranslations };
+  }
+  async getLanguagePairUsage(): Promise<any[]> {
+    const pairs = new Map<string, { sourceLanguage: string; targetLanguage: string; count: number; totalLatency: number }>();
+    for (const t of this.translations) {
+      if (t.sourceLanguage && t.targetLanguage) {
+        const key = `${t.sourceLanguage}-${t.targetLanguage}`;
+        if (!pairs.has(key)) {
+          pairs.set(key, { sourceLanguage: t.sourceLanguage, targetLanguage: t.targetLanguage, count: 0, totalLatency: 0 });
+        }
+        const pair = pairs.get(key)!;
+        pair.count++;
+        pair.totalLatency += t.latency || 0;
+      }
+    }
+    return Array.from(pairs.values()).map(pair => ({
+      sourceLanguage: pair.sourceLanguage,
+      targetLanguage: pair.targetLanguage,
+      count: pair.count,
+      averageLatency: pair.count > 0 ? pair.totalLatency / pair.count : 0
+    }));
+  }
+}
+
 describe('Storage Services', () => {
   describe('MemStorage', () => {
     let storage: IStorage;
+    let mockBackend: IStorage;
     const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
 
     beforeEach(() => {
-      // vi.useRealTimers(); // Ensure real timers are used by default - remove, will be set in afterEach or per suite
-      storage = new MemStorage();
+      mockBackend = new InMemoryStorageMock();
+      storage = new MemStorage(mockBackend);
     });
 
     it('should initialize with default languages', async () => {

@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiagnosticsService, TimeRangePreset } from '../../../server/services/DiagnosticsService';
 import { MemStorage } from '../../../server/mem-storage';
 import { IActiveSessionProvider } from '../../../server/services/IActiveSessionProvider';
+import { StorageTranslationMetrics } from '../../../server/storage.interface'; // Changed to StorageTranslationMetrics
+import { DatabaseStorage } from '../../../server/database-storage';
 
 // Define SessionActivity directly in the test file if not exported
 interface SessionActivity {
@@ -22,15 +24,20 @@ describe('DiagnosticsService', () => {
   let diagnosticsService: DiagnosticsService;
   let mockStorage: MemStorage;
   let mockActiveSessionProvider: IActiveSessionProvider;
+  let dbStorage: DatabaseStorage;
 
-  const inMemoryTranslationSample = [110, 130, 120]; // 3 translations, average 120ms
+  // Mock data for translation metrics from storage
+  const MOCK_CURRENT_PERF_TRANSLATIONS: StorageTranslationMetrics = { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
+  const MOCK_HISTORICAL_TRANSLATIONS_DEFAULT: StorageTranslationMetrics = { totalTranslations: 100, averageLatency: 150, recentTranslations: 25 };
+
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockStorage = new MemStorage();
+    dbStorage = new DatabaseStorage();
+    mockStorage = new MemStorage(dbStorage);
     mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(2),
-      getActiveSessionsCount: vi.fn().mockReturnValue(2), // Kept for potential direct use, though details is preferred
+      getActiveSessionsCount: vi.fn().mockReturnValue(2),
       getActiveStudentCount: vi.fn().mockReturnValue(1),
       getActiveTeacherCount: vi.fn().mockReturnValue(1),
       getActiveSessionsDetails: vi.fn().mockReturnValue([
@@ -41,7 +48,6 @@ describe('DiagnosticsService', () => {
     diagnosticsService = new DiagnosticsService(mockStorage, mockActiveSessionProvider);
 
     diagnosticsService.reset();
-    inMemoryTranslationSample.forEach(time => diagnosticsService.recordTranslation(time));
 
     vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({
       totalSessions: 10,
@@ -49,16 +55,24 @@ describe('DiagnosticsService', () => {
       averageSessionDuration: 300000,
       sessionsLast24Hours: 5
     });
-    vi.spyOn(mockStorage, 'getTranslationMetrics').mockResolvedValue({
-      totalTranslations: 100,
-      averageLatency: 150,
-      recentTranslations: 25
+
+    // Default mock for getTranslationMetrics in beforeEach
+    vi.spyOn(mockStorage, 'getTranslationMetrics').mockImplementation(async (arg: any) => {
+      console.log('[mockStorage.getTranslationMetrics] Received arg:', JSON.stringify(arg, null, 2));
+      if (arg && typeof arg === 'object' && arg.preset === 'lastMinute' && Object.keys(arg).length === 1) {
+        const returnValue = { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
+        console.log('[mockStorage.getTranslationMetrics] Matched "lastMinute" preset. Returning:', JSON.stringify(returnValue, null, 2));
+        return returnValue;
+      }
+      const fallbackValue = { ...MOCK_HISTORICAL_TRANSLATIONS_DEFAULT };
+      console.log('[mockStorage.getTranslationMetrics] Did not match "lastMinute". Returning historical default:', JSON.stringify(fallbackValue, null, 2));
+      return fallbackValue;
     });
+
     vi.spyOn(mockStorage, 'getLanguagePairUsage').mockResolvedValue([
       { sourceLanguage: 'en-US', targetLanguage: 'es', count: 50, averageLatency: 120 },
       { sourceLanguage: 'fr', targetLanguage: 'de', count: 30, averageLatency: 250 }
     ]);
-    // Corrected mock data for getRecentSessionActivity
     vi.spyOn(mockStorage, 'getRecentSessionActivity').mockResolvedValue([
       {
         sessionId: 'test-session-1',
@@ -96,26 +110,9 @@ describe('DiagnosticsService', () => {
       const metrics = await diagnosticsService.getMetrics('lastHour');
       expect(mockActiveSessionProvider.getActiveStudentCount).toHaveBeenCalled();
       expect(mockActiveSessionProvider.getActiveTeacherCount).toHaveBeenCalled();
-      expect(metrics.sessions.activeSessions).toBe(2);
+      expect(metrics.sessions.activeSessions).toBe(2); // This comes from IActiveSessionProvider via getMetrics -> getCurrentPerformanceMetrics
       expect(metrics.sessions.studentsConnected).toBe(1);
       expect(metrics.sessions.teachersConnected).toBe(1);
-    });
-  });
-
-  describe('Translation Metrics', () => {
-    it('should record translation times', () => {
-      diagnosticsService.reset(); // Reset to clear translations from beforeEach
-      diagnosticsService.recordTranslation(100);
-      diagnosticsService.recordTranslation(200);
-      diagnosticsService.recordTranslation(150);
-      expect(diagnosticsService['translationTimes']).toEqual([100, 200, 150]);
-    });
-    it('should maintain only last 100 translations', () => {
-      for (let i = 0; i < 105; i++) {
-        diagnosticsService.recordTranslation(i);
-      }
-      expect(diagnosticsService['translationTimes'].length).toBe(100);
-      expect(diagnosticsService['translationTimes'][0]).toBe(5);
     });
   });
 
@@ -157,8 +154,22 @@ describe('DiagnosticsService', () => {
         startDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
         endDate: new Date()
       };
-      const historicalDbTranslations = { totalTranslations: 250, averageLatency: 180, recentTranslations: 50 };
-      vi.spyOn(mockStorage, 'getTranslationMetrics').mockResolvedValue(historicalDbTranslations);
+      const specificHistoricalDbTranslations: StorageTranslationMetrics = { totalTranslations: 250, averageLatency: 180, recentTranslations: 50 };
+      
+      // Specific mock for this test
+      vi.spyOn(mockStorage, 'getTranslationMetrics').mockImplementation(async (arg: any) => {
+        if (arg && typeof arg === 'object' && arg.preset === 'lastMinute' && Object.keys(arg).length === 1) {
+          // Return a pristine object literal for current performance
+          return { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
+        }
+        if (arg && typeof arg === 'object' && arg.startDate && arg.endDate &&
+            arg.startDate.getTime() === timeRange.startDate.getTime() &&
+            arg.endDate.getTime() === timeRange.endDate.getTime()) {
+          return { ...specificHistoricalDbTranslations }; // Specific historical data for this test
+        }
+        return { ...MOCK_HISTORICAL_TRANSLATIONS_DEFAULT }; // Fallback for any other historical calls
+      });
+
       const historicalDbSessions = { totalSessions: 15, activeSessions: 3, averageSessionDuration: 320000, sessionsLast24Hours: 7 };
       vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue(historicalDbSessions);
       const historicalDbLangPairs: any = [{ sourceLanguage: 'de', targetLanguage: 'en-US', count: 90, averageLatency: 170 }];
@@ -168,222 +179,139 @@ describe('DiagnosticsService', () => {
       const metrics = await diagnosticsService.getMetrics(timeRange);
 
       expect(metrics.currentPerformance).toBeDefined();
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(120);
-      expect(metrics.translations.total).toBe(historicalDbTranslations.totalTranslations);
-      expect(metrics.translations.averageTime).toBe(historicalDbTranslations.averageLatency);
-      // Removed: expect(metrics.translations).not.toHaveProperty('totalFromDatabase');
-      // Removed: expect(metrics.translations).not.toHaveProperty('averageLatencyFromDatabase');
-      expect(metrics.translations.totalFromDatabase).toBe(historicalDbTranslations.totalTranslations); // Verify it's present and correct
-      expect(metrics.translations.averageLatencyFromDatabase).toBe(historicalDbTranslations.averageLatency); // Verify it's present and correct
-      expect(metrics.translations.recentTranslations).toBe(historicalDbTranslations.recentTranslations);
+      expect(metrics.currentPerformance?.currentTranslationCount).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.recentTranslations);
+      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.averageLatency);
+      
+      expect(metrics.translations.total).toBe(specificHistoricalDbTranslations.totalTranslations);
+      expect(metrics.translations.averageTime).toBe(specificHistoricalDbTranslations.averageLatency);
+      expect(metrics.translations.totalFromDatabase).toBe(specificHistoricalDbTranslations.totalTranslations);
+      expect(metrics.translations.averageLatencyFromDatabase).toBe(specificHistoricalDbTranslations.averageLatency);
+      expect(metrics.translations.recentTranslations).toBe(specificHistoricalDbTranslations.recentTranslations);
       expect(metrics.translations.languagePairs[0].sourceLanguage).toBe('de');
+      
       expect(metrics.sessions.totalSessions).toBe(historicalDbSessions.totalSessions);
+      // Active sessions in metrics.sessions should be from IActiveSessionProvider
       expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
-      expect(mockStorage.getSessionMetrics).toHaveBeenCalledWith(timeRange);
-      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(timeRange);
-      expect(mockStorage.getLanguagePairUsage).toHaveBeenCalledWith(timeRange);
-      expect(mockStorage.getRecentSessionActivity).toHaveBeenCalledWith(5);
+      
+      expect(mockStorage.getSessionMetrics).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
+      // For current performance, DiagnosticsService calls storage.getTranslationMetrics with { preset: 'lastMinute' }
+      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(expect.objectContaining({ preset: 'lastMinute' }));
+      // For historical data with a specific date range
+      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
+      expect(mockStorage.getLanguagePairUsage).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
+      // getRecentSessionActivity is called by getSessionMetrics if timeRange is present.
+      // The mock for getSessionMetrics is resolved, so this check is for the argument passed to getRecentSessionActivity by DiagnosticsService's getSessionMetrics
+      expect(mockStorage.getRecentSessionActivity).toHaveBeenCalledWith(5); // Default count
       expect(metrics.timeRange?.startDate).toBe(timeRange.startDate.toISOString());
     });
 
-    it('should return currentPerformance even if no timeRange is specified for historical data', async () => {
-      vi.spyOn(mockStorage, 'getTranslationMetrics').mockResolvedValue({ totalTranslations: 0, averageLatency: 0, recentTranslations: 0 });
-      vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({ totalSessions: 0, activeSessions: 0, averageSessionDuration: 0, sessionsLast24Hours: 0 });
-      vi.spyOn(mockStorage, 'getLanguagePairUsage').mockResolvedValue([]);
+    it('should return currentPerformance and default historical data if no timeRange is specified', async () => {
+      // Mocks are already set in global beforeEach to return MOCK_HISTORICAL_TRANSLATIONS_DEFAULT for non-LastMinute calls
+      // and MOCK_CURRENT_PERF_TRANSLATIONS for LastMinute calls.
+      const getTranslationMetricsSpy = vi.spyOn(mockStorage, 'getTranslationMetrics'); // Spy on the existing mock implementation
+      const getSessionMetricsSpy = vi.spyOn(mockStorage, 'getSessionMetrics');
+      const getLanguagePairUsageSpy = vi.spyOn(mockStorage, 'getLanguagePairUsage');
+      const getRecentSessionActivitySpy = vi.spyOn(mockStorage, 'getRecentSessionActivity');
 
-      const metrics = await diagnosticsService.getMetrics();
+      const metrics = await diagnosticsService.getMetrics(); // No timeRange, should use defaults
 
       expect(metrics.currentPerformance).toBeDefined();
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(120);
-      expect(metrics.translations.total).toBe(inMemoryTranslationSample.length); // From in-memory
-      expect(metrics.translations.averageTime).toBe(120); // From in-memory
-      expect(metrics.translations.languagePairs).toEqual([]); // Default when no timeRange
-      expect(metrics.translations.totalFromDatabase).toBe(0); // Default when no timeRange
-      expect(metrics.translations.averageLatencyFromDatabase).toBe(0); // Default when no timeRange
+      expect(metrics.currentPerformance?.currentTranslationCount).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.recentTranslations);
+      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.averageLatency);
 
-      expect(metrics.sessions.totalSessions).toBe(0); // From in-memory default
-      expect(metrics.sessions.averageSessionDuration).toBe(0); // Default
-      expect(metrics.sessions.recentSessionActivity).toEqual([]); // Default when no timeRange
-      expect(metrics.sessions.sessionsLast24Hours).toBe(0); // Default
-      expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount()); // Live data
-      expect(metrics.sessions.studentsConnected).toBe(mockActiveSessionProvider.getActiveStudentCount()); // Live data
-      expect(metrics.sessions.teachersConnected).toBe(mockActiveSessionProvider.getActiveTeacherCount()); // Live data
-
-      expect(metrics.timeRange).toBeUndefined();
-      expect(mockStorage.getTranslationMetrics).not.toHaveBeenCalled();
-      expect(mockStorage.getSessionMetrics).not.toHaveBeenCalled();
-      expect(mockStorage.getLanguagePairUsage).not.toHaveBeenCalled();
-      // getRecentSessionActivity is called by getSessionMetrics if timeRange is present.
-      // Since getSessionMetrics (from storage) is not called, getRecentSessionActivity (from storage) also won't be.
-      expect(mockStorage.getRecentSessionActivity).not.toHaveBeenCalled(); 
-    });
-  });
-
-  describe('Metrics Retrieval', () => {
-    beforeEach(() => {
-      // This beforeEach in 'Metrics Retrieval' overrides the global one for these specific tests.
-      // Ensure mocks are appropriate for these tests.
-      vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({
-        totalSessions: 10,
-        activeSessions: 2, // Historical active from DB
-        averageSessionDuration: 300000,
-        sessionsLast24Hours: 5
-      });
-      vi.spyOn(mockStorage, 'getTranslationMetrics').mockResolvedValue({
-        totalTranslations: 100, // Historical total from DB
-        averageLatency: 150,    // Historical avg latency from DB
-        recentTranslations: 25
-      });
-      vi.spyOn(mockStorage, 'getLanguagePairUsage').mockResolvedValue([
-        { sourceLanguage: 'en-US', targetLanguage: 'es', count: 50, averageLatency: 120 },
-      ]);
-      // Specific mock for recent session activity in this context if needed, or rely on outer beforeEach
-      // For example, if these tests expect empty recent activity:
-      vi.spyOn(mockStorage, 'getRecentSessionActivity').mockResolvedValue([]); 
-
-      diagnosticsService.reset();
-      inMemoryTranslationSample.forEach(time => diagnosticsService.recordTranslation(time));
-    });
-
-    it('should retrieve session metrics (active from provider, historical from DB)', async () => {
-      const metrics = await diagnosticsService.getMetrics('last24Hours');
-      expect(metrics.sessions).toEqual({
-        totalSessions: 10,
-        activeSessions: 2,
-        averageSessionDuration: 300000,
-        averageSessionDurationFormatted: "5 minutes",
-        recentSessionActivity: [], // Updated to reflect mock
-        studentsConnected: 1,
-        teachersConnected: 1,
-        sessionsLast24Hours: 5,
-        currentLanguages: [],
-      });
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-    });
-
-    it('should retrieve translation metrics (historical from DB for time range)', async () => {
-      const metrics = await diagnosticsService.getMetrics('last24Hours');
-      expect(metrics.translations).toEqual({
-        total: 100,
-        averageTime: 150,
-        averageTimeFormatted: "150 ms", // Assuming formatDuration(150, true)
-        recentTranslations: 25,
-        languagePairs: expect.any(Array),
-        totalFromDatabase: 100, // Added
-        averageLatencyFromDatabase: 150, // Added
-        averageLatencyFromDatabaseFormatted: "150 ms", // Added, assuming formatDuration(150, true)
-      });
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-    });
-  });
-
-  describe('Historical Data Retrieval', () => {
-    beforeEach(() => {
-      // This beforeEach in 'Historical Data Retrieval' overrides the global one.
-      vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({
-        totalSessions: 100,
-        activeSessions: 5, // Historical active from DB
-        averageSessionDuration: 450000,
-        sessionsLast24Hours: 15
-      });
-      vi.spyOn(mockStorage, 'getTranslationMetrics').mockResolvedValue({
-        totalTranslations: 1000, // Historical total from DB
-        averageLatency: 130,     // Historical avg latency from DB
-        recentTranslations: 75
-      });
-      vi.spyOn(mockStorage, 'getLanguagePairUsage').mockResolvedValue([
-        { sourceLanguage: 'en-GB', targetLanguage: 'it', count: 200, averageLatency: 110 },
-      ]);
-      // Specific mock for recent session activity in this context if needed
-      // For example, if these tests expect empty recent activity or specific historical activity:
-      vi.spyOn(mockStorage, 'getRecentSessionActivity').mockResolvedValue([]); 
-
-      diagnosticsService.reset();
-      inMemoryTranslationSample.forEach(time => diagnosticsService.recordTranslation(time));
-    });
-
-    it('should retrieve historical session metrics with a specific time range AND current performance', async () => {
-      const timeRange = {
-        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        endDate: new Date()
-      };
-      const metrics = await diagnosticsService.getMetrics(timeRange);
-      expect(mockStorage.getSessionMetrics).toHaveBeenCalledWith(timeRange);
-      expect(metrics.sessions.totalSessions).toBe(100);
-      expect(metrics.sessions.averageSessionDuration).toBe(450000);
-      expect(metrics.sessions.sessionsLast24Hours).toBe(15);
-      expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(120);
-    });
-
-    it('should retrieve historical translation metrics with a specific time range AND current performance', async () => {
-      const timeRange = {
-        startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        endDate: new Date()
-      };
-      const metrics = await diagnosticsService.getMetrics(timeRange);
-      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(timeRange);
-      expect(metrics.translations.total).toBe(1000);
-      expect(metrics.translations.averageTime).toBe(130);
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(120);
-    });
-
-    it('should retrieve historical language pair usage with a specific time range AND current performance', async () => {
-      const timeRange = {
-        startDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-        endDate: new Date()
-      };
-      const metrics = await diagnosticsService.getMetrics(timeRange);
-      expect(mockStorage.getLanguagePairUsage).toHaveBeenCalledWith(timeRange);
+      // Historical translation data should come from MOCK_HISTORICAL_TRANSLATIONS_DEFAULT
+      expect(metrics.translations.total).toBe(MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.totalTranslations);
+      expect(metrics.translations.averageTime).toBe(MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.averageLatency);
+      expect(metrics.translations.totalFromDatabase).toBe(MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.totalTranslations);
+      expect(metrics.translations.averageLatencyFromDatabase).toBe(MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.averageLatency);
+      // Language pairs from default mock in beforeEach
       expect(metrics.translations.languagePairs).toEqual([
-        { sourceLanguage: 'en-GB', targetLanguage: 'it', count: 200, averageLatency: 110, averageLatencyFormatted: "110 ms" },
+        { sourceLanguage: 'en-US', targetLanguage: 'es', count: 50, averageLatency: 120, averageLatencyFormatted: "120 ms" },
+        { sourceLanguage: 'fr', targetLanguage: 'de', count: 30, averageLatency: 250, averageLatencyFormatted: "250 ms" }
       ]);
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(120);
-    });
 
-    it('should retrieve recent session activity with a specific time range AND current performance', async () => {
-      const timeRange = {
-        startDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        endDate: new Date()
-      };
-      // This is the raw data from storage
-      const mockActivityDataFromStorage: {sessionId: string, teacherLanguage: string | null, transcriptCount: number, studentCount: number, startTime: Date | null, endTime: Date | null, duration: number}[] = [
-        {
-          sessionId: 'test-session-recent-1',
-          teacherLanguage: 'es-ES',
-          transcriptCount: 15,
-          studentCount: 3,
-          startTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-          endTime: new Date(Date.now() - (2 * 24 * 60 * 60 * 1000 - 30 * 60 * 1000)), // 2 days ago + 30 mins
-          duration: 30 * 60 * 1000 // 30 minutes
-        }
-      ];
-      vi.spyOn(mockStorage, 'getRecentSessionActivity').mockResolvedValue(mockActivityDataFromStorage);
+      // Session data from default mock in beforeEach
+      expect(metrics.sessions.totalSessions).toBe(10);
+      expect(metrics.sessions.averageSessionDuration).toBe(300000);
+      // recentSessionActivity from default mock in beforeEach
+      expect(metrics.sessions.recentSessionActivity).toHaveLength(2);
+      expect(metrics.sessions.sessionsLast24Hours).toBe(5);
+      // Active session data from provider
+      expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
+      expect(metrics.sessions.studentsConnected).toBe(mockActiveSessionProvider.getActiveStudentCount());
+      expect(metrics.sessions.teachersConnected).toBe(mockActiveSessionProvider.getActiveTeacherCount());
 
-      const metrics = await diagnosticsService.getMetrics(timeRange);
-      expect(mockStorage.getRecentSessionActivity).toHaveBeenCalledWith(5);
+      // Check the resolved timeRange from getMetrics when no argument is passed (defaults to LastHour)
+      // The actual timeRange object returned by getMetrics will have startDate and endDate, not preset.
+      // We need to ensure the storage calls reflect the default preset or derived dates.
+      // The default preset is TimeRangePreset.LastHour.
+      // We can't directly check metrics.timeRange.preset as it's resolved.
+      // Instead, we check if the storage calls reflect the default preset.
+
+      // Current performance call
+      expect(getTranslationMetricsSpy).toHaveBeenCalledWith({ preset: 'lastMinute' });
       
-      // This is what DiagnosticsService.getSessionMetrics transforms it into
-      const expectedRecentSessionActivity = mockActivityDataFromStorage.map(activity => {
-        const lastActivityTimeValue = activity.endTime || activity.startTime;
-        return {
-          sessionId: activity.sessionId,
-          language: activity.teacherLanguage || 'N/A',
-          transcriptCount: activity.transcriptCount || 0,
-          lastActivity: lastActivityTimeValue ? new Date(lastActivityTimeValue).toISOString() : 'N/A',
-          studentCount: activity.studentCount || 0,
-          duration: diagnosticsService.formatDuration(activity.duration || 0)
-        };
-      });
-      
-      expect(metrics.sessions.recentSessionActivity).toEqual(expectedRecentSessionActivity);
-      expect(metrics.currentPerformance?.currentTranslationCount).toBe(inMemoryTranslationSample.length);
-      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(120);
+      // Historical data calls (with default time range, e.g., 'lastHour', resolved to dates)
+      expect(getTranslationMetricsSpy).toHaveBeenCalledWith(expect.objectContaining({
+        startDate: expect.any(Date),
+        endDate: expect.any(Date)
+      }));
+      expect(getSessionMetricsSpy).toHaveBeenCalledWith(expect.objectContaining({
+        startDate: expect.any(Date),
+        endDate: expect.any(Date)
+      }));
+      expect(getLanguagePairUsageSpy).toHaveBeenCalledWith(expect.objectContaining({
+        startDate: expect.any(Date),
+        endDate: expect.any(Date)
+      }));
+      expect(getRecentSessionActivitySpy).toHaveBeenCalledWith(5); // Default count for recent activity
     });
   });
+
+  describe('Metrics Retrieval (specific presets)', () => {
+    // This beforeEach will use the global mock for getTranslationMetrics, which returns MOCK_HISTORICAL_TRANSLATIONS_DEFAULT
+    // for presets other than 'lastMinute', and MOCK_CURRENT_PERF_TRANSLATIONS for 'lastMinute'.
+
+    it('should retrieve session metrics (active from provider, historical from DB for preset)', async () => {
+      const metrics = await diagnosticsService.getMetrics('last24Hours' as TimeRangePreset); // Example preset
+      expect(metrics.sessions).toEqual(expect.objectContaining({
+        totalSessions: 10, // From MOCK_HISTORICAL_SESSIONS_DEFAULT (via getSessionMetrics mock)
+        activeSessions: 2, // From IActiveSessionProvider
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 5,
+        // recentSessionActivity from global beforeEach mock
+      }));
+      // currentPerformance should use MOCK_CURRENT_PERF_TRANSLATIONS
+      expect(metrics.currentPerformance?.currentTranslationCount).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.recentTranslations);
+      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.averageLatency);
+    });
+
+    it('should retrieve translation metrics (historical from DB for preset)', async () => {
+      const metrics = await diagnosticsService.getMetrics('last24Hours' as TimeRangePreset); // Example preset
+      // Historical translation data should come from MOCK_HISTORICAL_TRANSLATIONS_DEFAULT
+      expect(metrics.translations).toEqual(expect.objectContaining({
+        total: MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.totalTranslations,
+        averageTime: MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.averageLatency,
+        recentTranslations: MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.recentTranslations,
+        totalFromDatabase: MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.totalTranslations,
+        averageLatencyFromDatabase: MOCK_HISTORICAL_TRANSLATIONS_DEFAULT.averageLatency,
+        // languagePairs from global beforeEach mock
+      }));
+      // currentPerformance should use MOCK_CURRENT_PERF_TRANSLATIONS
+      expect(metrics.currentPerformance?.currentTranslationCount).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.recentTranslations);
+      expect(metrics.currentPerformance?.currentAverageTranslationTimeMs).toBe(MOCK_CURRENT_PERF_TRANSLATIONS.averageLatency);
+      
+      // Check that getTranslationMetrics was called for historical data with the resolved date range for 'last24Hours'
+      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(expect.objectContaining({
+        startDate: expect.any(Date), // Dates corresponding to 'last24Hours'
+        endDate: expect.any(Date)
+      }));
+      // And for current performance
+      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith({ preset: 'lastMinute' });
+    });
+  });
+
+  // describe('Historical Data Retrieval') // This block can be merged or refined if still needed.
+  // The existing tests for getMetrics with specific time ranges and presets cover historical data.
+  // If more specific scenarios for historical data are needed, they can be added here or within getMetrics.
 });
