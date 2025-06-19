@@ -155,6 +155,58 @@ describe('WebSocketServer', () => {
       newWss.shutdown();
       vi.useRealTimers();
     });
+
+    it('should handle heartbeat ping with alive client', () => {
+      vi.useFakeTimers();
+      
+      const newWss = new WebSocketServer(mockHttpServer, mockStorage);
+      
+      const aliveClient = {
+        isAlive: true,
+        terminate: vi.fn(),
+        ping: vi.fn(),
+        send: vi.fn()
+      };
+      
+      (newWss as any).wss.clients = new Set([aliveClient]);
+      
+      // Fast-forward 30 seconds to trigger heartbeat
+      vi.advanceTimersByTime(30000);
+      
+      expect(aliveClient.ping).toHaveBeenCalled();
+      expect(aliveClient.isAlive).toBe(false); // Should be set to false to check for pong
+      expect(aliveClient.terminate).not.toHaveBeenCalled();
+      
+      newWss.shutdown();
+      vi.useRealTimers();
+    });
+
+    it('should handle heartbeat ping send errors gracefully', () => {
+      vi.useFakeTimers();
+      
+      const newWss = new WebSocketServer(mockHttpServer, mockStorage);
+      
+      const errorClient = {
+        isAlive: true,
+        terminate: vi.fn(),
+        ping: vi.fn(),
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('Send failed');
+        })
+      };
+      
+      (newWss as any).wss.clients = new Set([errorClient]);
+      
+      // Fast-forward 30 seconds to trigger heartbeat
+      vi.advanceTimersByTime(30000);
+      
+      expect(errorClient.ping).toHaveBeenCalled();
+      expect(errorClient.send).toHaveBeenCalled();
+      // Should not throw despite send error
+      
+      newWss.shutdown();
+      vi.useRealTimers();
+    });
   });
 
   describe('connection handling', () => {
@@ -1214,6 +1266,355 @@ describe('WebSocketServer', () => {
 
       // Clean up
       delete process.env.ENABLE_DETAILED_TRANSLATION_LOGGING;
+    });
+  });
+
+  describe('connection confirmation errors', () => {
+    it('should handle send connection confirmation errors gracefully', async () => {
+      const errorWs = { 
+        ...mockWs, 
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('Send failed');
+        }),
+        on: vi.fn()
+      };
+
+      mockWss.emit('connection', errorWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+
+      // Should not throw despite send error
+      expect(logger.error).toHaveBeenCalledWith(
+        'Error sending connection confirmation:', 
+        { error: expect.any(Error) }
+      );
+    });
+  });
+
+  describe('session storage edge cases', () => {
+    it('should handle existing active session in storage', async () => {
+      mockStorage.getSessionById = vi.fn().mockResolvedValue({
+        sessionId: 'existing-session',
+        isActive: true
+      });
+
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+
+      await vi.waitFor(() => {
+        expect(mockStorage.getSessionById).toHaveBeenCalled();
+        expect(mockStorage.updateSession).not.toHaveBeenCalled();
+        expect(mockStorage.createSession).not.toHaveBeenCalled();
+      });
+    });
+
+    it('should activate existing inactive session in storage', async () => {
+      mockStorage.getSessionById = vi.fn().mockResolvedValue({
+        sessionId: 'existing-session',
+        isActive: false
+      });
+
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+
+      await vi.waitFor(() => {
+        expect(mockStorage.getSessionById).toHaveBeenCalled();
+        expect(mockStorage.updateSession).toHaveBeenCalledWith(
+          expect.any(String),
+          { isActive: true }
+        );
+        expect(mockStorage.createSession).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('message handling - pong', () => {
+    let messageHandler: (data: any) => void;
+
+    beforeEach(async () => {
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+      await vi.waitFor(() => {
+        expect(mockWs.send).toHaveBeenCalled();
+      });
+      
+      const onCalls = (mockWs.on as any).mock.calls;
+      const messageCall = onCalls.find((call: any[]) => call[0] === 'message');
+      messageHandler = messageCall?.[1];
+    });
+
+    it('should handle pong message type', async () => {
+      await messageHandler(JSON.stringify({
+        type: 'pong'
+      }));
+
+      // Pong messages should be handled without error but no specific response
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('role change handling', () => {
+    let messageHandler: (data: any) => void;
+
+    beforeEach(async () => {
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+      await vi.waitFor(() => {
+        expect(mockWs.send).toHaveBeenCalled();
+      });
+      
+      const onCalls = (mockWs.on as any).mock.calls;
+      const messageCall = onCalls.find((call: any[]) => call[0] === 'message');
+      messageHandler = messageCall?.[1];
+    });
+
+    it('should log role change when registering with different role', async () => {
+      // First register as student
+      await messageHandler(JSON.stringify({
+        type: 'register',
+        role: 'student',
+        languageCode: 'es-ES'
+      }));
+
+      vi.clearAllMocks();
+
+      // Then register as teacher
+      await messageHandler(JSON.stringify({
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US'
+      }));
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'Changing connection role from student to teacher'
+      );
+    });
+  });
+
+  describe('TTS response edge cases', () => {
+    let messageHandler: (data: any) => void;
+
+    beforeEach(async () => {
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+      await vi.waitFor(() => {
+        expect(mockWs.send).toHaveBeenCalled();
+      });
+      
+      const onCalls = (mockWs.on as any).mock.calls;
+      const messageCall = onCalls.find((call: any[]) => call[0] === 'message');
+      messageHandler = messageCall?.[1];
+    });
+
+    it('should handle browser speech synthesis marker', async () => {
+      vi.mocked(speechTranslationService.translateSpeech).mockResolvedValueOnce({
+        originalText: 'Hello',
+        translatedText: 'Hello',
+        audioBuffer: Buffer.from('{"type":"browser-speech","text":"Hello","language":"en-US"}')
+      });
+
+      await messageHandler(JSON.stringify({
+        type: 'tts_request',
+        text: 'Hello',
+        languageCode: 'en-US'
+      }));
+
+      await vi.waitFor(() => {
+        const lastCall = mockWs.send.mock.calls[mockWs.send.mock.calls.length - 1];
+        const response = JSON.parse(lastCall[0]);
+        expect(response.type).toBe('tts_response');
+        expect(response.useClientSpeech).toBe(true);
+        expect(response.audioData).toBeUndefined();
+      });
+    });
+
+    it('should handle TTS response send error gracefully', async () => {
+      // First setup the connection as teacher
+      await messageHandler(JSON.stringify({
+        type: 'register',
+        role: 'teacher',
+        language: 'en-US'
+      }));
+
+      // Clear mock calls from registration
+      vi.clearAllMocks();
+      
+      // Mock send to fail when sending TTS response
+      mockWs.send = vi.fn().mockImplementation(() => {
+        throw new Error('Send failed');
+      });
+
+      vi.mocked(speechTranslationService.translateSpeech).mockResolvedValueOnce({
+        originalText: 'Hello',
+        translatedText: 'Hello',
+        audioBuffer: Buffer.from('audio data')
+      });
+
+      await messageHandler(JSON.stringify({
+        type: 'tts_request',
+        text: 'Hello',
+        languageCode: 'en-US'
+      }));
+
+      await vi.waitFor(() => {
+        expect(logger.error).toHaveBeenCalledWith(
+          'Error sending TTS response:', 
+          { error: expect.any(Error) }
+        );
+      });
+    });
+
+    it('should handle TTS error response send failure', async () => {
+      // First setup the connection as any role
+      await messageHandler(JSON.stringify({
+        type: 'register',
+        role: 'teacher',
+        language: 'en-US'
+      }));
+
+      // Clear mock calls from registration
+      vi.clearAllMocks();
+      
+      // Mock send to fail on any call (including error response)
+      mockWs.send = vi.fn().mockImplementation(() => {
+        throw new Error('Send failed');
+      });
+
+      await messageHandler(JSON.stringify({
+        type: 'tts_request',
+        text: '',
+        languageCode: 'en-US'
+      }));
+
+      await vi.waitFor(() => {
+        expect(logger.error).toHaveBeenCalledWith(
+          'Error sending TTS error response:', 
+          { error: expect.any(Error) }
+        );
+      });
+    });
+  });
+
+  describe('audio validation edge cases', () => {
+    let messageHandler: (data: any) => void;
+
+    beforeEach(async () => {
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+      await vi.waitFor(() => {
+        expect(mockWs.send).toHaveBeenCalled();
+      });
+      
+      const onCalls = (mockWs.on as any).mock.calls;
+      const messageCall = onCalls.find((call: any[]) => call[0] === 'message');
+      messageHandler = messageCall?.[1];
+
+      // Register as teacher
+      await messageHandler(JSON.stringify({
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US'
+      }));
+    });
+
+    it('should ignore audio with small buffer after base64 decode', async () => {
+      // Send audio that decodes to small buffer
+      const smallBase64Audio = Buffer.from('tiny').toString('base64');
+      
+      await messageHandler(JSON.stringify({
+        type: 'audio',
+        data: smallBase64Audio
+      }));
+
+      expect(logger.debug).not.toHaveBeenCalledWith(
+        'Received audio chunk from teacher, using client-side transcription'
+      );
+    });
+
+    it('should handle missing sessionId gracefully', async () => {
+      // Clear the sessionId
+      (webSocketServer as any).sessionIds.delete(mockWs);
+
+      const audioData = Buffer.from('a'.repeat(200)).toString('base64');
+      await messageHandler(JSON.stringify({
+        type: 'audio',
+        data: audioData
+      }));
+
+      expect(logger.error).toHaveBeenCalledWith(
+        'No session ID found for teacher'
+      );
+    });
+  });
+
+  describe('empty TTS generation', () => {
+    let messageHandler: (data: any) => void;
+
+    beforeEach(async () => {
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
+      await vi.waitFor(() => {
+        expect(mockWs.send).toHaveBeenCalled();
+      });
+      
+      const onCalls = (mockWs.on as any).mock.calls;
+      const messageCall = onCalls.find((call: any[]) => call[0] === 'message');
+      messageHandler = messageCall?.[1];
+    });
+
+    it('should handle empty TTS audio buffer', async () => {
+      vi.mocked(speechTranslationService.translateSpeech).mockResolvedValueOnce({
+        originalText: 'Hello',
+        translatedText: 'Hello',
+        audioBuffer: Buffer.from('')
+      });
+
+      await messageHandler(JSON.stringify({
+        type: 'tts_request',
+        text: 'Hello',
+        languageCode: 'en-US'
+      }));
+
+      await vi.waitFor(() => {
+        const lastCall = mockWs.send.mock.calls[mockWs.send.mock.calls.length - 1];
+        const response = JSON.parse(lastCall[0]);
+        expect(response.type).toBe('tts_response');
+        expect(response.status).toBe('error');
+        expect(response.error.message).toBe('Failed to generate audio');
+      });
+    });
+  });
+
+  describe('getActiveSessionMetrics edge cases', () => {
+    it('should handle connection without sessionId', () => {
+      const testWs = { ...mockWs, send: vi.fn(), on: vi.fn() };
+      
+      // Add connection without sessionId
+      (webSocketServer as any).connections.add(testWs);
+      (webSocketServer as any).roles.set(testWs, 'student');
+      (webSocketServer as any).languages.set(testWs, 'es-ES');
+      // Intentionally don't set sessionId
+
+      const metrics = webSocketServer.getActiveSessionMetrics();
+      
+      expect(metrics.studentsConnected).toBe(1);
+      expect(metrics.activeSessions).toBe(0); // No sessions since no sessionId
+    });
+
+    it('should handle teacher language in metrics', () => {
+      const teacherWs = { ...mockWs, send: vi.fn(), on: vi.fn() };
+      const studentWs = { ...mockWs, send: vi.fn(), on: vi.fn() };
+      
+      (webSocketServer as any).connections = new Set([teacherWs, studentWs]);
+      (webSocketServer as any).roles = new Map([
+        [teacherWs, 'teacher'],
+        [studentWs, 'student']
+      ]);
+      (webSocketServer as any).languages = new Map([
+        [teacherWs, 'en-US'],
+        [studentWs, 'es-ES']
+      ]);
+      (webSocketServer as any).sessionIds = new Map([
+        [teacherWs, 'session-1'],
+        [studentWs, 'session-1']
+      ]);
+
+      const metrics = webSocketServer.getActiveSessionMetrics();
+      
+      expect(metrics.currentLanguages).toContain('en-US');
+      expect(metrics.teachersConnected).toBe(1);
+      expect(metrics.studentsConnected).toBe(1);
     });
   });
 });
