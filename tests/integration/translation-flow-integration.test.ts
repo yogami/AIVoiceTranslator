@@ -9,12 +9,21 @@
  * Tests end-to-end translation workflows
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import WebSocket from 'ws';
 import { createServer, Server } from 'http';
 import express from 'express';
 import { WebSocketServer as WSServer } from 'ws';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { IStorage } from '../../server/storage.interface';
+import { speechTranslationService } from '../../server/services/TranslationService';
+
+// Mock the translation service
+vi.mock('../../server/services/TranslationService', () => ({
+  speechTranslationService: {
+    translateSpeech: vi.fn()
+  }
+}));
 
 // Test configuration constants
 const TEST_PORT = 0; // Use 0 to let the system assign an available port
@@ -25,13 +34,31 @@ describe('Translation Flow Integration', () => {
   let wsServer: WebSocketServer;
   let teacherClient: WebSocket;
   let studentClient: WebSocket;
+  let mockStorage: IStorage;
   
   beforeAll(async () => {
+    // Mock the translation service
+    vi.mocked(speechTranslationService.translateSpeech).mockResolvedValue({
+      originalText: 'Hello',
+      translatedText: 'Hola',
+      audioBuffer: Buffer.from('mock-audio-data')
+    });
+
+    // Create mock storage
+    mockStorage = {
+      createSession: vi.fn().mockResolvedValue(undefined),
+      getSessionById: vi.fn().mockResolvedValue(null),
+      updateSession: vi.fn().mockResolvedValue(undefined),
+      endSession: vi.fn().mockResolvedValue(undefined),
+      getActiveSession: vi.fn().mockResolvedValue(null),
+      addTranslation: vi.fn().mockResolvedValue(undefined)
+    } as unknown as IStorage;
+
     // Create HTTP server
     httpServer = createServer();
     
-    // Initialize WebSocket server with the HTTP server
-    wsServer = new WebSocketServer(httpServer);
+    // Initialize WebSocket server with the HTTP server and mock storage
+    wsServer = new WebSocketServer(httpServer, mockStorage);
     
     // Start HTTP server
     await new Promise<void>((resolve) => {
