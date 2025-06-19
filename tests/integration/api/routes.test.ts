@@ -8,8 +8,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import express, { Express } from 'express';
-import { apiRoutes, apiErrorHandler } from '../../../server/routes';
-import { storage } from '../../../server/storage';
+import http from 'http';
+import { createApiRoutes, apiErrorHandler } from '../../../server/routes';
+import { DatabaseStorage } from '../../../server/database-storage';
+import { DiagnosticsService } from '../../../server/services/DiagnosticsService';
+import { WebSocketServer } from '../../../server/services/WebSocketServer';
 
 // Simple wrapper function to wait for promises
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -17,9 +20,20 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 describe('API Routes', () => {
   let app: Express;
   
-  beforeEach(() => {
-    // IMPORTANT: Use the actual Express app and routes
+  beforeEach(async () => {
+    // Create dependencies for the API routes
+    const storage = new DatabaseStorage();
+    const diagnosticsService = new DiagnosticsService(storage);
+    
+    // Create a test HTTP server for WebSocket
     app = express();
+    const server = http.createServer(app);
+    const webSocketServer = new WebSocketServer(server, storage);
+    
+    // Create API routes with dependencies
+    const apiRoutes = createApiRoutes(storage, diagnosticsService, webSocketServer);
+    
+    // Set up the Express app
     app.use(express.json());
     app.use('/api', apiRoutes);
     app.use('/api', apiErrorHandler);

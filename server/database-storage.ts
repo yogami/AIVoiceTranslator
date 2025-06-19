@@ -25,6 +25,7 @@ export class DatabaseStorage implements IStorage {
   private translationStorage: DbTranslationStorage;
   private transcriptStorage: DbTranscriptStorage;
   private sessionStorage: DbSessionStorage;
+  private initialized: boolean = false;
 
   constructor() {
     this.userStorage = new DbUserStorage();
@@ -32,6 +33,13 @@ export class DatabaseStorage implements IStorage {
     this.translationStorage = new DbTranslationStorage();
     this.transcriptStorage = new DbTranscriptStorage();
     this.sessionStorage = new DbSessionStorage();
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.languageStorage.initializeDefaultLanguages();
+      this.initialized = true;
+    }
   }
 
   // User methods (delegated)
@@ -44,14 +52,31 @@ export class DatabaseStorage implements IStorage {
 
   // Language methods (delegated)
   async getLanguage(id: number): Promise<Language | undefined> {
+    await this.ensureInitialized();
     return this.languageStorage.getLanguage(id);
   }
-  async getLanguages() { return this.languageStorage.getLanguages(); }
-  async getActiveLanguages() { return this.languageStorage.getActiveLanguages(); }
-  async getLanguageByCode(code: string) { return this.languageStorage.getLanguageByCode(code); }
-  async createLanguage(language: InsertLanguage) { return this.languageStorage.createLanguage(language); }
-  async updateLanguageStatus(code: string, isActive: boolean) { return this.languageStorage.updateLanguageStatus(code, isActive); }
+  async getLanguages() { 
+    await this.ensureInitialized();
+    return this.languageStorage.getLanguages(); 
+  }
+  async getActiveLanguages() { 
+    await this.ensureInitialized();
+    return this.languageStorage.getActiveLanguages(); 
+  }
+  async getLanguageByCode(code: string) { 
+    await this.ensureInitialized();
+    return this.languageStorage.getLanguageByCode(code); 
+  }
+  async createLanguage(language: InsertLanguage) { 
+    await this.ensureInitialized();
+    return this.languageStorage.createLanguage(language); 
+  }
+  async updateLanguageStatus(code: string, isActive: boolean) { 
+    await this.ensureInitialized();
+    return this.languageStorage.updateLanguageStatus(code, isActive); 
+  }
   async listLanguages(): Promise<Language[]> {
+    await this.ensureInitialized();
     return this.languageStorage.listLanguages();
   }
   async initializeDefaultLanguages(): Promise<void> {
