@@ -42,7 +42,9 @@ export const storage = (() => {
     console.log('[Storage] Using DatabaseStorage');
     return new DatabaseStorage();
   } else {
-    console.log('[Storage] Using MemStorage');
-    return new MemStorage();
+    // Since you've decided to persist everything to database, 
+    // default to DatabaseStorage for consistency
+    console.log('[Storage] Defaulting to DatabaseStorage');
+    return new DatabaseStorage();
   }
 })();
