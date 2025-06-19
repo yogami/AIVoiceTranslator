@@ -16,6 +16,18 @@ import { URL } from 'url';
 
 import { IActiveSessionProvider } from './IActiveSessionProvider'; // Added import
 import { ConnectionManager, type WebSocketClient } from './websocket/ConnectionManager'; // Added import
+import { 
+  MessageHandlerRegistry, 
+  MessageDispatcher, 
+  MessageHandlerContext 
+} from './websocket/MessageHandler'; // Added message handler imports
+import { RegisterMessageHandler } from './websocket/RegisterMessageHandler'; // Added register handler
+import { PingMessageHandler } from './websocket/PingMessageHandler'; // Added ping handler
+import { SettingsMessageHandler } from './websocket/SettingsMessageHandler'; // Added settings handler
+import { TranscriptionMessageHandler } from './websocket/TranscriptionMessageHandler'; // Added transcription handler
+import { TTSRequestMessageHandler } from './websocket/TTSRequestMessageHandler'; // Added TTS request handler
+import { AudioMessageHandler } from './websocket/AudioMessageHandler'; // Added audio handler
+import { PongMessageHandler } from './websocket/PongMessageHandler'; // Added pong handler
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -57,6 +69,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private storage: IStorage;
   private connectionManager: ConnectionManager; // Use ConnectionManager for connection tracking
   
+  // Message handling infrastructure
+  private messageHandlerRegistry: MessageHandlerRegistry;
+  private messageDispatcher: MessageDispatcher;
+  
   // We use the speechTranslationService facade
   
   // Classroom management
@@ -71,6 +87,23 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.wss = new WSServer({ server });
     this.storage = storage;
     this.connectionManager = new ConnectionManager(); // Initialize ConnectionManager
+    
+    // Initialize message handling infrastructure
+    this.messageHandlerRegistry = new MessageHandlerRegistry();
+    this.setupMessageHandlers();
+    
+    // Create message dispatcher with context
+    const context: MessageHandlerContext = {
+      ws: null as any, // Will be set by the dispatcher for each message
+      connectionManager: this.connectionManager,
+      storage: this.storage,
+      classroomSessions: this.classroomSessions,
+      webSocketServer: this,
+      generateClassroomCode: this.generateClassroomCode.bind(this),
+      updateSessionInStorage: this.updateSessionInStorage.bind(this),
+      createSessionInStorage: this.createSessionInStorage.bind(this)
+    };
+    this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
    
     
     // Set up event handlers
@@ -261,46 +294,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle incoming WebSocket message
    */
   async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
-    try {
-      // Parse message data
-      const message = JSON.parse(data) as WebSocketMessageToServer;
-      
-      // Process message based on type
-      switch (message.type) {
-        case 'register':
-          this.handleRegisterMessage(ws, message as RegisterMessageToServer);
-          break;
-        
-        case 'transcription':
-          await this.handleTranscriptionMessage(ws, message as TranscriptionMessageToServer);
-          break;
-        
-        case 'tts_request':
-          await this.handleTTSRequestMessage(ws, message as TTSRequestMessageToServer);
-          break;
-          
-        case 'audio':
-          await this.handleAudioMessage(ws, message as AudioMessageToServer);
-          break;
-          
-        case 'settings':
-          this.handleSettingsMessage(ws, message as SettingsMessageToServer);
-          break;
-          
-        case 'ping':
-          this.handlePingMessage(ws, message as PingMessageToServer);
-          break;
-          
-        case 'pong':
-          // No specific handling needed
-          break;
-          
-        default:
-          logger.warn('Unknown message type:', { type: (message as any).type });
-      }
-    } catch (error) {
-      logger.error('Error handling message:', { error, data });
-    }
+    // Use the message dispatcher to handle all messages
+    await this.messageDispatcher.dispatch(ws, data);
   }
   
   /**
@@ -522,7 +517,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   /**
    * Translate text to multiple languages
    */
-  private async translateToMultipleLanguages(
+  public async translateToMultipleLanguages(
     text: string,
     sourceLanguage: string,
     targetLanguages: string[],
@@ -623,7 +618,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   /**
    * Send translations to students
    */
-  private sendTranslationsToStudents(
+  public sendTranslationsToStudents(
     studentConnections: WebSocketClient[],
     originalText: string,
     sourceLanguage: string,
@@ -1480,5 +1475,23 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     if (role) this.connectionManager.setRole(ws, role);
     if (language) this.connectionManager.setLanguage(ws, language);
     if (settings) this.connectionManager.setClientSettings(ws, settings);
+  }
+
+  /**
+   * Set up message handlers for different message types
+   */
+  private setupMessageHandlers(): void {
+    // Register message handlers
+    this.messageHandlerRegistry.register(new RegisterMessageHandler());
+    this.messageHandlerRegistry.register(new PingMessageHandler());
+    this.messageHandlerRegistry.register(new SettingsMessageHandler());
+    this.messageHandlerRegistry.register(new TranscriptionMessageHandler());
+    this.messageHandlerRegistry.register(new TTSRequestMessageHandler());
+    this.messageHandlerRegistry.register(new AudioMessageHandler());
+    this.messageHandlerRegistry.register(new PongMessageHandler());
+    
+    // TODO: Add other message handlers as we extract them:
+    // - AudioMessageHandler  
+    // - TTSRequestMessageHandler
   }
 }
