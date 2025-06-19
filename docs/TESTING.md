@@ -99,10 +99,6 @@ FAIL tests/integration/storage/DatabaseStorage-integration.test.ts
 - **12 database tests**: Skip when using memory storage
 - Located in `tests/integration/storage/DatabaseStorage-integration.test.ts`
 
-### Todo Tests
-- **1 todo**: `tests/integration/api/websocket-live.test.ts`
-- Placeholder for future WebSocket API tests
-
 ## 🛠️ Advanced Testing
 
 ### Run Specific Test Suites

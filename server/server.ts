@@ -16,7 +16,6 @@ import { config, validateConfig } from './config'; // Assuming config is importe
 import { createApiRoutes, apiErrorHandler } from './routes'; // Adjusted import
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
-import { MemStorage } from './mem-storage';
 import { DiagnosticsService } from './services/DiagnosticsService';
 import { WebSocketServer } from './services/WebSocketServer';
 import fs from 'fs'; // Added fs import
@@ -97,14 +96,8 @@ export async function startServer(app: express.Express): Promise<Server> {
 
 
   let storage: IStorage;
-  if (process.env.NODE_ENV === 'test' || config.storage.type === 'memory') {
-    storage = new MemStorage(new DatabaseStorage());
-    logger.info('[INIT] Using memory storage.');
-  } else {
-    storage = new DatabaseStorage();
-    logger.info('[INIT] Using database storage.');
-    // await (storage as DatabaseStorage).initializeDefaultLanguages(); // If needed
-  }
+  storage = new DatabaseStorage();
+  logger.info('[INIT] Using database storage.');
 
   const httpServer = createServer(app);
   const diagnosticsService = new DiagnosticsService(storage, null);
