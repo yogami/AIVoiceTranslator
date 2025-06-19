@@ -15,6 +15,7 @@ import { config } from '../config'; // Removed AppConfig, already have config in
 import { URL } from 'url';
 
 import { IActiveSessionProvider } from './IActiveSessionProvider'; // Added import
+import { ConnectionManager, type WebSocketClient } from './websocket/ConnectionManager'; // Added import
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -39,13 +40,7 @@ import { type InsertSession } from '../../shared/schema'; // Added import
 import { IStorage } from '../storage.interface';
 
 // Custom WebSocketClient type for our server
-type WebSocketClient = WebSocket & {
-  isAlive: boolean;
-  sessionId: string;
-  on: (event: string, listener: (...args: any[]) => void) => WebSocketClient;
-  terminate: () => void;
-  ping: () => void;
-}
+// Moved to ConnectionManager.ts and re-exported
 
 // Classroom session interface
 interface ClassroomSession {
@@ -60,15 +55,9 @@ interface ClassroomSession {
 export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
+  private connectionManager: ConnectionManager; // Use ConnectionManager for connection tracking
   
   // We use the speechTranslationService facade
-  
-  // Connection tracking
-  private connections: Set<WebSocketClient> = new Set();
-  private roles: Map<WebSocketClient, string> = new Map();
-  private languages: Map<WebSocketClient, string> = new Map();
-  private sessionIds: Map<WebSocketClient, string> = new Map();
-  private clientSettings: Map<WebSocketClient, ClientSettings> = new Map();
   
   // Classroom management
   private classroomSessions: Map<string, ClassroomSession> = new Map();
@@ -81,6 +70,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   constructor(server: http.Server, storage: IStorage) { 
     this.wss = new WSServer({ server });
     this.storage = storage;
+    this.connectionManager = new ConnectionManager(); // Initialize ConnectionManager
    
     
     // Set up event handlers
@@ -97,7 +87,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * @returns The number of active connections.
    */
   public getActiveSessionCount(): number {
-    return this.connections.size;
+    return this.connectionManager.getConnectionCount();
   }
 
   /**
@@ -106,7 +96,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * @returns The number of active connections.
    */
   public getActiveSessionsCount(): number { // Renamed from getActiveSessionCount to getActiveSessionsCount
-    return this.connections.size;
+    return this.connectionManager.getConnectionCount();
   }
 
   /**
@@ -115,13 +105,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * @returns The number of active student connections.
    */
   public getActiveStudentCount(): number {
-    let studentCount = 0;
-    for (const role of this.roles.values()) {
-      if (role === 'student') {
-        studentCount++;
-      }
-    }
-    return studentCount;
+    return this.connectionManager.getStudentCount();
   }
 
   /**
@@ -130,13 +114,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * @returns The number of active teacher connections.
    */
   public getActiveTeacherCount(): number {
-    let teacherCount = 0;
-    for (const role of this.roles.values()) {
-      if (role === 'teacher') {
-        teacherCount++;
-      }
-    }
-    return teacherCount;
+    return this.connectionManager.getTeacherCount();
   }
   
   /**
@@ -195,8 +173,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
     
     // Store connection data
-    this.connections.add(ws);
-    this.sessionIds.set(ws, sessionId);
+    this.connectionManager.addConnection(ws, sessionId);
     
     // Create session in storage for metrics tracking
     this.createSessionInStorage(sessionId).catch(error => {
@@ -261,9 +238,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    */
   private sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
     try {
-      const sessionId = this.sessionIds.get(ws);
-      const role = this.roles.get(ws);
-      const language = this.languages.get(ws);
+      const sessionId = this.connectionManager.getSessionId(ws);
+      const role = this.connectionManager.getRole(ws);
+      const language = this.connectionManager.getLanguage(ws);
       
       const message: ConnectionMessageToClient = {
         type: 'connection',
@@ -333,18 +310,18 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     logger.info('Processing message type=register from connection:', 
       { role: message.role, languageCode: message.languageCode, name: message.name }); // Added name to log
     
-    const currentRole = this.roles.get(ws);
+    const currentRole = this.connectionManager.getRole(ws);
     
     // Update role if provided
     if (message.role) {
       if (currentRole !== message.role) {
         logger.info(`Changing connection role from ${currentRole} to ${message.role}`);
       }
-      this.roles.set(ws, message.role);
+      this.connectionManager.setRole(ws, message.role);
       
       // If registering as teacher, generate or update classroom code
       if (message.role === 'teacher') {
-        const sessionId = this.sessionIds.get(ws);
+        const sessionId = this.connectionManager.getSessionId(ws);
         if (sessionId) {
           const classroomCode = this.generateClassroomCode(sessionId);
           const sessionInfo = this.classroomSessions.get(classroomCode);
@@ -373,11 +350,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     
     // Update language if provided
     if (message.languageCode) {
-      this.languages.set(ws, message.languageCode);
+      this.connectionManager.setLanguage(ws, message.languageCode);
     }
     
     // Store client settings
-    const settings: ClientSettings = this.clientSettings.get(ws) || {};
+    const settings: ClientSettings = this.connectionManager.getClientSettings(ws) || {};
     
     // Update text-to-speech service type if provided
     if (message.settings?.ttsServiceType) {
@@ -386,18 +363,18 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
     
     // Store updated settings
-    this.clientSettings.set(ws, settings);
+    this.connectionManager.setClientSettings(ws, settings);
     
     logger.info('Updated connection:', 
-      { role: this.roles.get(ws), languageCode: this.languages.get(ws), ttsService: settings.ttsServiceType || 'default' });
+      { role: this.connectionManager.getRole(ws), languageCode: this.connectionManager.getLanguage(ws), ttsService: settings.ttsServiceType || 'default' });
     
     // Send confirmation
     const response: RegisterResponseToClient = {
       type: 'register',
       status: 'success',
       data: {
-        role: this.roles.get(ws) as ('teacher' | 'student' | undefined),
-        languageCode: this.languages.get(ws),
+        role: this.connectionManager.getRole(ws) as ('teacher' | 'student' | undefined),
+        languageCode: this.connectionManager.getLanguage(ws),
         settings: settings
       }
     };
@@ -406,7 +383,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     
     // If registering as student, increment studentsCount in storage and notify teacher
     if (message.role === 'student') {
-      const studentSessionId = this.sessionIds.get(ws); // This is the classroom session ID
+      const studentSessionId = this.connectionManager.getSessionId(ws); // This is the classroom session ID
       const studentName = message.name || 'Unknown Student';
       const studentLanguage = message.languageCode || 'unknown'; // Default if not provided
 
@@ -423,8 +400,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
         }); // Corrected: ensure this catch is properly placed
 
         // Notify the teacher(s) in the same session
-        this.connections.forEach(client => {
-          if (client !== ws && this.roles.get(client) === 'teacher' && this.sessionIds.get(client) === studentSessionId) {
+        this.connectionManager.getConnections().forEach(client => {
+          const clientRole = this.connectionManager.getRole(client);
+          const clientSessionId = this.connectionManager.getSessionId(client);
+          
+          if (client !== ws && clientRole === 'teacher' && clientSessionId === studentSessionId) {
             const studentJoinedMessage: StudentJoinedMessageToClient = {
               type: 'student_joined',
               payload: {
@@ -461,7 +441,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle transcription message
    */
   private async handleTranscriptionMessage(ws: WebSocketClient, message: TranscriptionMessageToServer): Promise<void> {
-    logger.info('Received transcription from', { role: this.roles.get(ws), text: message.text });
+    logger.info('Received transcription from', { role: this.connectionManager.getRole(ws), text: message.text });
     
     // Start tracking latency when transcription is received
     const startTime = Date.now();
@@ -476,8 +456,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       }
     };
     
-    const role = this.roles.get(ws);
-    const sessionId = this.sessionIds.get(ws);
+    const role = this.connectionManager.getRole(ws);
+    const sessionId = this.connectionManager.getSessionId(ws);
     
     // Only process transcriptions from teacher
     if (role !== 'teacher') {
@@ -486,7 +466,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
     
     // Get all student connections and their languages
-    const { studentConnections, studentLanguages } = this.getStudentConnectionsAndLanguages();
+    const { connections: studentConnections, languages: studentLanguages } = this.connectionManager.getStudentConnectionsAndLanguages();
     
     if (studentConnections.length === 0) {
       logger.info('No students connected, skipping translation');
@@ -494,7 +474,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
     
     // Translate text to all student languages
-    const teacherLanguage = this.languages.get(ws) || 'en-US';
+    const teacherLanguage = this.connectionManager.getLanguage(ws) || 'en-US';
     
     // Perform translations for all required languages
     const { translations, translationResults, latencyInfo } = 
@@ -532,24 +512,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     studentConnections: WebSocketClient[], 
     studentLanguages: string[] 
   } {
-    const studentConnections: WebSocketClient[] = [];
-    const studentLanguages: string[] = [];
-    
-    this.connections.forEach(client => {
-      const clientRole = this.roles.get(client);
-      const clientLanguage = this.languages.get(client);
-      
-      if (clientRole === 'student' && clientLanguage) {
-        studentConnections.push(client);
-        
-        // Only add unique languages
-        if (!studentLanguages.includes(clientLanguage)) {
-          studentLanguages.push(clientLanguage);
-        }
-      }
-    });
-    
-    return { studentConnections, studentLanguages };
+    const { connections, languages } = this.connectionManager.getStudentConnectionsAndLanguages();
+    return { 
+      studentConnections: connections,
+      studentLanguages: languages
+    };
   }
   
   /**
@@ -671,8 +638,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   ): void {
     logger.info('WebSocketServer: sendTranslationsToStudents started');
     studentConnections.forEach(studentWs => {
-      const studentLanguage = this.languages.get(studentWs);
-      const studentSettings = this.clientSettings.get(studentWs) || {};
+      const studentLanguage = this.connectionManager.getLanguage(studentWs);
+      const studentSettings = this.connectionManager.getClientSettings(studentWs) || {};
       
       if (studentLanguage && translations[studentLanguage]) {
         const translationMessage: TranslationMessageToClient = {
@@ -702,13 +669,13 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
         
         try {
           studentWs.send(JSON.stringify(translationMessage));
-          logger.info('WebSocketServer: Translation message sent to student', { studentSessionId: this.sessionIds.get(studentWs), targetLanguage: studentLanguage });
+          logger.info('WebSocketServer: Translation message sent to student', { studentSessionId: this.connectionManager.getSessionId(studentWs), targetLanguage: studentLanguage });
 
           // Persist translation for diagnostics and product usage, if enabled
           const enableDetailedTranslationLogging = process.env.ENABLE_DETAILED_TRANSLATION_LOGGING === 'true';
 
           if (enableDetailedTranslationLogging) {
-            const classroomSessionId = this.sessionIds.get(studentWs);
+            const classroomSessionId = this.connectionManager.getSessionId(studentWs);
             const translatedText = translations[studentLanguage];
             const translationLatency = latencyTracking.components?.translation || 0;
 
@@ -746,7 +713,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
           }
 
         } catch (error) {
-          logger.error('Error sending translation to student:', { error, studentSessionId: this.sessionIds.get(studentWs) });
+          logger.error('Error sending translation to student:', { error, studentSessionId: this.connectionManager.getSessionId(studentWs) });
         }
       }
     });
@@ -757,7 +724,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle audio message
    */
   private async handleAudioMessage(ws: WebSocketClient, message: AudioMessageToServer): Promise<void> {
-    const role = this.roles.get(ws);
+    const role = this.connectionManager.getRole(ws);
     
     // Only process audio from teacher
     if (role !== 'teacher') {
@@ -785,8 +752,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       if (audioBuffer.length < 100) {
         return;
       }
-      const teacherLanguage = this.languages.get(ws) || 'en-US';
-      const sessionId = this.sessionIds.get(ws);
+      const teacherLanguage = this.connectionManager.getLanguage(ws) || 'en-US';
+      const sessionId = this.connectionManager.getSessionId(ws);
       if (!sessionId) {
         logger.error('No session ID found for teacher');
         return;
@@ -995,10 +962,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle settings message
    */
   private handleSettingsMessage(ws: WebSocketClient, message: SettingsMessageToServer): void {
-    const role = this.roles.get(ws);
+    const role = this.connectionManager.getRole(ws);
     
     // Initialize settings for this client if not already present
-    const settings: ClientSettings = this.clientSettings.get(ws) || {};
+    const settings: ClientSettings = this.connectionManager.getClientSettings(ws) || {};
     
     // Update settings with new values
     if (message.settings) {
@@ -1012,7 +979,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
     
     // Store updated settings
-    this.clientSettings.set(ws, settings);
+    this.connectionManager.setClientSettings(ws, settings);
     
     // Send confirmation
     const response: SettingsResponseToClient = {
@@ -1049,24 +1016,30 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle WebSocket close event
    */
   private handleClose(ws: WebSocketClient): void {
-    const sessionId = this.sessionIds.get(ws);
+    const sessionId = this.connectionManager.getSessionId(ws);
     logger.info('WebSocket disconnected, sessionId:', { sessionId });
     
-    // Remove from tracking
-    this.connections.delete(ws);
-    this.roles.delete(ws);
-    this.languages.delete(ws);
-    this.sessionIds.delete(ws);
-    this.clientSettings.delete(ws);
+    // Check if there are other connections with the same sessionId BEFORE removing this one
+    let hasOtherConnections = false;
+    if (sessionId) {
+      // Count how many connections have the same sessionId
+      let connectionsWithSameSession = 0;
+      for (const connection of this.connectionManager.getConnections()) {
+        if (this.connectionManager.getSessionId(connection) === sessionId) {
+          connectionsWithSameSession++;
+        }
+      }
+      hasOtherConnections = connectionsWithSameSession > 1; // More than just this one
+    }
+    
+    // Remove from tracking using ConnectionManager
+    this.connectionManager.removeConnection(ws);
     
     // End session in storage if no more connections with this sessionId
-    if (sessionId) {
-      const hasOtherConnections = Array.from(this.sessionIds.values()).includes(sessionId);
-      if (!hasOtherConnections) {
-        this.endSessionInStorage(sessionId).catch(error => {
-          logger.error('Failed to end session in storage:', { error });
-        });
-      }
+    if (sessionId && !hasOtherConnections) {
+      this.endSessionInStorage(sessionId).catch(error => {
+        logger.error('Failed to end session in storage:', { error });
+      });
     }
   }
   
@@ -1112,16 +1085,14 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Get connections
    */
   public getConnections(): Set<WebSocketClient> {
-    return this.connections;
+    return this.connectionManager.getConnections();
   }
-  
-  /**
   
   /**
    * Get connection language
    */
   public getLanguage(client: WebSocketClient): string | undefined {
-    return this.languages.get(client);
+    return this.connectionManager.getLanguage(client);
   }
   
   /**
@@ -1250,10 +1221,12 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     let teachersConnected = 0;
     const currentLanguages = new Set<string>();
 
-    for (const connection of this.connections.values()) {
-      const sessionId = this.sessionIds.get(connection);
-      const role = this.roles.get(connection);
-      const language = this.languages.get(connection);
+    const connections = this.connectionManager.getConnections();
+
+    for (const connection of connections) {
+      const sessionId = this.connectionManager.getSessionId(connection);
+      const role = this.connectionManager.getRole(connection);
+      const language = this.connectionManager.getLanguage(connection);
       
       if (sessionId) {
         // Find classroom code for this session
@@ -1300,18 +1273,15 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
 
     // 2. Close all client connections
-    logger.info(`[WebSocketServer] Closing ${this.connections.size} client connections...`);
-    this.connections.forEach(client => {
+    const connections = this.connectionManager.getConnections();
+    logger.info(`[WebSocketServer] Closing ${connections.size} client connections...`);
+    connections.forEach(client => {
       client.terminate();
     });
     logger.info('[WebSocketServer] All client connections terminated.');
 
     // 3. Clear internal maps and sets
-    this.connections.clear();
-    this.roles.clear();
-    this.languages.clear();
-    this.sessionIds.clear();
-    this.clientSettings.clear();
+    this.connectionManager.clearAll();
     this.classroomSessions.clear();
     logger.info('[WebSocketServer] Internal maps and sets cleared.');
 
@@ -1332,5 +1302,183 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // Assuming wss.close() handles detaching from the httpServer for now.
 
     logger.info('[WebSocketServer] Shutdown complete.');
+  }
+
+  // Backward compatibility properties for unit tests
+  // These delegate to the ConnectionManager to maintain the same interface
+  private _connectionsSet: Set<WebSocketClient> | null = null;
+
+  public get connections(): Set<WebSocketClient> {
+    if (!this._connectionsSet) {
+      const manager = this.connectionManager;
+      const realSet = manager.getConnections();
+      
+      // Create a proxy that intercepts Set operations
+      this._connectionsSet = new Proxy(realSet, {
+        get(target, prop) {
+          if (prop === 'add') {
+            return (ws: WebSocketClient) => {
+              const sessionId = ws.sessionId || 'temp-session-' + Date.now();
+              manager.addConnection(ws, sessionId);
+              return target;
+            };
+          }
+          if (prop === 'delete') {
+            return (ws: WebSocketClient) => {
+              manager.removeConnection(ws);
+              return true;
+            };
+          }
+          return target[prop as keyof Set<WebSocketClient>];
+        }
+      });
+    }
+    return this._connectionsSet;
+  }
+
+  public set connections(value: Set<WebSocketClient>) {
+    // Clear existing connections and add new ones
+    // But preserve any sessionIds that were already set for these connections
+    const existingSessionIds = new Map<WebSocketClient, string>();
+    for (const connection of value) {
+      const existingSessionId = this.connectionManager.getSessionId(connection);
+      if (existingSessionId) {
+        existingSessionIds.set(connection, existingSessionId);
+      }
+    }
+    
+    this.connectionManager.clearAll();
+    for (const connection of value) {
+      // Use existing sessionId if available, otherwise use a temporary one
+      const sessionId = existingSessionIds.get(connection) || connection.sessionId || `temp-${Date.now()}-${Math.random()}`;
+      this.connectionManager.addConnection(connection, sessionId);
+    }
+    this._connectionsSet = null; // Reset proxy
+  }
+
+  public get roles(): Map<WebSocketClient, string> {
+    const manager = this.connectionManager;
+    const rolesMap = new Map<WebSocketClient, string>();
+    
+    // Populate with current data
+    for (const connection of manager.getConnections()) {
+      const role = manager.getRole(connection);
+      if (role) {
+        rolesMap.set(connection, role);
+      }
+    }
+    
+    // Return a proxy that intercepts Map operations
+    return new Proxy(rolesMap, {
+      get(target, prop) {
+        if (prop === 'set') {
+          return (ws: WebSocketClient, role: string) => {
+            manager.setRole(ws, role);
+            return target.set(ws, role); // Also update the map for consistency
+          };
+        }
+        if (prop === 'get') {
+          return (ws: WebSocketClient) => manager.getRole(ws);
+        }
+        return target[prop as keyof Map<WebSocketClient, string>];
+      }
+    });
+  }
+
+  public set roles(value: Map<WebSocketClient, string>) {
+    for (const [connection, role] of value) {
+      this.connectionManager.setRole(connection, role);
+    }
+  }
+
+  public get languages(): Map<WebSocketClient, string> {
+    const languagesMap = new Map<WebSocketClient, string>();
+    for (const connection of this.connectionManager.getConnections()) {
+      const language = this.connectionManager.getLanguage(connection);
+      if (language) {
+        languagesMap.set(connection, language);
+      }
+    }
+    return languagesMap;
+  }
+
+  public set languages(value: Map<WebSocketClient, string>) {
+    for (const [connection, language] of value) {
+      this.connectionManager.setLanguage(connection, language);
+    }
+  }
+
+  public get sessionIds(): Map<WebSocketClient, string> {
+    const manager = this.connectionManager;
+    const sessionIdsMap = new Map<WebSocketClient, string>();
+    
+    // Populate with current data
+    for (const connection of manager.getConnections()) {
+      const sessionId = manager.getSessionId(connection);
+      if (sessionId) {
+        sessionIdsMap.set(connection, sessionId);
+      }
+    }
+    
+    // Return a proxy that intercepts Map operations
+    return new Proxy(sessionIdsMap, {
+      get(target, prop) {
+        if (prop === 'set') {
+          return (ws: WebSocketClient, sessionId: string) => {
+            // Use the new method that doesn't clear other metadata
+            manager.updateSessionId(ws, sessionId);
+            return target.set(ws, sessionId); // Also update the map for consistency
+          };
+        }
+        if (prop === 'delete') {
+          return (ws: WebSocketClient) => {
+            // Only remove the sessionId, not the entire connection
+            manager.removeSessionId(ws);
+            return target.delete(ws);
+          };
+        }
+        if (prop === 'get') {
+          return (ws: WebSocketClient) => manager.getSessionId(ws);
+        }
+        return target[prop as keyof Map<WebSocketClient, string>];
+      }
+    });
+  }
+
+  public set sessionIds(value: Map<WebSocketClient, string>) {
+    for (const [connection, sessionId] of value) {
+      // Use the new method that doesn't clear other metadata
+      this.connectionManager.updateSessionId(connection, sessionId);
+    }
+  }
+
+  public get clientSettings(): Map<WebSocketClient, ClientSettings> {
+    const settingsMap = new Map<WebSocketClient, ClientSettings>();
+    for (const connection of this.connectionManager.getConnections()) {
+      const settings = this.connectionManager.getClientSettings(connection);
+      if (settings) {
+        settingsMap.set(connection, settings);
+      }
+    }
+    return settingsMap;
+  }
+
+  public set clientSettings(value: Map<WebSocketClient, ClientSettings>) {
+    for (const [connection, settings] of value) {
+      this.connectionManager.setClientSettings(connection, settings);
+    }
+  }
+
+  // Expose the ConnectionManager for direct testing access
+  public get _connectionManager(): ConnectionManager {
+    return this.connectionManager;
+  }
+
+  // Helper method for tests to add connections directly
+  public _addTestConnection(ws: WebSocketClient, sessionId: string, role?: string, language?: string, settings?: ClientSettings): void {
+    this.connectionManager.addConnection(ws, sessionId);
+    if (role) this.connectionManager.setRole(ws, role);
+    if (language) this.connectionManager.setLanguage(ws, language);
+    if (settings) this.connectionManager.setClientSettings(ws, settings);
   }
 }
