@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiagnosticsService, TimeRangePreset } from '../../../server/services/DiagnosticsService';
-import { MemStorage } from '../../../server/mem-storage';
 import { IActiveSessionProvider } from '../../../server/services/IActiveSessionProvider';
 import { StorageTranslationMetrics } from '../../../server/storage.interface'; // Changed to StorageTranslationMetrics
 import { DatabaseStorage } from '../../../server/database-storage';
@@ -22,7 +21,7 @@ vi.mock('../../../server/services/WebSocketServer', () => ({
 
 describe('DiagnosticsService', () => {
   let diagnosticsService: DiagnosticsService;
-  let mockStorage: MemStorage;
+  let mockStorage: DatabaseStorage;
   let mockActiveSessionProvider: IActiveSessionProvider;
   let dbStorage: DatabaseStorage;
 
@@ -34,7 +33,7 @@ describe('DiagnosticsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbStorage = new DatabaseStorage();
-    mockStorage = new MemStorage(dbStorage);
+    mockStorage = new DatabaseStorage();
     mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(2),
       getActiveSessionsCount: vi.fn().mockReturnValue(2),

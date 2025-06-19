@@ -18,7 +18,6 @@ const requiredTestEnvVars = [
   'OPENAI_API_KEY',
   'TTS_SERVICE_TYPE',
   'LOG_LEVEL',
-  'STORAGE_TYPE',
   'VITE_API_URL',
   'VITE_WS_URL'
 ];
@@ -46,7 +45,6 @@ console.log('Test environment configured successfully from .env.test:');
 console.log('- Node Environment:', process.env.NODE_ENV);
 console.log('- Host:', process.env.HOST);
 console.log('- Port:', process.env.PORT);
-console.log('- Storage Type:', process.env.STORAGE_TYPE);
 console.log('- TTS Service:', process.env.TTS_SERVICE_TYPE);
 console.log('- OpenAI Key:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
 console.log('- Database URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');

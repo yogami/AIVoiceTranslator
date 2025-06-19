@@ -20,9 +20,6 @@ interface AppConfig {
     environment: 'development' | 'production' | 'test';
     logLevel: 'debug' | 'info' | 'warn' | 'error';
   };
-  storage: { // Added storage configuration
-    type: 'database' | 'memory';
-  };
 }
 
 /**
@@ -60,16 +57,6 @@ export const config: AppConfig = {
       return logLevel;
     })(),
   },
-  storage: { // Added storage type reading
-    type: (() => {
-      if (!process.env.STORAGE_TYPE) throw new Error('STORAGE_TYPE environment variable must be set.');
-      const storageType = process.env.STORAGE_TYPE.toLowerCase() as AppConfig['storage']['type'];
-      if (storageType !== 'database' && storageType !== 'memory') {
-        throw new Error('STORAGE_TYPE must be either "database" or "memory".');
-      }
-      return storageType;
-    })(),
-  },
 };
 
 // Export individual values for backward compatibility
@@ -94,11 +81,9 @@ export function validateConfig(): void {
     errors.push('HOST is required');
   }
 
-  // Added STORAGE_TYPE validation
-  if (!config.storage.type) {
-    errors.push('STORAGE_TYPE is required');
-  } else if (config.storage.type === 'database' && !process.env.DATABASE_URL) {
-    errors.push('DATABASE_URL is required when STORAGE_TYPE is "database"');
+  // Database URL is always required since we only use database storage
+  if (!process.env.DATABASE_URL) {
+    errors.push('DATABASE_URL is required');
   }
 
   if (errors.length > 0) {

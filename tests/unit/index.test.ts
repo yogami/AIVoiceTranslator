@@ -21,7 +21,6 @@ beforeAll(() => {
   process.env.HOST = 'localhost';
   process.env.NODE_ENV = 'test';
   process.env.LOG_LEVEL = 'info';
-  process.env.STORAGE_TYPE = 'memory'; // Added this line
   process.env.TEST_DB_URL = 'postgres://user:pass@localhost:5432/testdb';
   process.env.TEST_REDIS_URL = 'redis://localhost:6379';
   process.env.TEST_PORT = '1234';

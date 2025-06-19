@@ -25,26 +25,13 @@ import { StorageError } from "./storage.error"; // Updated import
 import { IStorage } from "./storage.interface"; // Added IStorage import
 
 // Import main storage implementations
-import { MemStorage } from "./mem-storage";
 import { DatabaseStorage } from "./database-storage";
 
-// Constants (some might be moved to respective storage files if only used there)
-// const DEFAULT_QUERY_LIMIT = 10; // Now in specific storage files as needed
-
-// Export storage instance - use configuration to determine which storage to use
+// Export storage instance - always use database storage
 export const storage = (() => {
-  const storageType = config.storage.type; // Use config.storage.type
-  
-  if (storageType === 'database') {
-    if (!process.env.DATABASE_URL) { // This check is now also in config.ts, but good for safety here too
-      throw new Error('DATABASE_URL must be set when storage type is database');
-    }
-    console.log('[Storage] Using DatabaseStorage');
-    return new DatabaseStorage();
-  } else {
-    // Since you've decided to persist everything to database, 
-    // default to DatabaseStorage for consistency
-    console.log('[Storage] Defaulting to DatabaseStorage');
-    return new DatabaseStorage();
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL must be set');
   }
+  console.log('[Storage] Using DatabaseStorage');
+  return new DatabaseStorage();
 })();
