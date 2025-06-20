@@ -13,6 +13,7 @@ import { ClassroomSessionManager } from './ClassroomSessionManager';
 import { StorageSessionManager } from './StorageSessionManager';
 import { ConnectionHealthManager } from './ConnectionHealthManager';
 import { MessageDispatcher } from './MessageHandler';
+import { WebSocketResponseService } from './WebSocketResponseService';
 import type { ConnectionMessageToClient } from '../WebSocketTypes';
 
 export class ConnectionLifecycleManager {
@@ -22,6 +23,7 @@ export class ConnectionLifecycleManager {
   private storageSessionManager: StorageSessionManager;
   private connectionHealthManager: ConnectionHealthManager;
   private messageDispatcher: MessageDispatcher;
+  private responseService: WebSocketResponseService;
 
   constructor(
     connectionManager: ConnectionManager,
@@ -35,6 +37,7 @@ export class ConnectionLifecycleManager {
     this.storageSessionManager = storageSessionManager;
     this.connectionHealthManager = connectionHealthManager;
     this.messageDispatcher = messageDispatcher;
+    this.responseService = new WebSocketResponseService();
   }
 
   /**
@@ -139,19 +142,7 @@ export class ConnectionLifecycleManager {
   public sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
     try {
       const sessionId = this.connectionManager.getSessionId(ws);
-      const role = this.connectionManager.getRole(ws);
-      const language = this.connectionManager.getLanguage(ws);
-      
-      const message: ConnectionMessageToClient = {
-        type: 'connection',
-        status: 'connected',
-        sessionId: sessionId || 'unknown',
-        role: role as ('teacher' | 'student' | undefined),
-        language: language,
-        classroomCode: classroomCode || undefined
-      };
-      
-      ws.send(JSON.stringify(message));
+      this.responseService.sendConnectionConfirmation(ws, sessionId || 'unknown', classroomCode || undefined);
     } catch (error) {
       logger.error('Error sending connection confirmation:', { error });
     }
