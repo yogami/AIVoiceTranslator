@@ -281,17 +281,46 @@ export class TranslationOrchestrator {
               logger.info('WebSocketServer: Attempting to call storage.addTranslation (detailed logging enabled)');
               (async () => {
                 try {
-                  await storage.addTranslation({
+                  const translationData = {
                     sessionId: classroomSessionId,
                     sourceLanguage: sourceLanguage,
                     targetLanguage: studentLanguage,
                     originalText: originalText,
                     translatedText: translation,
                     latency: translationLatency,
-                  });
+                  };
+                  
+                  console.log('TranslationOrchestrator: About to call storage.addTranslation with data:', translationData);
+                  
+                  await storage.addTranslation(translationData);
+                  
                   logger.info('WebSocketServer: storage.addTranslation finished successfully', { sessionId: classroomSessionId });
+                  console.log('TranslationOrchestrator: storage.addTranslation completed successfully');
                 } catch (storageError) {
-                  logger.error('WebSocketServer: Error calling storage.addTranslation. This will not affect student-facing functionality.', { error: storageError, sessionId: classroomSessionId });
+                  logger.error('WebSocketServer: CRITICAL - Error calling storage.addTranslation. Database insertion failed!', { 
+                    error: storageError, 
+                    sessionId: classroomSessionId,
+                    errorMessage: storageError instanceof Error ? storageError.message : 'Unknown error',
+                    errorStack: storageError instanceof Error ? storageError.stack : undefined
+                  });
+                  
+                  // For test environments, also log to console to make failures more visible
+                  console.error('CRITICAL DATABASE ERROR in addTranslation:', {
+                    error: storageError,
+                    message: storageError instanceof Error ? storageError.message : 'Unknown error',
+                    stack: storageError instanceof Error ? storageError.stack : undefined,
+                    sessionId: classroomSessionId
+                  });
+                  
+                  // In test environments, we might want to propagate this error further
+                  // For now, we'll continue to catch it to avoid breaking translation flow
+                  // but make it extremely visible in logs
+                  if (process.env.NODE_ENV === 'test') {
+                    console.error('=== TRANSLATION STORAGE FAILED IN TEST ===');
+                    console.error('This database error should be investigated:');
+                    console.error(storageError);
+                    console.error('=== END STORAGE ERROR ===');
+                  }
                 }
               })();
             } else {

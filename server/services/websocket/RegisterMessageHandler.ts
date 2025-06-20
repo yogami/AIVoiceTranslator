@@ -95,13 +95,28 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       const classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
       const sessionInfo = context.webSocketServer.classroomSessionManager.getSessionByCode(classroomCode);
       
-      // Update session with teacher language
+      // Update session with teacher language - retry on failure to handle timing issues
       if (message.languageCode) {
-        await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
-          teacherLanguage: message.languageCode
-        }).catch((error: any) => {
-          logger.error('Failed to update session with teacher language:', { error });
-        });
+        let retryCount = 0;
+        const maxRetries = 3;
+        while (retryCount < maxRetries) {
+          try {
+            const result = await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
+              teacherLanguage: message.languageCode
+            });
+            if (result) {
+              break; // Success
+            } else {
+              retryCount++;
+              if (retryCount < maxRetries) {
+                await new Promise(resolve => setTimeout(resolve, 10)); // Small delay before retry
+              }
+            }
+          } catch (error: any) {
+            logger.error('Failed to update session with teacher language:', { error, attempt: retryCount + 1 });
+            break;
+          }
+        }
       }
       
       const response: ClassroomCodeMessageToClient = {
