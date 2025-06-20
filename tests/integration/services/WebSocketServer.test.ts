@@ -1103,7 +1103,7 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       studentClient.close();
       
       // Verify the expired classroom was removed from sessions after validation attempt
-      expect(wsServerInternal.classroomSessions.has(classroomCode)).toBe(false);
+      expect(wsServerInternal._classroomSessionManager.isValidClassroomCode(classroomCode)).toBe(false);
     });
 
     it('should perform periodic cleanup of expired classroom sessions', async () => {

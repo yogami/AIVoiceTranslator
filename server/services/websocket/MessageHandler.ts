@@ -26,7 +26,6 @@ export interface MessageHandlerContext {
   storage: any; // IStorage - using any to avoid circular dependency  
   sessionService: any; // SessionService - using any to avoid circular dependency
   translationService: any; // TranslationOrchestrator - using any to avoid circular dependency
-  classroomSessions: Map<string, any>; // ClassroomSession map - will be removed once fully migrated
   webSocketServer: any; // WebSocketServer - using any to avoid circular dependency
 }
 

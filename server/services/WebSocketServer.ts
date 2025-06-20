@@ -73,9 +73,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private messageHandlerRegistry: MessageHandlerRegistry;
   private messageDispatcher: MessageDispatcher;
   
-  // Legacy - will be removed once fully migrated to SessionService
-  private classroomSessions: Map<string, ClassroomSession> = new Map();
-  private classroomCleanupInterval: NodeJS.Timeout | null = null;
+
 
   // Stats
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -101,7 +99,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       storage: this.storage,
       sessionService: this.sessionService, // Inject SessionService
       translationService: this.translationOrchestrator, // Inject TranslationOrchestrator
-      classroomSessions: this.classroomSessions, // Legacy - for backwards compatibility
       webSocketServer: this
     };
     this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
@@ -119,8 +116,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // Set up event handlers
     this.setupEventHandlers();
     
-    // Set up classroom session cleanup
-    this.setupClassroomCleanup();
+    // Note: Classroom session cleanup is now handled by ClassroomSessionManager
   }
 
 
@@ -254,38 +250,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   public getLanguage(client: WebSocketClient): string | undefined {
     return this.connectionManager.getLanguage(client);
   }
-   /**
-   * Set up periodic cleanup of expired classroom sessions
-   */
-  private setupClassroomCleanup(): void {
-    // Clean up expired sessions every 15 minutes
-    this.classroomCleanupInterval = setInterval(() => {
-      const now = Date.now();
-      let cleaned = 0;
-      
-      for (const [code, session] of this.classroomSessions.entries()) {
-        if (now > session.expiresAt) {
-          this.classroomSessions.delete(code);
-          cleaned++;
-        }
-      }
-      
-      if (cleaned > 0) {
-        logger.info(`Cleaned up ${cleaned} expired classroom sessions`);
-      }
-    }, 15 * 60 * 1000); // 15 minutes
-  }
-  
+   
   /**
    * Close WebSocket server
    */
   public close(): void {
-    // Clear classroom cleanup interval
-    if (this.classroomCleanupInterval) {
-      clearInterval(this.classroomCleanupInterval);
-      this.classroomCleanupInterval = null;
-    }
-    
     // Clear heartbeat interval
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
@@ -315,18 +284,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       const language = this.connectionManager.getLanguage(connection);
       
       if (sessionId) {
-        // Find classroom code for this session using ClassroomSessionManager first
-        let classroomCode = this.classroomSessionManager.getClassroomCodeBySessionId(sessionId);
-        
-        // Fall back to legacy classroomSessions Map for backward compatibility
-        if (!classroomCode) {
-          for (const [code, session] of this.classroomSessions.entries()) {
-            if (session.sessionId === sessionId) {
-              classroomCode = code;
-              break;
-            }
-          }
-        }
+        // Find classroom code for this session using ClassroomSessionManager
+        const classroomCode = this.classroomSessionManager.getClassroomCodeBySessionId(sessionId);
         
         if (classroomCode) {
           activeSessions.add(classroomCode);
@@ -361,11 +320,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       this.heartbeatInterval = null;
       logger.info('[WebSocketServer] Heartbeat interval cleared.');
     }
-    if (this.classroomCleanupInterval) {
-      clearInterval(this.classroomCleanupInterval);
-      this.classroomCleanupInterval = null;
-      logger.info('[WebSocketServer] Classroom cleanup interval cleared.');
-    }
 
     // 2. Shutdown SessionService
     this.sessionService.shutdown();
@@ -382,7 +336,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // 4. Clear internal maps and sets
     this.connectionManager.clearAll();
     this.classroomSessionManager.clearAll(); // Delegate to ClassroomSessionManager
-    this.classroomSessions.clear(); // Legacy - keeping for backward compatibility
     logger.info('[WebSocketServer] Internal maps and sets cleared.');
 
     // 5. Close the underlying WebSocket server instance
@@ -572,6 +525,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   // Expose the ConnectionManager for direct testing access
   public get _connectionManager(): ConnectionManager {
     return this.connectionManager;
+  }
+
+  // Expose the ClassroomSessionManager for direct testing access
+  public get _classroomSessionManager(): ClassroomSessionManager {
+    return this.classroomSessionManager;
   }
 
   // Helper method for tests to add connections directly
