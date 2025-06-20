@@ -4,6 +4,7 @@ import { createServer, Server } from 'http';
 import express from 'express';
 import { WebSocketServer as WSServer } from 'ws';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { DatabaseStorage } from '../../server/database-storage';
 
 describe('Message Handler Integration - Unique Tests', () => {
   let httpServer: Server;
@@ -17,7 +18,8 @@ describe('Message Handler Integration - Unique Tests', () => {
     httpServer = createServer(app);
     
     // Create our WebSocketServer instance using the httpServer
-    wsServer = new WebSocketServer(httpServer);
+    const storage = new DatabaseStorage();
+    wsServer = new WebSocketServer(httpServer, storage);
     
     // Start listening
     await new Promise<void>((resolve) => {

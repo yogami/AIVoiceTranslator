@@ -21,6 +21,9 @@ import { ClassroomSessionManager } from './websocket/ClassroomSessionManager'; /
 import { StorageSessionManager } from './websocket/StorageSessionManager'; // Added StorageSessionManager import
 import { ConnectionHealthManager } from './websocket/ConnectionHealthManager'; // Added ConnectionHealthManager import
 import { ConnectionLifecycleManager } from './websocket/ConnectionLifecycleManager'; // Added ConnectionLifecycleManager import
+import { ConnectionValidationService } from './websocket/ConnectionValidationService'; // Added ConnectionValidationService import
+import { SessionMetricsService } from './websocket/SessionMetricsService'; // Added SessionMetricsService import
+import { WebSocketResponseService } from './websocket/WebSocketResponseService'; // Added WebSocketResponseService import
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
@@ -68,6 +71,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private storageSessionManager: StorageSessionManager; // Handles storage operations
   private connectionHealthManager: ConnectionHealthManager; // Handles connection health monitoring
   private connectionLifecycleManager: ConnectionLifecycleManager; // Handles connection lifecycle
+  private connectionValidationService: ConnectionValidationService; // Handles connection validation
+  private sessionMetricsService: SessionMetricsService; // Handles session metrics calculation
+  private webSocketResponseService: WebSocketResponseService; // Handles WebSocket response formatting
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
@@ -87,6 +93,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.classroomSessionManager = new ClassroomSessionManager(); // Initialize ClassroomSessionManager
     this.storageSessionManager = new StorageSessionManager(storage); // Initialize StorageSessionManager
     this.connectionHealthManager = new ConnectionHealthManager(this.wss); // Initialize ConnectionHealthManager
+    this.connectionValidationService = new ConnectionValidationService(this.classroomSessionManager); // Initialize ConnectionValidationService
+    this.sessionMetricsService = new SessionMetricsService(this.connectionManager, this.classroomSessionManager); // Initialize SessionMetricsService
+    this.webSocketResponseService = new WebSocketResponseService(); // Initialize WebSocketResponseService
     
     // Initialize message handling infrastructure
     this.messageHandlerRegistry = new MessageHandlerRegistry();
@@ -181,15 +190,10 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // Parse URL for classroom code and generate session ID - delegate to ConnectionLifecycleManager
     const { sessionId, classroomCode } = this.connectionLifecycleManager.parseConnectionRequest(request);
     
-    // Validate classroom code if provided - delegate to ClassroomSessionManager
-    if (classroomCode && !this.classroomSessionManager.isValidClassroomCode(classroomCode)) {
-      logger.warn(`Invalid classroom code attempted: ${classroomCode}`);
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: 'Classroom session expired or invalid. Please ask teacher for new link.',
-        code: 'INVALID_CLASSROOM'
-      }));
-      ws.close(1008, 'Invalid classroom session');
+    // Validate connection - delegate to ConnectionValidationService
+    const validationResult = this.connectionValidationService.validateConnection(classroomCode || undefined);
+    if (!validationResult.isValid) {
+      this.connectionValidationService.handleValidationError(ws, validationResult.error);
       return;
     }
     
@@ -271,43 +275,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Get active session metrics for diagnostics
    */
   getActiveSessionMetrics() {
-    const activeSessions = new Set<string>();
-    let studentsConnected = 0;
-    let teachersConnected = 0;
-    const currentLanguages = new Set<string>();
-
-    const connections = this.connectionManager.getConnections();
-
-    for (const connection of connections) {
-      const sessionId = this.connectionManager.getSessionId(connection);
-      const role = this.connectionManager.getRole(connection);
-      const language = this.connectionManager.getLanguage(connection);
-      
-      if (sessionId) {
-        // Find classroom code for this session using ClassroomSessionManager
-        const classroomCode = this.classroomSessionManager.getClassroomCodeBySessionId(sessionId);
-        
-        if (classroomCode) {
-          activeSessions.add(classroomCode);
-        }
-      }
-      
-      if (role === 'student') {
-        studentsConnected++;
-      } else if (role === 'teacher') {
-        teachersConnected++;
-        if (language) {
-          currentLanguages.add(language);
-        }
-      }
-    }
-
-    return {
-      activeSessions: activeSessions.size,
-      studentsConnected,
-      teachersConnected,
-      currentLanguages: Array.from(currentLanguages)
-    };
+    return this.sessionMetricsService.calculateActiveSessionMetrics();
   }
 
   // Method to gracefully shut down the WebSocket server

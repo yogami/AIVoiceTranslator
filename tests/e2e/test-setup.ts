@@ -7,8 +7,9 @@
 import { execSync } from 'child_process';
 import { createServer } from 'http';
 import express from 'express';
-import { apiRoutes } from '../../server/routes';
+import { createApiRoutes } from '../../server/routes';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { DatabaseStorage } from '../../server/database-storage';
 
 /**
  * Start a test server for E2E tests
@@ -22,11 +23,14 @@ export async function startTestServer(port = 5001) {
   app.use(express.json());
   app.use(express.static('client'));
   
-  // Set up API routes
-  app.use('/api', apiRoutes);
+  // Set up storage
+  const storage = new DatabaseStorage();
+  
+  // Set up API routes  
+  app.use('/api', createApiRoutes(storage, null));
   
   // Set up WebSocket server
-  const wsService = new WebSocketServer(server);
+  const wsService = new WebSocketServer(server, storage);
   
   // Start server
   return new Promise<void>((resolve) => {
