@@ -1,5 +1,6 @@
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { TranscriptionMessageToServer } from '../WebSocketTypes';
+import type { WebSocketClient } from './ConnectionManager';
 import logger from '../../logger';
 
 export class TranscriptionMessageHandler implements IMessageHandler<TranscriptionMessageToServer> {
@@ -47,14 +48,35 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
     const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';
     
     // Perform translations for all required languages
-    const { translations, translationResults, latencyInfo } = 
-      await context.webSocketServer.translateToMultipleLanguages(
-        message.text, 
-        teacherLanguage, 
-        studentLanguages,
-        startTime,
-        latencyTracking
-      );
+    const result = await context.translationService.translateToMultipleLanguages({
+      text: message.text,
+      sourceLanguage: teacherLanguage,
+      targetLanguages: studentLanguages,
+      startTime,
+      latencyTracking
+    });
+    
+    // Convert result format to match expected type
+    const translations: Record<string, string> = {};
+    const translationResults: Record<string, { 
+      originalText: string;
+      translatedText: string;
+      audioBuffer: Buffer;
+    }> = {};
+    
+    result.translations.forEach((translation: string, language: string) => {
+      translations[language] = translation;
+    });
+    
+    result.translationResults.forEach(({ language, translation }: { language: string; translation: string }) => {
+      translationResults[language] = {
+        originalText: message.text,
+        translatedText: translation,
+        audioBuffer: Buffer.from('') // Empty buffer for now
+      };
+    });
+    
+    const latencyInfo = result.latencyInfo;
     
     // Update latency tracking with the results
     Object.assign(latencyTracking.components, latencyInfo);
@@ -64,14 +86,18 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
     latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
     
     // Send translations to students
-    context.webSocketServer.sendTranslationsToStudents(
+    context.translationService.sendTranslationsToStudents({
       studentConnections,
-      message.text,
-      teacherLanguage,
-      translations,
-      translationResults,
+      originalText: message.text,
+      sourceLanguage: teacherLanguage,
+      translations: result.translations,
+      translationResults: result.translationResults,
       startTime,
-      latencyTracking
-    );
+      latencyTracking,
+      getClientSettings: (ws: WebSocketClient) => context.connectionManager.getClientSettings(ws),
+      getLanguage: (ws: WebSocketClient) => context.connectionManager.getLanguage(ws),
+      getSessionId: (ws: WebSocketClient) => context.connectionManager.getSessionId(ws),
+      storage: context.storage
+    });
   }
 }

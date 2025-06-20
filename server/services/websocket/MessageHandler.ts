@@ -24,10 +24,12 @@ export interface MessageHandlerContext {
   ws: WebSocketClient;
   connectionManager: any; // ConnectionManager - using any to avoid circular dependency
   storage: any; // IStorage - using any to avoid circular dependency  
-  classroomSessions: Map<string, any>; // ClassroomSession map
+  sessionService: any; // SessionService - using any to avoid circular dependency
+  translationService: any; // TranslationOrchestrator - using any to avoid circular dependency
+  classroomSessions: Map<string, any>; // ClassroomSession map - will be removed once fully migrated
   webSocketServer: any; // WebSocketServer - using any to avoid circular dependency
-  generateClassroomCode(sessionId: string): string;
-  updateSessionInStorage(sessionId: string, updates: any): Promise<void>;
+  generateClassroomCode(sessionId: string): string; // Legacy - will be removed
+  updateSessionInStorage(sessionId: string, updates: any): Promise<void>; // Legacy - will be removed
   createSessionInStorage(sessionId: string): Promise<void>;
 }
 
