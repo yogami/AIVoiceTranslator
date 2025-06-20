@@ -249,6 +249,10 @@ describe('Diagnostics Service Integration', () => {
       if (receivedTranslation) {
         expect(receivedTranslation.text).toBeDefined();
       }
+      
+      // Wait a bit for the database transaction to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const currentMetrics = await diagnosticsServiceInstance.getMetrics();
       expect(currentMetrics.sessions.activeSessions).toBeGreaterThanOrEqual(1);
       expect(currentMetrics.translations.total).toBeGreaterThanOrEqual(1);
@@ -567,6 +571,17 @@ describe('Diagnostics Service Integration', () => {
       const range3Start = new Date(transcript1Time.getTime() - 1000); // Before T1
       const range3End = new Date(transcript3Time.getTime() + 1000);   // After T3
       metrics = await diagnosticsServiceInstance.getMetrics({ startDate: range3Start, endDate: range3End });
+      
+      // Debug: Check what translations are being captured
+      console.log('[DEBUG TIME RANGE TEST] Range 3 - Expected: 3, Actual:', metrics.translations.totalFromDatabase);
+      console.log('[DEBUG TIME RANGE TEST] Range 3 - Time window:', {
+        start: range3Start.toISOString(),
+        end: range3End.toISOString(),
+        transcript1Time: transcript1Time.toISOString(),
+        transcript2Time: transcript2Time.toISOString(),
+        transcript3Time: transcript3Time.toISOString()
+      });
+      
       expect(metrics.translations.totalFromDatabase).toBe(3); // Translations for T1, T2, T3
 
       // Test case 4: Range with no data (future)
