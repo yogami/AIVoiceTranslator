@@ -1066,13 +1066,28 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       const { classroomCodeResponse } = await registerTeacher(teacherClient!);
       const classroomCode = classroomCodeResponse.code;
       
-      // Manually expire the classroom session by manipulating its expiration time
+      // Verify the classroom session exists by trying to validate it
       const wsServerInternal = wsServer as any;
-      const session = wsServerInternal.classroomSessions.get(classroomCode);
-      expect(session).toBeDefined();
+      const classroomManager = wsServerInternal.classroomSessionManager;
+      expect(classroomManager).toBeDefined();
       
-      // Set expiration to past time to trigger expiration logic
-      session.expiresAt = Date.now() - 1000; // 1 second ago
+      // Validate that the classroom code initially works
+      const isValid = classroomManager.isValidClassroomCode(classroomCode);
+      expect(isValid).toBe(true);
+      
+      // Get the session info and manually expire it
+      const sessionInfo = classroomManager.getSessionByCode(classroomCode);
+      expect(sessionInfo).toBeDefined();
+      
+      // Manually expire the classroom session by setting it to past time in the manager
+      if (sessionInfo) {
+        // Access the internal map to modify expiration - this is for testing only
+        const sessions = classroomManager.getAllSessions();
+        const session = sessions.get(classroomCode);
+        if (session) {
+          session.expiresAt = Date.now() - 1000; // 1 second ago
+        }
+      }
       
       // Try to connect with the expired classroom code - should receive error message
       const studentClient = await createClient(`/ws?code=${classroomCode}`);
@@ -1097,38 +1112,31 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       const { classroomCodeResponse } = await registerTeacher(teacherClient!);
       const classroomCode = classroomCodeResponse.code;
       
-      // Access the internal classroom sessions to manipulate expiration
+      // Access the classroom session manager to manipulate expiration
       const wsServerInternal = wsServer as any;
-      const session = wsServerInternal.classroomSessions.get(classroomCode);
-      expect(session).toBeDefined();
+      const classroomManager = wsServerInternal.classroomSessionManager;
+      expect(classroomManager).toBeDefined();
       
-      // Set expiration to past time
-      session.expiresAt = Date.now() - 1000;
+      // Verify the session exists and manually expire it
+      const sessionInfo = classroomManager.getSessionByCode(classroomCode);
+      expect(sessionInfo).toBeDefined();
       
-      // Manually trigger the cleanup interval function
-      // Get the current cleanup interval function and call it
-      if (wsServerInternal.classroomCleanupInterval) {
-        // Clear the existing interval and set up a new one that runs immediately
-        clearInterval(wsServerInternal.classroomCleanupInterval);
-        
-        // Call the cleanup logic directly to trigger the uncovered code path
-        const now = Date.now();
-        let cleaned = 0;
-        
-        for (const [code, sess] of wsServerInternal.classroomSessions.entries()) {
-          if (now > sess.expiresAt) {
-            wsServerInternal.classroomSessions.delete(code);
-            cleaned++;
-          }
+      // Set expiration to past time using the getAllSessions method
+      if (sessionInfo) {
+        const sessions = classroomManager.getAllSessions();
+        const session = sessions.get(classroomCode);
+        if (session) {
+          session.expiresAt = Date.now() - 1000;
         }
-        
-        // Verify cleanup occurred
-        expect(cleaned).toBeGreaterThan(0);
-        expect(wsServerInternal.classroomSessions.has(classroomCode)).toBe(false);
-        
-        // Re-setup the cleanup interval
-        wsServerInternal.setupClassroomCleanup();
       }
+      
+      // Manually trigger the cleanup to remove expired sessions
+      const cleanedCount = classroomManager.triggerCleanup();
+      expect(cleanedCount).toBeGreaterThan(0); // Should have cleaned up at least 1 session
+      
+      // Verify the session is now gone
+      const sessionAfterCleanup = classroomManager.getSessionByCode(classroomCode);
+      expect(sessionAfterCleanup).toBeUndefined();
     });
   });
 });

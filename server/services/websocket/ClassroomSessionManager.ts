@@ -116,6 +116,18 @@ export class ClassroomSessionManager {
   }
 
   /**
+   * Get classroom code by session ID
+   */
+  public getClassroomCodeBySessionId(sessionId: string): string | undefined {
+    for (const [code, session] of this.classroomSessions.entries()) {
+      if (session.sessionId === sessionId) {
+        return code;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Set up periodic cleanup of expired classroom sessions
    */
   private setupCleanup(): void {
@@ -142,6 +154,14 @@ export class ClassroomSessionManager {
    */
   public clear(): void {
     this.classroomSessions.clear();
+  }
+
+  /**
+   * Clear all classroom sessions (for shutdown)
+   */
+  public clearAll(): void {
+    this.classroomSessions.clear();
+    logger.info('All classroom sessions cleared');
   }
 
   /**
@@ -175,5 +195,26 @@ export class ClassroomSessionManager {
       totalSessions: this.classroomSessions.size,
       activeSessions
     };
+  }
+
+  /**
+   * Manually trigger cleanup of expired sessions (primarily for testing)
+   */
+  public triggerCleanup(): number {
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const [code, session] of this.classroomSessions.entries()) {
+      if (now > session.expiresAt) {
+        this.classroomSessions.delete(code);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      logger.info(`Manually triggered cleanup: cleaned up ${cleaned} expired classroom sessions`);
+    }
+    
+    return cleaned;
   }
 }
