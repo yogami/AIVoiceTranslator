@@ -10,6 +10,7 @@ import express from 'express';
 import { createApiRoutes } from '../../server/routes';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
+import { DiagnosticsService } from '../../server/services/DiagnosticsService';
 
 /**
  * Start a test server for E2E tests
@@ -26,11 +27,17 @@ export async function startTestServer(port = 5001) {
   // Set up storage
   const storage = new DatabaseStorage();
   
-  // Set up API routes  
-  app.use('/api', createApiRoutes(storage, null));
+  // Set up DiagnosticsService (initially without activeSessionProvider)
+  const diagnosticsService = new DiagnosticsService(storage, null);
   
   // Set up WebSocket server
   const wsService = new WebSocketServer(server, storage);
+  
+  // Set the WebSocketServer as the active session provider for diagnostics
+  diagnosticsService.setActiveSessionProvider(wsService);
+  
+  // Set up API routes  
+  app.use('/api', createApiRoutes(storage, diagnosticsService, wsService));
   
   // Start server
   return new Promise<void>((resolve) => {
