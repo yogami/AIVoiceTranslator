@@ -217,4 +217,18 @@ export class ClassroomSessionManager {
     
     return cleaned;
   }
+
+  /**
+   * Add a classroom session directly (primarily for testing)
+   */
+  public addSession(code: string, session: ClassroomSession): void {
+    this.classroomSessions.set(code, session);
+  }
+
+  /**
+   * Check if a classroom code exists (primarily for testing)
+   */
+  public hasSession(code: string): boolean {
+    return this.classroomSessions.has(code);
+  }
 }

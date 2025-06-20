@@ -996,7 +996,7 @@ describe('WebSocketServer', () => {
       ]);
       
       // Set up classroom session
-      (webSocketServer as any).classroomSessions.set('ABC123', {
+      (webSocketServer as any)._classroomSessionManager.addSession('ABC123', {
         code: 'ABC123',
         sessionId: 'session-1',
         createdAt: Date.now(),
@@ -1135,12 +1135,12 @@ describe('WebSocketServer', () => {
         expiresAt: Date.now() - 60 * 60 * 1000 // Expired 1 hour ago
       };
       
-      (testWss as any).classroomSessions.set('EXPIRED', expiredSession);
+      (testWss as any)._classroomSessionManager.addSession('EXPIRED', expiredSession);
       
       // Fast-forward 15 minutes to trigger cleanup
       vi.advanceTimersByTime(15 * 60 * 1000);
       
-      expect((testWss as any).classroomSessions.has('EXPIRED')).toBe(false);
+      expect((testWss as any)._classroomSessionManager.hasSession('EXPIRED')).toBe(false);
       expect(logger.info).toHaveBeenCalledWith('Cleaned up 1 expired classroom sessions');
       
       // Clean up
