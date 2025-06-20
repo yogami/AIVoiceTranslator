@@ -20,6 +20,7 @@ import { TranslationOrchestrator } from './websocket/TranslationOrchestrator'; /
 import { ClassroomSessionManager } from './websocket/ClassroomSessionManager'; // Added ClassroomSessionManager import
 import { StorageSessionManager } from './websocket/StorageSessionManager'; // Added StorageSessionManager import
 import { ConnectionHealthManager } from './websocket/ConnectionHealthManager'; // Added ConnectionHealthManager import
+import { ConnectionLifecycleManager } from './websocket/ConnectionLifecycleManager'; // Added ConnectionLifecycleManager import
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
@@ -66,6 +67,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private classroomSessionManager: ClassroomSessionManager; // Handles classroom session management
   private storageSessionManager: StorageSessionManager; // Handles storage operations
   private connectionHealthManager: ConnectionHealthManager; // Handles connection health monitoring
+  private connectionLifecycleManager: ConnectionLifecycleManager; // Handles connection lifecycle
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
@@ -76,7 +78,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private classroomCleanupInterval: NodeJS.Timeout | null = null;
 
   // Stats
-  private sessionCounter: number = 0;
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   constructor(server: http.Server, storage: IStorage) { 
@@ -101,12 +102,18 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       sessionService: this.sessionService, // Inject SessionService
       translationService: this.translationOrchestrator, // Inject TranslationOrchestrator
       classroomSessions: this.classroomSessions, // Legacy - for backwards compatibility
-      webSocketServer: this,
-      generateClassroomCode: this.generateClassroomCode.bind(this), // Legacy method
-      updateSessionInStorage: this.updateSessionInStorage.bind(this), // Legacy method
-      createSessionInStorage: this.createSessionInStorage.bind(this)
+      webSocketServer: this
     };
     this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
+    
+    // Initialize ConnectionLifecycleManager (depends on other managers and messageDispatcher)
+    this.connectionLifecycleManager = new ConnectionLifecycleManager(
+      this.connectionManager,
+      this.classroomSessionManager,
+      this.storageSessionManager,
+      this.connectionHealthManager,
+      this.messageDispatcher
+    );
    
     
     // Set up event handlers
@@ -158,9 +165,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    */
   private setupEventHandlers(): void {
     // Handle new connections
-    this.wss.on('connection', (ws: WebSocket, request) => {
-      // Cast WebSocket to our custom WebSocketClient type
-      this.handleConnection(ws as unknown as WebSocketClient, request);
+    this.wss.on('connection', async (ws: WebSocket, request) => {
+      // Cast WebSocket to our custom WebSocketClient type and delegate to ConnectionLifecycleManager
+      await this.handleConnection(ws as unknown as WebSocketClient, request);
     });
     
     // Note: Heartbeat is now handled by ConnectionHealthManager
@@ -169,69 +176,47 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   /**
    * Handle new WebSocket connection
    */
-  private handleConnection(ws: WebSocketClient, request?: any): void {
+  private async handleConnection(ws: WebSocketClient, request?: any): Promise<void> {
     logger.info('New WebSocket connection established');
     
-    // Mark as alive
-    ws.isAlive = true;
+    // Initialize connection health tracking
+    this.connectionHealthManager.initializeConnection(ws);
     
-    // Parse URL for classroom code
-    let sessionId = this.generateSessionId();
-    let classroomCode: string | null = null;
+    // Parse URL for classroom code and generate session ID - delegate to ConnectionLifecycleManager
+    const { sessionId, classroomCode } = await this.connectionLifecycleManager.parseConnectionRequest(request);
     
-    if (request?.url) {
-      // Construct the base URL using the configured host and port
-      const baseUrl = `http://${config.server.host}:${config.server.port}`;
-      const url = new URL(request.url, baseUrl);
-      classroomCode = url.searchParams.get('class') || url.searchParams.get('code');
-      
-      if (classroomCode) {
-        // Validate classroom code
-        if (!this.isValidClassroomCode(classroomCode)) {
-          logger.warn(`Invalid classroom code attempted: ${classroomCode}`);
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: 'Classroom session expired or invalid. Please ask teacher for new link.',
-            code: 'INVALID_CLASSROOM'
-          }));
-          ws.close(1008, 'Invalid classroom session');
-          return;
-        }
-        
-        // Use classroom session ID
-        const session = this.classroomSessions.get(classroomCode);
-        if (session) {
-          sessionId = session.sessionId;
-          logger.info(`Client joining classroom ${classroomCode} with session ${sessionId}`);
-        }
-      }
+    // Validate classroom code if provided - delegate to ClassroomSessionManager
+    if (classroomCode && !this.classroomSessionManager.isValidClassroomCode(classroomCode)) {
+      logger.warn(`Invalid classroom code attempted: ${classroomCode}`);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Classroom session expired or invalid. Please ask teacher for new link.',
+        code: 'INVALID_CLASSROOM'
+      }));
+      ws.close(1008, 'Invalid classroom session');
+      return;
     }
     
     // Store connection data
     this.connectionManager.addConnection(ws, sessionId);
     
-    // Create session in storage for metrics tracking
-    this.createSessionInStorage(sessionId).catch(error => {
+    // Create session in storage using StorageSessionManager
+    this.storageSessionManager.createSession(sessionId).catch(error => {
       logger.error('Failed to create session in storage:', { error });
       // Continue without metrics - don't break core functionality
     });
     
-    // Send immediate connection confirmation with classroom code if applicable
-    this.sendConnectionConfirmation(ws, classroomCode);
-    
+    // Send immediate connection confirmation - delegate to ConnectionLifecycleManager
+    this.connectionLifecycleManager.sendConnectionConfirmation(ws, classroomCode);
+
     // Set up message handler
     ws.on('message', (data: any) => {
       this.handleMessage(ws, data.toString());
     });
     
-    // Set up pong handler for heartbeat
-    ws.on('pong', () => {
-      ws.isAlive = true;
-    });
-    
-    // Set up close handler
+    // Set up close handler - delegate to ConnectionLifecycleManager  
     ws.on('close', () => {
-      this.handleClose(ws);
+      this.connectionLifecycleManager.handleConnectionClose(ws);
     });
     
     // Set up error handler
@@ -241,58 +226,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   }
 
   /**
-   * Create session in storage for metrics tracking
-   */
-  private async createSessionInStorage(sessionId: string): Promise<void> {
-    try {
-      // Check if a session with this ID already exists
-      const existingSession = await this.storage.getSessionById(sessionId);
-      if (existingSession) {
-        logger.info('Session already exists in storage, ensuring it is active:', { sessionId });
-        if (!existingSession.isActive) {
-          await this.storage.updateSession(sessionId, { isActive: true });
-        }
-        return;
-      }
-
-      // If not, create a new session
-      await this.storage.createSession({
-        sessionId,
-        isActive: true
-        // startTime is automatically set by the database default
-      });
-      logger.info('Successfully created new session in storage:', { sessionId });
-    } catch (error: any) {
-      // Log other errors but don't throw - metrics should not break core functionality
-      logger.error('Failed to create or update session in storage:', { sessionId, error });
-    }
-  }
-
-  /**
-   * Send connection confirmation to client
-   */
-  private sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
-    try {
-      const sessionId = this.connectionManager.getSessionId(ws);
-      const role = this.connectionManager.getRole(ws);
-      const language = this.connectionManager.getLanguage(ws);
-      
-      const message: ConnectionMessageToClient = {
-        type: 'connection',
-        status: 'connected',
-        sessionId: sessionId || 'unknown',
-        role: role as ('teacher' | 'student' | undefined),
-        language: language,
-        classroomCode: classroomCode || undefined
-      };
-      
-      ws.send(JSON.stringify(message));
-    } catch (error) {
-      logger.error('Error sending connection confirmation:', { error });
-    }
-  }
-  
-  /**
    * Handle incoming WebSocket message
    */
   async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
@@ -301,67 +234,12 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   }
   
   /**
-   * Update session in storage
-   */
-  private async updateSessionInStorage(sessionId: string, updates: Partial<InsertSession>): Promise<void> { // MODIFIED: Added Partial<InsertSession>
-    try {
-      await this.storage.updateSession(sessionId, updates);
-    } catch (error) {
-      logger.error('Failed to update session in storage:', { error });
-    }
-  }
-  
-
-  
-  /**
    * Get all student connections and their unique languages
    */
   
 
   
 
-  
-  /**
-   * Handle WebSocket close event
-   */
-  private handleClose(ws: WebSocketClient): void {
-    const sessionId = this.connectionManager.getSessionId(ws);
-    logger.info('WebSocket disconnected, sessionId:', { sessionId });
-    
-    // Check if there are other connections with the same sessionId BEFORE removing this one
-    let hasOtherConnections = false;
-    if (sessionId) {
-      // Count how many connections have the same sessionId
-      let connectionsWithSameSession = 0;
-      for (const connection of this.connectionManager.getConnections()) {
-        if (this.connectionManager.getSessionId(connection) === sessionId) {
-          connectionsWithSameSession++;
-        }
-      }
-      hasOtherConnections = connectionsWithSameSession > 1; // More than just this one
-    }
-    
-    // Remove from tracking using ConnectionManager
-    this.connectionManager.removeConnection(ws);
-    
-    // End session in storage if no more connections with this sessionId
-    if (sessionId && !hasOtherConnections) {
-      this.endSessionInStorage(sessionId).catch(error => {
-        logger.error('Failed to end session in storage:', { error });
-      });
-    }
-  }
-  
-  /**
-   * End session in storage
-   */
-  private async endSessionInStorage(sessionId: string): Promise<void> {
-    try {
-      await this.storage.endSession(sessionId);
-    } catch (error) {
-      logger.error('Failed to end session in storage:', { error });
-    }
-  }
   
   /**
    * Get connections
@@ -376,76 +254,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   public getLanguage(client: WebSocketClient): string | undefined {
     return this.connectionManager.getLanguage(client);
   }
-  
-  /**
-   * Generate a classroom code for a session
-   */
-  private generateClassroomCode(sessionId: string): string {
-    // Check if we already have a code for this session
-    for (const [code, session] of this.classroomSessions.entries()) {
-      if (session.sessionId === sessionId) {
-        // Update activity and return existing code
-        session.lastActivity = Date.now();
-        session.teacherConnected = true;
-        return code;
-      }
-    }
-    
-    // Generate new 6-character code
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code: string;
-    
-    // Ensure uniqueness
-    do {
-      code = '';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-    } while (this.classroomSessions.has(code));
-    
-    // Create session with 2-hour expiration
-    const session: ClassroomSession = {
-      code,
-      sessionId,
-      createdAt: Date.now(),
-      lastActivity: Date.now(),
-      teacherConnected: true,
-      expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
-    };
-    
-    this.classroomSessions.set(code, session);
-    logger.info(`Created new classroom session: ${code} for session ${sessionId}`);
-    
-    return code;
-  }
-  
-  /**
-   * Validate classroom code
-   */
-  private isValidClassroomCode(code: string): boolean {
-    // Check format
-    if (!/^[A-Z0-9]{6}$/.test(code)) {
-      return false;
-    }
-    
-    const session = this.classroomSessions.get(code);
-    if (!session) {
-      return false;
-    }
-    
-    // Check expiration
-    if (Date.now() > session.expiresAt) {
-      this.classroomSessions.delete(code);
-      logger.info(`Classroom code ${code} expired and removed`);
-      return false;
-    }
-    
-    // Update last activity
-    session.lastActivity = Date.now();
-    return true;
-  }
-  
-  /**
+   /**
    * Set up periodic cleanup of expired classroom sessions
    */
   private setupClassroomCleanup(): void {
@@ -489,11 +298,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   /**
    * Generate a unique session ID
    */
-  private generateSessionId(): string {
-    this.sessionCounter++;
-    return `session-${this.sessionCounter}-${Date.now()}`;
-  }
-
   /**
    * Get active session metrics for diagnostics
    */
@@ -511,12 +315,21 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       const language = this.connectionManager.getLanguage(connection);
       
       if (sessionId) {
-        // Find classroom code for this session
-        for (const [code, session] of this.classroomSessions.entries()) {
-          if (session.sessionId === sessionId) {
-            activeSessions.add(code);
-            break;
+        // Find classroom code for this session using ClassroomSessionManager first
+        let classroomCode = this.classroomSessionManager.getClassroomCodeBySessionId(sessionId);
+        
+        // Fall back to legacy classroomSessions Map for backward compatibility
+        if (!classroomCode) {
+          for (const [code, session] of this.classroomSessions.entries()) {
+            if (session.sessionId === sessionId) {
+              classroomCode = code;
+              break;
+            }
           }
+        }
+        
+        if (classroomCode) {
+          activeSessions.add(classroomCode);
         }
       }
       
@@ -568,7 +381,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
 
     // 4. Clear internal maps and sets
     this.connectionManager.clearAll();
-    this.classroomSessions.clear();
+    this.classroomSessionManager.clearAll(); // Delegate to ClassroomSessionManager
+    this.classroomSessions.clear(); // Legacy - keeping for backward compatibility
     logger.info('[WebSocketServer] Internal maps and sets cleared.');
 
     // 5. Close the underlying WebSocket server instance

@@ -28,9 +28,6 @@ export interface MessageHandlerContext {
   translationService: any; // TranslationOrchestrator - using any to avoid circular dependency
   classroomSessions: Map<string, any>; // ClassroomSession map - will be removed once fully migrated
   webSocketServer: any; // WebSocketServer - using any to avoid circular dependency
-  generateClassroomCode(sessionId: string): string; // Legacy - will be removed
-  updateSessionInStorage(sessionId: string, updates: any): Promise<void>; // Legacy - will be removed
-  createSessionInStorage(sessionId: string): Promise<void>;
 }
 
 /**

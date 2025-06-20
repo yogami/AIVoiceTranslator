@@ -82,7 +82,7 @@ export class ConnectionLifecycleManager {
   /**
    * Parse connection request to extract session ID and classroom code
    */
-  private parseConnectionRequest(request?: any): { sessionId: string; classroomCode: string | null } {
+  public parseConnectionRequest(request?: any): { sessionId: string; classroomCode: string | null } {
     let sessionId = this.generateSessionId();
     let classroomCode: string | null = null;
     
@@ -136,7 +136,7 @@ export class ConnectionLifecycleManager {
   /**
    * Send connection confirmation to client
    */
-  private sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
+  public sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
     try {
       const sessionId = this.connectionManager.getSessionId(ws);
       const role = this.connectionManager.getRole(ws);
@@ -176,6 +176,13 @@ export class ConnectionLifecycleManager {
         logger.error('Failed to end session in storage:', { error });
       });
     }
+  }
+
+  /**
+   * Handle connection close event (public interface)
+   */
+  public handleConnectionClose(ws: WebSocketClient): void {
+    this.handleClose(ws);
   }
 
   /**

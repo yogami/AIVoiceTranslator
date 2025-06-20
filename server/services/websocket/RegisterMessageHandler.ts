@@ -92,14 +92,14 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
   ): Promise<void> {
     const sessionId = context.connectionManager.getSessionId(context.ws);
     if (sessionId) {
-      const classroomCode = context.generateClassroomCode(sessionId);
-      const sessionInfo = context.classroomSessions.get(classroomCode);
+      const classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
+      const sessionInfo = context.webSocketServer.classroomSessionManager.getSessionByCode(classroomCode);
       
       // Update session with teacher language
       if (message.languageCode) {
-        await context.updateSessionInStorage(sessionId, {
+        await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
           teacherLanguage: message.languageCode
-        }).catch(error => {
+        }).catch((error: any) => {
           logger.error('Failed to update session with teacher language:', { error });
         });
       }
@@ -133,7 +133,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       context.storage.getActiveSession(studentSessionId).then((session: any) => {
         const currentCount = session?.studentsCount || 0;
         // Always ensure session is active when a student joins
-        context.updateSessionInStorage(studentSessionId, { 
+        context.webSocketServer.storageSessionManager.updateSession(studentSessionId, { 
           studentsCount: currentCount + 1, 
           isActive: true 
         }).catch((error: any) => {
