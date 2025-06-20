@@ -1,7 +1,6 @@
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { TTSRequestMessageToServer, TTSResponseMessageToClient } from '../WebSocketTypes';
 import logger from '../../logger';
-import { speechTranslationService } from '../TranslationService';
 
 export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessageToServer> {
   getMessageType(): string {
@@ -12,7 +11,7 @@ export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessa
     const text = message.text;
     const languageCode = message.languageCode;
     
-    if (!this.validateTTSRequest(text, languageCode)) {
+    if (!context.translationService.validateTTSRequest(text, languageCode)) {
       await this.sendTTSErrorResponse(context, 'Invalid TTS request parameters');
       return;
     }
@@ -21,8 +20,8 @@ export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessa
     const ttsServiceType = 'openai';
     
     try {
-      // Generate TTS audio
-      const audioBuffer = await this.generateTTSAudio(
+      // Generate TTS audio using TranslationService
+      const audioBuffer = await context.translationService.generateTTSAudio(
         text,
         languageCode,
         ttsServiceType,
@@ -45,49 +44,6 @@ export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessa
     } catch (error) {
       logger.error('Error handling TTS request:', { error });
       await this.sendTTSErrorResponse(context, 'TTS generation error');
-    }
-  }
-
-  /**
-   * Validate TTS request parameters
-   */
-  private validateTTSRequest(text: string, languageCode: string): boolean {
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      logger.error('Invalid TTS text:', { text });
-      return false;
-    }
-    
-    if (!languageCode || typeof languageCode !== 'string') {
-      logger.error('Invalid TTS language code:', { languageCode });
-      return false;
-    }
-    
-    return true;
-  }
-
-  /**
-   * Generate TTS audio
-   */
-  private async generateTTSAudio(
-    text: string,
-    languageCode: string,
-    ttsServiceType: string,
-    voice?: string
-  ): Promise<Buffer> {
-    try {
-      // Use empty source language as we aren't translating, just doing TTS
-      const result = await speechTranslationService.translateSpeech(
-        Buffer.from(''), // Empty buffer as we already have the text
-        languageCode,   // Source language is the same as target for TTS-only
-        languageCode,   // Target language
-        text,           // Text to convert to speech
-        { ttsServiceType } // Force specified TTS service type
-      );
-      
-      return result.audioBuffer;
-    } catch (error) {
-      logger.error('Error generating TTS audio:', { error });
-      return Buffer.from(''); // Return empty buffer on error
     }
   }
 

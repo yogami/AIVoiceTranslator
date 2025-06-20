@@ -9,13 +9,14 @@
 import { WebSocketServer as WSServer, WebSocket } from 'ws';
 import * as http from 'http'; // Changed to namespace import
 import logger from '../logger';
-import { speechTranslationService } from './TranslationService'; // Corrected import path
 import { audioTranscriptionService } from './transcription/AudioTranscriptionService'; // Corrected import path
 import { config } from '../config'; // Removed AppConfig, already have config instance
 import { URL } from 'url';
 
 import { IActiveSessionProvider } from './IActiveSessionProvider'; // Added import
 import { ConnectionManager, type WebSocketClient } from './websocket/ConnectionManager'; // Added import
+import { SessionService, type ClassroomSession } from './websocket/SessionService'; // Added SessionService import
+import { TranslationOrchestrator } from './websocket/TranslationOrchestrator'; // Added TranslationOrchestrator import
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
@@ -42,7 +43,6 @@ import type {
   ClassroomCodeMessageToClient,
   RegisterResponseToClient,
   TranslationMessageToClient,
-  TTSResponseMessageToClient,
   SettingsResponseToClient,
   PongMessageToClient,
   ErrorMessageToClient,
@@ -54,28 +54,18 @@ import { IStorage } from '../storage.interface';
 // Custom WebSocketClient type for our server
 // Moved to ConnectionManager.ts and re-exported
 
-// Classroom session interface
-interface ClassroomSession {
-  code: string;
-  sessionId: string;
-  createdAt: number;
-  lastActivity: number;
-  teacherConnected: boolean;
-  expiresAt: number;
-}
-
 export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
   private connectionManager: ConnectionManager; // Use ConnectionManager for connection tracking
+  private sessionService: SessionService; // Injected SessionService for session management
+  private translationOrchestrator: TranslationOrchestrator; // Injected TranslationOrchestrator for translation and TTS
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
   private messageDispatcher: MessageDispatcher;
   
-  // We use the speechTranslationService facade
-  
-  // Classroom management
+  // Legacy - will be removed once fully migrated to SessionService
   private classroomSessions: Map<string, ClassroomSession> = new Map();
   private classroomCleanupInterval: NodeJS.Timeout | null = null;
 
@@ -87,6 +77,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.wss = new WSServer({ server });
     this.storage = storage;
     this.connectionManager = new ConnectionManager(); // Initialize ConnectionManager
+    this.sessionService = new SessionService(storage); // Initialize SessionService
+    this.translationOrchestrator = new TranslationOrchestrator(storage); // Initialize TranslationOrchestrator
     
     // Initialize message handling infrastructure
     this.messageHandlerRegistry = new MessageHandlerRegistry();
@@ -97,10 +89,12 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       ws: null as any, // Will be set by the dispatcher for each message
       connectionManager: this.connectionManager,
       storage: this.storage,
-      classroomSessions: this.classroomSessions,
+      sessionService: this.sessionService, // Inject SessionService
+      translationService: this.translationOrchestrator, // Inject TranslationOrchestrator
+      classroomSessions: this.classroomSessions, // Legacy - for backwards compatibility
       webSocketServer: this,
-      generateClassroomCode: this.generateClassroomCode.bind(this),
-      updateSessionInStorage: this.updateSessionInStorage.bind(this),
+      generateClassroomCode: this.generateClassroomCode.bind(this), // Legacy method
+      updateSessionInStorage: this.updateSessionInStorage.bind(this), // Legacy method
       createSessionInStorage: this.createSessionInStorage.bind(this)
     };
     this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
@@ -309,580 +303,15 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     }
   }
   
-  /**
-   * Handle transcription message
-   */
-  private async handleTranscriptionMessage(ws: WebSocketClient, message: TranscriptionMessageToServer): Promise<void> {
-    logger.info('Received transcription from', { role: this.connectionManager.getRole(ws), text: message.text });
-    
-    // Start tracking latency when transcription is received
-    const startTime = Date.now();
-    const latencyTracking = {
-      start: startTime,
-      components:
-      {
-        preparation: 0,
-        translation: 0,
-        tts: 0,
-        processing: 0
-      }
-    };
-    
-    const role = this.connectionManager.getRole(ws);
-    const sessionId = this.connectionManager.getSessionId(ws);
-    
-    // Only process transcriptions from teacher
-    if (role !== 'teacher') {
-      logger.warn('Ignoring transcription from non-teacher role:', { role });
-      return;
-    }
-    
-    // Get all student connections and their languages
-    const { connections: studentConnections, languages: studentLanguages } = this.connectionManager.getStudentConnectionsAndLanguages();
-    
-    if (studentConnections.length === 0) {
-      logger.info('No students connected, skipping translation');
-      return;
-    }
-    
-    // Translate text to all student languages
-    const teacherLanguage = this.connectionManager.getLanguage(ws) || 'en-US';
-    
-    // Perform translations for all required languages
-    const { translations, translationResults, latencyInfo } = 
-      await this.translateToMultipleLanguages(
-        message.text, 
-        teacherLanguage, 
-        studentLanguages,
-        startTime,
-        latencyTracking
-      );
-    
-    // Update latency tracking with the results
-    Object.assign(latencyTracking.components, latencyInfo);
-    
-    // Calculate processing latency before sending translations
-    const processingEndTime = Date.now();
-    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
-    
-    // Send translations to students
-    this.sendTranslationsToStudents(
-      studentConnections,
-      message.text,
-      teacherLanguage,
-      translations,
-      translationResults,
-      startTime,
-      latencyTracking
-    );
-  }
+
   
   /**
    * Get all student connections and their unique languages
    */
-  private getStudentConnectionsAndLanguages(): { 
-    studentConnections: WebSocketClient[], 
-    studentLanguages: string[] 
-  } {
-    const { connections, languages } = this.connectionManager.getStudentConnectionsAndLanguages();
-    return { 
-      studentConnections: connections,
-      studentLanguages: languages
-    };
-  }
   
-  /**
-   * Translate text to multiple languages
-   */
-  public async translateToMultipleLanguages(
-    text: string,
-    sourceLanguage: string,
-    targetLanguages: string[],
-    startTime: number,
-    latencyTracking: {
-      start: number;
-      components: {
-        preparation: number;
-        translation: number;
-        tts: number;
-        processing: number;
-      };
-    }
-  ): Promise<{
-    translations: Record<string, string>;
-    translationResults: Record<string, { 
-      originalText: string;
-      translatedText: string;
-      audioBuffer: Buffer;
-    }>;
-    latencyInfo: {
-      translation: number;
-      tts: number;
-    };
-  }> {
-    // Storage for translations
-    const translations: Record<string, string> = {};
-    const translationResults: Record<string, { 
-      originalText: string;
-      translatedText: string;
-      audioBuffer: Buffer;
-    }> = {};
-    
-    // Latency tracking
-    const latencyInfo = {
-      translation: 0,
-      tts: 0
-    };
-    
-    // Always use OpenAI TTS service for best quality
-    const ttsServiceToUse = 'openai';
-    
-    // Translate for each language
-    for (const targetLanguage of targetLanguages) {
-      try {
-        logger.info(`Using OpenAI TTS service for language '${targetLanguage}' (overriding teacher's selection)`);
-        
-        // Measure translation and TTS latency
-        const translationStartTime = Date.now();
-        
-        // Perform the translation with OpenAI TTS service
-        const result = await speechTranslationService.translateSpeech(
-          Buffer.from(''), // Empty buffer as we already have the text
-          sourceLanguage,
-          targetLanguage,
-          text, // Use the pre-transcribed text
-          { ttsServiceType: ttsServiceToUse } // Force OpenAI TTS service
-        );
-        
-        // Record the translation/TTS latency
-        const translationEndTime = Date.now();
-        const elapsedTime = translationEndTime - translationStartTime;
-        
-        // Since this includes both translation and TTS, we'll estimate the split
-        // TTS typically takes about 70% of the time
-        const ttsTime = Math.round(elapsedTime * 0.7);
-        const translationTime = elapsedTime - ttsTime;
-        
-        latencyInfo.translation = Math.max(
-          latencyInfo.translation,
-          translationTime
-        );
-        
-        latencyInfo.tts = Math.max(
-          latencyInfo.tts,
-          ttsTime
-        );
-        
-        // Store the full result object for this language
-        translationResults[targetLanguage] = result;
-        
-        // Also store just the text for backward compatibility
-        translations[targetLanguage] = result.translatedText;
-      } catch (error) {
-        logger.error(`Error translating to ${targetLanguage}:`, { error });
-        translations[targetLanguage] = text; // Fallback to original text
-        translationResults[targetLanguage] = {
-          originalText: text,
-          translatedText: text,
-          audioBuffer: Buffer.from('') // Empty buffer for fallback
-        };
-      }
-    }
-    
-    return { translations, translationResults, latencyInfo };
-  }
-  
-  /**
-   * Send translations to students
-   */
-  public sendTranslationsToStudents(
-    studentConnections: WebSocketClient[],
-    originalText: string,
-    sourceLanguage: string,
-    translations: Record<string, string>,
-    translationResults: Record<string, { 
-      originalText: string;
-      translatedText: string;
-      audioBuffer: Buffer;
-    }>,
-    startTime: number,
-    latencyTracking: any
-  ): void {
-    logger.info('WebSocketServer: sendTranslationsToStudents started');
-    studentConnections.forEach(studentWs => {
-      const studentLanguage = this.connectionManager.getLanguage(studentWs);
-      const studentSettings = this.connectionManager.getClientSettings(studentWs) || {};
-      
-      if (studentLanguage && translations[studentLanguage]) {
-        const translationMessage: TranslationMessageToClient = {
-          type: 'translation',
-          text: translations[studentLanguage],
-          originalText: originalText,
-          sourceLanguage: sourceLanguage,
-          targetLanguage: studentLanguage,
-          ttsServiceType: studentSettings.ttsServiceType || 'openai', // Default to OpenAI if not set
-          latency: {
-            total: 0, // Will be calculated on client
-            serverCompleteTime: Date.now(),
-            components: latencyTracking.components
-          },
-          audioData: translationResults[studentLanguage]?.audioBuffer?.toString('base64') || '',
-          useClientSpeech: studentSettings.useClientSpeech || false
-        };
 
-        if (studentSettings.useClientSpeech) {
-          translationMessage.speechParams = {
-            type: 'browser-speech',
-            text: translations[studentLanguage],
-            languageCode: studentLanguage, // Added languageCode
-            autoPlay: true
-          };
-        }
-        
-        try {
-          studentWs.send(JSON.stringify(translationMessage));
-          logger.info('WebSocketServer: Translation message sent to student', { studentSessionId: this.connectionManager.getSessionId(studentWs), targetLanguage: studentLanguage });
+  
 
-          // Persist translation for diagnostics and product usage, if enabled
-          const enableDetailedTranslationLogging = process.env.ENABLE_DETAILED_TRANSLATION_LOGGING === 'true';
-
-          if (enableDetailedTranslationLogging) {
-            const classroomSessionId = this.connectionManager.getSessionId(studentWs);
-            const translatedText = translations[studentLanguage];
-            const translationLatency = latencyTracking.components?.translation || 0;
-
-            logger.info('WebSocketServer: About to persist translation', {
-              classroomSessionId,
-              translatedText,
-              translationLatency,
-              originalText,
-              sourceLanguage,
-              targetLanguage: studentLanguage
-            });
-
-            if (this.storage && classroomSessionId) {
-              logger.info('WebSocketServer: Attempting to call this.storage.addTranslation (detailed logging enabled)');
-              (async () => {
-                try {
-                  await this.storage.addTranslation({
-                    sessionId: classroomSessionId,
-                    sourceLanguage: sourceLanguage,
-                    targetLanguage: studentLanguage,
-                    originalText: originalText,
-                    translatedText: translatedText,
-                    latency: translationLatency,
-                  });
-                  logger.info('WebSocketServer: this.storage.addTranslation finished successfully', { sessionId: classroomSessionId });
-                } catch (storageError) {
-                  logger.error('WebSocketServer: Error calling this.storage.addTranslation. This will not affect student-facing functionality.', { error: storageError, sessionId: classroomSessionId });
-                }
-              })();
-            } else {
-              logger.warn('WebSocketServer: Detailed translation logging enabled, but this.storage or classroomSessionId not available, skipping storage.addTranslation', { hasStorage: !!this.storage, hasSessionId: !!classroomSessionId });
-            }
-          } else {
-            logger.info('WebSocketServer: Detailed translation logging is disabled via environment variable ENABLE_DETAILED_TRANSLATION_LOGGING, skipping storage.addTranslation');
-          }
-
-        } catch (error) {
-          logger.error('Error sending translation to student:', { error, studentSessionId: this.connectionManager.getSessionId(studentWs) });
-        }
-      }
-    });
-    logger.info('WebSocketServer: sendTranslationsToStudents finished');
-  }
-  
-  /**
-   * Handle audio message
-   */
-  private async handleAudioMessage(ws: WebSocketClient, message: AudioMessageToServer): Promise<void> {
-    const role = this.connectionManager.getRole(ws);
-    
-    // Only process audio from teacher
-    if (role !== 'teacher') {
-      logger.info('Ignoring audio from non-teacher role:', { role });
-      return;
-    }
-    
-    // Process audio data
-    if (message.data) {
-      await this.processTeacherAudio(ws, message.data);
-    }
-  }
-  
-  /**
-   * Process audio from teacher
-   */
-  private async processTeacherAudio(ws: WebSocketClient, audioData: string): Promise<void> {
-    // Validate audio data
-    if (!audioData || audioData.length < 100) {
-      return;
-    }
-    try {
-      // Convert base64 to buffer
-      const audioBuffer = Buffer.from(audioData, 'base64');
-      if (audioBuffer.length < 100) {
-        return;
-      }
-      const teacherLanguage = this.connectionManager.getLanguage(ws) || 'en-US';
-      const sessionId = this.connectionManager.getSessionId(ws);
-      if (!sessionId) {
-        logger.error('No session ID found for teacher');
-        return;
-      }
-      // Comment out server-side transcription since we\'re using client-side speech recognition
-      // The client sends both audio chunks and transcriptions separately
-      /*
-      // Transcribe the audio
-      const transcription = await audioTranscriptionService.transcribeAudio(
-        audioBuffer,
-        teacherLanguage
-      );
-      console.log(\'Transcribed audio:\', transcription);
-      // If we got a transcription, process it as a transcription message
-      if (transcription && transcription.trim().length > 0) {
-        await this.handleTranscriptionMessage(ws, {
-          type: \'transcription\',
-          text: transcription,
-          timestamp: Date.now(),
-      if (transcription && transcriptions.trim().length > 0) {
-        await this.handleTranscriptionMessage(ws, {
-          type: \'transcription\',
-          text: transcription,
-          timestamp: Date.now(),
-          isFinal: true
-        } as TranscriptionMessageToServer);
-      }
-      */
-      // For now, just log that we received audio
-      logger.debug('Received audio chunk from teacher, using client-side transcription');
-    } catch (error) {
-      logger.error('Error processing teacher audio:', { error });
-    }
-  }
-  
-  /**
-   * Handle TTS request message
-   */
-  private async handleTTSRequestMessage(ws: WebSocketClient, message: TTSRequestMessageToServer): Promise<void> {
-    const text = message.text;
-    const languageCode = message.languageCode;
-    
-    if (!this.validateTTSRequest(text, languageCode)) {
-      await this.sendTTSErrorResponse(ws, 'Invalid TTS request parameters');
-      return;
-    }
-    
-    // Always use OpenAI TTS for best quality
-    const ttsServiceType = 'openai';
-    
-    try {
-      // Generate TTS audio
-      const audioBuffer = await this.generateTTSAudio(
-        text,
-        languageCode,
-        ttsServiceType,
-        message.voice
-      );
-      
-      if (audioBuffer && audioBuffer.length > 0) {
-        // Send successful response with audio
-        await this.sendTTSResponse(
-          ws,
-          text,
-          languageCode,
-          audioBuffer,
-          ttsServiceType
-        );
-      } else {
-        // Send error if no audio was generated
-        await this.sendTTSErrorResponse(ws, 'Failed to generate audio');
-      }
-    } catch (error) {
-      logger.error('Error handling TTS request:', { error });
-      await this.sendTTSErrorResponse(ws, 'TTS generation error');
-    }
-  }
-  
-  /**
-   * Validate TTS request parameters
-   */
-  private validateTTSRequest(text: string, languageCode: string): boolean {
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      logger.error('Invalid TTS text:', { text });
-      return false;
-    }
-    
-    if (!languageCode || typeof languageCode !== 'string') {
-      logger.error('Invalid TTS language code:', { languageCode });
-      return false;
-    }
-    
-    return true;
-  }
-  
-  /**
-   * Generate TTS audio
-   */
-  private async generateTTSAudio(
-    text: string,
-    languageCode: string,
-    ttsServiceType: string,
-    voice?: string
-  ): Promise<Buffer> {
-    try {
-      // Use empty source language as we aren't translating, just doing TTS
-      const result = await speechTranslationService.translateSpeech(
-        Buffer.from(''), // Empty buffer as we already have the text
-        languageCode,   // Source language is the same as target for TTS-only
-        languageCode,   // Target language
-        text,           // Text to convert to speech
-        { ttsServiceType } // Force specified TTS service type
-      );
-      
-      return result.audioBuffer;
-    } catch (error) {
-      logger.error('Error generating TTS audio:', { error });
-      return Buffer.from(''); // Return empty buffer on error
-    }
-  }
-  
-  /**
-   * Send TTS response with audio data
-   */
-  private async sendTTSResponse(
-    ws: WebSocketClient,
-    text: string,
-    languageCode: string,
-    audioBuffer: Buffer,
-    ttsServiceType: string
-  ): Promise<void> {
-    try {
-      // Create base message
-      const response: Partial<TTSResponseMessageToClient> = {
-        type: 'tts_response',
-        status: 'success',
-        text,
-        languageCode,
-        ttsServiceType,
-        timestamp: Date.now()
-      };
-      
-      // Check if this is a browser speech synthesis marker
-      const bufferString = audioBuffer.toString('utf8');
-      
-      if (bufferString.startsWith('{"type":"browser-speech"')) {
-        response.useClientSpeech = true;
-        try {
-          response.speechParams = JSON.parse(bufferString);
-        } catch (error) {
-          logger.error('Error parsing speech params:', { error });
-          response.speechParams = {
-            type: 'browser-speech',
-            text,
-            languageCode,
-            autoPlay: true
-          };
-        }
-      } else {
-        // Real audio data
-        response.audioData = audioBuffer.toString('base64');
-        response.useClientSpeech = false;
-      }
-      
-      // Send response
-      ws.send(JSON.stringify(response as TTSResponseMessageToClient));
-      logger.info(`TTS response sent successfully for language '${languageCode}'`);
-    } catch (error) {
-      logger.error('Error sending TTS response:', { error });
-      // Try to send error message if possible
-      try {
-        await this.sendTTSErrorResponse(ws, 'Failed to send audio data');
-      } catch (sendError) {
-        logger.error('Error sending TTS error response:', { sendError });
-      }
-    }
-  }
-  
-  /**
-   * Send TTS error response
-   */
-  private async sendTTSErrorResponse(
-    ws: WebSocketClient,
-    messageText: string,
-    code: string = 'TTS_ERROR'
-  ): Promise<void> {
-    try {
-      const ttsErrorResponse: TTSResponseMessageToClient = {
-        type: 'tts_response',
-        status: 'error',
-        error: {
-          message: messageText,
-          code: code
-        },
-        timestamp: Date.now()
-      };
-      
-      ws.send(JSON.stringify(ttsErrorResponse));
-      logger.error(`TTS error response sent: ${messageText}`);
-    } catch (error) {
-      logger.error('Error sending TTS error response:', { error });
-    }
-  }
-  
-  /**
-   * Handle settings message
-   */
-  private handleSettingsMessage(ws: WebSocketClient, message: SettingsMessageToServer): void {
-    const role = this.connectionManager.getRole(ws);
-    
-    // Initialize settings for this client if not already present
-    const settings: ClientSettings = this.connectionManager.getClientSettings(ws) || {};
-    
-    // Update settings with new values
-    if (message.settings) {
-      Object.assign(settings, message.settings);
-    }
-    
-    // Special handling for ttsServiceType since it can be specified outside settings object
-    if (message.ttsServiceType) {
-      settings.ttsServiceType = message.ttsServiceType;
-      logger.info(`Updated TTS service type for ${role} to: ${settings.ttsServiceType}`);
-    }
-    
-    // Store updated settings
-    this.connectionManager.setClientSettings(ws, settings);
-    
-    // Send confirmation
-    const response: SettingsResponseToClient = {
-      type: 'settings',
-      status: 'success',
-      settings
-    };
-    
-    ws.send(JSON.stringify(response));
-  }
-  
-  /**
-   * Handle ping message
-   */
-  private handlePingMessage(ws: WebSocketClient, message: PingMessageToServer): void {
-    // Mark as alive for heartbeat
-    ws.isAlive = true;
-    
-    // Send pong response
-    const response: PongMessageToClient = {
-      type: 'pong',
-      timestamp: Date.now(),
-      originalTimestamp: message.timestamp
-    };
-    
-    try {
-      ws.send(JSON.stringify(response));
-    } catch (error) {
-      logger.error('Error sending pong response:', { error });
-    }
-  }
   
   /**
    * Handle WebSocket close event
@@ -1144,7 +573,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       logger.info('[WebSocketServer] Classroom cleanup interval cleared.');
     }
 
-    // 2. Close all client connections
+    // 2. Shutdown SessionService
+    this.sessionService.shutdown();
+    logger.info('[WebSocketServer] SessionService shutdown completed.');
+
+    // 3. Close all client connections
     const connections = this.connectionManager.getConnections();
     logger.info(`[WebSocketServer] Closing ${connections.size} client connections...`);
     connections.forEach(client => {
@@ -1152,12 +585,12 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     });
     logger.info('[WebSocketServer] All client connections terminated.');
 
-    // 3. Clear internal maps and sets
+    // 4. Clear internal maps and sets
     this.connectionManager.clearAll();
     this.classroomSessions.clear();
     logger.info('[WebSocketServer] Internal maps and sets cleared.');
 
-    // 4. Close the underlying WebSocket server instance
+    // 5. Close the underlying WebSocket server instance
     if (this.wss) {
       this.wss.close((err) => {
         if (err) {
@@ -1168,7 +601,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       });
     }
     
-    // 5. Unsubscribe from HTTP server 'upgrade' events if we were listening
+    // 6. Unsubscribe from HTTP server 'upgrade' events if we were listening
     // This depends on how the server was attached. If it was passed in and WSS handles it,
     // then wss.close() should be enough. If manual listeners were added, they need removal.
     // Assuming wss.close() handles detaching from the httpServer for now.
