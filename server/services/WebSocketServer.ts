@@ -17,6 +17,9 @@ import { IActiveSessionProvider } from './IActiveSessionProvider'; // Added impo
 import { ConnectionManager, type WebSocketClient } from './websocket/ConnectionManager'; // Added import
 import { SessionService, type ClassroomSession } from './websocket/SessionService'; // Added SessionService import
 import { TranslationOrchestrator } from './websocket/TranslationOrchestrator'; // Added TranslationOrchestrator import
+import { ClassroomSessionManager } from './websocket/ClassroomSessionManager'; // Added ClassroomSessionManager import
+import { StorageSessionManager } from './websocket/StorageSessionManager'; // Added StorageSessionManager import
+import { ConnectionHealthManager } from './websocket/ConnectionHealthManager'; // Added ConnectionHealthManager import
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
@@ -60,6 +63,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private connectionManager: ConnectionManager; // Use ConnectionManager for connection tracking
   private sessionService: SessionService; // Injected SessionService for session management
   private translationOrchestrator: TranslationOrchestrator; // Injected TranslationOrchestrator for translation and TTS
+  private classroomSessionManager: ClassroomSessionManager; // Handles classroom session management
+  private storageSessionManager: StorageSessionManager; // Handles storage operations
+  private connectionHealthManager: ConnectionHealthManager; // Handles connection health monitoring
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
@@ -79,6 +85,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.connectionManager = new ConnectionManager(); // Initialize ConnectionManager
     this.sessionService = new SessionService(storage); // Initialize SessionService
     this.translationOrchestrator = new TranslationOrchestrator(storage); // Initialize TranslationOrchestrator
+    this.classroomSessionManager = new ClassroomSessionManager(); // Initialize ClassroomSessionManager
+    this.storageSessionManager = new StorageSessionManager(storage); // Initialize StorageSessionManager
+    this.connectionHealthManager = new ConnectionHealthManager(this.wss); // Initialize ConnectionHealthManager
     
     // Initialize message handling infrastructure
     this.messageHandlerRegistry = new MessageHandlerRegistry();
@@ -154,8 +163,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       this.handleConnection(ws as unknown as WebSocketClient, request);
     });
     
-    // Set up periodic ping to keep connections alive
-    this.setupHeartbeat();
+    // Note: Heartbeat is now handled by ConnectionHealthManager
   }
   
   /**
@@ -353,33 +361,6 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     } catch (error) {
       logger.error('Failed to end session in storage:', { error });
     }
-  }
-  
-  /**
-   * Set up heartbeat mechanism to detect dead connections
-   */
-  private setupHeartbeat(): void {
-    this.heartbeatInterval = setInterval(() => {
-      this.wss.clients.forEach((ws: any) => {
-        const client = ws as WebSocketClient;
-        
-        if (!client.isAlive) {
-          logger.info('Terminating dead connection', { sessionId: client.sessionId });
-          return client.terminate();
-        }
-        
-        // Mark as not alive and send ping
-        client.isAlive = false;
-        client.ping();
-        
-        // Also send a JSON ping message for clients that don't handle ping frames
-        try {
-          client.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
-        } catch (error) {
-          // Ignore send errors
-        }
-      });
-    }, 30000); // 30 seconds
   }
   
   /**
