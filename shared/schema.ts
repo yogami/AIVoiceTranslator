@@ -42,6 +42,7 @@ export const insertTranslationSchema = createInsertSchema(translations).pick({
   targetLanguage: true,
   originalText: true,
   translatedText: true,
+  sessionId: true,
   latency: true,
 });
 

@@ -99,16 +99,41 @@ export class DbTranslationStorage implements ITranslationStorage {
 
   async createTranslation(translation: InsertTranslation): Promise<Translation> {
     try {
+      // Add detailed logging before insertion
+      console.log('DbTranslationStorage.createTranslation: About to insert translation:', {
+        translation,
+        keys: Object.keys(translation),
+        sessionId: translation.sessionId,
+        latency: translation.latency,
+        timestamp: translation.timestamp
+      });
+      
       // Reverted: No longer deleting sessionId or latency.
       // Drizzle will attempt to insert all fields from the 'translation' object.
       // If columns are missing in the DB, this will likely throw an error,
       // which is the correct behavior if the DB schema is out of sync.
       const result = await db.insert(translations).values(translation).returning();
+      
+      console.log('DbTranslationStorage.createTranslation: Insert successful, result:', {
+        resultLength: result?.length,
+        result: result?.[0]
+      });
+      
       if (!result || result.length === 0) {
         throw new StorageError('No data returned after insert operation.', StorageErrorCode.DB_INSERT_FAILED);
       }
       return result[0];
     } catch (error: any) {
+      // Enhanced error logging
+      console.error('DbTranslationStorage.createTranslation: Database insertion failed:', {
+        error,
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorStack: error.stack,
+        translation,
+        translationKeys: Object.keys(translation)
+      });
+      
       if (error instanceof StorageError) {
         throw error;
       }

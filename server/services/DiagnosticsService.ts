@@ -272,8 +272,11 @@ export class DiagnosticsService {
     let currentAverageTranslationTimeMs = 0;
 
     try {
-      // Use preset for lastMinute as expected by tests and mocks
-      const recentMetrics = await this.storage.getTranslationMetrics({ preset: 'lastMinute' });
+      // Use last minute time range for current performance metrics
+      const lastMinuteRange = this.parseTimeRange('lastHour')!; // Use lastHour since lastMinute isn't a defined preset
+      const now = new Date();
+      const oneMinuteAgo = new Date(now.getTime() - 60 * 1000); // 1 minute ago
+      const recentMetrics = await this.storage.getTranslationMetrics({ startDate: oneMinuteAgo, endDate: now });
       currentTranslationCount = recentMetrics.recentTranslations;
       currentAverageTranslationTimeMs = recentMetrics.averageLatency;
     } catch (error) {
@@ -297,8 +300,10 @@ export class DiagnosticsService {
     // Define a default range if none is provided (e.g., last 60 minutes for a general overview)
     const effectiveRange = rangeInfo || this.parseTimeRange('lastHour')!;
 
-    const storageMetrics = await this.storage.getTranslationMetrics(effectiveRange);
-    const languagePairsData = await this.storage.getLanguagePairUsage(effectiveRange);
+    // Only pass startDate and endDate to storage methods (not the preset property)
+    const storageTimeRange = { startDate: effectiveRange.startDate, endDate: effectiveRange.endDate };
+    const storageMetrics = await this.storage.getTranslationMetrics(storageTimeRange);
+    const languagePairsData = await this.storage.getLanguagePairUsage(storageTimeRange);
     const languagePairsFormatted: LanguagePairMetric[] = languagePairsData.map(lp => ({
         ...lp,
         averageLatencyFormatted: this.formatDuration(lp.averageLatency, true)
@@ -320,7 +325,10 @@ export class DiagnosticsService {
     const rangeInfo = this.parseTimeRange(timeRangeParam);
     // Use lastHour as default if no range is provided, to match test expectations
     const effectiveRange = rangeInfo || this.parseTimeRange('lastHour')!;
-    const storageSessionMetrics = await this.storage.getSessionMetrics(effectiveRange);
+    
+    // Only pass startDate and endDate to storage methods (not the preset property)
+    const storageTimeRange = { startDate: effectiveRange.startDate, endDate: effectiveRange.endDate };
+    const storageSessionMetrics = await this.storage.getSessionMetrics(storageTimeRange);
     
     const activeSessions = this.activeSessionProvider?.getActiveSessionsCount() || 0;
     const studentsConnected = this.activeSessionProvider?.getActiveStudentCount() || 0;

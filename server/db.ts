@@ -8,10 +8,16 @@
 import dotenv from 'dotenv';
 
 if (process.env.NODE_ENV === 'test') {
+  console.log('🔧 DATABASE: Loading test environment config from .env.test');
   dotenv.config({ path: '.env.test', override: true });
 } else {
+  console.log('🔧 DATABASE: Loading default environment config from .env');
   dotenv.config();
 }
+
+console.log('🔧 DATABASE: NODE_ENV =', process.env.NODE_ENV);
+console.log('🔧 DATABASE: DATABASE_URL exists =', !!process.env.DATABASE_URL);
+console.log('🔧 DATABASE: DATABASE_URL type =', process.env.DATABASE_URL?.includes('neon.tech') ? 'Neon' : 'Standard Postgres');
 
 import * as schema from "../shared/schema";
 import { Pool, neonConfig, PoolConfig } from '@neondatabase/serverless';

@@ -35,6 +35,22 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
       return;
     }
     
+    // Store the transcript in the database
+    if (sessionId) {
+      const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';
+      try {
+        await context.storage.addTranscript({
+          sessionId,
+          language: teacherLanguage,
+          text: message.text
+        });
+        logger.info('Transcript stored successfully', { sessionId, language: teacherLanguage });
+      } catch (error) {
+        logger.error('Failed to store transcript:', { error, sessionId });
+        // Continue with translation - don't break core functionality
+      }
+    }
+    
     // Get all student connections and their languages
     const { connections: studentConnections, languages: studentLanguages } = 
       context.connectionManager.getStudentConnectionsAndLanguages();
