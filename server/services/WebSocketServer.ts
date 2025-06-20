@@ -165,9 +165,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    */
   private setupEventHandlers(): void {
     // Handle new connections
-    this.wss.on('connection', async (ws: WebSocket, request) => {
-      // Cast WebSocket to our custom WebSocketClient type and delegate to ConnectionLifecycleManager
-      await this.handleConnection(ws as unknown as WebSocketClient, request);
+    this.wss.on('connection', (ws: WebSocket, request) => {
+      // Cast WebSocket to our custom WebSocketClient type
+      this.handleConnection(ws as unknown as WebSocketClient, request);
     });
     
     // Note: Heartbeat is now handled by ConnectionHealthManager
@@ -176,14 +176,14 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   /**
    * Handle new WebSocket connection
    */
-  private async handleConnection(ws: WebSocketClient, request?: any): Promise<void> {
+  private handleConnection(ws: WebSocketClient, request?: any): void {
     logger.info('New WebSocket connection established');
     
     // Initialize connection health tracking
     this.connectionHealthManager.initializeConnection(ws);
     
     // Parse URL for classroom code and generate session ID - delegate to ConnectionLifecycleManager
-    const { sessionId, classroomCode } = await this.connectionLifecycleManager.parseConnectionRequest(request);
+    const { sessionId, classroomCode } = this.connectionLifecycleManager.parseConnectionRequest(request);
     
     // Validate classroom code if provided - delegate to ClassroomSessionManager
     if (classroomCode && !this.classroomSessionManager.isValidClassroomCode(classroomCode)) {
