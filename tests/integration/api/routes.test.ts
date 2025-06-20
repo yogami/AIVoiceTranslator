@@ -23,7 +23,7 @@ describe('API Routes', () => {
   beforeEach(async () => {
     // Create dependencies for the API routes
     const storage = new DatabaseStorage();
-    const diagnosticsService = new DiagnosticsService(storage);
+    const diagnosticsService = new DiagnosticsService(storage, null);
     
     // Create a test HTTP server for WebSocket
     app = express();

@@ -13,7 +13,6 @@ import { createServer, Server } from 'http';
 import express, { Request, Response } from 'express';
 import { AddressInfo } from 'net';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
-import { MemStorage } from '../../server/mem-storage';
 import { DatabaseStorage } from '../../server/database-storage';
 import { DiagnosticsService, type SessionActivity } from '../../server/services/DiagnosticsService'; // Import SessionActivity
 import { clearDiagnosticData } from '../e2e/test-data-utils';
@@ -44,7 +43,7 @@ describe('Diagnostics Service Integration', () => {
 
     httpServer = createServer(app);
     
-    testStorage = new MemStorage(new DatabaseStorage()); 
+    testStorage = new DatabaseStorage(); 
     
     // Instantiate DiagnosticsService first, passing null for IActiveSessionProvider
     diagnosticsServiceInstance = new DiagnosticsService(testStorage, null); 
@@ -80,12 +79,7 @@ describe('Diagnostics Service Integration', () => {
   
   beforeEach(async () => {
     // Clear data before each test
-    if (testStorage instanceof MemStorage) {
-      await testStorage.reset(); 
-    }
-    // else if (testStorage instanceof DatabaseStorage) {
-    //   await clearDiagnosticData(); // For actual DB tests
-    // }
+    await (testStorage as DatabaseStorage).reset(); 
     // diagnosticsServiceInstance is NOT re-created here. It uses the reset testStorage.
   });
 
