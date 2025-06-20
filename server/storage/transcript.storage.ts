@@ -1,7 +1,7 @@
 import { type Transcript, type InsertTranscript, transcripts } from "../../shared/schema";
 import { db } from "../db";
 import { eq, and, desc } from "drizzle-orm";
-import { StorageError } from "../storage.error"; // Corrected import
+import { StorageError, StorageErrorCode } from "../storage.error"; // Corrected import
 
 const DEFAULT_TRANSCRIPT_QUERY_LIMIT = 100;
 
@@ -57,7 +57,7 @@ export class DbTranscriptStorage implements ITranscriptStorage {
     try {
       const result = await db.insert(transcripts).values(transcript).returning();
       if (!result || result.length === 0) {
-        throw new StorageError('Failed to create transcript in DB, no data returned.', 'CREATE_FAILED');
+        throw new StorageError('Failed to create transcript in DB, no data returned.', StorageErrorCode.CREATE_FAILED);
       }
       return result[0];
     } catch (error) {
@@ -66,7 +66,7 @@ export class DbTranscriptStorage implements ITranscriptStorage {
       }
       // Log the original error for debugging if necessary
       // console.error("DB error during addTranscript:", error);
-      throw new StorageError('A database error occurred while adding the transcript.', 'STORAGE_ERROR', error instanceof Error ? error : undefined);
+      throw new StorageError('A database error occurred while adding the transcript.', StorageErrorCode.STORAGE_ERROR, error instanceof Error ? error.message : undefined);
     }
   }
 
@@ -83,7 +83,7 @@ export class DbTranscriptStorage implements ITranscriptStorage {
     } catch (error) {
       // Log the original error for debugging if necessary
       // console.error("DB error during getTranscriptsBySession:", error);
-      throw new StorageError('A database error occurred while retrieving transcripts.', 'STORAGE_ERROR', error instanceof Error ? error : undefined);
+      throw new StorageError('A database error occurred while retrieving transcripts.', StorageErrorCode.STORAGE_ERROR, error instanceof Error ? error.message : undefined);
     }
   }
 }
