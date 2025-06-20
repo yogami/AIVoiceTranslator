@@ -57,14 +57,24 @@ describe('DiagnosticsService', () => {
 
     // Default mock for getTranslationMetrics in beforeEach
     vi.spyOn(mockStorage, 'getTranslationMetrics').mockImplementation(async (arg: any) => {
-      console.log('[mockStorage.getTranslationMetrics] Received arg:', JSON.stringify(arg, null, 2));
+      // Check if this is a current performance call (short time range ~1 minute)
+      if (arg && typeof arg === 'object' && arg.startDate && arg.endDate) {
+        const timeDiff = new Date(arg.endDate).getTime() - new Date(arg.startDate).getTime();
+        const isCurrentPerformanceCall = timeDiff <= 65000; // <= 65 seconds (allowing some buffer for 1 minute calls)
+        
+        if (isCurrentPerformanceCall) {
+          const returnValue = { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
+          return returnValue;
+        }
+      }
+      
+      // Legacy check for preset-based calls
       if (arg && typeof arg === 'object' && arg.preset === 'lastMinute' && Object.keys(arg).length === 1) {
         const returnValue = { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
-        console.log('[mockStorage.getTranslationMetrics] Matched "lastMinute" preset. Returning:', JSON.stringify(returnValue, null, 2));
         return returnValue;
       }
+      
       const fallbackValue = { ...MOCK_HISTORICAL_TRANSLATIONS_DEFAULT };
-      console.log('[mockStorage.getTranslationMetrics] Did not match "lastMinute". Returning historical default:', JSON.stringify(fallbackValue, null, 2));
       return fallbackValue;
     });
 
@@ -157,15 +167,28 @@ describe('DiagnosticsService', () => {
       
       // Specific mock for this test
       vi.spyOn(mockStorage, 'getTranslationMetrics').mockImplementation(async (arg: any) => {
+        // Check for current performance call (short time range ~1 minute)
+        if (arg && typeof arg === 'object' && arg.startDate && arg.endDate) {
+          const timeDiff = new Date(arg.endDate).getTime() - new Date(arg.startDate).getTime();
+          const isCurrentPerformanceCall = timeDiff <= 65000; // <= 65 seconds
+          
+          if (isCurrentPerformanceCall) {
+            // Return a pristine object literal for current performance
+            return { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
+          }
+          
+          // Check for the specific time range used in this test
+          if (arg.startDate.getTime() === timeRange.startDate.getTime() &&
+              arg.endDate.getTime() === timeRange.endDate.getTime()) {
+            return { ...specificHistoricalDbTranslations }; // Specific historical data for this test
+          }
+        }
+        
+        // Legacy check for preset-based calls (shouldn't happen in current implementation)
         if (arg && typeof arg === 'object' && arg.preset === 'lastMinute' && Object.keys(arg).length === 1) {
-          // Return a pristine object literal for current performance
           return { totalTranslations: 3, averageLatency: 120, recentTranslations: 3 };
         }
-        if (arg && typeof arg === 'object' && arg.startDate && arg.endDate &&
-            arg.startDate.getTime() === timeRange.startDate.getTime() &&
-            arg.endDate.getTime() === timeRange.endDate.getTime()) {
-          return { ...specificHistoricalDbTranslations }; // Specific historical data for this test
-        }
+        
         return { ...MOCK_HISTORICAL_TRANSLATIONS_DEFAULT }; // Fallback for any other historical calls
       });
 
@@ -193,8 +216,18 @@ describe('DiagnosticsService', () => {
       expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
       
       expect(mockStorage.getSessionMetrics).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
-      // For current performance, DiagnosticsService calls storage.getTranslationMetrics with { preset: 'lastMinute' }
-      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(expect.objectContaining({ preset: 'lastMinute' }));
+      // For current performance, DiagnosticsService calls storage.getTranslationMetrics with a short time range (~1 minute)
+      const getTranslationMetricsSpy = vi.mocked(mockStorage.getTranslationMetrics);
+      const calls = getTranslationMetricsSpy.mock.calls;
+      const currentPerformanceCall = calls.find((call: any[]) => {
+        const arg = call[0];
+        if (arg && typeof arg === 'object' && arg.startDate && arg.endDate) {
+          const timeDiff = new Date(arg.endDate).getTime() - new Date(arg.startDate).getTime();
+          return timeDiff <= 65000; // <= 65 seconds (1 minute + buffer)
+        }
+        return false;
+      });
+      expect(currentPerformanceCall).toBeDefined();
       // For historical data with a specific date range
       expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
       expect(mockStorage.getLanguagePairUsage).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
@@ -247,8 +280,17 @@ describe('DiagnosticsService', () => {
       // We can't directly check metrics.timeRange.preset as it's resolved.
       // Instead, we check if the storage calls reflect the default preset.
 
-      // Current performance call
-      expect(getTranslationMetricsSpy).toHaveBeenCalledWith({ preset: 'lastMinute' });
+      // Current performance call - should be a short time range (approximately 1 minute)
+      const calls = getTranslationMetricsSpy.mock.calls;
+      const currentPerformanceCall = calls.find(call => {
+        const arg = call[0];
+        if (arg && typeof arg === 'object' && arg.startDate && arg.endDate) {
+          const timeDiff = new Date(arg.endDate).getTime() - new Date(arg.startDate).getTime();
+          return timeDiff <= 65000; // <= 65 seconds (1 minute + buffer)
+        }
+        return false;
+      });
+      expect(currentPerformanceCall).toBeDefined();
       
       // Historical data calls (with default time range, e.g., 'lastHour', resolved to dates)
       expect(getTranslationMetricsSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -305,8 +347,18 @@ describe('DiagnosticsService', () => {
         startDate: expect.any(Date), // Dates corresponding to 'last24Hours'
         endDate: expect.any(Date)
       }));
-      // And for current performance
-      expect(mockStorage.getTranslationMetrics).toHaveBeenCalledWith({ preset: 'lastMinute' });
+      // And for current performance - should be called with a short time range (~1 minute)
+      const getTranslationMetricsSpy = vi.mocked(mockStorage.getTranslationMetrics);
+      const calls = getTranslationMetricsSpy.mock.calls;
+      const currentPerformanceCall = calls.find((call: any[]) => {
+        const arg = call[0];
+        if (arg && typeof arg === 'object' && arg.startDate && arg.endDate) {
+          const timeDiff = new Date(arg.endDate).getTime() - new Date(arg.startDate).getTime();
+          return timeDiff <= 65000; // <= 65 seconds (1 minute + buffer)
+        }
+        return false;
+      });
+      expect(currentPerformanceCall).toBeDefined();
     });
   });
 
