@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "dotenv -e .env -- tsx server/index.ts",
-    "dev:test": "NODE_ENV=development E2E_TEST_MODE=true LOG_LEVEL=info tsx server/index.ts",
+    "dev:test": "NODE_ENV=test E2E_TEST_MODE=true LOG_LEVEL=info PORT=5001 tsx server/index.ts",
     "dev:client": "dotenv -e .env -- vite --config config/vite.config.ts",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build --config config/vite.config.ts",
@@ -28,9 +28,9 @@
     "test:integration:watch": "NODE_ENV=test TEST_MODE=integration vitest --config test-config/vitest/vitest.unified.config.mjs",
     "test:coverage": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs --coverage",
     "test:all": "npm run test:unit && npm run test:integration",
-    "test:e2e": "E2E_TEST_MODE=true playwright test --config=test-config/playwright.config.ts",
-    "test:e2e:ui": "E2E_TEST_MODE=true playwright test --config=test-config/playwright.config.ts --ui",
-    "test:e2e:debug": "E2E_TEST_MODE=true playwright test --config=test-config/playwright.config.ts --debug"
+    "test:e2e": "NODE_ENV=test E2E_TEST_MODE=true playwright test --config=test-config/playwright.config.ts",
+    "test:e2e:ui": "NODE_ENV=test E2E_TEST_MODE=true playwright test --config=test-config/playwright.config.ts --ui",
+    "test:e2e:debug": "NODE_ENV=test E2E_TEST_MODE=true playwright test --config=test-config/playwright.config.ts --debug"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

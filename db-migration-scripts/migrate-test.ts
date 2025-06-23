@@ -21,8 +21,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const runMigrations = async () => {
+  console.log('🟠 Starting test database migration...');
+  console.log('🟠 NODE_ENV:', process.env.NODE_ENV);
+  console.log('🟠 Current working directory:', process.cwd());
+  
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
+    console.error('❌ DATABASE_URL environment variable must be set.');
     throw new Error('DATABASE_URL environment variable must be set.');
   }
 
@@ -32,7 +37,6 @@ const runMigrations = async () => {
   console.log('🟠 Connecting to TEST database for migration...');
   console.log(`   DB URL (from .env.test): ${safeLogUrl}`);
 
-
   let migrationClient;
   try {
     migrationClient = postgres(dbUrl, { max: 1 });
@@ -41,12 +45,43 @@ const runMigrations = async () => {
     const migrationsFolder = path.resolve(__dirname, '../migrations');
     console.log(`🟠 Looking for migrations in: ${migrationsFolder}`);
     
-    await migrate(db, { migrationsFolder });
-
-    console.log('🟢 TEST Database migrations applied successfully!');
+    console.log('🟠 Running migrations...');
+    
+    try {
+      await migrate(db, { migrationsFolder });
+      console.log('🟢 TEST Database migrations applied successfully!');
+    } catch (migrationError: any) {
+      // Handle the case where tables already exist
+      if (migrationError.message?.includes('already exists')) {
+        console.log('🟡 Some tables already exist, checking if schema is complete...');
+        
+        // Verify that key tables exist
+        const result = await migrationClient`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('sessions', 'translations', 'languages', 'users')`;
+        const existingTables = result.map(r => r.table_name);
+        
+        console.log('🟡 Existing tables:', existingTables);
+        
+        if (existingTables.includes('sessions') && existingTables.includes('translations')) {
+          console.log('🟢 Required tables exist, schema is ready for testing');
+        } else {
+          console.error('🔴 Missing required tables:', ['sessions', 'translations'].filter(t => !existingTables.includes(t)));
+          throw new Error('Test database schema is incomplete');
+        }
+      } else {
+        // Re-throw other migration errors
+        throw migrationError;
+      }
+    }
+    
+    // Verify the tables were created/exist
+    const result = await migrationClient`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('sessions', 'translations')`;
+    console.log('🟢 Verified tables exist:', result.map(r => r.table_name));
+    
   } catch (error) {
-    console.error('🔴 Error applying TEST database migrations:', error);
-    process.exit(1);
+    console.error('🔴 Error applying TEST database migrations:');
+    console.error('🔴 Error message:', error.message);
+    console.error('🔴 Error stack:', error.stack);
+    throw error;
   } finally {
     if (migrationClient) {
       await migrationClient.end();

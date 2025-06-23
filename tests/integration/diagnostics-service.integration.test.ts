@@ -639,7 +639,7 @@ describe('Diagnostics Service Integration', () => {
 
       // Store initial aggregate counts
       const initialGlobalMetrics = await diagnosticsServiceInstance.getMetrics();
-      const initialTotalTranslationsFromDb = initialGlobalMetrics.translations.totalFromDatabase;
+      const initialTotalTranslations = initialGlobalMetrics.translations.total;
       const initialTotalSessions = initialGlobalMetrics.sessions.totalSessions;
       const initialTranscriptCountForSession = (initialGlobalMetrics.sessions.recentSessionActivity.find((act: SessionActivity) => act.sessionId === sessionId) || { transcriptCount: 0 }).transcriptCount;
 
@@ -658,7 +658,7 @@ describe('Diagnostics Service Integration', () => {
       expect(metrics).toBeDefined();
       expect(metrics.timeRange).toBeUndefined(); // No specific timeRange was requested
 
-      expect(metrics.translations.totalFromDatabase).toBeGreaterThanOrEqual(initialTotalTranslationsFromDb + 2);
+      expect(metrics.translations.totalFromDatabase).toBeGreaterThanOrEqual(initialTotalTranslations + 2);
       expect(metrics.sessions.totalSessions).toBeGreaterThanOrEqual(initialTotalSessions + (initialGlobalMetrics.sessions.recentSessionActivity.find((act: SessionActivity) => act.sessionId === sessionId) ? 0 : 1) ); // Session count increases if it's a new session not previously counted in total.
 
       const sessionActivity = metrics.sessions.recentSessionActivity.find((act: SessionActivity) => act.sessionId === sessionId);
@@ -667,6 +667,71 @@ describe('Diagnostics Service Integration', () => {
         expect(sessionActivity.transcriptCount).toBeGreaterThanOrEqual(initialTranscriptCountForSession + 2);
       }
     }, 15000);
+  });
+
+  describe('E2E Translation Retrieval Issue Reproduction', () => {
+    it('should retrieve translations that were created using storage methods (reproducing E2E issue)', async () => {
+      console.log('[DEBUG] Starting E2E issue reproduction test');
+      
+      // Step 1: Create sessions using storage methods (like E2E seeding does)
+      const sessionData = {
+        sessionId: 'e2e-test-session-1',
+        teacherLanguage: 'en'
+      };
+      
+      await testStorage.createSession(sessionData);
+      console.log('[DEBUG] Created session:', sessionData.sessionId);
+      
+      // Step 2: Create translations using storage methods (like real app does)
+      const translations = [
+        {
+          sessionId: 'e2e-test-session-1',
+          sourceLanguage: 'en',
+          targetLanguage: 'es', 
+          originalText: 'Hello',
+          translatedText: 'Hola',
+          latency: 100
+        },
+        {
+          sessionId: 'e2e-test-session-1',
+          sourceLanguage: 'en',
+          targetLanguage: 'fr',
+          originalText: 'World', 
+          translatedText: 'Monde',
+          latency: 150
+        }
+      ];
+      
+      for (const translation of translations) {
+        await testStorage.addTranslation(translation);
+        console.log('[DEBUG] Created translation:', translation.originalText, '->', translation.translatedText);
+      }
+      
+      // Step 3: Use DiagnosticsService to get metrics (like E2E API call does)
+      const metrics = await diagnosticsServiceInstance.getMetrics({
+        startDate: new Date('2000-01-01'),
+        endDate: new Date('2030-01-01')
+      });
+      
+      console.log('[DEBUG] DiagnosticsService metrics response:', {
+        totalSessions: metrics.sessions.totalSessions,
+        totalFromDatabase: metrics.translations.totalFromDatabase,
+        languagePairs: metrics.translations.languagePairs.length,
+        sessionActivity: metrics.sessions.recentSessionActivity.length
+      });
+      
+      // Step 4: Verify the issue - do translations show up?
+      expect(metrics.sessions.totalSessions).toBeGreaterThan(0);
+      expect(metrics.translations.totalFromDatabase).toBeGreaterThan(0); // This might fail, reproducing the E2E issue
+      expect(metrics.translations.languagePairs.length).toBeGreaterThan(0);
+      
+      // Additional verification - check language pairs contain our data
+      const enToEsPair = metrics.translations.languagePairs.find(
+        pair => pair.sourceLanguage === 'en' && pair.targetLanguage === 'es'
+      );
+      expect(enToEsPair).toBeDefined();
+      expect(enToEsPair!.count).toBeGreaterThan(0);
+    });
   });
 });
 

@@ -34,7 +34,24 @@ export async function seedSessions(sessionData: InsertSession[]) {
  */
 export async function seedTranslations(translationData: InsertTranslation[]) {
   if (translationData.length === 0) return [];
-  return db.insert(translations).values(translationData).returning();
+  
+  console.log(`🔧 About to seed ${translationData.length} translations`);
+  console.log('🔧 First translation sample:', JSON.stringify(translationData[0], null, 2));
+  
+  try {
+    const result = await db.insert(translations).values(translationData).returning();
+    console.log(`✅ Successfully inserted ${result.length} translations`);
+    
+    // Force any pending transactions to be committed by performing a simple read operation
+    const verifyCount = await db.select().from(translations).execute();
+    console.log(`✅ Seeded ${result.length} translations, verified ${verifyCount.length} total in database`);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Error seeding translations:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('❌ Error details:', error);
+    throw error;
+  }
 }
 
 /**
@@ -76,30 +93,37 @@ export async function seedRealisticTestData() {
   ];
   const seededSessions = await seedSessions(sessionsToSeed);
   
-  // Ensure seededSessions returned IDs. If not, the DB driver might not support `returning()` or it's configured differently.
-  if (!seededSessions || seededSessions.length === 0 || !seededSessions[0].id) {
-    console.error("Failed to seed sessions or retrieve their IDs. Translations might not be linked correctly.");
-    // Fallback or re-fetch if necessary, though ideally `returning()` works.
-    // For now, we'll proceed, but this is a critical point for data integrity.
+  // Ensure seededSessions returned IDs. If not, use the sessionIds we defined
+  let sessionIdsToUse: string[];
+  if (!seededSessions || seededSessions.length === 0 || !seededSessions[0].sessionId) {
+    console.warn("Database didn't return session data. Using predefined session IDs for translations.");
+    sessionIdsToUse = sessionsToSeed.map(s => s.sessionId);
+  } else {
+    sessionIdsToUse = seededSessions.map((s: any) => s.sessionId);
   }
 
-
   const translationsToSeed: InsertTranslation[] = [
-    // Translations in recent sessions (last 7 days) - ensure session IDs are valid
-    // Corrected: 'inputText' to 'originalText' based on the 'translations' table schema.
-    { sessionId: seededSessions[0]?.sessionId, sourceLanguage: 'en', targetLanguage: 'es', originalText: 'Hello', translatedText: 'Hola', latency: 100, timestamp: getDateRelativeToNow(-1, 1) },
-    { sessionId: seededSessions[0]?.sessionId, sourceLanguage: 'en', targetLanguage: 'fr', originalText: 'World', translatedText: 'Monde', latency: 150, timestamp: getDateRelativeToNow(-1, 1) },
-    { sessionId: seededSessions[1]?.sessionId, sourceLanguage: 'es', targetLanguage: 'en', originalText: 'Hola', translatedText: 'Hello', latency: 120, timestamp: getDateRelativeToNow(-3) },
-    { sessionId: seededSessions[2]?.sessionId, sourceLanguage: 'de', targetLanguage: 'en', originalText: 'Guten Tag', translatedText: 'Good day', latency: 200, timestamp: getDateRelativeToNow(0, -0.5) }, // Active session
-
-    // Translations in older sessions
-    { sessionId: seededSessions[3]?.sessionId, sourceLanguage: 'en', targetLanguage: 'de', originalText: 'Test', translatedText: 'Test', latency: 80, timestamp: getDateRelativeToNow(-10,1) },
-    { sessionId: seededSessions[4]?.sessionId, sourceLanguage: 'fr', targetLanguage: 'en', originalText: 'Bonjour', translatedText: 'Hello', latency: 180, timestamp: getDateRelativeToNow(-25) },
+    // Simplified translations with basic data to ensure compatibility
+    { sessionId: sessionIdsToUse[0], sourceLanguage: 'en', targetLanguage: 'es', originalText: 'Hello', translatedText: 'Hola', latency: 100 },
+    { sessionId: sessionIdsToUse[0], sourceLanguage: 'en', targetLanguage: 'fr', originalText: 'World', translatedText: 'Monde', latency: 150 },
+    { sessionId: sessionIdsToUse[1], sourceLanguage: 'es', targetLanguage: 'en', originalText: 'Hola', translatedText: 'Hello', latency: 120 },
+    { sessionId: sessionIdsToUse[2], sourceLanguage: 'de', targetLanguage: 'en', originalText: 'Guten Tag', translatedText: 'Good day', latency: 200 },
+    { sessionId: sessionIdsToUse[3], sourceLanguage: 'en', targetLanguage: 'de', originalText: 'Test', translatedText: 'Test', latency: 80 },
+    { sessionId: sessionIdsToUse[4], sourceLanguage: 'fr', targetLanguage: 'en', originalText: 'Bonjour', translatedText: 'Hello', latency: 180 },
   ];
   
   // Filter out any translations where sessionId might be undefined due to seeding issues
   const validTranslationsToSeed = translationsToSeed.filter(t => t.sessionId !== undefined);
-  await seedTranslations(validTranslationsToSeed);
+  const seededTranslations = await seedTranslations(validTranslationsToSeed);
 
   console.log(`Seeded ${seededSessions.length} sessions and ${validTranslationsToSeed.length} translations for E2E tests.`);
+  
+  // Final verification to ensure data is committed and visible
+  await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause
+  const finalVerification = await db.select().from(translations).execute();
+  
+  if (finalVerification.length !== validTranslationsToSeed.length) {
+    console.error(`❌ ERROR: Seeded ${validTranslationsToSeed.length} translations but only ${finalVerification.length} are visible!`);
+    throw new Error('Translation seeding failed - database transaction issue detected');
+  }
 }

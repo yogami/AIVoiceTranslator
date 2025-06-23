@@ -67,3 +67,20 @@ export function stopTestServer(port = 5001) {
 export function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * Ensure test database schema is up to date
+ */
+export async function ensureTestDatabaseSchema() {
+  try {
+    console.log('🔧 Ensuring test database schema is current...');
+    execSync('npm run db:migrations:apply:test', { 
+      stdio: 'inherit',
+      cwd: process.cwd()
+    });
+    console.log('✅ Test database schema verified');
+  } catch (error) {
+    console.error('❌ Failed to apply test database migrations:', error instanceof Error ? error.message : 'Unknown error');
+    throw new Error('Test database schema setup failed. E2E tests cannot proceed.');
+  }
+}

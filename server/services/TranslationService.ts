@@ -29,10 +29,6 @@ import { AudioFileHandler } from './handlers/AudioFileHandler';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-
-
 // Promisify file system operations
 const writeFile = promisify(fs.writeFile);
 const unlink = promisify(fs.unlink);
