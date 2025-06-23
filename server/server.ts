@@ -6,7 +6,10 @@
 // This causes TTS to use a placeholder API key, breaking audio on the student page.
 // We load dotenv here as a workaround, but this should be investigated further to ensure all entry points load env config before any service initialization.
 import dotenv from 'dotenv';
-dotenv.config();
+// Load appropriate .env file based on NODE_ENV (consistent with server/index.ts and server/db.ts)
+const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
+dotenv.config({ path: envFile });
+console.log(`🔧 SERVER/SERVER: Loading environment from ${envFile} (NODE_ENV=${process.env.NODE_ENV})`);
 
 import express from 'express';
 import { createServer, type Server } from 'http';
@@ -174,7 +177,10 @@ export async function startServer(app: express.Express): Promise<Server> {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const appInstance = express();
   logger.info('[DIRECT_RUN] server.ts is being run directly. Initializing and starting server...');
-  dotenv.config(); 
+  // Load appropriate .env file based on NODE_ENV (consistent with other server files)
+  const directRunEnvFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
+  dotenv.config({ path: directRunEnvFile }); 
+  console.log(`🔧 SERVER/DIRECT_RUN: Loading environment from ${directRunEnvFile} (NODE_ENV=${process.env.NODE_ENV})`);
   startServer(appInstance).catch(error => {
     logger.error('[DIRECT_RUN] Failed to start server from direct run:', error);
     process.exit(1);

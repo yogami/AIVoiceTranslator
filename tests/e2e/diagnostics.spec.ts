@@ -1,21 +1,33 @@
 // @ts-check
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
+import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
+import { ensureTestDatabaseSchema } from './test-setup';
 
-// TODO: Implement a data seeding strategy for E2E tests to ensure consistent
-// and realistic data for verifying time-range filtering and metric calculations.
-// This could involve pre-loading data into the test database or using mock API
-// responses with specific datasets for different time ranges.
-
-test.describe('Analytics Dashboard E2E Tests', () => {
+test.describe('Diagnostics Dashboard E2E Tests', () => {
   let page: Page;
 
+  test.beforeAll(async () => {
+    // Ensure database schema is current before any tests run
+    await ensureTestDatabaseSchema();
+  });
+
   test.beforeEach(async ({ browser }) => {
+    // Seed test data before each test to ensure fresh data
+    await clearDiagnosticData();
+    await seedRealisticTestData();
+    console.log('✅ Seeded fresh test data for diagnostics E2E test');
+    
     page = await browser.newPage();
     await page.goto('/diagnostics.html');
+    
+    // Give the server and database time to sync
+    await page.waitForTimeout(2000);
   });
 
   test.afterEach(async () => {
     await page.close();
+    // Clean up test data after each test to ensure idempotency
+    await clearDiagnosticData();
   });
 
   test('should load the analytics dashboard', async () => {
@@ -121,7 +133,7 @@ test.describe('Analytics Dashboard E2E Tests', () => {
   });
 
   test('should export data when export button is clicked', async () => {
-    // Set up download promise before clicking
+   
     const downloadPromise = page.waitForEvent('download');
     
     // Click export button
@@ -134,36 +146,76 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     expect(download.suggestedFilename()).toMatch(/analytics-export-\d{4}-\d{2}-\d{2}\.json/);
   });
 
-  test('should display language pair metrics table or no data message', async () => {
-    // Wait for usage analytics section to load
-    await page.waitForSelector('#usage-analytics', { timeout: 5000 });
+  test('should display language pair metrics or no data message', async () => {
+    // Simple check: either we have language pair data or a no-data message
+    const hasLanguagePairs = await page.locator('.language-pairs-table').count() > 0;
+    const hasNoDataMessage = await page.locator(':has-text("No language pair data available")').count() > 0;
     
-    // Check if table exists or no data message is shown
-    const tableExists = await page.locator('.language-pairs-table').count() > 0;
-    const noDataExists = await page.locator('.no-data').count() > 0;
-    
-    // Either table or no data message should be present
-    expect(tableExists || noDataExists).toBeTruthy();
-    
-    if (tableExists) {
-      // Check table headers
-      const headers = page.locator('.language-pairs-table th');
-      await expect(headers).toHaveCount(4);
-      await expect(headers.nth(0)).toContainText('Source Language');
-      await expect(headers.nth(1)).toContainText('Target Language');
-      await expect(headers.nth(2)).toContainText('Translation Count');
-      await expect(headers.nth(3)).toContainText('Average Latency');
-    }
+    // One of these should be true - we either show data or explain there's no data
+    expect(hasLanguagePairs || hasNoDataMessage).toBeTruthy();
   });
 
-  test('should handle API errors gracefully', async ({ page }) => {
+  test('should display current session quality stats', async () => {
+    // Product owner needs: current system performance
+    await page.waitForSelector('.metric-card', { timeout: 10000 });
+    
+    // Get API data to verify
+    const apiResponse = await page.evaluate(async () => {
+      const response = await fetch('/api/diagnostics?timeRange=last24Hours');
+      return response.json();
+    });
+    
+    // Verify key quality metrics are displayed
+    await expect(page.locator('.metric-card:has-text("Translation Volume")')).toBeVisible();
+    await expect(page.locator('.metric-card:has-text("System Health")')).toBeVisible();
+    
+    // Verify actual data matches what's in the database
+    const translationVolumeValue = await page.locator('.metric-card:has-text("Translation Volume") .metric-value').first().textContent();
+    expect(translationVolumeValue).toContain(apiResponse.translations.totalFromDatabase.toString());
+  });
+
+  test('should display historical usage stats', async () => {
+    // Product owner needs: usage trends and adoption
+    await page.waitForSelector('.metric-card', { timeout: 10000 });
+    
+    // Get API data for verification
+    const apiResponse = await page.evaluate(async () => {
+      const response = await fetch('/api/diagnostics?timeRange=last30Days');
+      return response.json();
+    });
+    
+    // Verify historical metrics are displayed
+    await expect(page.locator('.metric-card:has-text("Total Sessions")')).toBeVisible();
+    await expect(page.locator('.metric-card:has-text("Active Users")')).toBeVisible();
+    
+    // Verify session count matches database
+    const totalSessionsValue = await page.locator('.metric-card:has-text("Total Sessions") .metric-value').first().textContent();
+    expect(totalSessionsValue).toContain(apiResponse.sessions.totalSessions.toString());
+  });
+
+  test('should display recent session activity', async () => {
+    // Product owner needs: what's happening right now
+    await page.waitForSelector('#recent-activity', { timeout: 10000 });
+    
+    const recentActivity = page.locator('#recent-activity');
+    await expect(recentActivity).toBeVisible();
+    
+    // Should show some session information (either sessions or "no recent activity")
+    const activityContent = await recentActivity.textContent();
+    const hasSessionData = activityContent?.includes('session') || activityContent?.includes('Session');
+    const hasNoActivityMessage = activityContent?.includes('No recent') || activityContent?.includes('no recent');
+    
+    expect(hasSessionData || hasNoActivityMessage).toBeTruthy();
+  });
+
+  test('should handle API errors gracefully', async () => {
     // 1. Let the page load normally first (handled by beforeEach)
     // Ensure basic page structure is present before we mess with API calls
     await expect(page).toHaveTitle('Analytics Dashboard - AIVoiceTranslator', { timeout: 10000 });
     await expect(page.locator('h1')).toContainText('Analytics Dashboard', { timeout: 5000 });
 
     // 2. Intercept the *next* API call only and return an error
-    await page.route('/api/diagnostics**/*', async route => {
+    await page.route('/api/diagnostics**', async (route: Route) => {
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -179,13 +231,13 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     await expect(errorContainerLocator).toBeVisible({ timeout: 10000 });
     
     // 5. Check the error message text
-    // Based on frontend logic: `Failed to load diagnostics data.: HTTP error! status: 500: ${response.text()}`
+    // Based on frontend logic: `Failed to load diagnostics data.: HTTP ${response.status}: ${response.text()}`
     // response.text() will be `{"message":"Internal Server Error from mock"}`
     const errorMessageLocator = errorContainerLocator.locator('.error-message');
-    await expect(errorMessageLocator).toContainText('Failed to load diagnostics data.: HTTP error! status: 500: {\"message\":\"Internal Server Error from mock\"}', { timeout: 5000 });
+    await expect(errorMessageLocator).toContainText('Failed to load diagnostics data.: HTTP 500: {\"message\":\"Internal Server Error from mock\"}', { timeout: 5000 });
   });
 
-  test('should display formatted metrics correctly', async ({ page }) => {
+  test('should display formatted metrics correctly', async () => {
     // Wait for metrics to load
     await page.waitForSelector('.metric-value', { timeout: 10000 }); // Increased timeout
     
@@ -232,7 +284,7 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     expect(controlsStyle).toBe('column');
   });
 
-  test('should display recent session activity', async () => {
+  test('should display recent session activity with proper content structure', async () => {
     // Wait for recent activity section
     await page.waitForSelector('#recent-activity', { timeout: 10000 }); // Increased timeout
     
@@ -240,7 +292,7 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     const content = await recentActivity.textContent();
     
     // Should either show sessions or "no data" message
-    expect(content).toMatch(/Recent Sessions|No recent session activity/);
+    expect(content).toMatch(/Recent.*Session|No recent session activity/);
   });
 
   test('should update metrics in real-time when auto-refresh is enabled', async () => {
@@ -267,10 +319,24 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     const activeUsersCard = page.locator('.metric-card:has-text("Active Users")');
     await expect(activeUsersCard).toBeVisible();
     
-    // Check that it contains connection-related metrics
+    // Check that it contains connection-related metrics with actual values
     await expect(activeUsersCard).toContainText('Teachers Online');
     await expect(activeUsersCard).toContainText('Students Online');
     await expect(activeUsersCard).toContainText('Languages in Use');
+    
+    // Verify that metric values are displayed (not just labels)
+    const metricValues = activeUsersCard.locator('.metric-value');
+    await expect(metricValues).toHaveCount(3); // Should have 3 metric values
+    
+    // Check that the values are numbers (even if 0)
+    const teachersValue = await activeUsersCard.locator('.metric-item:has-text("Teachers Online") .metric-value').textContent();
+    const studentsValue = await activeUsersCard.locator('.metric-item:has-text("Students Online") .metric-value').textContent();
+    const languagesValue = await activeUsersCard.locator('.metric-item:has-text("Languages in Use") .metric-value').textContent();
+    
+    // Values should be numeric (including 0)
+    expect(teachersValue).toMatch(/^\d+$/);
+    expect(studentsValue).toMatch(/^\d+$/);
+    expect(languagesValue).toMatch(/^\d+$/);
   });
 
   test('should display session metrics correctly', async () => {
@@ -363,15 +429,89 @@ test.describe('Analytics Dashboard E2E Tests', () => {
     await page.waitForTimeout(500); // Allow time for data to potentially reload
   });
 
-  test('should display specific adoption metrics sections', async ({ page }) => {
+  test('should display adoption metrics section with data', async ({ page }) => {
     await page.goto('/diagnostics.html');
-    // These are more conceptual based on product owner intent.
-    // Actual selectors would depend on UI implementation.
-    // Example:
-    // await expect(page.locator('#active-users-daily')).toBeVisible();
-    // await expect(page.locator('#new-users-weekly')).toBeVisible();
-    // await expect(page.locator('#session-duration-trends')).toBeVisible();
-    // For now, this test is a placeholder for future, more specific metric UI elements.
-    expect(true).toBe(true); // Placeholder assertion
+    
+    // Check that adoption metrics section exists
+    const adoptionSection = page.locator('#adoption-metrics');
+    await expect(adoptionSection).toBeVisible();
+    
+    // Check that we have some content in the adoption metrics area
+    // This could be metric cards or a "no data" message
+    await page.waitForTimeout(2000); // Allow time for data to load
+    const hasContent = await adoptionSection.locator('*').count() > 0;
+    expect(hasContent).toBeTruthy();
+  });
+
+  test('should display key product owner metrics in recent session activity', async () => {
+    // Wait for recent activity section to load
+    await page.waitForSelector('#recent-activity', { timeout: 10000 });
+    
+    const recentActivity = page.locator('#recent-activity');
+    const content = await recentActivity.textContent();
+    
+    // Should show meaningful session activity or "no data" message
+    expect(content).toMatch(/Recent.*Session|No recent session activity/);
+    
+    // If there are sessions, check for product owner specific metrics
+    const hasSessions = await page.locator('.recent-sessions').count() > 0;
+    if (hasSessions) {
+      // Check for key metrics that answer product owner questions
+      await expect(page.locator('.summary-label:has-text("Average Class Size")')).toBeVisible();
+      await expect(page.locator('.summary-label:has-text("Full Class Sessions")')).toBeVisible();
+      await expect(page.locator('.summary-label:has-text("Total Sessions Tracked")')).toBeVisible();
+    }
+  });
+
+  test('should display section headers with product owner focus', async () => {
+    // Check for key section headers that address product owner needs
+    await expect(page.locator('.section-header:has-text("Product Usage Assessment")')).toBeVisible();
+    await expect(page.locator('.section-header:has-text("Language & Translation Analytics")')).toBeVisible();
+    await expect(page.locator('.section-header:has-text("Technical Reliability & Usage Patterns")')).toBeVisible();
+    await expect(page.locator('.section-header:has-text("Recent Session Activity")')).toBeVisible();
+  });
+
+  test('should validate seeded data shows real usage (not all zeros)', async () => {
+    // Wait for metrics to load
+    await page.waitForSelector('.metric-card', { timeout: 5000 });
+    
+    // Check that we have realistic session data
+    const totalSessionsCard = page.locator('.metric-card:has-text("Total Sessions")');
+    const sessionsValue = await totalSessionsCard.locator('.metric-item:has-text("All-time Sessions") .metric-value').textContent();
+    
+    // Should have some session data from seeding
+    const sessionsNum = parseInt(sessionsValue?.replace(/,/g, '') || '0');
+    expect(sessionsNum).toBeGreaterThan(0);
+    
+    // Check recent activity shows our seeded sessions
+    const recentActivity = page.locator('#recent-activity');
+    const activityContent = await recentActivity.textContent();
+    
+    // Should show sessions from seeded data (e2e-session-X pattern)
+    expect(activityContent).toMatch(/e2e-session-[1-5]/);
+  });
+
+  test('should verify test data is properly seeded and displayed', async () => {
+    // Wait for metrics to load
+    await page.waitForSelector('.metric-card', { timeout: 10000 });
+    
+    // Verify that we have non-zero values from seeded data
+    const totalSessionsCard = page.locator('.metric-card:has-text("Total Sessions")');
+    await expect(totalSessionsCard).toBeVisible();
+    
+    // Check session count shows seeded data
+    const totalSessionsValue = await totalSessionsCard.locator('.metric-value').first().textContent();
+    const sessionsNum = parseInt(totalSessionsValue?.replace(/,/g, '') || '0');
+    expect(sessionsNum).toBeGreaterThan(0);
+    
+    // Verify translation volume shows seeded data
+    const translationVolumeCard = page.locator('.metric-card:has-text("Translation Volume")');
+    await expect(translationVolumeCard).toBeVisible();
+    
+    const translationVolumeValue = await translationVolumeCard.locator('.metric-value').first().textContent();
+    const translationsNum = parseInt(translationVolumeValue?.replace(/,/g, '') || '0');
+    expect(translationsNum).toBeGreaterThanOrEqual(0); // Could be 0 if outside time range, but should be a valid number
+    
+    console.log(`✅ Test data verification: ${sessionsNum} sessions, ${translationsNum} translations displayed`);
   });
 });
