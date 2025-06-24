@@ -244,7 +244,21 @@ export const createApiRoutes = (
    * Get application diagnostics
    */
   const getDiagnostics = asyncHandler(async (req: Request, res: Response) => {
-    const metrics = await diagnosticsService.getMetrics(); // Uses injected diagnosticsService
+    // Handle timeRange query parameter
+    const timeRangeParam = req.query.timeRange as string | undefined;
+    let timeRange: any = undefined;
+    
+    if (timeRangeParam) {
+      // Validate that it's a valid preset
+      const validPresets = ['lastHour', 'last24Hours', 'last7Days', 'last30Days'];
+      if (validPresets.includes(timeRangeParam)) {
+        timeRange = timeRangeParam;
+      } else {
+        return res.status(400).json({ error: 'Invalid timeRange parameter. Valid values: ' + validPresets.join(', ') });
+      }
+    }
+    
+    const metrics = await diagnosticsService.getMetrics(timeRange);
     res.json(metrics);
   });
 

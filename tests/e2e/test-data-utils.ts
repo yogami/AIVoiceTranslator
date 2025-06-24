@@ -1,3 +1,10 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Explicitly load .env.test to ensure we're using the test database
+const envTestPath = path.resolve(process.cwd(), '.env.test');
+dotenv.config({ path: envTestPath, override: true });
+
 import { db } from '../../server/db';
 import { sessions, translations, transcripts, type InsertSession, type InsertTranslation, users } from '../../shared/schema';
 import { sql } from 'drizzle-orm';
@@ -14,7 +21,6 @@ export async function clearDiagnosticData() {
   try { await db.execute(sql`ALTER SEQUENCE sessions_id_seq RESTART WITH 1;`); } catch {}
   try { await db.execute(sql`ALTER SEQUENCE translations_id_seq RESTART WITH 1;`); } catch {}
   try { await db.execute(sql`ALTER SEQUENCE transcripts_id_seq RESTART WITH 1;`); } catch {}
-  console.log('Cleared diagnostic data (transcripts, translations, sessions) and reset sequences.');
 }
 
 /**
@@ -24,7 +30,14 @@ export async function clearDiagnosticData() {
  */
 export async function seedSessions(sessionData: InsertSession[]) {
   if (sessionData.length === 0) return [];
-  return db.insert(sessions).values(sessionData).returning();
+  
+  try {
+    const result = await db.insert(sessions).values(sessionData).returning();
+    return result;
+  } catch (error) {
+    console.error('Error seeding sessions:', error instanceof Error ? error.message : 'Unknown error');
+    throw error;
+  }
 }
 
 /**
@@ -35,21 +48,11 @@ export async function seedSessions(sessionData: InsertSession[]) {
 export async function seedTranslations(translationData: InsertTranslation[]) {
   if (translationData.length === 0) return [];
   
-  console.log(`🔧 About to seed ${translationData.length} translations`);
-  console.log('🔧 First translation sample:', JSON.stringify(translationData[0], null, 2));
-  
   try {
     const result = await db.insert(translations).values(translationData).returning();
-    console.log(`✅ Successfully inserted ${result.length} translations`);
-    
-    // Force any pending transactions to be committed by performing a simple read operation
-    const verifyCount = await db.select().from(translations).execute();
-    console.log(`✅ Seeded ${result.length} translations, verified ${verifyCount.length} total in database`);
-    
     return result;
   } catch (error) {
-    console.error('❌ Error seeding translations:', error instanceof Error ? error.message : 'Unknown error');
-    console.error('❌ Error details:', error);
+    console.error('Error seeding translations:', error instanceof Error ? error.message : 'Unknown error');
     throw error;
   }
 }
@@ -75,55 +78,45 @@ export function getDateRelativeToNow(daysOffset: number, hoursOffset: number = 0
 export async function seedRealisticTestData() {
   await clearDiagnosticData();
 
-  // Ensure prerequisite users exist or handle their creation.
-  // For this example, we assume user IDs 1 and 2 are available.
-  // You might want to add a user seeding step if necessary:
-  // await db.insert(users).values([{ id: 1, username: 'testuser1', email: 'user1@example.com', role: 'teacher' }, { id: 2, username: 'testuser2', email: 'user2@example.com', role: 'teacher' }]).onConflictDoNothing();
-
+  // Create timestamps for sessions to ensure they're within query ranges
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
 
   const sessionsToSeed: InsertSession[] = [
-    // Recent sessions (within last 7 days)
-    { sessionId: 'e2e-session-1', isActive: false, teacherLanguage: 'en' }, // Ended yesterday
-    { sessionId: 'e2e-session-2', isActive: false, teacherLanguage: 'es' }, // Ended 3 days ago
-    { sessionId: 'e2e-session-3', isActive: true, teacherLanguage: 'de' }, // Active, started 1 hour ago
-
+    // Recent sessions (within last 7 days) with explicit timestamps
+    { sessionId: 'e2e-session-1', isActive: false, teacherLanguage: 'en', startTime: twoDaysAgo, endTime: new Date(twoDaysAgo.getTime() + 60 * 60 * 1000) },
+    { sessionId: 'e2e-session-2', isActive: false, teacherLanguage: 'es', startTime: threeDaysAgo, endTime: new Date(threeDaysAgo.getTime() + 90 * 60 * 1000) },
+    { sessionId: 'e2e-session-3', isActive: true, teacherLanguage: 'de', startTime: oneHourAgo },
     // Older sessions (between 8 and 30 days ago)
-    { sessionId: 'e2e-session-4', isActive: false, teacherLanguage: 'fr' },
-    { sessionId: 'e2e-session-5', isActive: false, teacherLanguage: 'en' },
+    { sessionId: 'e2e-session-4', isActive: false, teacherLanguage: 'fr', startTime: tenDaysAgo, endTime: new Date(tenDaysAgo.getTime() + 45 * 60 * 1000) },
+    { sessionId: 'e2e-session-5', isActive: false, teacherLanguage: 'en', startTime: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000), endTime: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000) },
   ];
+  
   const seededSessions = await seedSessions(sessionsToSeed);
   
-  // Ensure seededSessions returned IDs. If not, use the sessionIds we defined
-  let sessionIdsToUse: string[];
-  if (!seededSessions || seededSessions.length === 0 || !seededSessions[0].sessionId) {
-    console.warn("Database didn't return session data. Using predefined session IDs for translations.");
-    sessionIdsToUse = sessionsToSeed.map(s => s.sessionId);
-  } else {
-    sessionIdsToUse = seededSessions.map((s: any) => s.sessionId);
-  }
+  // Use seeded session IDs or fallback to predefined ones
+  const sessionIdsToUse = seededSessions.length > 0 && seededSessions[0].sessionId
+    ? seededSessions.map((s: any) => s.sessionId)
+    : sessionsToSeed.map(s => s.sessionId);
+
+  // Create timestamps that are within the last 24 hours for reliable E2E tests
+  const translationOneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const translationTwoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+  const translationThreeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000);
 
   const translationsToSeed: InsertTranslation[] = [
-    // Simplified translations with basic data to ensure compatibility
-    { sessionId: sessionIdsToUse[0], sourceLanguage: 'en', targetLanguage: 'es', originalText: 'Hello', translatedText: 'Hola', latency: 100 },
-    { sessionId: sessionIdsToUse[0], sourceLanguage: 'en', targetLanguage: 'fr', originalText: 'World', translatedText: 'Monde', latency: 150 },
-    { sessionId: sessionIdsToUse[1], sourceLanguage: 'es', targetLanguage: 'en', originalText: 'Hola', translatedText: 'Hello', latency: 120 },
-    { sessionId: sessionIdsToUse[2], sourceLanguage: 'de', targetLanguage: 'en', originalText: 'Guten Tag', translatedText: 'Good day', latency: 200 },
-    { sessionId: sessionIdsToUse[3], sourceLanguage: 'en', targetLanguage: 'de', originalText: 'Test', translatedText: 'Test', latency: 80 },
-    { sessionId: sessionIdsToUse[4], sourceLanguage: 'fr', targetLanguage: 'en', originalText: 'Bonjour', translatedText: 'Hello', latency: 180 },
+    { sessionId: sessionIdsToUse[0], sourceLanguage: 'en', targetLanguage: 'es', originalText: 'Hello', translatedText: 'Hola', latency: 100, timestamp: translationOneHourAgo },
+    { sessionId: sessionIdsToUse[0], sourceLanguage: 'en', targetLanguage: 'fr', originalText: 'World', translatedText: 'Monde', latency: 150, timestamp: translationOneHourAgo },
+    { sessionId: sessionIdsToUse[1], sourceLanguage: 'es', targetLanguage: 'en', originalText: 'Hola', translatedText: 'Hello', latency: 120, timestamp: translationTwoHoursAgo },
+    { sessionId: sessionIdsToUse[2], sourceLanguage: 'de', targetLanguage: 'en', originalText: 'Guten Tag', translatedText: 'Good day', latency: 200, timestamp: translationTwoHoursAgo },
+    { sessionId: sessionIdsToUse[3], sourceLanguage: 'en', targetLanguage: 'de', originalText: 'Test', translatedText: 'Test', latency: 80, timestamp: translationThreeHoursAgo },
+    { sessionId: sessionIdsToUse[4], sourceLanguage: 'fr', targetLanguage: 'en', originalText: 'Bonjour', translatedText: 'Hello', latency: 180, timestamp: translationThreeHoursAgo },
   ];
   
-  // Filter out any translations where sessionId might be undefined due to seeding issues
+  // Filter out any translations where sessionId might be undefined
   const validTranslationsToSeed = translationsToSeed.filter(t => t.sessionId !== undefined);
-  const seededTranslations = await seedTranslations(validTranslationsToSeed);
-
-  console.log(`Seeded ${seededSessions.length} sessions and ${validTranslationsToSeed.length} translations for E2E tests.`);
-  
-  // Final verification to ensure data is committed and visible
-  await new Promise(resolve => setTimeout(resolve, 100)); // Brief pause
-  const finalVerification = await db.select().from(translations).execute();
-  
-  if (finalVerification.length !== validTranslationsToSeed.length) {
-    console.error(`❌ ERROR: Seeded ${validTranslationsToSeed.length} translations but only ${finalVerification.length} are visible!`);
-    throw new Error('Translation seeding failed - database transaction issue detected');
-  }
+  await seedTranslations(validTranslationsToSeed);
 }

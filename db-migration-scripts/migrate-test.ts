@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 
 // Explicitly load .env.test
 const envTestPath = path.resolve(process.cwd(), '.env.test');
-const result = dotenv.config({ path: envTestPath });
+const result = dotenv.config({ path: envTestPath, override: true }); // Override any existing env vars
 
 if (result.error) {
   console.warn(`🟠 Warning: Could not load .env.test file from ${envTestPath}. Ensure it exists if test-specific DB URL is needed. Error: ${result.error.message}`);

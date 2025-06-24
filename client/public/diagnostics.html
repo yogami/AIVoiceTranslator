@@ -88,13 +88,7 @@
             cursor: not-allowed;
         }
         
-        .export-btn {
-            background-color: var(--secondary-color);
-        }
-        
-        .export-btn:hover:not(:disabled) {
-            background-color: #27ae60;
-        }
+
         
         /* Section Headers */
         .section-header {
@@ -422,13 +416,10 @@
     
     <div class="controls">
         <button id="refresh-btn">🔄 Refresh Data</button>
-        <button id="export-btn" class="export-btn">📥 Export Data</button>
-        <button id="auto-refresh-btn">⏰ Auto-refresh: OFF</button>
         <select id="time-range-select">
             <option value="last24Hours">Last 24 Hours</option>
             <option value="last7Days">Last 7 Days</option>
             <option value="last30Days">Last 30 Days</option>
-            <option value="allTime">All Time</option>
         </select>
     </div>
     
@@ -436,47 +427,30 @@
     <div id="error-container"></div>
     <div id="loading" class="loading" style="display: none;">Loading analytics data...</div>
     
-    <!-- Product Adoption Metrics Section -->
-    <div class="section-header">
-        <h2>Product Adoption Metrics</h2>
-        <p>Key metrics answering: Do teachers adopt it? Do they use it for full classes? Does it handle classroom scale?</p>
-    </div>
-    
-    <div id="adoption-metrics" class="metrics-grid">
-        <!-- Adoption metrics will be populated here -->
-    </div>
-    
-    <!-- Product Owner Assessment Section -->
+    <!-- Product Usage Metrics Section -->
     <div class="section-header">
         <h2>Product Usage Assessment</h2>
         <p>Do teachers adopt it? Do they use it for full classes? Does it handle classroom scale?</p>
     </div>
     
-    <div id="product-assessment-metrics" class="metrics-grid">
+    <div id="adoption-metrics" class="metrics-grid">
+        <!-- Product usage metrics will be populated here -->
+    </div>
+    
+    <!-- Additional analytics containers -->
+    <div id="product-assessment-metrics" class="metrics-grid" style="display: none;">
         <!-- Product assessment metrics will be populated here -->
     </div>
     
-    <!-- Usage Analytics Section -->
-    <div class="section-header">
-        <h2>Usage Analytics</h2>
-        <p>Translation volume and language pair popularity for understanding market demand</p>
-    </div>
-    
-    <div id="usage-analytics">
+    <div id="usage-analytics" class="metrics-grid" style="display: none;">
         <!-- Usage analytics will be populated here -->
     </div>
     
-    <!-- Language & Translation Analytics Section -->
-    <div class="section-header">
-        <h2>Language & Translation Analytics</h2>
-        <p>Translation volume and language pair popularity for understanding market demand</p>
-    </div>
-    
-    <div id="language-analytics">
+    <div id="language-analytics" class="metrics-grid" style="display: none;">
         <!-- Language analytics will be populated here -->
     </div>
     
-    <!-- Performance & Quality Metrics Section -->
+    <!-- Technical Performance Section -->
     <div class="section-header">
         <h2>Performance & Quality Metrics</h2>
         <p>System performance metrics and usage frequency patterns for technical viability assessment</p>
@@ -486,13 +460,7 @@
         <!-- Performance metrics will be populated here -->
     </div>
     
-    <!-- Technical Reliability Section -->
-    <div class="section-header">
-        <h2>Technical Reliability & Usage Patterns</h2>
-        <p>System performance metrics and usage frequency patterns for technical viability assessment</p>
-    </div>
-    
-    <div id="technical-reliability-metrics" class="metrics-grid">
+    <div id="technical-reliability-metrics" class="metrics-grid" style="display: none;">
         <!-- Technical reliability metrics will be populated here -->
     </div>
     
@@ -511,8 +479,6 @@
     </div>
     
     <script>
-        let autoRefreshInterval = null;
-        let isAutoRefreshEnabled = false;
         let currentTimeRange = 'last24Hours'; // Default time range
 
         function updateCurrentTimeRangeDisplay() {
@@ -525,7 +491,12 @@
         }
         
         function showError(message) {
+            console.error('showError called with:', message);
             const container = document.getElementById('error-container');
+            if (!container) {
+                console.error('error-container element not found');
+                return;
+            }
             container.innerHTML = `<div class="error-message">${message}</div>`;
             container.style.display = 'block';
         }
@@ -598,12 +569,18 @@
             
             // Update last updated time
             const lastUpdated = document.getElementById('last-updated');
-            const updateTime = new Date(data.lastUpdated).toLocaleString();
-            lastUpdated.innerHTML = `Last updated: ${updateTime}`;
+            if (lastUpdated && data.lastUpdated) {
+                const updateTime = new Date(data.lastUpdated).toLocaleString();
+                lastUpdated.innerHTML = `Last updated: ${updateTime}`;
+            }
         }
         
         function displayAdoptionMetrics(data) {
             const container = document.getElementById('adoption-metrics');
+            if (!container) {
+                console.error('adoption-metrics container not found');
+                return;
+            }
             container.innerHTML = '';
             
             // Total Sessions Card (expected by E2E tests)
@@ -866,10 +843,17 @@
         }
         
         function displayRecentActivity(data) {
+            console.log('🔧 displayRecentActivity called with:', data?.sessions);
             const container = document.getElementById('recent-activity');
+            if (!container) {
+                console.error('recent-activity container not found');
+                return;
+            }
             container.innerHTML = '';
+            container.style.display = 'block'; // Ensure it's visible
             
             if (data.sessions?.recentSessionActivity && data.sessions.recentSessionActivity.length > 0) {
+                console.log('✅ Recent activity data found:', data.sessions.recentSessionActivity.length, 'sessions');
                 const activityDiv = document.createElement('div');
                 activityDiv.className = 'recent-sessions';
                 
@@ -935,6 +919,7 @@
                 
                 container.appendChild(activityDiv);
             } else {
+                console.log('❌ No recent activity data found');
                 container.innerHTML = '<div class="no-data">No recent session activity</div>';
             }
         }
@@ -998,62 +983,11 @@
             return languages[code] || code;
         }
         
-        async function exportDiagnostics() {
-            try {
-                console.log('Exporting diagnostics...');
-                const response = await fetch('/api/diagnostics/export');
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                // Create and download JSON file
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `analytics-export-${new Date().toISOString().split('T')[0]}.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                console.log('Analytics exported successfully');
-            } catch (error) {
-                console.error('Error exporting analytics:', error);
-                showError(`Failed to export analytics: ${error.message}`);
-            }
-        }
-        
-        function toggleAutoRefresh() {
-            const button = document.getElementById('auto-refresh-btn');
-            
-            if (isAutoRefreshEnabled) {
-                // Disable auto-refresh
-                clearInterval(autoRefreshInterval);
-                autoRefreshInterval = null;
-                isAutoRefreshEnabled = false;
-                button.textContent = '⏰ Auto-refresh: OFF';
-                button.style.backgroundColor = 'var(--primary-color)'; // Use CSS variable
-                button.classList.remove('auto-refresh-on');
-            } else {
-                // Enable auto-refresh
-                autoRefreshInterval = setInterval(loadDiagnostics, 5000); // Refresh every 5 seconds
-                isAutoRefreshEnabled = true;
-                button.textContent = '⏰ Auto-refresh: ON';
-                button.style.backgroundColor = 'var(--secondary-color)'; // Use CSS variable
-                button.classList.add('auto-refresh-on');
-                loadDiagnostics(); // Load immediately
-            }
-        }
-        
         // Event listeners
         document.getElementById('refresh-btn').addEventListener('click', loadDiagnostics);
-        document.getElementById('export-btn').addEventListener('click', exportDiagnostics);
-        document.getElementById('auto-refresh-btn').addEventListener('click', toggleAutoRefresh);
         document.getElementById('time-range-select').addEventListener('change', (event) => {
             currentTimeRange = event.target.value;
+            updateCurrentTimeRangeDisplay(); // Update the display text
             loadDiagnostics(); // Reload data when time range changes
         });
         
