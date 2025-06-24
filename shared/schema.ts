@@ -40,6 +40,7 @@ export const translations = pgTable("translations", {
 export const insertTranslationSchema = createInsertSchema(translations);
 
 export const transcripts = pgTable("transcripts", {
+  id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull(),
   language: text("language").notNull(),
   text: text("text").notNull(),
