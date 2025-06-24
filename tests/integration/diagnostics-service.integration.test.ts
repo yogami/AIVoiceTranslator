@@ -28,6 +28,7 @@ describe('Diagnostics Service Integration', () => {
 
   beforeAll(async () => {
     // Set environment variable for testing persistence
+    process.env.NODE_ENV = 'test';
     process.env.ENABLE_DETAILED_TRANSLATION_LOGGING = 'true';
 
     const app = express();
