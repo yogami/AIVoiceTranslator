@@ -1,10 +1,11 @@
 import {
-  type User, users, type InsertUser,
+  type User, users, insertUserSchema,
   type Session, sessions, type InsertSession,
   type Translation, translations, type InsertTranslation,
   type Language, languages, type InsertLanguage, // Added languages table object
   type Transcript, transcripts as transcriptsTable, type InsertTranscript // Added transcripts table object and aliased to avoid conflict
 } from '../shared/schema';
+import { z } from 'zod';
 import { StorageError, StorageErrorCode } from './storage.error';
 import { IStorage } from './storage.interface';
 import logger from './logger';
@@ -45,7 +46,7 @@ export class DatabaseStorage implements IStorage {
   // User methods (delegated)
   async getUser(id: number) { return this.userStorage.getUser(id); }
   async getUserByUsername(username: string) { return this.userStorage.getUserByUsername(username); }
-  async createUser(user: InsertUser) { return this.userStorage.createUser(user); }
+  async createUser(user: z.infer<typeof insertUserSchema>) { return this.userStorage.createUser(user); }
   async listUsers(): Promise<User[]> {
     return this.userStorage.listUsers();
   }
@@ -163,6 +164,7 @@ export class DatabaseStorage implements IStorage {
     logger.debug('DatabaseStorage.getSessionMetrics called', { timeRange });
 
     const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
+    
     const totalSessionsResult = await drizzleDB
       .select({ totalSessions: count() })
       .from(sessions)
@@ -201,6 +203,7 @@ export class DatabaseStorage implements IStorage {
     const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
     const sessionsLast24HoursResult = await drizzleDB
       .select({ count: count() })
       .from(sessions)
@@ -249,6 +252,7 @@ export class DatabaseStorage implements IStorage {
 
     const recentTranslationsQueryName = "translation_metrics_recent";
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    
     const recentTranslationsResult = await drizzleDB
       .select({ count: count(translations.id) })
       .from(translations)
@@ -260,7 +264,6 @@ export class DatabaseStorage implements IStorage {
     if (recentTranslationsResult && recentTranslationsResult.length > 0 && recentTranslationsResult[0].count !== null) {
       recentTranslationsCount = Number(recentTranslationsResult[0].count) || 0;
     }
-
     logger.debug('DatabaseStorage.getTranslationMetrics results', { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount });
     return { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount };
   }

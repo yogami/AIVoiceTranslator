@@ -37,17 +37,9 @@ export const translations = pgTable("translations", {
   latency: integer("latency"),
 });
 
-export const insertTranslationSchema = createInsertSchema(translations).pick({
-  sourceLanguage: true,
-  targetLanguage: true,
-  originalText: true,
-  translatedText: true,
-  sessionId: true,
-  latency: true,
-});
+export const insertTranslationSchema = createInsertSchema(translations);
 
 export const transcripts = pgTable("transcripts", {
-  id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull(),
   language: text("language").notNull(),
   text: text("text").notNull(),
@@ -72,18 +64,9 @@ export const sessions = pgTable("sessions", {
   isActive: boolean("is_active").default(true),
 });
 
-export const insertSessionSchema = createInsertSchema(sessions).pick({
-  sessionId: true,
-  teacherLanguage: true,
-  studentsCount: true,
-  totalTranslations: true,
-  averageLatency: true,
-  isActive: true,
-});
+export const insertSessionSchema = createInsertSchema(sessions);
 
 export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-
 export type Language = typeof languages.$inferSelect;
 export type InsertLanguage = z.infer<typeof insertLanguageSchema>;
 
@@ -94,4 +77,4 @@ export type Transcript = typeof transcripts.$inferSelect;
 export type InsertTranscript = z.infer<typeof insertTranscriptSchema>;
 
 export type Session = typeof sessions.$inferSelect;
-export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type InsertSession = typeof sessions.$inferInsert;
