@@ -325,6 +325,9 @@ describe('DatabaseStorage Metrics', () => {
         studentsCount: 0,
         totalTranslations: 0, 
         averageLatency: null,
+        quality: 'unknown',
+        qualityReason: null,
+        lastActivityAt: null
       };
       
       const mockSessionStorageInstance = (storage as any).sessionStorage;
@@ -343,6 +346,70 @@ describe('DatabaseStorage Metrics', () => {
       const session = await storage.getSessionById('non-existent-db-session');
       expect(session).toBeUndefined();
       expect(mockSessionStorageInstance.getSessionById).toHaveBeenCalledWith('non-existent-db-session');
+    });
+  });
+
+  describe('getTranscriptCountBySession', () => {
+    it('should delegate to sessionStorage.getTranscriptCountBySession', async () => {
+      const sessionId = 'test-session-transcript-count';
+      const expectedCount = 5;
+      
+      const mockSessionStorageInstance = (storage as any).sessionStorage;
+      (mockSessionStorageInstance.getTranscriptCountBySession as import('vitest').Mock).mockResolvedValue(expectedCount);
+
+      const count = await storage.getTranscriptCountBySession(sessionId);
+      expect(count).toBe(expectedCount);
+      expect(mockSessionStorageInstance.getTranscriptCountBySession).toHaveBeenCalledWith(sessionId);
+    });
+
+    it('should return 0 when no transcripts found', async () => {
+      const sessionId = 'empty-session';
+      
+      const mockSessionStorageInstance = (storage as any).sessionStorage;
+      (mockSessionStorageInstance.getTranscriptCountBySession as import('vitest').Mock).mockResolvedValue(0);
+
+      const count = await storage.getTranscriptCountBySession(sessionId);
+      expect(count).toBe(0);
+      expect(mockSessionStorageInstance.getTranscriptCountBySession).toHaveBeenCalledWith(sessionId);
+    });
+  });
+
+  describe('getSessionQualityStats', () => {
+    it('should delegate to sessionStorage.getSessionQualityStats', async () => {
+      const expectedStats = {
+        total: 10,
+        real: 6,
+        dead: 4,
+        breakdown: {
+          real: 6,
+          no_students: 2,
+          no_activity: 1,
+          too_short: 1
+        }
+      };
+      
+      const mockSessionStorageInstance = (storage as any).sessionStorage;
+      (mockSessionStorageInstance.getSessionQualityStats as import('vitest').Mock).mockResolvedValue(expectedStats);
+
+      const stats = await storage.getSessionQualityStats();
+      expect(stats).toEqual(expectedStats);
+      expect(mockSessionStorageInstance.getSessionQualityStats).toHaveBeenCalled();
+    });
+
+    it('should return empty stats when no sessions exist', async () => {
+      const expectedStats = {
+        total: 0,
+        real: 0,
+        dead: 0,
+        breakdown: {}
+      };
+      
+      const mockSessionStorageInstance = (storage as any).sessionStorage;
+      (mockSessionStorageInstance.getSessionQualityStats as import('vitest').Mock).mockResolvedValue(expectedStats);
+
+      const stats = await storage.getSessionQualityStats();
+      expect(stats).toEqual(expectedStats);
+      expect(mockSessionStorageInstance.getSessionQualityStats).toHaveBeenCalled();
     });
   });
 });

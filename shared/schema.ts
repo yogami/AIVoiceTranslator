@@ -63,11 +63,15 @@ export const sessions = pgTable("sessions", {
   totalTranslations: integer("total_translations").default(0),
   averageLatency: integer("average_latency"),
   isActive: boolean("is_active").default(true),
+  quality: text("quality", { enum: ["unknown", "real", "no_students", "no_activity", "too_short"] }).default("unknown"),
+  qualityReason: text("quality_reason"),
+  lastActivityAt: timestamp("last_activity_at").defaultNow(),
 });
 
 export const insertSessionSchema = createInsertSchema(sessions);
 
 export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
 export type Language = typeof languages.$inferSelect;
 export type InsertLanguage = z.infer<typeof insertLanguageSchema>;
 

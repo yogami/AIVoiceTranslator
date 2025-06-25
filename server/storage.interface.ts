@@ -67,6 +67,13 @@ export interface IStorage {
   endSession(sessionId: string): Promise<Session | undefined>;
   getRecentSessionActivity(limit?: number): Promise<StorageRecentSessionActivity[]>;
   getSessionById(sessionId: string): Promise<Session | undefined>;
+  getTranscriptCountBySession(sessionId: string): Promise<number>;
+  getSessionQualityStats(): Promise<{
+    total: number;
+    real: number; 
+    dead: number;
+    breakdown: Record<string, number>;
+  }>;
   
   // Analytics methods
   getSessionAnalytics(sessionId: string): Promise<{ // Consider defining a type for this return
