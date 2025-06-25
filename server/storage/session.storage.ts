@@ -30,6 +30,13 @@ export interface ISessionStorage {
   endSession(sessionId: string): Promise<Session | undefined>;
   getRecentSessionActivity(limit?: number): Promise<SessionActivity[]>;
   getSessionById(sessionId: string): Promise<Session | undefined>;
+  getTranscriptCountBySession(sessionId: string): Promise<number>;
+  getSessionQualityStats(): Promise<{
+    total: number;
+    real: number; 
+    dead: number;
+    breakdown: Record<string, number>;
+  }>;
 }
 
 export class MemSessionStorage implements ISessionStorage {
@@ -65,8 +72,11 @@ export class MemSessionStorage implements ISessionStorage {
       endTime: null,
       studentsCount: insertSession.studentsCount ?? 0, // Ensure default is 0, not null
       totalTranslations: insertSession.totalTranslations ?? 0, // Default to 0
-      averageLatency: insertSession.averageLatency ?? 0, // Default to 0
-      isActive: insertSession.isActive ?? true
+      averageLatency: insertSession.averageLatency ?? null, // Keep as null for new sessions
+      isActive: insertSession.isActive ?? true,
+      quality: insertSession.quality ?? 'unknown',
+      qualityReason: insertSession.qualityReason ?? null,
+      lastActivityAt: insertSession.lastActivityAt ?? new Date()
     };
     this.sessions.set(id, session);
     return session;
@@ -134,6 +144,38 @@ export class MemSessionStorage implements ISessionStorage {
 
   async getSessionById(sessionId: string): Promise<Session | undefined> {
     return Array.from(this.sessions.values()).find(s => s.sessionId === sessionId);
+  }
+
+  async getTranscriptCountBySession(sessionId: string): Promise<number> {
+    const transcriptsForSession = Array.from(this.transcripts.values())
+      .filter(t => t.sessionId === sessionId);
+    return transcriptsForSession.length;
+  }
+
+  async getSessionQualityStats(): Promise<{
+    total: number;
+    real: number; 
+    dead: number;
+    breakdown: Record<string, number>;
+  }> {
+    const breakdown: Record<string, number> = {};
+    let total = 0;
+    let real = 0;
+    let dead = 0;
+
+    for (const session of this.sessions.values()) {
+      const quality = session.quality || 'unknown';
+      breakdown[quality] = (breakdown[quality] || 0) + 1;
+      total++;
+      
+      if (quality === 'real') {
+        real++;
+      } else if (['no_students', 'no_activity', 'too_short'].includes(quality)) {
+        dead++;
+      }
+    }
+
+    return { total, real, dead, breakdown };
   }
 }
 
@@ -303,6 +345,59 @@ export class DbSessionStorage implements ISessionStorage {
       return result[0];
     } catch (error: any) {
       throw new StorageError(`Failed to get session by ID ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+    }
+  }
+
+  async getTranscriptCountBySession(sessionId: string): Promise<number> {
+    try {
+      const result = await db
+        .select({ count: drizzleCount(transcripts.id) })
+        .from(transcripts)
+        .where(eq(transcripts.sessionId, sessionId));
+      
+      return result[0]?.count ? Number(result[0].count) : 0;
+    } catch (error: any) {
+      throw new StorageError(`Failed to get transcript count for session ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+    }
+  }
+
+  async getSessionQualityStats(): Promise<{
+    total: number;
+    real: number; 
+    dead: number;
+    breakdown: Record<string, number>;
+  }> {
+    try {
+      const result = await db
+        .select({
+          quality: sessions.quality,
+          count: drizzleCount(sessions.id)
+        })
+        .from(sessions)
+        .where(dbSql`${sessions.quality} IS NOT NULL`)
+        .groupBy(sessions.quality);
+
+      const breakdown: Record<string, number> = {};
+      let total = 0;
+      let real = 0;
+      let dead = 0;
+
+      for (const row of result) {
+        const quality = row.quality || 'unknown';
+        const count = Number(row.count) || 0;
+        breakdown[quality] = count;
+        total += count;
+        
+        if (quality === 'real') {
+          real += count;
+        } else if (['no_students', 'no_activity', 'too_short'].includes(quality)) {
+          dead += count;
+        }
+      }
+
+      return { total, real, dead, breakdown };
+    } catch (error: any) {
+      throw new StorageError(`Failed to get session quality stats: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
 }

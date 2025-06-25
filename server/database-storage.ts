@@ -122,6 +122,20 @@ export class DatabaseStorage implements IStorage {
     return this.sessionStorage.updateSession(sessionId, updates);
   }
 
+  // Session quality and lifecycle methods (delegated)
+  async getTranscriptCountBySession(sessionId: string): Promise<number> {
+    return this.sessionStorage.getTranscriptCountBySession(sessionId);
+  }
+
+  async getSessionQualityStats(): Promise<{
+    total: number;
+    real: number; 
+    dead: number;
+    breakdown: Record<string, number>;
+  }> {
+    return this.sessionStorage.getSessionQualityStats();
+  }
+
   // Analytics methods
   async getSessionAnalytics(sessionId: string): Promise<{
     totalTranslations: number;

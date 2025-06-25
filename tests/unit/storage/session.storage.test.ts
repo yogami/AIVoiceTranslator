@@ -166,8 +166,8 @@ describe('Session Storage', () => {
     });
     
     it('should correctly initialize idCounter if sessionsMap is pre-populated', () => {
-      sessionsMap.set(3, { id: 3, sessionId: 'pre1', isActive: true, teacherLanguage: 'en', startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null });
-      sessionsMap.set(8, { id: 8, sessionId: 'pre8', isActive: false, teacherLanguage: 'fr', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null });
+      sessionsMap.set(3, { id: 3, sessionId: 'pre1', isActive: true, teacherLanguage: 'en', startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null });
+      sessionsMap.set(8, { id: 8, sessionId: 'pre8', isActive: false, teacherLanguage: 'fr', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null });
       idCounter = { value: 1 };
       const prePopulatedStorage = new MemSessionStorage(sessionsMap, idCounter, transcriptsMap);
       expect(idCounter.value).toBe(9); // maxId + 1
@@ -204,7 +204,8 @@ describe('Session Storage', () => {
       const returnedSession: Session = { 
         id: 1, ...newSessionData, isActive: true, startTime: new Date(), endTime: null, 
         studentsCount: 0, totalTranslations: 0, averageLatency: null,
-        teacherLanguage: newSessionData.teacherLanguage ?? null 
+        teacherLanguage: newSessionData.teacherLanguage ?? null,
+        quality: 'unknown', qualityReason: null, lastActivityAt: null
       };
       (mockedDb.returning as Mock).mockResolvedValueOnce([returnedSession]);
 
@@ -240,7 +241,8 @@ describe('Session Storage', () => {
       const updates: Partial<InsertSession> = { teacherLanguage: 'es', studentsCount: 3 };
       const returnedSession: Session = { 
         id: 1, sessionId: 'db-sess-upd', teacherLanguage: 'es', studentsCount: 3, 
-        isActive: true, startTime: new Date(), endTime: null, totalTranslations: 0, averageLatency: null 
+        isActive: true, startTime: new Date(), endTime: null, totalTranslations: 0, averageLatency: null,
+        quality: 'unknown', qualityReason: null, lastActivityAt: null
       };
       (mockedDb.returning as Mock).mockResolvedValueOnce([returnedSession]);
       
@@ -274,7 +276,8 @@ describe('Session Storage', () => {
     it('should get an active session by sessionId from DB', async () => {
       const mockSession: Session = { 
         id: 1, sessionId: 'db-active', teacherLanguage: 'it', isActive: true, 
-        startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null 
+        startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null,
+        quality: 'unknown', qualityReason: null, lastActivityAt: null
       };
       ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => resolveCallback([mockSession]));
       
@@ -309,8 +312,8 @@ describe('Session Storage', () => {
 
     it('should get all active sessions from DB', async () => {
       const mockSessionsData: Session[] = [
-        { id: 1, sessionId: 'db-active1', teacherLanguage: 'ja', isActive: true, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null },
-        { id: 2, sessionId: 'db-active2', teacherLanguage: 'en', isActive: true, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null },
+        { id: 1, sessionId: 'db-active1', teacherLanguage: 'ja', isActive: true, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
+        { id: 2, sessionId: 'db-active2', teacherLanguage: 'en', isActive: true, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
       ];
       ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => resolveCallback(mockSessionsData));
       
@@ -331,7 +334,8 @@ describe('Session Storage', () => {
       const endedSessionData: Session = { 
         id: 1, sessionId: sessionIdToEnd, teacherLanguage: 'ko', isActive: false, 
         startTime: new Date(Date.now() - 1000 * 60 * 5), endTime: new Date(), 
-        studentsCount: 2, totalTranslations: 10, averageLatency: 150.5 
+        studentsCount: 2, totalTranslations: 10, averageLatency: 150.5,
+        quality: 'real', qualityReason: 'Session completed', lastActivityAt: new Date()
       };
       (mockedDb.returning as Mock).mockResolvedValueOnce([endedSessionData]);
 
@@ -442,6 +446,177 @@ describe('Session Storage', () => {
       (mockedDb.limit as Mock).mockReturnValue(rejectingThenable);
       await expect(dbSessionStorage.getRecentSessionActivity(3)).rejects.toThrow(StorageError);
       await expect(dbSessionStorage.getRecentSessionActivity(3)).rejects.toSatisfy((e: StorageError) => e.code === 'STORAGE_ERROR');
+    });
+
+    it('should get transcript count by session ID', async () => {
+      const sessionId = 'test-session-123';
+      const mockTranscriptCount = 5;
+      
+      // Mock the count query result
+      ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => 
+        resolveCallback([{ count: mockTranscriptCount }])
+      );
+
+      const count = await dbSessionStorage.getTranscriptCountBySession(sessionId);
+
+      expect(count).toBe(mockTranscriptCount);
+      expect(mockedDb.select).toHaveBeenCalled();
+      expect(mockedDb.from).toHaveBeenCalled();
+      expect(mockedDb.where).toHaveBeenCalled();
+    });
+
+    it('should handle zero transcript count', async () => {
+      const sessionId = 'empty-session';
+      
+      // Mock empty result
+      ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => 
+        resolveCallback([{ count: 0 }])
+      );
+
+      const count = await dbSessionStorage.getTranscriptCountBySession(sessionId);
+
+      expect(count).toBe(0);
+    });
+
+    it('should throw StorageError on DB error during getTranscriptCountBySession', async () => {
+      const sessionId = 'error-session';
+      const dbError = new Error('DB query failed');
+      
+      const rejectingThenable = { then: (_resolve: any, reject: any) => reject(dbError) };
+      (mockedDb.select as Mock).mockReturnValue(rejectingThenable);
+
+      await expect(dbSessionStorage.getTranscriptCountBySession(sessionId)).rejects.toThrow(StorageError);
+      await expect(dbSessionStorage.getTranscriptCountBySession(sessionId)).rejects.toSatisfy((e: StorageError) => e.code === 'STORAGE_ERROR');
+    });
+
+    it('should get session quality stats', async () => {
+      const mockQualityStats = [
+        { quality: 'real', count: 10 },
+        { quality: 'no_students', count: 5 },
+        { quality: 'no_activity', count: 3 },
+        { quality: 'too_short', count: 2 },
+        { quality: 'unknown', count: 1 }
+      ];
+
+      // Mock the quality stats query result
+      ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => 
+        resolveCallback(mockQualityStats)
+      );
+
+      const stats = await dbSessionStorage.getSessionQualityStats();
+
+      expect(stats).toEqual({
+        total: 21, // Sum of all counts
+        real: 10,
+        dead: 10, // Sum of no_students + no_activity + too_short
+        breakdown: {
+          real: 10,
+          no_students: 5,
+          no_activity: 3,
+          too_short: 2,
+          unknown: 1
+        }
+      });
+
+      expect(mockedDb.select).toHaveBeenCalled();
+      expect(mockedDb.from).toHaveBeenCalled();
+      expect(mockedDb.groupBy).toHaveBeenCalled();
+    });
+
+    it('should handle empty session quality stats', async () => {
+      // Mock empty result
+      ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => 
+        resolveCallback([])
+      );
+
+      const stats = await dbSessionStorage.getSessionQualityStats();
+
+      expect(stats).toEqual({
+        total: 0,
+        real: 0,
+        dead: 0,
+        breakdown: {}
+      });
+    });
+
+    it('should throw StorageError on DB error during getSessionQualityStats', async () => {
+      const dbError = new Error('DB query failed');
+      const rejectingThenable = { then: (_resolve: any, reject: any) => reject(dbError) };
+      (mockedDb.select as Mock).mockReturnValue(rejectingThenable);
+
+      await expect(dbSessionStorage.getSessionQualityStats()).rejects.toThrow(StorageError);
+      await expect(dbSessionStorage.getSessionQualityStats()).rejects.toSatisfy((e: StorageError) => e.code === 'STORAGE_ERROR');
+    });
+  });
+
+  describe('MemSessionStorage - New Methods', () => {
+    let sessionStorage: MemSessionStorage;
+    let sessionsMap: Map<number, Session>;
+    let transcriptsMap: Map<number, Transcript>;
+    let idCounter: { value: number };
+
+    beforeEach(() => {
+      sessionsMap = new Map<number, Session>();
+      transcriptsMap = new Map<number, Transcript>();
+      idCounter = { value: 1 };
+      sessionStorage = new MemSessionStorage(sessionsMap, idCounter, transcriptsMap);
+    });
+
+    it('should get transcript count by session ID', async () => {
+      const sessionId = 'test-session-123';
+      
+      // Add some transcripts for the session
+      transcriptsMap.set(1, { id: 1, sessionId, language: 'en-US', text: 'Hello', timestamp: new Date() });
+      transcriptsMap.set(2, { id: 2, sessionId, language: 'en-US', text: 'World', timestamp: new Date() });
+      transcriptsMap.set(3, { id: 3, sessionId: 'other-session', language: 'es-ES', text: 'Hola', timestamp: new Date() });
+
+      const count = await sessionStorage.getTranscriptCountBySession(sessionId);
+
+      expect(count).toBe(2); // Only transcripts with matching sessionId
+    });
+
+    it('should return zero for session with no transcripts', async () => {
+      const sessionId = 'empty-session';
+      
+      const count = await sessionStorage.getTranscriptCountBySession(sessionId);
+
+      expect(count).toBe(0);
+    });
+
+    it('should get session quality stats', async () => {
+      // Add sessions with different quality values
+      sessionsMap.set(1, { id: 1, sessionId: 'real1', quality: 'real', isActive: false, teacherLanguage: 'en', startTime: new Date(), endTime: new Date(), studentsCount: 2, totalTranslations: 5, averageLatency: null, qualityReason: 'Real session', lastActivityAt: new Date() });
+      sessionsMap.set(2, { id: 2, sessionId: 'real2', quality: 'real', isActive: false, teacherLanguage: 'fr', startTime: new Date(), endTime: new Date(), studentsCount: 1, totalTranslations: 3, averageLatency: null, qualityReason: 'Real session', lastActivityAt: new Date() });
+      sessionsMap.set(3, { id: 3, sessionId: 'dead1', quality: 'no_students', isActive: false, teacherLanguage: 'es', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: 'No students', lastActivityAt: null });
+      sessionsMap.set(4, { id: 4, sessionId: 'dead2', quality: 'no_activity', isActive: false, teacherLanguage: 'de', startTime: new Date(), endTime: new Date(), studentsCount: 1, totalTranslations: 0, averageLatency: null, qualityReason: 'No activity', lastActivityAt: null });
+      sessionsMap.set(5, { id: 5, sessionId: 'dead3', quality: 'too_short', isActive: false, teacherLanguage: 'it', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: 'Too short', lastActivityAt: null });
+      sessionsMap.set(6, { id: 6, sessionId: 'unknown1', quality: 'unknown', isActive: true, teacherLanguage: 'pt', startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: null, lastActivityAt: null });
+
+      const stats = await sessionStorage.getSessionQualityStats();
+
+      expect(stats).toEqual({
+        total: 6,
+        real: 2,
+        dead: 3,
+        breakdown: {
+          real: 2,
+          no_students: 1,
+          no_activity: 1,
+          too_short: 1,
+          unknown: 1
+        }
+      });
+    });
+
+    it('should handle empty session stats', async () => {
+      const stats = await sessionStorage.getSessionQualityStats();
+
+      expect(stats).toEqual({
+        total: 0,
+        real: 0,
+        dead: 0,
+        breakdown: {}
+      });
     });
   });
 });
