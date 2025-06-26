@@ -18,7 +18,7 @@
     "db:push": "drizzle-kit push --config=config/drizzle.config.ts",
     "db:push:test": "dotenv -e .env.test -- drizzle-kit push --config=config/drizzle.config.ts",
     "db:migrations:apply": "npx tsx ./db-migration-scripts/migrate.ts",
-    "db:migrations:apply:test": "npx tsx ./db-migration-scripts/migrate-test.ts",
+    "db:migrations:apply:test": "NODE_ENV=test npx tsx ./db-migration-scripts/migrate.ts",
     "db:reset": "npx tsx ./db-migration-scripts/reset-db.ts",
     "db:reset:test": "npx tsx ./db-migration-scripts/reset-db-test.ts",
     "db-test:reset": "npx tsx ./db-migration-scripts/reset-db-test.ts",

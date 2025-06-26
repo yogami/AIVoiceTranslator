@@ -8,6 +8,13 @@
       "when": 1749558596519,
       "tag": "0000_rainy_kang",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1750931653091,
+      "tag": "0001_violet_prowler",
+      "breakpoints": true
     }
   ]
 }

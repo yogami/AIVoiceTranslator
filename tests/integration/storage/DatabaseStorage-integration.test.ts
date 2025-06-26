@@ -53,6 +53,15 @@ describe('DatabaseStorage Integration Tests', () => {
     await closeDatabaseConnection();
   });
 
+  // Global beforeEach to ensure test isolation
+  beforeEach(async () => {
+    // Use the comprehensive reset method to ensure clean state
+    await (storage as DatabaseStorage).reset();
+    // Re-initialize default languages
+    await (storage as DatabaseStorage).initializeDefaultLanguages();
+    console.log('[DEBUG] DatabaseStorage reset and re-initialization completed');
+  });
+
   async function cleanupTestData() {
     // Helper function to clean up test data
     // Note: This is a simple approach - in production you might use database transactions
@@ -66,12 +75,6 @@ describe('DatabaseStorage Integration Tests', () => {
   }
 
   describe('Session Management', () => {
-    beforeEach(async () => {
-      // Clear sessions and transcripts for each test to ensure isolation
-      await db.delete(transcripts);
-      await db.delete(sessions);
-    });
-
     it('should create and retrieve an active session', async () => {
       const sessionData: InsertSession = {
         sessionId: `session-123-${testRunId}`,
@@ -166,10 +169,6 @@ describe('DatabaseStorage Integration Tests', () => {
   });
 
   describe('User operations', () => {
-    beforeEach(async () => {
-      await db.delete(users);
-    });
-
     it('should create and retrieve a user', async () => {
       // Arrange
       const testUser: InsertUser = {
@@ -227,22 +226,6 @@ describe('DatabaseStorage Integration Tests', () => {
   });
 
   describe('Language operations', () => {
-    beforeEach(async () => {
-      // Clear and re-seed languages for each test
-      await db.delete(languages);
-      
-      // Add the languages that tests expect
-      const defaultLanguages = [
-        { code: 'en-US', name: 'English (United States)', isActive: true },
-        { code: 'es', name: 'Spanish', isActive: true },
-        { code: 'fr', name: 'French', isActive: true },
-        { code: 'de', name: 'German', isActive: true },
-        { code: 'ja', name: 'Japanese', isActive: false }
-      ];
-      
-      await db.insert(languages).values(defaultLanguages);
-    });
-
     it('should retrieve all languages', async () => {
       // Act
       const allLanguages = await storage.getLanguages();
@@ -334,10 +317,6 @@ describe('DatabaseStorage Integration Tests', () => {
   });
 
   describe('Translation operations', () => {
-    beforeEach(async () => {
-      await db.delete(translations);
-    });
-
     it('should add a translation', async () => {
       // Arrange
       const translation: InsertTranslation = {
@@ -479,10 +458,6 @@ describe('DatabaseStorage Integration Tests', () => {
   });
 
   describe('Transcript operations', () => {
-    beforeEach(async () => {
-      await db.delete(transcripts);
-    });
-
     it('should add a transcript', async () => {
       // Arrange
       const transcript = {

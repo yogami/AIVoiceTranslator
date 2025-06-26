@@ -24,6 +24,7 @@ import { ConnectionLifecycleManager } from './websocket/ConnectionLifecycleManag
 import { ConnectionValidationService } from './websocket/ConnectionValidationService'; // Added ConnectionValidationService import
 import { SessionMetricsService } from './websocket/SessionMetricsService'; // Added SessionMetricsService import
 import { WebSocketResponseService } from './websocket/WebSocketResponseService'; // Added WebSocketResponseService import
+import { SessionLifecycleService } from './SessionLifecycleService'; // Added SessionLifecycleService import
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
@@ -74,12 +75,14 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private connectionValidationService: ConnectionValidationService; // Handles connection validation
   private sessionMetricsService: SessionMetricsService; // Handles session metrics calculation
   private webSocketResponseService: WebSocketResponseService; // Handles WebSocket response formatting
+  private sessionLifecycleService: SessionLifecycleService; // Handles session lifecycle management
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
   private messageDispatcher: MessageDispatcher;
   
-
+  // Lifecycle management
+  private lifecycleCleanupInterval: NodeJS.Timeout | null = null;
 
   // Stats
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -96,6 +99,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.connectionValidationService = new ConnectionValidationService(this.classroomSessionManager); // Initialize ConnectionValidationService
     this.sessionMetricsService = new SessionMetricsService(this.connectionManager, this.classroomSessionManager); // Initialize SessionMetricsService
     this.webSocketResponseService = new WebSocketResponseService(); // Initialize WebSocketResponseService
+    this.sessionLifecycleService = new SessionLifecycleService(storage); // Initialize SessionLifecycleService
     
     // Initialize message handling infrastructure
     this.messageHandlerRegistry = new MessageHandlerRegistry();
@@ -108,11 +112,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       storage: this.storage,
       sessionService: this.sessionService, // Inject SessionService
       translationService: this.translationOrchestrator, // Inject TranslationOrchestrator
+      sessionLifecycleService: this.sessionLifecycleService, // Inject SessionLifecycleService
       webSocketServer: this
     };
     this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
-    
-    // Initialize ConnectionLifecycleManager (depends on other managers and messageDispatcher)
+     // Initialize ConnectionLifecycleManager (depends on other managers and messageDispatcher)
     this.connectionLifecycleManager = new ConnectionLifecycleManager(
       this.connectionManager,
       this.classroomSessionManager,
@@ -121,9 +125,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       this.messageDispatcher
     );
    
-    
     // Set up event handlers
     this.setupEventHandlers();
+    
+    // Start session lifecycle management tasks
+    this.startSessionLifecycleManagement();
     
     // Note: Classroom session cleanup is now handled by ClassroomSessionManager
   }
@@ -229,6 +235,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle incoming WebSocket message
    */
   async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
+    // Update session activity when any message is received
+    await this.updateSessionActivity(ws);
+    
     // Use the message dispatcher to handle all messages
     await this.messageDispatcher.dispatch(ws, data);
   }
@@ -265,6 +274,12 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       this.heartbeatInterval = null;
     }
     
+    // Clear lifecycle cleanup interval
+    if (this.lifecycleCleanupInterval) {
+      clearInterval(this.lifecycleCleanupInterval);
+      this.lifecycleCleanupInterval = null;
+    }
+    
     this.wss.close();
   }
   
@@ -287,6 +302,12 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
       logger.info('[WebSocketServer] Heartbeat interval cleared.');
+    }
+
+    if (this.lifecycleCleanupInterval) {
+      clearInterval(this.lifecycleCleanupInterval);
+      this.lifecycleCleanupInterval = null;
+      logger.info('[WebSocketServer] Session lifecycle interval cleared.');
     }
 
     // 2. Shutdown SessionService
@@ -524,5 +545,64 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // TODO: Add other message handlers as we extract them:
     // - AudioMessageHandler  
     // - TTSRequestMessageHandler
+  }
+
+  /**
+   * Start session lifecycle management tasks
+   */
+  private startSessionLifecycleManagement(): void {
+    // Process inactive sessions every 2 minutes  
+    this.lifecycleCleanupInterval = setInterval(async () => {
+      try {
+        // Process inactive sessions (end sessions that haven't had activity)
+        const inactiveResult = await this.sessionLifecycleService.processInactiveSessions();
+        if (inactiveResult.endedCount > 0 || inactiveResult.classifiedCount > 0) {
+          logger.info('Session lifecycle: processed inactive sessions', inactiveResult);
+        }
+
+        // Clean up and classify dead sessions
+        const cleanupResult = await this.sessionLifecycleService.cleanupDeadSessions();
+        if (cleanupResult.classified > 0) {
+          logger.info('Session lifecycle: classified sessions', cleanupResult);
+        }
+      } catch (error) {
+        logger.error('Session lifecycle management error:', { error });
+      }
+    }, 2 * 60 * 1000); // Every 2 minutes
+
+    logger.info('Session lifecycle management started');
+  }
+
+  /**
+   * Update session activity for the current connection's session
+   */
+  public async updateSessionActivity(ws: WebSocketClient): Promise<void> {
+    const sessionId = this.connectionManager.getSessionId(ws);
+    if (sessionId) {
+      await this.sessionLifecycleService.updateSessionActivity(sessionId);
+    }
+  }
+
+  /**
+   * Update storage instance - used for test isolation
+   */
+  public updateStorage(newStorage: IStorage): void {
+    this.storage = newStorage;
+    this.sessionService = new SessionService(newStorage);
+    this.translationOrchestrator = new TranslationOrchestrator(newStorage);
+    this.storageSessionManager = new StorageSessionManager(newStorage);
+    this.sessionLifecycleService = new SessionLifecycleService(newStorage);
+    
+    // Update message dispatcher context
+    const context: MessageHandlerContext = {
+      ws: null as any,
+      connectionManager: this.connectionManager,
+      storage: newStorage,
+      sessionService: this.sessionService,
+      translationService: this.translationOrchestrator,
+      sessionLifecycleService: this.sessionLifecycleService,
+      webSocketServer: this
+    };
+    this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
   }
 }
