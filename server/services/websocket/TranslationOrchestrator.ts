@@ -183,7 +183,18 @@ export class TranslationOrchestrator {
         const clientSettings = getClientSettings(studentWs) || {};
         
         if (!studentLanguage) {
-          logger.warn('Student has no language set, skipping translation');
+          logger.warn('Student has no language set, skipping translation', {
+            sessionId: getSessionId ? getSessionId(studentWs) : 'unknown'
+          });
+          return;
+        }
+
+        // Validate that we have a proper language code (not empty string or invalid)
+        if (typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
+          logger.warn('Student has invalid language code, skipping translation', {
+            studentLanguage,
+            sessionId: getSessionId ? getSessionId(studentWs) : 'unknown'
+          });
           return;
         }
 
@@ -278,6 +289,23 @@ export class TranslationOrchestrator {
             });
 
             if (classroomSessionId) {
+              // Validate that we have valid language data before storing
+              if (!sourceLanguage || typeof sourceLanguage !== 'string' || sourceLanguage.trim().length === 0) {
+                logger.error('Invalid sourceLanguage, skipping translation storage', {
+                  sourceLanguage,
+                  classroomSessionId
+                });
+                return;
+              }
+              
+              if (!studentLanguage || typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
+                logger.error('Invalid targetLanguage (studentLanguage), skipping translation storage', {
+                  studentLanguage,
+                  classroomSessionId
+                });
+                return;
+              }
+              
               logger.info('WebSocketServer: Attempting to call storage.addTranslation (detailed logging enabled)');
               (async () => {
                 try {

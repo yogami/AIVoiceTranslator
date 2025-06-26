@@ -111,6 +111,197 @@ describe('TranslationOrchestrator', () => {
     });
   });
 
+  describe('sendTranslationsToStudents', () => {
+    let mockStudentWs: any;
+    let mockGetLanguage: any;
+    let mockGetClientSettings: any;
+    let mockGetSessionId: any;
+    let mockStorage: any;
+
+    beforeEach(() => {
+      mockStudentWs = {
+        send: vi.fn()
+      };
+      
+      mockGetLanguage = vi.fn();
+      mockGetClientSettings = vi.fn().mockReturnValue({});
+      mockGetSessionId = vi.fn().mockReturnValue('test-session-id');
+      mockStorage = {
+        addTranslation: vi.fn()
+      };
+    });
+
+    it('should skip students with no language set', () => {
+      // Arrange
+      mockGetLanguage.mockReturnValue(undefined);
+      
+      const options = {
+        studentConnections: [mockStudentWs],
+        originalText: 'Hello',
+        sourceLanguage: 'en-US',
+        translations: new Map([['es-ES', 'Hola']]),
+        translationResults: [{ language: 'es-ES', translation: 'Hola' }],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } },
+        getClientSettings: mockGetClientSettings,
+        getLanguage: mockGetLanguage,
+        getSessionId: mockGetSessionId,
+        storage: mockStorage
+      };
+
+      // Act
+      translationOrchestrator.sendTranslationsToStudents(options);
+
+      // Assert
+      expect(mockStudentWs.send).not.toHaveBeenCalled();
+      expect(mockStorage.addTranslation).not.toHaveBeenCalled();
+    });
+
+    it('should skip students with empty language code', () => {
+      // Arrange
+      mockGetLanguage.mockReturnValue('');
+      
+      const options = {
+        studentConnections: [mockStudentWs],
+        originalText: 'Hello',
+        sourceLanguage: 'en-US',
+        translations: new Map([['es-ES', 'Hola']]),
+        translationResults: [{ language: 'es-ES', translation: 'Hola' }],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } },
+        getClientSettings: mockGetClientSettings,
+        getLanguage: mockGetLanguage,
+        getSessionId: mockGetSessionId,
+        storage: mockStorage
+      };
+
+      // Act
+      translationOrchestrator.sendTranslationsToStudents(options);
+
+      // Assert
+      expect(mockStudentWs.send).not.toHaveBeenCalled();
+      expect(mockStorage.addTranslation).not.toHaveBeenCalled();
+    });
+
+    it('should skip students with whitespace-only language code', () => {
+      // Arrange
+      mockGetLanguage.mockReturnValue('   ');
+      
+      const options = {
+        studentConnections: [mockStudentWs],
+        originalText: 'Hello',
+        sourceLanguage: 'en-US',
+        translations: new Map([['es-ES', 'Hola']]),
+        translationResults: [{ language: 'es-ES', translation: 'Hola' }],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } },
+        getClientSettings: mockGetClientSettings,
+        getLanguage: mockGetLanguage,
+        getSessionId: mockGetSessionId,
+        storage: mockStorage
+      };
+
+      // Act
+      translationOrchestrator.sendTranslationsToStudents(options);
+
+      // Assert
+      expect(mockStudentWs.send).not.toHaveBeenCalled();
+      expect(mockStorage.addTranslation).not.toHaveBeenCalled();
+    });
+
+    it('should skip storing translation with invalid source language', async () => {
+      // Arrange
+      process.env.ENABLE_DETAILED_TRANSLATION_LOGGING = 'true';
+      mockGetLanguage.mockReturnValue('es-ES');
+      
+      const options = {
+        studentConnections: [mockStudentWs],
+        originalText: 'Hello',
+        sourceLanguage: '', // Invalid source language
+        translations: new Map([['es-ES', 'Hola']]),
+        translationResults: [{ language: 'es-ES', translation: 'Hola' }],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } },
+        getClientSettings: mockGetClientSettings,
+        getLanguage: mockGetLanguage,
+        getSessionId: mockGetSessionId,
+        storage: mockStorage
+      };
+
+      // Act
+      translationOrchestrator.sendTranslationsToStudents(options);
+      
+      // Wait for async operations to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Assert
+      expect(mockStudentWs.send).toHaveBeenCalled(); // Translation should still be sent
+      expect(mockStorage.addTranslation).not.toHaveBeenCalled(); // But not stored
+      
+      // Cleanup
+      delete process.env.ENABLE_DETAILED_TRANSLATION_LOGGING;
+    });
+
+    it('should skip storing translation with invalid target language', () => {
+      // Arrange
+      process.env.ENABLE_DETAILED_TRANSLATION_LOGGING = 'true';
+      mockGetLanguage.mockReturnValue(''); // Invalid student language
+      
+      const options = {
+        studentConnections: [mockStudentWs],
+        originalText: 'Hello',
+        sourceLanguage: 'en-US',
+        translations: new Map([['', 'Hola']]), // This won't be used since student language is invalid
+        translationResults: [{ language: '', translation: 'Hola' }],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } },
+        getClientSettings: mockGetClientSettings,
+        getLanguage: mockGetLanguage,
+        getSessionId: mockGetSessionId,
+        storage: mockStorage
+      };
+
+      // Act
+      translationOrchestrator.sendTranslationsToStudents(options);
+
+      // Assert
+      expect(mockStudentWs.send).not.toHaveBeenCalled(); // Translation should not be sent
+      expect(mockStorage.addTranslation).not.toHaveBeenCalled(); // And not stored
+      
+      // Cleanup
+      delete process.env.ENABLE_DETAILED_TRANSLATION_LOGGING;
+    });
+
+    it('should process valid student with proper language code', async () => {
+      // Arrange
+      mockGetLanguage.mockReturnValue('es-ES');
+      
+      const options = {
+        studentConnections: [mockStudentWs],
+        originalText: 'Hello',
+        sourceLanguage: 'en-US',
+        translations: new Map([['es-ES', 'Hola']]),
+        translationResults: [{ language: 'es-ES', translation: 'Hola' }],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } },
+        getClientSettings: mockGetClientSettings,
+        getLanguage: mockGetLanguage,
+        getSessionId: mockGetSessionId,
+        storage: mockStorage
+      };
+
+      // Act
+      translationOrchestrator.sendTranslationsToStudents(options);
+      
+      // Wait for async operations to complete
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Assert
+      expect(mockStudentWs.send).toHaveBeenCalled();
+      // Storage depends on ENABLE_DETAILED_TRANSLATION_LOGGING environment variable
+    });
+  });
+
   describe('validateTTSRequest', () => {
     it('should validate valid TTS request', () => {
       // Act & Assert

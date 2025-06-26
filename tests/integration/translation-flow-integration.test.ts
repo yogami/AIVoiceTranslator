@@ -340,6 +340,161 @@ describe('Translation Flow Integration', () => {
       ws.close();
     });
   });
+
+  it('should prevent storing translations with invalid target language', async () => {
+    // This tests the fix for the "N/A" target language issue
+    
+    // Create teacher connection
+    const teacherWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const teacherMessages: any[] = [];
+    
+    teacherWs.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        teacherMessages.push(message);
+      } catch (e) {
+        console.error('Failed to parse teacher message:', e);
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      teacherWs.on('open', () => resolve());
+    });
+
+    // Wait for connection confirmation
+    await waitForMessage(teacherMessages, 'connection', 5000);
+
+    // Register teacher
+    teacherWs.send(JSON.stringify({
+      type: 'register',
+      role: 'teacher',
+      languageCode: 'en-US'
+    }));
+
+    await waitForMessage(teacherMessages, 'register', 5000);
+
+    // Create student connection but DON'T set language (this simulates the bug scenario)
+    const studentWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const studentMessages: any[] = [];
+    
+    studentWs.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        studentMessages.push(message);
+      } catch (e) {
+        console.error('Failed to parse student message:', e);
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      studentWs.on('open', () => resolve());
+    });
+
+    // Wait for connection confirmation
+    await waitForMessage(studentMessages, 'connection', 5000);
+
+    // Register student but with INVALID language (empty string)
+    studentWs.send(JSON.stringify({
+      type: 'register',
+      role: 'student',
+      languageCode: '' // This should trigger the validation
+    }));
+
+    await waitForMessage(studentMessages, 'register', 5000);
+
+    // Clear addTranslation mock calls before the test
+    vi.clearAllMocks();
+
+    // Send transcription from teacher (this should NOT store translation due to invalid student language)
+    teacherWs.send(JSON.stringify({
+      type: 'transcription',
+      text: 'Hello students'
+    }));
+
+    // Wait a bit for processing
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Verify that addTranslation was NOT called due to invalid target language
+    expect(mockStorage.addTranslation).not.toHaveBeenCalled();
+
+    // Clean up
+    teacherWs.close();
+    studentWs.close();
+  });
+
+  it('should prevent storing translations when student has no language set', async () => {
+    // This tests the fix for students who haven't set their language yet
+    
+    // Create teacher connection
+    const teacherWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const teacherMessages: any[] = [];
+    
+    teacherWs.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        teacherMessages.push(message);
+      } catch (e) {
+        console.error('Failed to parse teacher message:', e);
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      teacherWs.on('open', () => resolve());
+    });
+
+    // Wait for connection confirmation
+    await waitForMessage(teacherMessages, 'connection', 5000);
+
+    // Register teacher
+    teacherWs.send(JSON.stringify({
+      type: 'register',
+      role: 'teacher',
+      languageCode: 'en-US'
+    }));
+
+    await waitForMessage(teacherMessages, 'register', 5000);
+
+    // Create student connection but DON'T register at all (no language set)
+    const studentWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const studentMessages: any[] = [];
+    
+    studentWs.on('message', (data) => {
+      try {
+        const message = JSON.parse(data.toString());
+        studentMessages.push(message);
+      } catch (e) {
+        console.error('Failed to parse student message:', e);
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      studentWs.on('open', () => resolve());
+    });
+
+    // Wait for connection confirmation
+    await waitForMessage(studentMessages, 'connection', 5000);
+
+    // DON'T register the student - they have no language set
+
+    // Clear addTranslation mock calls before the test
+    vi.clearAllMocks();
+
+    // Send transcription from teacher (this should NOT store translation due to no student language)
+    teacherWs.send(JSON.stringify({
+      type: 'transcription',
+      text: 'Hello students'
+    }));
+
+    // Wait a bit for processing
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Verify that addTranslation was NOT called due to missing target language
+    expect(mockStorage.addTranslation).not.toHaveBeenCalled();
+
+    // Clean up
+    teacherWs.close();
+    studentWs.close();
+  });
 });
 
 // Update the waitForMessage function to be more robust

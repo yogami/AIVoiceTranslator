@@ -145,18 +145,21 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
 
     if (studentSessionId) {
       // Fetch current session to get current studentsCount
-      context.storage.getActiveSession(studentSessionId).then((session: any) => {
+      try {
+        const session = await context.storage.getActiveSession(studentSessionId);
         const currentCount = session?.studentsCount || 0;
         // Always ensure session is active when a student joins
-        context.webSocketServer.storageSessionManager.updateSession(studentSessionId, { 
-          studentsCount: currentCount + 1, 
-          isActive: true 
-        }).catch((error: any) => {
+        try {
+          await context.webSocketServer.storageSessionManager.updateSession(studentSessionId, { 
+            studentsCount: currentCount + 1, 
+            isActive: true 
+          });
+        } catch (error: any) {
           logger.error('Failed to increment studentsCount for session:', { error });
-        });
-      }).catch((error: any) => {
+        }
+      } catch (error: any) {
         logger.error('Failed to fetch session for incrementing studentsCount:', { error });
-      });
+      }
 
       // Notify the teacher(s) in the same session
       context.connectionManager.getConnections().forEach((client: any) => {

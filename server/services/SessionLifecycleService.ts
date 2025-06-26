@@ -239,14 +239,7 @@ export class SessionLifecycleService {
     breakdown: Record<string, number>;
   }> {
     try {
-      // This would require a new storage method to get quality counts
-      // For now, we'll return a placeholder that matches the interface
-      return {
-        total: 0,
-        real: 0,
-        dead: 0,
-        breakdown: {}
-      };
+      return await this.storage.getSessionQualityStats();
     } catch (error) {
       logger.error('Failed to get quality statistics', { error });
       return {
