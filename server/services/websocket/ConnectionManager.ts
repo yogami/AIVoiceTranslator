@@ -27,6 +27,8 @@ export class ConnectionManager {
   private languages: Map<WebSocketClient, string> = new Map();
   private sessionIds: Map<WebSocketClient, string> = new Map();
   private clientSettings: Map<WebSocketClient, ClientSettings> = new Map();
+  // Track whether a student connection has been counted in session stats
+  private studentCounted: Map<WebSocketClient, boolean> = new Map();
 
   /**
    * Add a new connection with its session ID
@@ -46,6 +48,7 @@ export class ConnectionManager {
     this.languages.delete(ws);
     this.sessionIds.delete(ws);
     this.clientSettings.delete(ws);
+    this.studentCounted.delete(ws);
   }
 
   /**
@@ -173,6 +176,7 @@ export class ConnectionManager {
     this.languages.clear();
     this.sessionIds.clear();
     this.clientSettings.clear();
+    this.studentCounted.clear();
   }
 
   /**
@@ -189,5 +193,19 @@ export class ConnectionManager {
    */
   removeSessionId(ws: WebSocketClient): void {
     this.sessionIds.delete(ws);
+  }
+
+  /**
+   * Check if a student connection has already been counted in session stats
+   */
+  isStudentCounted(ws: WebSocketClient): boolean {
+    return this.studentCounted.get(ws) || false;
+  }
+
+  /**
+   * Mark a student connection as counted in session stats
+   */
+  setStudentCounted(ws: WebSocketClient, counted: boolean): void {
+    this.studentCounted.set(ws, counted);
   }
 }

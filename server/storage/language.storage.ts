@@ -167,13 +167,17 @@ export class DbLanguageStorage implements ILanguageStorage {
     ];
 
     for (const langData of defaultLanguagesData) {
-      const existingLang = await this.getLanguageByCode(langData.code);
-      if (!existingLang) {
-        try {
-          await this.createLanguage(langData);
-        } catch (error) {
-          // Log or handle the error if a specific default language fails to insert,
-          // but allow the process to continue for other languages.
+      try {
+        // Try to create the language, ignoring duplicate key errors
+        await this.createLanguage(langData);
+      } catch (error: any) {
+        // Check if it's a duplicate key error
+        if (error?.code === '23505' || error?.details?.code === '23505' || 
+            (error?.code === 'DUPLICATE_ENTRY' && error?.details?.code === '23505')) {
+          // Language already exists, continue to next
+          continue;
+        } else {
+          // Some other error occurred, log it but continue
           console.error(`Failed to insert default language ${langData.code}:`, error);
         }
       }

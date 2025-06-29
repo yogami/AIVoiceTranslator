@@ -11,6 +11,7 @@ import crypto from 'crypto';
 export class TestDatabaseIsolation {
   private static testInstances = new Map<string, DatabaseStorage>();
   private static testLocks = new Map<string, Promise<void>>();
+  private static globalInitLock: Promise<void> | null = null;
 
   /**
    * Get an isolated database storage instance for a test file
@@ -20,19 +21,19 @@ export class TestDatabaseIsolation {
     // Create a unique test instance identifier
     const instanceId = `${testFileId}-${crypto.randomUUID()}`;
     
-    // Ensure we don't have concurrent access to the same test file
-    if (this.testLocks.has(testFileId)) {
-      await this.testLocks.get(testFileId);
+    // Ensure global initialization happens one at a time
+    if (this.globalInitLock) {
+      await this.globalInitLock;
     }
 
-    const lockPromise = this.initializeIsolatedInstance(instanceId).then(() => {});
-    this.testLocks.set(testFileId, lockPromise);
+    const initPromise = this.initializeIsolatedInstance(instanceId);
+    this.globalInitLock = initPromise.then(() => {});
     
-    const storage = await this.initializeIsolatedInstance(instanceId);
+    const storage = await initPromise;
     this.testInstances.set(instanceId, storage);
     
-    // Clean up the lock
-    this.testLocks.delete(testFileId);
+    // Clean up the global lock
+    this.globalInitLock = null;
     
     return storage;
   }
@@ -43,14 +44,11 @@ export class TestDatabaseIsolation {
   private static async initializeIsolatedInstance(instanceId: string): Promise<DatabaseStorage> {
     const storage = new DatabaseStorage();
     
-    // Add a small delay to ensure async operations complete
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Reset and reinitialize the database
+    // Reset the database completely first
     await storage.reset();
     
-    // Add another delay after reset
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Add delay to ensure reset is complete
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Initialize with default data
     await storage.initializeDefaultLanguages();

@@ -46,6 +46,7 @@ interface SessionMetrics {
 export interface SessionActivity {
   sessionId: string;
   language: string;
+  classCode: string;
   transcriptCount: number;
   lastActivity: string;
   studentCount: number;
@@ -297,11 +298,9 @@ export class DiagnosticsService {
   private async getTranslationMetrics(timeRangeParam?: TimeRangePreset | { startDate: Date; endDate?: Date }): Promise<TranslationMetrics> {
     const rangeInfo = this.parseTimeRange(timeRangeParam);
     
-    // Define a default range if none is provided (e.g., last 60 minutes for a general overview)
-    const effectiveRange = rangeInfo || this.parseTimeRange('lastHour')!;
-
-    // Only pass startDate and endDate to storage methods (not the preset property)
-    const storageTimeRange = { startDate: effectiveRange.startDate, endDate: effectiveRange.endDate };
+    // If no time range is provided, don't apply any time filtering (include all data)
+    // This ensures tests and default dashboard views see all available data
+    const storageTimeRange = rangeInfo ? { startDate: rangeInfo.startDate, endDate: rangeInfo.endDate } : undefined;
     const storageMetrics = await this.storage.getTranslationMetrics(storageTimeRange);
     const languagePairsData = await this.storage.getLanguagePairUsage(storageTimeRange);
     const languagePairsFormatted: LanguagePairMetric[] = languagePairsData.map(lp => ({
@@ -323,14 +322,14 @@ export class DiagnosticsService {
 
   private async getSessionMetrics(timeRangeParam?: TimeRangePreset | { startDate: Date; endDate?: Date }): Promise<SessionMetrics> {
     const rangeInfo = this.parseTimeRange(timeRangeParam);
-    // Use lastHour as default if no range is provided, to match test expectations
-    const effectiveRange = rangeInfo || this.parseTimeRange('lastHour')!;
     
-    // Only pass startDate and endDate to storage methods (not the preset property)
-    const storageTimeRange = { startDate: effectiveRange.startDate, endDate: effectiveRange.endDate };
+    // If no time range is provided, don't apply any time filtering (include all data)
+    // This ensures tests and default dashboard views see all available data
+    const storageTimeRange = rangeInfo ? { startDate: rangeInfo.startDate, endDate: rangeInfo.endDate } : undefined;
     const storageSessionMetrics = await this.storage.getSessionMetrics(storageTimeRange);
     
-    const activeSessions = this.activeSessionProvider?.getActiveSessionsCount() || 0;
+    // Use database session count instead of WebSocket connection count for active sessions
+    const activeSessions = storageSessionMetrics.activeSessions;
     const studentsConnected = this.activeSessionProvider?.getActiveStudentCount() || 0;
     const teachersConnected = this.activeSessionProvider?.getActiveTeacherCount() || 0;
     
@@ -338,7 +337,8 @@ export class DiagnosticsService {
     const rawRecentActivity = await this.storage.getRecentSessionActivity(recentActivityLimit);
     const recentSessionActivity: SessionActivity[] = rawRecentActivity.map(activity => ({
       sessionId: activity.sessionId,
-      language: activity.teacherLanguage || 'N/A',
+      language: activity.studentLanguage || activity.teacherLanguage || 'N/A',
+      classCode: activity.classCode || 'N/A',
       transcriptCount: activity.transcriptCount,
       lastActivity: activity.endTime ? activity.endTime.toISOString() : (activity.startTime ? activity.startTime.toISOString() : 'N/A'),
       studentCount: activity.studentCount,

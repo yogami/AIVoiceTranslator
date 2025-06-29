@@ -135,6 +135,19 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
   // Basic UI Tests
   test.describe('Basic UI and Connection', () => {
+  test('should default to German language on page load', async () => {
+    // Wait for the language dropdown to be visible
+    await expect(page.locator('#teacherLanguage')).toBeVisible();
+    
+    // Check that German (de) is selected by default
+    const selectedValue = await page.locator('#teacherLanguage').inputValue();
+    expect(selectedValue).toBe('de');
+    
+    // Also check the displayed text
+    const selectedText = await page.locator('#teacherLanguage option:checked').textContent();
+    expect(selectedText).toContain('German');
+  });
+
   test('should display initial UI elements correctly', async () => {
     // Check h1 (main heading)
     const mainHeading = page.locator('h1');

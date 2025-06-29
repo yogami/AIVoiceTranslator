@@ -338,7 +338,60 @@ vi.mock('../../../server/services/websocket/ConnectionLifecycleManager', () => {
             logger.error('Error sending connection confirmation:', { error });
           }
         }),
-        handleConnection: vi.fn(),
+        handleConnection: vi.fn().mockImplementation(async (ws, request) => {
+          // Simulate the real behavior: parse connection request, validate, add connection, send confirmation
+          const sessionId = `session-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+          let classroomCode = null;
+          if (request?.url) {
+            const url = new URL(request.url, 'http://localhost:3000');
+            classroomCode = url.searchParams.get('code') || url.searchParams.get('class');
+          }
+          
+          // Validate classroom code if provided (like the real implementation)
+          if (classroomCode) {
+            // Use the same validation logic as the ConnectionValidationService mock
+            let isValid = true;
+            if (classroomCode === 'ABC123') {
+              isValid = (global as any).testSessionExists === true;
+            }
+            
+            if (!isValid) {
+              // Send error and close connection like the real implementation
+              try {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  message: 'Classroom session expired or invalid. Please ask teacher for new link.',
+                  code: 'INVALID_CLASSROOM'
+                }));
+                ws.close(1008, 'Invalid classroom session');
+              } catch (error) {
+                // Handle send errors gracefully
+              }
+              return;
+            }
+          }
+          
+          // Add connection (this is what affects the connection count)
+          if (mockConnectionManager) {
+            mockConnectionManager.addConnection(ws, sessionId);
+          }
+          
+          // Send connection confirmation (this is what the tests expect)
+          try {
+            const message = {
+              type: 'connection',
+              status: 'connected',
+              sessionId,
+              ...(classroomCode && { classroomCode })
+            };
+            ws.send(JSON.stringify(message));
+          } catch (error) {
+            // Handle error gracefully like the real implementation - log the error
+            if (logger && logger.error) {
+              logger.error('Error sending connection confirmation:', { error });
+            }
+          }
+        }),
         handleConnectionClose: vi.fn((ws) => {
           // Properly simulate connection cleanup like the real implementation
           const sessionId = mockConnectionManager?.getSessionId?.(ws);
@@ -1069,28 +1122,33 @@ describe('WebSocketServer', () => {
       });
     });
 
-    it('should create session in storage on connection', async () => {
+    it('should NOT create session in storage on connection (sessions created only when students join)', async () => {
       mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
 
-      await vi.waitFor(() => {
-        expect(mockStorage.createSession).toHaveBeenCalledWith({
-          sessionId: expect.stringMatching(/^session-\d+-\d+$/),
-          isActive: true
-        });
-      });
+      // Wait a bit to ensure no session creation calls are made
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Session should NOT be created on connection anymore
+      expect(mockStorage.createSession).not.toHaveBeenCalled();
+      expect(mockStorage.getSessionById).not.toHaveBeenCalled();
+      expect(mockStorage.updateSession).not.toHaveBeenCalled();
     });
 
-    it('should handle storage errors gracefully', async () => {
+    it('should NOT trigger storage errors on connection (no session creation)', async () => {
       mockStorage.createSession = vi.fn().mockRejectedValue(new Error('Storage error'));
       
+      mockWs.sessionId = 'test-session-123';
       mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
 
-      await vi.waitFor(() => {
-        expect(logger.error).toHaveBeenCalledWith(
-          'Failed to create session in storage:',
-          expect.objectContaining({ error: expect.any(Error) })
-        );
-      });
+      // Wait a bit to ensure no session creation calls are made
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // No storage calls should happen on connection
+      expect(mockStorage.createSession).not.toHaveBeenCalled();
+      expect(logger.error).not.toHaveBeenCalledWith(
+        'Failed to create session in storage:',
+        expect.anything()
+      );
 
       // Connection should still work
       expect(mockWs.send).toHaveBeenCalled();
@@ -1907,7 +1965,7 @@ describe('WebSocketServer', () => {
   });
 
   describe('session storage edge cases', () => {
-    it('should handle existing active session in storage', async () => {
+    it('should NOT check existing session in storage on connection (sessions managed by student registration)', async () => {
       mockStorage.getSessionById = vi.fn().mockResolvedValue({
         sessionId: 'existing-session',
         isActive: true
@@ -1915,14 +1973,16 @@ describe('WebSocketServer', () => {
 
       mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
 
-      await vi.waitFor(() => {
-        expect(mockStorage.getSessionById).toHaveBeenCalled();
-        expect(mockStorage.updateSession).not.toHaveBeenCalled();
-        expect(mockStorage.createSession).not.toHaveBeenCalled();
-      });
+      // Wait a bit to ensure no storage calls are made
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // No session storage operations should happen on connection
+      expect(mockStorage.getSessionById).not.toHaveBeenCalled();
+      expect(mockStorage.updateSession).not.toHaveBeenCalled();
+      expect(mockStorage.createSession).not.toHaveBeenCalled();
     });
 
-    it('should activate existing inactive session in storage', async () => {
+    it('should NOT activate existing inactive session on connection (session activation handled by student registration)', async () => {
       mockStorage.getSessionById = vi.fn().mockResolvedValue({
         sessionId: 'existing-session',
         isActive: false
@@ -1930,14 +1990,13 @@ describe('WebSocketServer', () => {
 
       mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
 
-      await vi.waitFor(() => {
-        expect(mockStorage.getSessionById).toHaveBeenCalled();
-        expect(mockStorage.updateSession).toHaveBeenCalledWith(
-          expect.any(String),
-          { isActive: true }
-        );
-        expect(mockStorage.createSession).not.toHaveBeenCalled();
-      });
+      // Wait a bit to ensure no storage calls are made
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // No session storage operations should happen on connection
+      expect(mockStorage.getSessionById).not.toHaveBeenCalled();
+      expect(mockStorage.updateSession).not.toHaveBeenCalled();
+      expect(mockStorage.createSession).not.toHaveBeenCalled();
     });
   });
 

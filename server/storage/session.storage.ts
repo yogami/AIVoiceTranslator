@@ -15,6 +15,8 @@ export const DEFAULT_SESSION_QUERY_LIMIT = 10;
 export type SessionActivity = {
   sessionId: string;
   teacherLanguage: string | null;
+  studentLanguage: string | null;
+  classCode: string | null;
   transcriptCount: number;
   studentCount: number;
   startTime: Date | null;
@@ -67,7 +69,9 @@ export class MemSessionStorage implements ISessionStorage {
     const session: Session = {
       id,
       sessionId: insertSession.sessionId,
+      classCode: insertSession.classCode ?? null,
       teacherLanguage: insertSession.teacherLanguage ?? null,
+      studentLanguage: insertSession.studentLanguage ?? null,
       startTime: new Date(),
       endTime: null,
       studentsCount: insertSession.studentsCount ?? 0, // Ensure default is 0, not null
@@ -133,6 +137,8 @@ export class MemSessionStorage implements ISessionStorage {
       return {
         sessionId: s.sessionId,
         teacherLanguage: s.teacherLanguage,
+        studentLanguage: s.studentLanguage,
+        classCode: s.classCode,
         transcriptCount,
         studentCount: s.studentsCount ?? 0, // Added studentCount
         startTime: s.startTime,
@@ -191,6 +197,7 @@ export class DbSessionStorage implements ISessionStorage {
         .values({
           ...session,
           startTime: new Date(),
+          lastActivityAt: new Date(),
           endTime: null,
           isActive: true
         })
@@ -289,6 +296,8 @@ export class DbSessionStorage implements ISessionStorage {
         .select({
           sessionId: sessions.sessionId,
           teacherLanguage: sessions.teacherLanguage,
+          studentLanguage: sessions.studentLanguage,
+          classCode: sessions.classCode,
           studentsCount: sessions.studentsCount,
           startTime: sessions.startTime,
           endTime: sessions.endTime,
@@ -306,6 +315,8 @@ export class DbSessionStorage implements ISessionStorage {
       return recentSessionsData.map((s: {
         sessionId: string;
         teacherLanguage: string | null;
+        studentLanguage: string | null;
+        classCode: string | null;
         studentsCount: number | null;
         startTime: Date | null;
         endTime: Date | null;
@@ -318,6 +329,8 @@ export class DbSessionStorage implements ISessionStorage {
         return {
           sessionId: s.sessionId,
           teacherLanguage: s.teacherLanguage,
+          studentLanguage: s.studentLanguage,
+          classCode: s.classCode,
           transcriptCount: s.transcriptCount || 0,
           studentCount: s.studentsCount ?? 0,
           startTime: s.startTime,

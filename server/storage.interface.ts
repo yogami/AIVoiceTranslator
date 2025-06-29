@@ -29,6 +29,8 @@ export interface StorageLanguagePairUsageData {
 export interface StorageRecentSessionActivity {
   sessionId: string;
   teacherLanguage: string | null;
+  studentLanguage: string | null;
+  classCode: string | null;
   transcriptCount: number;
   studentCount: number;
   startTime: Date | null;

@@ -63,7 +63,17 @@ async function addDefaultTestData() {
       { code: 'ja', name: 'Japanese', isActive: false }
     ];
     
-    await db.insert(languages).values(defaultLanguages);
+    // Insert languages one by one to handle duplicates gracefully
+    for (const language of defaultLanguages) {
+      try {
+        await db.insert(languages).values(language);
+      } catch (error: any) {
+        // Ignore duplicate key errors
+        if (error?.code !== '23505') {
+          throw error;
+        }
+      }
+    }
     
     // Add test user
     const testUser = {
@@ -71,7 +81,14 @@ async function addDefaultTestData() {
       password: 'hashedpassword123'  // In a real app, this would be properly hashed
     };
     
-    await db.insert(users).values(testUser);
+    try {
+      await db.insert(users).values(testUser);
+    } catch (error: any) {
+      // Ignore duplicate key errors for user
+      if (error?.code !== '23505') {
+        throw error;
+      }
+    }
     
     console.log('Default test data added.');
   } catch (error) {

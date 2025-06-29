@@ -24,13 +24,15 @@ export class ConnectionLifecycleManager {
   private connectionHealthManager: ConnectionHealthManager;
   private messageDispatcher: MessageDispatcher;
   private responseService: WebSocketResponseService;
+  private webSocketServer?: any; // WebSocketServer instance for accessing SessionCleanupService
 
   constructor(
     connectionManager: ConnectionManager,
     classroomSessionManager: ClassroomSessionManager,
     storageSessionManager: StorageSessionManager,
     connectionHealthManager: ConnectionHealthManager,
-    messageDispatcher: MessageDispatcher
+    messageDispatcher: MessageDispatcher,
+    webSocketServer?: any
   ) {
     this.connectionManager = connectionManager;
     this.classroomSessionManager = classroomSessionManager;
@@ -38,6 +40,7 @@ export class ConnectionLifecycleManager {
     this.connectionHealthManager = connectionHealthManager;
     this.messageDispatcher = messageDispatcher;
     this.responseService = new WebSocketResponseService();
+    this.webSocketServer = webSocketServer;
   }
 
   /**
@@ -67,16 +70,14 @@ export class ConnectionLifecycleManager {
     // Store connection data
     this.connectionManager.addConnection(ws, sessionId);
     
-    // Create session in storage for metrics tracking
+    // Send immediate connection confirmation directly
     try {
-      await this.storageSessionManager.createSession(sessionId);
+      logger.info('Sending connection confirmation:', { sessionId, classroomCode });
+      this.responseService.sendConnectionConfirmation(ws, sessionId, classroomCode || undefined);
+      logger.info('Connection confirmation sent successfully');
     } catch (error) {
-      logger.error('Failed to create session in storage:', { error });
-      // Continue without metrics - don't break core functionality
+      logger.error('Failed to send connection confirmation:', { sessionId, error });
     }
-    
-    // Send immediate connection confirmation
-    this.sendConnectionConfirmation(ws, classroomCode);
     
     // Set up event handlers
     this.setupConnectionEventHandlers(ws);
@@ -139,10 +140,10 @@ export class ConnectionLifecycleManager {
   /**
    * Send connection confirmation to client
    */
-  public sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null): void {
+  public sendConnectionConfirmation(ws: WebSocketClient, classroomCode?: string | null, sessionId?: string): void {
     try {
-      const sessionId = this.connectionManager.getSessionId(ws);
-      this.responseService.sendConnectionConfirmation(ws, sessionId || 'unknown', classroomCode || undefined);
+      const finalSessionId = sessionId || this.connectionManager.getSessionId(ws);
+      this.responseService.sendConnectionConfirmation(ws, finalSessionId || 'unknown', classroomCode || undefined);
     } catch (error) {
       logger.error('Error sending connection confirmation:', { error });
     }
@@ -170,10 +171,111 @@ export class ConnectionLifecycleManager {
   }
 
   /**
-   * Handle connection close event (public interface)
+   * Handle WebSocket connection close
    */
-  public handleConnectionClose(ws: WebSocketClient): void {
-    this.handleClose(ws);
+  public async handleConnectionClose(ws: WebSocketClient): Promise<void> {
+    const sessionId = this.connectionManager.getSessionId(ws);
+    const role = this.connectionManager.getRole(ws);
+    
+    logger.info('WebSocket connection closed', { sessionId, role });
+    
+    // Remove connection from tracking
+    this.connectionManager.removeConnection(ws);
+    
+    // If this was a student connection, check if any students remain and update count
+    if (sessionId && role === 'student') {
+      // First, decrement the studentsCount if this student was counted
+      if (this.connectionManager.isStudentCounted(ws)) {
+        try {
+          const session = await this.webSocketServer?.storage?.getActiveSession(sessionId);
+          if (session && session.studentsCount > 0) {
+            await this.webSocketServer.storageSessionManager.updateSession(sessionId, {
+              studentsCount: session.studentsCount - 1
+            });
+            logger.info(`Decremented studentsCount for session ${sessionId} to ${session.studentsCount - 1}`);
+          }
+        } catch (error: any) {
+          logger.error('Error updating studentsCount on disconnect:', error);
+        }
+      }
+      
+      const remainingStudents = this.countActiveStudentsInSession(sessionId);
+      const remainingTeachers = this.countActiveTeachersInSession(sessionId);
+      
+      logger.info(`Student disconnected from session ${sessionId}. Remaining: ${remainingStudents} students, ${remainingTeachers} teachers`);
+      
+      if (remainingStudents === 0) {
+        if (remainingTeachers > 0) {
+          // Students left but teacher still there - start grace period
+          try {
+            const cleanupService = this.webSocketServer?.getSessionCleanupService();
+            if (cleanupService) {
+              await cleanupService.markAllStudentsLeft(sessionId);
+            }
+          } catch (error: any) {
+            logger.error('Error marking students left:', error);
+          }
+        } else {
+          // No one left - end session immediately
+          try {
+            const cleanupService = this.webSocketServer?.getSessionCleanupService();
+            if (cleanupService) {
+              await cleanupService.endSession(sessionId, 'All users disconnected');
+            }
+          } catch (error: any) {
+            logger.error('Error ending session:', error);
+          }
+        }
+      }
+    } else if (sessionId && role === 'teacher') {
+      // Teacher disconnected - check if any students remain
+      const remainingStudents = this.countActiveStudentsInSession(sessionId);
+      const remainingTeachers = this.countActiveTeachersInSession(sessionId);
+      
+      logger.info(`Teacher disconnected from session ${sessionId}. Remaining: ${remainingStudents} students, ${remainingTeachers} teachers`);
+      
+      if (remainingTeachers === 0 && remainingStudents === 0) {
+        // No one left - end session immediately
+        try {
+          const cleanupService = this.webSocketServer?.getSessionCleanupService();
+          if (cleanupService) {
+            await cleanupService.endSession(sessionId, 'All users disconnected');
+          }
+        } catch (error: any) {
+          logger.error('Error ending session:', error);
+        }
+      }
+      // If students remain but no teachers, let them stay connected for a while
+      // The cleanup service will handle this scenario
+    }
+  }
+
+  /**
+   * Count active students in a session
+   */
+  private countActiveStudentsInSession(sessionId: string): number {
+    let count = 0;
+    for (const conn of this.connectionManager.getConnections()) {
+      if (this.connectionManager.getSessionId(conn) === sessionId && 
+          this.connectionManager.getRole(conn) === 'student') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Count active teachers in a session
+   */
+  private countActiveTeachersInSession(sessionId: string): number {
+    let count = 0;
+    for (const conn of this.connectionManager.getConnections()) {
+      if (this.connectionManager.getSessionId(conn) === sessionId && 
+          this.connectionManager.getRole(conn) === 'teacher') {
+        count++;
+      }
+    }
+    return count;
   }
 
   /**

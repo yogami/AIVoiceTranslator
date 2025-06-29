@@ -86,6 +86,8 @@ describe('DiagnosticsService', () => {
       {
         sessionId: 'test-session-1',
         teacherLanguage: 'en-US',
+        studentLanguage: 'es-ES',
+        classCode: 'ABC123',
         transcriptCount: 5,
         studentCount: 1,
         startTime: new Date(Date.now() - 3600000), // 1 hour ago
@@ -95,6 +97,8 @@ describe('DiagnosticsService', () => {
       {
         sessionId: 'test-session-2',
         teacherLanguage: 'fr-FR',
+        studentLanguage: 'de-DE',
+        classCode: 'XYZ789',
         transcriptCount: 10,
         studentCount: 2,
         startTime: new Date(Date.now() - 7200000), // 2 hours ago
@@ -115,13 +119,72 @@ describe('DiagnosticsService', () => {
   });
 
   describe('Session Metrics from Provider', () => {
-    it('should use IActiveSessionProvider for active session, student, and teacher counts', async () => {
+    it('should use database for active sessions count, not WebSocket connections', async () => {
+      // Setup: Database has 2 active sessions, WebSocket has 5 connections
+      vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({
+        totalSessions: 10,
+        activeSessions: 2, // Database shows 2 active sessions
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 5
+      });
+      
+      // WebSocket provider shows 5 connections (e.g., 1 teacher + 4 students)
+      mockActiveSessionProvider.getActiveSessionsCount = vi.fn().mockReturnValue(5);
+      mockActiveSessionProvider.getActiveStudentCount = vi.fn().mockReturnValue(4);
+      mockActiveSessionProvider.getActiveTeacherCount = vi.fn().mockReturnValue(1);
+
       const metrics = await diagnosticsService.getMetrics('lastHour');
+      
+      // FIXED: activeSessions should come from database storage (2), NOT WebSocket connections (5)
+      expect(metrics.sessions.activeSessions).toBe(2); // Database count, not WebSocket count
+      expect(metrics.sessions.studentsConnected).toBe(4); // WebSocket count for students
+      expect(metrics.sessions.teachersConnected).toBe(1); // WebSocket count for teachers
+      
+      // Verify the correct methods were called
+      expect(mockStorage.getSessionMetrics).toHaveBeenCalled();
       expect(mockActiveSessionProvider.getActiveStudentCount).toHaveBeenCalled();
       expect(mockActiveSessionProvider.getActiveTeacherCount).toHaveBeenCalled();
-      expect(metrics.sessions.activeSessions).toBe(2); // This comes from IActiveSessionProvider via getMetrics -> getCurrentPerformanceMetrics
-      expect(metrics.sessions.studentsConnected).toBe(1);
-      expect(metrics.sessions.teachersConnected).toBe(1);
+      // Verify that getActiveSessionsCount is NOT used for activeSessions
+      // (it might be called for other purposes, but not for the final activeSessions value)
+    });
+
+    it('should handle case where WebSocket provider is null', async () => {
+      // Test with null active session provider
+      const diagnosticsWithoutProvider = new DiagnosticsService(mockStorage, null);
+      
+      const metrics = await diagnosticsWithoutProvider.getMetrics('lastHour');
+      
+      // Should use database session count and default to 0 for connection counts
+      expect(metrics.sessions.activeSessions).toBe(2); // From database
+      expect(metrics.sessions.studentsConnected).toBe(0); // Default when provider is null
+      expect(metrics.sessions.teachersConnected).toBe(0); // Default when provider is null
+    });
+
+    it('should validate the business logic: 1 session can have multiple connections', async () => {
+      // Scenario: 1 classroom session with 1 teacher + 10 students = 11 WebSocket connections
+      vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({
+        totalSessions: 1,
+        activeSessions: 1, // 1 logical classroom session
+        averageSessionDuration: 2700000, // 45 minutes
+        sessionsLast24Hours: 1
+      });
+      
+      mockActiveSessionProvider.getActiveSessionsCount = vi.fn().mockReturnValue(11); // 11 WebSocket connections
+      mockActiveSessionProvider.getActiveStudentCount = vi.fn().mockReturnValue(10);
+      mockActiveSessionProvider.getActiveTeacherCount = vi.fn().mockReturnValue(1);
+
+      const metrics = await diagnosticsService.getMetrics('lastHour');
+      
+      // Business logic validation:
+      expect(metrics.sessions.totalSessions).toBe(1); // 1 session in database
+      expect(metrics.sessions.activeSessions).toBe(1); // 1 active session (NOT 11 connections)
+      expect(metrics.sessions.studentsConnected).toBe(10); // 10 student connections
+      expect(metrics.sessions.teachersConnected).toBe(1); // 1 teacher connection
+      
+      // Total connections = 11, but active sessions = 1 (this is the correct behavior)
+      const totalConnections = metrics.sessions.studentsConnected + metrics.sessions.teachersConnected;
+      expect(totalConnections).toBe(11);
+      expect(metrics.sessions.activeSessions).toBe(1); // Should NOT equal totalConnections
     });
   });
 
@@ -212,8 +275,8 @@ describe('DiagnosticsService', () => {
       expect(metrics.translations.languagePairs[0].sourceLanguage).toBe('de');
       
       expect(metrics.sessions.totalSessions).toBe(historicalDbSessions.totalSessions);
-      // Active sessions in metrics.sessions should be from IActiveSessionProvider
-      expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
+      // FIXED: Active sessions should come from database storage, not WebSocket connections
+      expect(metrics.sessions.activeSessions).toBe(historicalDbSessions.activeSessions); // 3 from database
       
       expect(mockStorage.getSessionMetrics).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
       // For current performance, DiagnosticsService calls storage.getTranslationMetrics with a short time range (~1 minute)
@@ -268,8 +331,8 @@ describe('DiagnosticsService', () => {
       // recentSessionActivity from default mock in beforeEach
       expect(metrics.sessions.recentSessionActivity).toHaveLength(2);
       expect(metrics.sessions.sessionsLast24Hours).toBe(5);
-      // Active session data from provider
-      expect(metrics.sessions.activeSessions).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
+      // FIXED: Active session data should come from database storage, not WebSocket connections
+      expect(metrics.sessions.activeSessions).toBe(2); // From mockStorage.getSessionMetrics().activeSessions
       expect(metrics.sessions.studentsConnected).toBe(mockActiveSessionProvider.getActiveStudentCount());
       expect(metrics.sessions.teachersConnected).toBe(mockActiveSessionProvider.getActiveTeacherCount());
 
@@ -292,19 +355,10 @@ describe('DiagnosticsService', () => {
       });
       expect(currentPerformanceCall).toBeDefined();
       
-      // Historical data calls (with default time range, e.g., 'lastHour', resolved to dates)
-      expect(getTranslationMetricsSpy).toHaveBeenCalledWith(expect.objectContaining({
-        startDate: expect.any(Date),
-        endDate: expect.any(Date)
-      }));
-      expect(getSessionMetricsSpy).toHaveBeenCalledWith(expect.objectContaining({
-        startDate: expect.any(Date),
-        endDate: expect.any(Date)
-      }));
-      expect(getLanguagePairUsageSpy).toHaveBeenCalledWith(expect.objectContaining({
-        startDate: expect.any(Date),
-        endDate: expect.any(Date)
-      }));
+      // Historical data calls (with no time range specified, should pass undefined)
+      expect(getTranslationMetricsSpy).toHaveBeenCalledWith(undefined);
+      expect(getSessionMetricsSpy).toHaveBeenCalledWith(undefined);
+      expect(getLanguagePairUsageSpy).toHaveBeenCalledWith(undefined);
       expect(getRecentSessionActivitySpy).toHaveBeenCalledWith(5); // Default count for recent activity
     });
   });
@@ -313,11 +367,11 @@ describe('DiagnosticsService', () => {
     // This beforeEach will use the global mock for getTranslationMetrics, which returns MOCK_HISTORICAL_TRANSLATIONS_DEFAULT
     // for presets other than 'lastMinute', and MOCK_CURRENT_PERF_TRANSLATIONS for 'lastMinute'.
 
-    it('should retrieve session metrics (active from provider, historical from DB for preset)', async () => {
+    it('should retrieve session metrics (active from database, connections from provider for preset)', async () => {
       const metrics = await diagnosticsService.getMetrics('last24Hours' as TimeRangePreset); // Example preset
       expect(metrics.sessions).toEqual(expect.objectContaining({
         totalSessions: 10, // From MOCK_HISTORICAL_SESSIONS_DEFAULT (via getSessionMetrics mock)
-        activeSessions: 2, // From IActiveSessionProvider
+        activeSessions: 2, // FIXED: From database storage, not IActiveSessionProvider
         averageSessionDuration: 300000,
         sessionsLast24Hours: 5,
         // recentSessionActivity from global beforeEach mock
@@ -359,6 +413,40 @@ describe('DiagnosticsService', () => {
         return false;
       });
       expect(currentPerformanceCall).toBeDefined();
+    });
+  });
+
+  describe('Session Counting Bug Fix', () => {
+    it('should use database session count for activeSessions, not WebSocket connection count', async () => {
+      // This test specifically validates the bug fix where activeSessions should come from database, not WebSocket connections
+      
+      // Mock scenario: 1 teacher + 10 students = 11 WebSocket connections but only 1 session in database
+      const mockActiveSessionProviderWithManyConnections = {
+        getActiveSessionCount: vi.fn().mockReturnValue(11), // 11 WebSocket connections
+        getActiveSessionsCount: vi.fn().mockReturnValue(11), // 11 WebSocket connections  
+        getActiveStudentCount: vi.fn().mockReturnValue(10), // 10 students
+        getActiveTeacherCount: vi.fn().mockReturnValue(1), // 1 teacher
+      } as IActiveSessionProvider;
+
+      // Database should show only 1 active session
+      vi.spyOn(mockStorage, 'getSessionMetrics').mockResolvedValue({
+        totalSessions: 1,
+        activeSessions: 1, // Only 1 session in database
+        averageSessionDuration: 300000,
+        sessionsLast24Hours: 1
+      });
+
+      const diagnosticsServiceWithManyConnections = new DiagnosticsService(mockStorage, mockActiveSessionProviderWithManyConnections);
+      const metrics = await diagnosticsServiceWithManyConnections.getMetrics();
+
+      // FIXED: activeSessions should be 1 (from database), not 11 (from WebSocket connections)
+      expect(metrics.sessions.activeSessions).toBe(1); // Database count, not connection count
+      expect(metrics.sessions.studentsConnected).toBe(10); // Still from WebSocket provider (correct)
+      expect(metrics.sessions.teachersConnected).toBe(1); // Still from WebSocket provider (correct)
+      
+      // Verify we're not accidentally using WebSocket connection count for activeSessions
+      expect(metrics.sessions.activeSessions).not.toBe(11);
+      expect(metrics.sessions.activeSessions).not.toBe(mockActiveSessionProviderWithManyConnections.getActiveSessionsCount());
     });
   });
 
