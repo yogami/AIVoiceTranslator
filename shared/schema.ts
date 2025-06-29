@@ -56,7 +56,9 @@ export const insertTranscriptSchema = createInsertSchema(transcripts).pick({
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull().unique(),
+  classCode: text("class_code"),
   teacherLanguage: text("teacher_language"),
+  studentLanguage: text("student_language"),
   startTime: timestamp("start_time").defaultNow(),
   endTime: timestamp("end_time"),
   studentsCount: integer("students_count").default(0),
@@ -65,7 +67,7 @@ export const sessions = pgTable("sessions", {
   isActive: boolean("is_active").default(true),
   quality: text("quality", { enum: ["unknown", "real", "no_students", "no_activity", "too_short"] }).default("unknown"),
   qualityReason: text("quality_reason"),
-  lastActivityAt: timestamp("last_activity_at").defaultNow(),
+  lastActivityAt: timestamp("last_activity_at"),
 });
 
 export const insertSessionSchema = createInsertSchema(sessions);

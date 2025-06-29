@@ -21,6 +21,7 @@ import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
 import { DiagnosticsService } from './services/DiagnosticsService';
 import { WebSocketServer } from './services/WebSocketServer';
+import { SessionCleanupService } from './services/SessionCleanupService';
 import fs from 'fs'; // Added fs import
 // Ensure setupVite and serveStatic are imported from your vite.ts
 import { setupVite, serveStatic } from './vite';
@@ -106,9 +107,25 @@ export async function startServer(app: express.Express): Promise<Server> {
   const diagnosticsService = new DiagnosticsService(storage, null);
   const wss = new WebSocketServer(httpServer, storage);
   
+  // Initialize session cleanup service
+  const cleanupService = new SessionCleanupService();
+  cleanupService.start();
+  logger.info('[INIT] Session cleanup service started.');
+  
+  // Gracefully shutdown cleanup service when server shuts down
+  process.on('SIGTERM', () => {
+    logger.info('SIGTERM received, shutting down gracefully...');
+    cleanupService.stop();
+  });
+  
+  process.on('SIGINT', () => {
+    logger.info('SIGINT received, shutting down gracefully...');
+    cleanupService.stop();
+  });
+  
   diagnosticsService.setActiveSessionProvider(wss);
 
-  const apiRoutes = createApiRoutes(storage, diagnosticsService, wss);
+  const apiRoutes = createApiRoutes(storage, diagnosticsService, wss, cleanupService);
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 

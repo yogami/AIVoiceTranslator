@@ -16,6 +16,7 @@ export interface RegisterMessageToServer extends BaseWebSocketMessage {
   role: 'teacher' | 'student';
   languageCode: string;
   name?: string; // Added name property for student identification
+  classroomCode?: string; // Added classroomCode property for student registration
   settings?: Partial<ClientSettings>; // Allow partial updates
   ttsServiceType?: string; // Kept for backward compatibility, but settings.ttsServiceType is preferred
 }

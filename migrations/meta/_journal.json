@@ -15,6 +15,13 @@
       "when": 1750931653091,
       "tag": "0001_violet_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1751042377301,
+      "tag": "0002_friendly_namora",
+      "breakpoints": true
     }
   ]
 }

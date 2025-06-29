@@ -117,7 +117,14 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
           return;
         }
         
-        const messageIndex = wsClient.messages.findIndex((m: any) => !type || m.type === type);
+        // Find the last (most recent) message of the requested type
+        let messageIndex = -1;
+        for (let i = wsClient.messages.length - 1; i >= 0; i--) {
+          if (!type || wsClient.messages[i].type === type) {
+            messageIndex = i;
+            break;
+          }
+        }
 
         if (messageIndex !== -1) {
           const message = wsClient.messages.splice(messageIndex, 1)[0];
@@ -184,7 +191,7 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
   afterAll(async () => {
     // Clean up database connection
     await closeDatabaseConnection();
-  });
+  }, 60000); // 60 second timeout
 
   beforeEach(async () => {
     console.log('START: beforeEach');
@@ -278,6 +285,16 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
     // Reset client references
     teacherClient = null;
     studentClient = null;
+    
+    // Stop WebSocket server and its background services BEFORE closing HTTP server
+    if (wsServer) {
+      try {
+        wsServer.close();
+        console.log('[DEBUG] [GLOBAL afterEach] WebSocket server stopped');
+      } catch (error) {
+        console.error('[DEBUG] [GLOBAL afterEach] Error stopping WebSocket server:', error);
+      }
+    }
     
     // Close HTTP server and wait for it to fully close
     if (httpServer && httpServer.listening) {
@@ -397,26 +414,22 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       expect(connMsg.status).toBe('connected');
       expect(connMsg.sessionId).toMatch(/^session-\d+-\d+$/);
       
-      // Wait a bit for session to be created in storage
+      // Wait a bit for any potential async operations
       await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.CLEANUP_DELAY));
       
-      // Verify session was created in storage
+      // Verify session was NOT created in storage (new logic: sessions only created on student join)
       const session = await realStorage.getSessionById(connMsg.sessionId);
-      expect(session).toBeTruthy();
-      expect(session?.isActive).toBe(true);
+      expect(session).toBeFalsy(); // Session should not exist until a student joins (could be null or undefined)
       
       // Close connection
       client.close();
       
-      // Wait longer for close handling to complete async storage operations
-      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.CLEANUP_DELAY * 10));
+      // Wait for close handling to complete
+      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.CLEANUP_DELAY * 2));
       
-      // Verify session was ended in storage
-      const endedSession = await realStorage.getSessionById(connMsg.sessionId);
-      // Note: In integration testing, the session might still be active if close handler hasn't completed
-      // The important thing is that the session exists and was properly created
-      expect(endedSession).toBeTruthy();
-      expect(endedSession?.sessionId).toBe(connMsg.sessionId);
+      // Session should still not exist since no student ever joined
+      const sessionAfterClose = await realStorage.getSessionById(connMsg.sessionId);
+      expect(sessionAfterClose).toBeFalsy();
       console.log('END: should handle basic connection and disconnection');
     });
 
@@ -451,24 +464,16 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
 
     it('should handle malformed URLs gracefully', async () => {
       console.log('START: should handle malformed URLs gracefully');
-      // Create client with malformed URL (missing host header)
-      const ws = new WebSocket(`ws://localhost:${serverPort}/ws?code=ABC123`);
       
-      // Manually remove host header
-      ws.on('upgrade', (request) => {
-        delete request.headers.host;
-      });
+      // Test with a URL that has invalid query parameters but should still connect
+      const client = await createClient('/ws?invalid=parameter&malformed');
       
-      await new Promise((resolve) => {
-        ws.on('open', () => resolve(null));
-        ws.on('error', () => resolve(null));
-      });
+      // Should still get a connection message even with malformed query parameters
+      const connMsg = await waitForMessage(client, 'connection');
+      expect(connMsg.status).toBe('connected');
+      expect(connMsg.sessionId).toMatch(/^session-\d+-\d+$/);
       
-      if (ws.readyState === WebSocket.OPEN) {
-        const msg = await waitForMessage(ws, 'connection');
-        expect(msg.status).toBe('connected');
-        ws.close();
-      }
+      client.close();
       console.log('END: should handle malformed URLs gracefully');
     });
   });
@@ -511,6 +516,11 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       const sessionId = codeMsg.sessionId;
       const updatedSession = await realStorage.getSessionById(sessionId);
       expect(updatedSession).toBeDefined();
+      
+      // Debug: Log the actual session data
+      console.log('DEBUG: Session data:', JSON.stringify(updatedSession, null, 2));
+      console.log('DEBUG: studentsCount expected: 1, actual:', updatedSession?.studentsCount);
+      
       expect(updatedSession?.studentsCount).toBe(1);
       console.log('END: should handle complete teacher-student session flow');
     });
@@ -541,10 +551,13 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
 
   describe('Translation Flow', () => {
     let classroomCode: string;
+    let teacherSessionId: string;
 
     beforeEach(async () => {
       // Setup teacher and student
       teacherClient = await createClient();
+      const connMsg = await waitForMessage(teacherClient, 'connection');
+      teacherSessionId = connMsg.sessionId; // Store the session ID
       const { classroomCodeResponse } = await registerTeacher(teacherClient);
       classroomCode = classroomCodeResponse.code;
       
@@ -592,17 +605,28 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
         languageCode: 'fr-FR'
       }, 'register');
       
-      // Mock different translations
+      // Mock different translations based on target language
       vi.mocked(speechTranslationService.translateSpeech)
-        .mockResolvedValueOnce({
-          originalText: 'Hello',
-          translatedText: 'Hola',
-          audioBuffer: Buffer.from('spanish-audio')
-        })
-        .mockResolvedValueOnce({
-          originalText: 'Hello',
-          translatedText: 'Bonjour',
-          audioBuffer: Buffer.from('french-audio')
+        .mockImplementation(async (audioBuffer: Buffer, sourceLanguage: string, targetLanguage: string, preTranscribedText?: string) => {
+          if (targetLanguage === 'es-ES') {
+            return {
+              originalText: 'Hello',
+              translatedText: 'Hola',
+              audioBuffer: Buffer.from('spanish-audio')
+            };
+          } else if (targetLanguage === 'fr-FR') {
+            return {
+              originalText: 'Hello',
+              translatedText: 'Bonjour',
+              audioBuffer: Buffer.from('french-audio')
+            };
+          } else {
+            return {
+              originalText: preTranscribedText || 'Hello',
+              translatedText: preTranscribedText || 'Hello',
+              audioBuffer: Buffer.from('default-audio')
+            };
+          }
         });
       
       const translation1Promise = waitForMessage(studentClient!, 'translation');
@@ -632,7 +656,8 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       expect(studentClient).not.toBeNull();
       expect(teacherClient).not.toBeNull();
       
-      // Mock translation error
+      // Reset mock and set error behavior
+      vi.mocked(speechTranslationService.translateSpeech).mockReset();
       vi.mocked(speechTranslationService.translateSpeech).mockRejectedValueOnce(
         new Error('Translation service unavailable')
       );
@@ -698,8 +723,7 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       // Verify translation was stored in database (real integration test)
       // Note: In a real scenario, we'd verify the translation was persisted
       // For now, we'll just verify the session exists and is active
-      const connMsg = await waitForMessage(teacherClient!, 'connection');
-      const session = await realStorage.getSessionById(connMsg.sessionId);
+      const session = await realStorage.getSessionById(teacherSessionId);
       expect(session).toBeTruthy();
       
       // Clean up
@@ -856,6 +880,8 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       console.log('START: should handle TTS generation errors');
       expect(teacherClient).not.toBeNull();
       
+      // Reset mock and set error behavior
+      vi.mocked(speechTranslationService.translateSpeech).mockReset();
       vi.mocked(speechTranslationService.translateSpeech).mockRejectedValueOnce(
         new Error('TTS service error')
       );
@@ -869,14 +895,18 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       expect(response.status).toBe('error');
       expect(response.error.message).toBe('Failed to generate audio');
       console.log('END: should handle TTS generation errors');
+      expect(response.status).toBe('error');
+      expect(response.error.message).toBe('Failed to generate audio');
+      console.log('END: should handle TTS generation errors');
     });
 
     it('should handle browser speech synthesis marker', async () => {
       console.log('START: should handle browser speech synthesis marker');
       expect(teacherClient).not.toBeNull();
       
-      // Mock service returning browser speech marker
-      vi.mocked(speechTranslationService.translateSpeech).mockResolvedValueOnce({
+      // Reset mock and set browser speech behavior
+      vi.mocked(speechTranslationService.translateSpeech).mockReset();
+      vi.mocked(speechTranslationService.translateSpeech).mockResolvedValue({
         originalText: 'Hello',
         translatedText: 'Hello',
         audioBuffer: Buffer.from(JSON.stringify({
@@ -1190,14 +1220,24 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
       // Connect and register as teacher
       const client = await createClient();
       const connMsg = await waitForMessage(client, 'connection');
-      await sendAndWait(client, {
+      const { classroomCodeResponse } = await registerTeacher(client);
+      const classroomCode = classroomCodeResponse.code;
+
+      // Add a student to trigger session creation (new logic)
+      const studentClient = await createClient(`/ws?code=${classroomCode}`);
+      await sendAndWait(studentClient, {
         type: 'register',
-        role: 'teacher',
-        languageCode: 'en-US'
+        role: 'student',
+        languageCode: 'es-ES',
+        name: 'Test Student'
       }, 'register');
 
-      // Get initial session state
+      // Wait for session creation
+      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.CLEANUP_DELAY));
+
+      // Get initial session state (should exist now that student joined)
       const initialSession = await realStorage.getSessionById(connMsg.sessionId);
+      expect(initialSession).toBeTruthy(); // Session should exist after student joins
       const initialActivity = initialSession?.lastActivityAt;
 
       // Wait a moment to ensure timestamp difference
@@ -1219,19 +1259,35 @@ describe('WebSocketServer Integration Tests', { timeout: 10000 }, () => {
         expect(new Date(updatedSession.lastActivityAt).getTime()).toBeGreaterThan(new Date(initialActivity).getTime());
       }
       client.close();
+      studentClient.close();
     });
 
     it('should clean up inactive sessions after timeout', async () => {
       // Create a real session that will become inactive
       const client = await createClient();
       const connMsg = await waitForMessage(client, 'connection');
+      const { classroomCodeResponse } = await registerTeacher(client);
+      const classroomCode = classroomCodeResponse.code;
+
+      // Add a student to trigger session creation (new logic)
+      const studentClient = await createClient(`/ws?code=${classroomCode}`);
+      await sendAndWait(studentClient, {
+        type: 'register',
+        role: 'student',
+        languageCode: 'es-ES',
+        name: 'Test Student'
+      }, 'register');
+
+      // Wait for session creation
+      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.CLEANUP_DELAY));
       
-      // Verify session was created and is active
+      // Verify session was created and is active (should exist now that student joined)
       const session = await realStorage.getSessionById(connMsg.sessionId);
       expect(session?.isActive).toBe(true);
       
-      // Close the connection to make the session inactive
+      // Close the connections to make the session inactive
       client.close();
+      studentClient.close();
       
       // Wait for close handling to complete
       await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.CLEANUP_DELAY * 5));

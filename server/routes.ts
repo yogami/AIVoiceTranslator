@@ -12,6 +12,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { DiagnosticsService } from './services/DiagnosticsService.js';
 import { IStorage } from './storage.interface.js';
 import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
+import { SessionCleanupService } from './services/SessionCleanupService.js';
 
 // Constants
 const API_VERSION = '1.0.0';
@@ -67,7 +68,8 @@ function parseLimit(limitParam: any, defaultLimit: number = 10): number {
 export const createApiRoutes = (
   storage: IStorage,
   diagnosticsService: DiagnosticsService,
-  activeSessionProvider: IActiveSessionProvider // Or WebSocketServer if direct interaction is needed
+  activeSessionProvider: IActiveSessionProvider, // Or WebSocketServer if direct interaction is needed
+  sessionCleanupService?: SessionCleanupService // Add optional cleanup service for admin endpoints
 ): Router => {
   const router = Router();
 
@@ -307,6 +309,26 @@ export const createApiRoutes = (
     });
   };
 
+  /**
+   * Admin endpoint to manually trigger session cleanup (for testing)
+   */
+  const triggerSessionCleanup = asyncHandler(async (req: Request, res: Response) => {
+    if (!sessionCleanupService) {
+      throw new ApiError(503, 'Session cleanup service not available');
+    }
+
+    if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
+      throw new ApiError(403, 'Admin endpoints only available in test/development mode');
+    }
+
+    await sessionCleanupService.cleanupStaleSessions();
+    
+    res.json({
+      message: 'Session cleanup triggered successfully',
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // ============================================================================
   // Route Registration
   // ============================================================================
@@ -337,6 +359,11 @@ export const createApiRoutes = (
 
   // Test routes
   router.get('/test', testEndpoint);
+  
+  // Admin routes (only in test/dev)
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+    router.post('/admin/cleanup-sessions', triggerSessionCleanup);
+  }
 
   return router;
 };

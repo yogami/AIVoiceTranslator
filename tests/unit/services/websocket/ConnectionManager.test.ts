@@ -181,6 +181,65 @@ describe('ConnectionManager', () => {
     });
   });
 
+  describe('student counting', () => {
+    it('should check if student is not counted by default', () => {
+      connectionManager.addConnection(mockClient1, 'session-1');
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(false);
+    });
+
+    it('should set and check student counted status', () => {
+      connectionManager.addConnection(mockClient1, 'session-1');
+      
+      connectionManager.setStudentCounted(mockClient1, true);
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(true);
+      
+      connectionManager.setStudentCounted(mockClient1, false);
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(false);
+    });
+
+    it('should handle student counted status for multiple connections', () => {
+      connectionManager.addConnection(mockClient1, 'session-1');
+      connectionManager.addConnection(mockClient2, 'session-2');
+      
+      connectionManager.setStudentCounted(mockClient1, true);
+      connectionManager.setStudentCounted(mockClient2, false);
+      
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(true);
+      expect(connectionManager.isStudentCounted(mockClient2)).toBe(false);
+    });
+
+    it('should clear student counted status when connection is removed', () => {
+      connectionManager.addConnection(mockClient1, 'session-1');
+      connectionManager.setStudentCounted(mockClient1, true);
+      
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(true);
+      
+      connectionManager.removeConnection(mockClient1);
+      connectionManager.addConnection(mockClient1, 'session-1'); // Re-add same client
+      
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(false);
+    });
+
+    it('should clear all student counted status when clearAll is called', () => {
+      connectionManager.addConnection(mockClient1, 'session-1');
+      connectionManager.addConnection(mockClient2, 'session-2');
+      connectionManager.setStudentCounted(mockClient1, true);
+      connectionManager.setStudentCounted(mockClient2, true);
+      
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(true);
+      expect(connectionManager.isStudentCounted(mockClient2)).toBe(true);
+      
+      connectionManager.clearAll();
+      
+      // Re-add connections to test they are no longer counted
+      connectionManager.addConnection(mockClient1, 'session-1');
+      connectionManager.addConnection(mockClient2, 'session-2');
+      
+      expect(connectionManager.isStudentCounted(mockClient1)).toBe(false);
+      expect(connectionManager.isStudentCounted(mockClient2)).toBe(false);
+    });
+  });
+
   describe('utility methods', () => {
     it('should check if connections exist', () => {
       expect(connectionManager.hasConnections()).toBe(false);

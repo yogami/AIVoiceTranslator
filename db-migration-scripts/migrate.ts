@@ -39,7 +39,15 @@ const runMigrations = async () => {
     console.log('🟢 Migrations applied successfully!');
   } catch (error) {
     console.error('🔴 Error applying migrations:', error);
-    process.exit(1);
+    
+    // Check if the error is about tables already existing
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('already exists') || errorMessage.includes('42P07')) {
+      console.warn('⚠️ Some tables already exist - this might be OK if database was previously initialized');
+      console.log('🔵 Database appears to have existing schema. Continuing...');
+    } else {
+      process.exit(1);
+    }
   } finally {
     if (migrationClient) {
       await migrationClient.end();

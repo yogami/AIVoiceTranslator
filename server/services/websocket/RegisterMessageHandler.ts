@@ -51,17 +51,17 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     // Store client settings
     const settings: ClientSettings = context.connectionManager.getClientSettings(context.ws) || {};
     
-    // Update text-to-speech service type if provided
-    if (message.settings?.ttsServiceType) {
-      settings.ttsServiceType = message.settings.ttsServiceType;
-      logger.info(`Client requested TTS service type: ${settings.ttsServiceType}`);
+    // Update all settings if provided (proper merge)
+    if (message.settings) {
+      Object.assign(settings, message.settings);
+      logger.info(`Client settings updated:`, message.settings);
     }
     
     // Store updated settings
     context.connectionManager.setClientSettings(context.ws, settings);
     
     logger.info('Updated connection:', 
-      { role: context.connectionManager.getRole(context.ws), languageCode: context.connectionManager.getLanguage(context.ws), ttsService: settings.ttsServiceType || 'default' });
+      { role: context.connectionManager.getRole(context.ws), languageCode: context.connectionManager.getLanguage(context.ws), settings: settings });
     
     // Send confirmation
     const response: RegisterResponseToClient = {
@@ -90,45 +90,61 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     message: RegisterMessageToServer, 
     context: MessageHandlerContext
   ): Promise<void> {
-    const sessionId = context.connectionManager.getSessionId(context.ws);
+    // Generate a classroom code for teachers immediately, even without a session
+    // The actual session will be created when the first student joins
+    let sessionId = context.connectionManager.getSessionId(context.ws);
+    let classroomCode: string;
+    
     if (sessionId) {
-      const classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
-      const sessionInfo = context.webSocketServer.classroomSessionManager.getSessionByCode(classroomCode);
+      // Teacher already has a session, use existing logic
+      classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
+    } else {
+      // Teacher doesn't have a session yet, generate a temporary classroom code
+      // Create a temporary session identifier for classroom code generation
+      const tempSessionId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(tempSessionId);
       
-      // Update session with teacher language - retry on failure to handle timing issues
-      if (message.languageCode) {
-        let retryCount = 0;
-        const maxRetries = 3;
-        while (retryCount < maxRetries) {
-          try {
-            const result = await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
-              teacherLanguage: message.languageCode
-            });
-            if (result) {
-              break; // Success
-            } else {
-              retryCount++;
-              if (retryCount < maxRetries) {
-                await new Promise(resolve => setTimeout(resolve, 10)); // Small delay before retry
-              }
+      // Store the classroom code temporarily so students can find this teacher later
+      // The actual session will be created when the first student joins
+      logger.info(`Generated temporary classroom code ${classroomCode} for teacher (no session yet)`);
+    }
+    
+    const sessionInfo = context.webSocketServer.classroomSessionManager.getSessionByCode(classroomCode);
+    
+    // Update session with teacher language - retry on failure to handle timing issues
+    // Only do this if we have a real sessionId (not temporary)
+    if (sessionId && message.languageCode) {
+      let retryCount = 0;
+      const maxRetries = 3;
+      while (retryCount < maxRetries) {
+        try {
+          const result = await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
+            teacherLanguage: message.languageCode
+          });
+          if (result) {
+            break; // Success
+          } else {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 10)); // Small delay before retry
             }
-          } catch (error: any) {
-            logger.error('Failed to update session with teacher language:', { error, attempt: retryCount + 1 });
-            break;
           }
+        } catch (error: any) {
+          logger.error('Failed to update session with teacher language:', { error, attempt: retryCount + 1 });
+          break;
         }
       }
-      
-      const response: ClassroomCodeMessageToClient = {
-        type: 'classroom_code',
-        code: classroomCode,
-        sessionId: sessionId,
-        expiresAt: sessionInfo?.expiresAt || Date.now() + (2 * 60 * 60 * 1000) // Fallback expiration
-      };
-      context.ws.send(JSON.stringify(response));
-      
-      logger.info(`Generated classroom code ${classroomCode} for teacher session ${sessionId}`);
     }
+    
+    const response: ClassroomCodeMessageToClient = {
+      type: 'classroom_code',
+      code: classroomCode,
+      sessionId: sessionId || undefined, // Don't send temporary sessionId to client
+      expiresAt: sessionInfo?.expiresAt || Date.now() + (2 * 60 * 60 * 1000) // Fallback expiration
+    };
+    context.ws.send(JSON.stringify(response));
+    
+    logger.info(`Generated classroom code ${classroomCode} for teacher${sessionId ? ` session ${sessionId}` : ' (no session yet)'}`);
   }
 
   /**
@@ -142,23 +158,79 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     const studentSessionId = context.connectionManager.getSessionId(context.ws);
     const studentName = message.name || 'Unknown Student';
     const studentLanguage = message.languageCode || 'unknown';
+    const classroomCode = message.classroomCode;
 
     if (studentSessionId) {
-      // Fetch current session to get current studentsCount
+      // Check if session exists - if not, create it (first student joining)
       try {
-        const session = await context.storage.getActiveSession(studentSessionId);
+        let session = await context.storage.getActiveSession(studentSessionId);
+        
+        if (!session) {
+          // First student joining - create the session
+          logger.info('Creating new session for first student:', { studentSessionId, classroomCode });
+          try {
+            await context.webSocketServer.storageSessionManager.createSession(studentSessionId);
+          } catch (error: any) {
+            // If session already exists (race condition), ignore the error
+            if (error?.code !== 'CREATE_FAILED' && error?.details?.code !== '23505') {
+              throw error;
+            }
+            logger.info('Session already exists (race condition handled):', { studentSessionId });
+          }
+          session = await context.storage.getActiveSession(studentSessionId);
+        }
+        
         const currentCount = session?.studentsCount || 0;
-        // Always ensure session is active when a student joins
+        
+        // Check if this student connection has already been counted
+        const alreadyCounted = context.connectionManager.isStudentCounted(context.ws);
+        
+        logger.info('DEBUG: Student registration details:', { 
+          sessionId: studentSessionId, 
+          currentCount, 
+          studentName,
+          sessionExists: !!session,
+          alreadyCounted
+        });
+        
+        // Update session with student info
         try {
-          await context.webSocketServer.storageSessionManager.updateSession(studentSessionId, { 
-            studentsCount: currentCount + 1, 
+          const updateData: any = { 
+            studentsCount: alreadyCounted ? currentCount : currentCount + 1, 
             isActive: true 
-          });
+          };
+          
+          // Add classCode and studentLanguage if provided
+          if (classroomCode) {
+            updateData.classCode = classroomCode;
+          }
+          if (studentLanguage && studentLanguage !== 'unknown') {
+            updateData.studentLanguage = studentLanguage;
+          }
+          
+          await context.webSocketServer.storageSessionManager.updateSession(studentSessionId, updateData);
+          
+          // Mark this student as counted (only if not already counted)
+          if (!alreadyCounted) {
+            context.connectionManager.setStudentCounted(context.ws, true);
+          }
+          
+          // If this is a student rejoining after all students left, cancel grace period
+          if (currentCount === 0) {
+            try {
+              const cleanupService = context.webSocketServer.getSessionCleanupService();
+              if (cleanupService) {
+                await cleanupService.markStudentsRejoined(studentSessionId);
+              }
+            } catch (error: any) {
+              logger.error('Error marking students rejoined:', { error });
+            }
+          }
         } catch (error: any) {
-          logger.error('Failed to increment studentsCount for session:', { error });
+          logger.error('Failed to update session for student registration:', { error });
         }
       } catch (error: any) {
-        logger.error('Failed to fetch session for incrementing studentsCount:', { error });
+        logger.error('Failed to handle session for student registration:', { error });
       }
 
       // Notify the teacher(s) in the same session

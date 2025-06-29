@@ -496,7 +496,7 @@ describe('Diagnostics Service Integration', () => {
 
         if (sessionActivity) {
           expect(sessionActivity.sessionId).toBe(sessionId);
-          expect(sessionActivity.language).toBe(teacherRegisterPayload.languageCode); // teacherLanguage
+          expect(sessionActivity.language).toBe('es-ES'); // studentLanguage (was teacherRegisterPayload.languageCode)
           expect(sessionActivity.transcriptCount).toBeGreaterThanOrEqual(1); // We sent one transcript
         }
 
@@ -976,17 +976,20 @@ describe('Diagnostics Service Integration', () => {
       await waitForMessage(teacherMessages, 'classroom_code', 5000);
       const sessionId = teacherMessages.find(m => m.type === 'classroom_code')?.sessionId;
 
+      // Wait for initial session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Get initial activity timestamp
       const initialSession = await testStorage.getSessionById(sessionId);
       const initialActivity = initialSession?.lastActivityAt;
 
       // Wait and send another message to update activity
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay to ensure timestamp difference
       teacherClient.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
       await waitForMessage(teacherMessages, 'pong', 5000);
 
       // Wait for async storage update
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Longer wait
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait for storage update
 
       // Check activity was updated
       const updatedSession = await testStorage.getSessionById(sessionId);
@@ -1258,7 +1261,7 @@ describe('Diagnostics Service Integration', () => {
       const initialMetrics = await diagnosticsServiceInstance.getMetrics();
       const initialActiveSessions = initialMetrics.sessions.activeSessions;
 
-      // Create an active session
+      // Create an active session (teacher + student, since sessions are only created when students join)
       const teacherClient = new WebSocket(`ws://localhost:${actualPort}`);
       const teacherMessages: any[] = [];
       teacherClient.on('message', (data: WebSocket.Data) => teacherMessages.push(JSON.parse(data.toString())));
@@ -1266,20 +1269,35 @@ describe('Diagnostics Service Integration', () => {
 
       teacherClient.send(JSON.stringify({ type: 'register', role: 'teacher', languageCode: 'en-US' }));
       await waitForMessage(teacherMessages, 'classroom_code', 5000);
-      const sessionId = teacherMessages.find(m => m.type === 'classroom_code')?.sessionId;
+      const classroomCodeMessage = teacherMessages.find(m => m.type === 'classroom_code');
+      const sessionId = classroomCodeMessage?.sessionId;
+      const classroomCode = classroomCodeMessage?.code;
+
+      // Add student to create the database session
+      const studentClient = new WebSocket(`ws://localhost:${actualPort}/ws?code=${classroomCode}`);
+      const studentMessages: any[] = [];
+      studentClient.on('message', (data: WebSocket.Data) => studentMessages.push(JSON.parse(data.toString())));
+      await new Promise(resolve => studentClient.on('open', resolve));
+      studentClient.send(JSON.stringify({ type: 'register', role: 'student', classroomCode, languageCode: 'es-ES' }));
+      await waitForMessage(studentMessages, 'register', 5000);
+
+      // Wait for student joined message
+      await waitForMessage(teacherMessages, 'student_joined', 5000);
 
       // Check active session count increased
       const midMetrics = await diagnosticsServiceInstance.getMetrics();
       expect(midMetrics.sessions.activeSessions).toBeGreaterThan(initialActiveSessions);
 
-      // Verify session is active in storage (if persisted)
+      // Verify session is active in storage (should be persisted now)
       const activeSession = await testStorage.getSessionById(sessionId);
       
+      expect(activeSession).toBeDefined();
       if (activeSession) {
         expect(activeSession.isActive).toBe(true);
 
         // Close session
         teacherClient.close();
+        studentClient.close();
         await new Promise(resolve => setTimeout(resolve, 2000)); // Longer wait
 
         // Check session is now inactive
@@ -1291,14 +1309,6 @@ describe('Diagnostics Service Integration', () => {
         // Active session count should return to original or lower
         const finalMetrics = await diagnosticsServiceInstance.getMetrics();
         expect(finalMetrics.sessions.activeSessions).toBeLessThanOrEqual(midMetrics.sessions.activeSessions);
-      } else {
-        console.warn('[DEBUG] Session not persisted to database in active/inactive test, skipping storage-specific assertions');
-        teacherClient.close();
-        
-        // Just verify the diagnostics service works
-        const finalMetrics = await diagnosticsServiceInstance.getMetrics();
-        expect(finalMetrics).toBeDefined();
-        expect(finalMetrics.sessions.activeSessions).toBeGreaterThanOrEqual(0);
       }
     }, 10000);
   });

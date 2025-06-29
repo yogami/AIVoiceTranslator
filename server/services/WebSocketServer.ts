@@ -76,6 +76,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private sessionMetricsService: SessionMetricsService; // Handles session metrics calculation
   private webSocketResponseService: WebSocketResponseService; // Handles WebSocket response formatting
   private sessionLifecycleService: SessionLifecycleService; // Handles session lifecycle management
+  private sessionCleanupService: any; // Dynamically imported SessionCleanupService
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
@@ -122,7 +123,8 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       this.classroomSessionManager,
       this.storageSessionManager,
       this.connectionHealthManager,
-      this.messageDispatcher
+      this.messageDispatcher,
+      this
     );
    
     // Set up event handlers
@@ -130,6 +132,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     
     // Start session lifecycle management tasks
     this.startSessionLifecycleManagement();
+    
+    // Initialize and start SessionCleanupService (async, but don't wait for it)
+    this.initializeSessionCleanupService().catch(error => {
+      logger.error('Failed to initialize SessionCleanupService during construction:', { error });
+    });
     
     // Note: Classroom session cleanup is now handled by ClassroomSessionManager
   }
@@ -190,30 +197,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private handleConnection(ws: WebSocketClient, request?: any): void {
     logger.info('New WebSocket connection established');
     
-    // Initialize connection health tracking
-    this.connectionHealthManager.initializeConnection(ws);
-    
-    // Parse URL for classroom code and generate session ID - delegate to ConnectionLifecycleManager
-    const { sessionId, classroomCode } = this.connectionLifecycleManager.parseConnectionRequest(request);
-    
-    // Validate connection - delegate to ConnectionValidationService
-    const validationResult = this.connectionValidationService.validateConnection(classroomCode || undefined);
-    if (!validationResult.isValid) {
-      this.connectionValidationService.handleValidationError(ws, validationResult.error);
-      return;
-    }
-    
-    // Store connection data
-    this.connectionManager.addConnection(ws, sessionId);
-    
-    // Create session in storage using StorageSessionManager
-    this.storageSessionManager.createSession(sessionId).catch(error => {
-      logger.error('Failed to create session in storage:', { error });
-      // Continue without metrics - don't break core functionality
+    // Use the ConnectionLifecycleManager to handle the full connection lifecycle
+    // This includes session creation, validation, and setup
+    this.connectionLifecycleManager.handleConnection(ws, request).catch(error => {
+      logger.error('Error in connection lifecycle handling:', { error });
     });
-    
-    // Send immediate connection confirmation - delegate to ConnectionLifecycleManager
-    this.connectionLifecycleManager.sendConnectionConfirmation(ws, classroomCode);
 
     // Set up message handler
     ws.on('message', (data: any) => {
@@ -313,6 +301,16 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // 2. Shutdown SessionService
     this.sessionService.shutdown();
     logger.info('[WebSocketServer] SessionService shutdown completed.');
+
+    // 2.1. Stop SessionCleanupService
+    if (this.sessionCleanupService) {
+      try {
+        this.sessionCleanupService.stop();
+        logger.info('[WebSocketServer] SessionCleanupService stopped.');
+      } catch (error) {
+        logger.error('[WebSocketServer] Error stopping SessionCleanupService:', { error });
+      }
+    }
 
     // 3. Close all client connections
     const connections = this.connectionManager.getConnections();
@@ -574,13 +572,24 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   }
 
   /**
-   * Update session activity for the current connection's session
+   * Initialize and start the SessionCleanupService
    */
-  public async updateSessionActivity(ws: WebSocketClient): Promise<void> {
-    const sessionId = this.connectionManager.getSessionId(ws);
-    if (sessionId) {
-      await this.sessionLifecycleService.updateSessionActivity(sessionId);
+  private async initializeSessionCleanupService(): Promise<void> {
+    try {
+      const { SessionCleanupService } = await import('./SessionCleanupService');
+      this.sessionCleanupService = new SessionCleanupService();
+      this.sessionCleanupService.start();
+      logger.info('SessionCleanupService started');
+    } catch (error) {
+      logger.error('Failed to initialize SessionCleanupService:', { error });
     }
+  }
+
+  /**
+   * Get the SessionCleanupService instance
+   */
+  public getSessionCleanupService(): any {
+    return this.sessionCleanupService;
   }
 
   /**
@@ -604,5 +613,15 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       webSocketServer: this
     };
     this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, context);
+  }
+
+  /**
+   * Update session activity for the current connection's session
+   */
+  public async updateSessionActivity(ws: WebSocketClient): Promise<void> {
+    const sessionId = this.connectionManager.getSessionId(ws);
+    if (sessionId) {
+      await this.sessionLifecycleService.updateSessionActivity(sessionId);
+    }
   }
 }

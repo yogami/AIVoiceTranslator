@@ -1,6 +1,32 @@
 # AIVoiceTranslator: Real-time Multilingual Voice Translation Platform
 
-## 🚀 Quick Start for Developers
+## � Critical Database Safety Commands
+
+**Before ANY database work, run:**
+```bash
+npm run db:audit        # Check production database integrity
+npm run db:audit:test   # Check test database integrity
+```
+
+**Schema changes (ONLY way to modify database structure):**
+```bash
+# 1. Edit shared/schema.ts ONLY
+# 2. Generate migration
+npm run db:migrations:generate
+# 3. Apply to test first
+npm run db:migrations:apply:test
+# 4. Test thoroughly
+# 5. Apply to production
+npm run db:migrations:apply
+# 6. Verify
+npm run db:audit
+```
+
+**❌ NEVER:** Use raw SQL, ALTER TABLE, or manual database changes!
+
+---
+
+## �🚀 Quick Start for Developers
 
 ### Prerequisites
 - **Node.js 18+** and npm
@@ -242,22 +268,84 @@ For detailed testing documentation, see [docs/TESTING.md](docs/TESTING.md)
 
 This project uses Drizzle ORM with a versioned migration system to manage database schema changes. The scripts for this are located in the `db-migration-scripts/` directory.
 
-### Workflow for Schema Changes:
+### 🚨 CRITICAL: Schema.ts is the ONLY Source of Truth
 
-1.  **Modify Schema:** Make your desired changes to the table definitions in `shared/schema.ts`.
+**Golden Rule:** `shared/schema.ts` is the single source of truth for database structure. ALL structural changes must go through this file.
+
+### ✅ Correct Workflow for Schema Changes:
+
+1.  **Modify Schema:** Make your desired changes ONLY in `shared/schema.ts`.
 2.  **Generate Migration:** Create a new SQL migration file based on your schema changes.
     ```bash
     npm run db:migrations:generate
     ```
-    This will create a new file in the `migrations/` directory. Review this file.
-3.  **Apply to Development Database:** Apply the generated migration(s) to your development database (configured in `.env`).
-    ```bash
-    npm run db:migrations:apply
-    ```
-4.  **Apply to Test Database:** Apply the generated migration(s) to your test database (configured in `.env.test`).
+    This will create a new file in the `migrations/` directory. **Review this file carefully.**
+3.  **Apply to Test Database:** Apply the generated migration(s) to your test database first.
     ```bash
     npm run db:migrations:apply:test
     ```
+4.  **Test Your Changes:** Run tests to ensure everything works correctly.
+5.  **Apply to Development Database:** Apply to your development database.
+    ```bash
+    npm run db:migrations:apply
+    ```
+6.  **Apply to Production Database:** In production deployment:
+    ```bash
+    npm run db:migrations:apply
+    ```
+
+### 🔍 Database Integrity Auditing
+
+**Run these commands regularly to ensure schema.ts matches your actual database:**
+
+```bash
+# Check production database integrity
+npm run db:audit
+
+# Check test database integrity  
+npm run db:audit:test
+```
+
+Both should show: "🎉 ALL TABLES ARE IN SYNC!"
+
+### ❌ NEVER DO THIS
+
+- ✖️ Write raw SQL for schema changes (`ALTER TABLE`, `ADD COLUMN`, etc.)
+- ✖️ Use database management tools to modify structure directly
+- ✖️ Trust anyone (including AI assistants) to "quickly fix" schema issues
+- ✖️ Skip migration generation
+- ✖️ Directly modify production database structure
+
+### 🚨 Emergency Schema Recovery
+
+If schema drift is detected and you need to recover:
+
+#### Option 1: Drizzle Introspect + Push (Safest)
+```bash
+# From your working environment
+npx drizzle-kit introspect --config=config/drizzle.config.ts
+# This generates schema from actual database
+
+# Then push to broken environment
+npx drizzle-kit push --config=config/drizzle.config.ts
+```
+
+#### Option 2: Export/Import DDL (Nuclear option)
+```bash
+# Export schema from working database
+pg_dump --schema-only --no-owner --no-privileges $WORKING_DATABASE_URL > schema.sql
+
+# Apply to broken database (CAREFUL!)
+psql $BROKEN_DATABASE_URL < schema.sql
+```
+
+### 🛡️ Protection Strategy
+
+1. **Always audit before changes:** `npm run db:audit`
+2. **Never bypass schema.ts:** All changes go through `shared/schema.ts`
+3. **Always generate migrations:** `npm run db:migrations:generate`
+4. **Test before production:** Apply to test database first
+5. **Regular health checks:** Run `npm run db:audit` weekly
 
 ### Resetting Databases (Caution: Deletes Data!)
 
@@ -277,19 +365,36 @@ If you need to completely reset a database (drop all tables defined in the schem
     npm run db:migrations:apply:test
     ```
 
-### Production Database Setup (TODO)
+### 🚀 Production Database Setup
 
-*   **TODO:** When you are ready to set up a dedicated production database instance (e.g., a new Neon database):
-    1.  Create the new production database instance.
-    2.  Securely configure its `DATABASE_URL` in your production environment (e.g., hosting provider's environment variables).
-    3.  Ensure your migration files (from the `migrations/` directory) are deployed with your application.
-    4.  As part of your deployment process, run the migration application script against the production database:
-        ```bash
-        # In your production environment, after setting DATABASE_URL
-        npm run db:migrations:apply 
-        ```
-        (This assumes the `db:migrations:apply` script and its dependencies are available in the production build/environment).
-    5.  **Never run `db:reset` or `db:push` commands against a production database with live data unless you intend to wipe it.**
+When setting up production database:
+
+1.  Create the production database instance
+2.  Configure `DATABASE_URL` in production environment
+3.  Ensure migration files are deployed with your application
+4.  Run integrity check: `npm run db:audit`
+5.  Apply migrations: `npm run db:migrations:apply`
+6.  **Never run `db:reset` against production with live data**
+
+### 📋 Regular Maintenance
+
+```bash
+# Weekly health check
+npm run db:audit
+npm run db:audit:test
+
+# Before any deployment
+npm run db:audit        # Must pass
+```
+
+### 🆘 Emergency Contacts
+
+If production is broken due to schema issues:
+1. **Immediately rollback** to last known good state
+2. **Fix schema.ts** to match production reality
+3. **Generate proper migrations** for any needed changes
+4. **Test thoroughly** before re-deploying
+5. **Never manually fix** production database
 
 ## 🏗️ System Architecture
 

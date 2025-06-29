@@ -23,21 +23,34 @@ export class StorageSessionManager {
       // Check if a session with this ID already exists
       const existingSession = await this.storage.getSessionById(sessionId);
       if (existingSession) {
-        logger.info('Session already exists in storage, ensuring it is active:', { sessionId });
-        if (!existingSession.isActive) {
+        logger.info('Session already exists in storage:', { sessionId });
+        // Only activate if there are students or if it was already active
+        if (existingSession.studentsCount && existingSession.studentsCount > 0 && !existingSession.isActive) {
           await this.storage.updateSession(sessionId, { isActive: true });
         }
         return;
       }
 
-      // If not, create a new session
+      // If not, create a new session (inactive until student joins)
       await this.storage.createSession({
         sessionId,
-        isActive: true
+        isActive: false, // Will be set to true when first student joins
+        teacherLanguage: null, // Will be set when teacher registers
+        classCode: null, // Will be set when student joins with a classroom code
+        studentLanguage: null, // Will be set when student registers
+        lastActivityAt: new Date() // Set initial activity timestamp
         // startTime is automatically set by the database default
       });
       logger.info('Successfully created new session in storage:', { sessionId });
     } catch (error: any) {
+      // Check if it's a duplicate key error (race condition)
+      if (error?.code === '23505' || error?.details?.code === '23505' || 
+          (error?.code === 'DUPLICATE_ENTRY' && error?.details?.code === '23505') ||
+          (error?.code === 'CREATE_FAILED' && error?.details?.code === '23505')) {
+        logger.info('Session already exists (race condition detected):', { sessionId });
+        return; // Session was created by another concurrent request, that's fine
+      }
+      
       // Log other errors but don't throw - metrics should not break core functionality
       logger.error('Failed to create or update session in storage:', { sessionId, error });
     }
@@ -89,6 +102,48 @@ export class StorageSessionManager {
     } catch (error) {
       logger.error('Failed to check session status:', { sessionId, error });
       return false;
+    }
+  }
+
+  /**
+   * Create session in storage with teacher language
+   */
+  public async createSessionWithLanguage(sessionId: string, teacherLanguage: string): Promise<void> {
+    try {
+      // Check if a session with this ID already exists
+      const existingSession = await this.storage.getSessionById(sessionId);
+      if (existingSession) {
+        logger.info('Session already exists in storage, updating teacher language:', { sessionId, teacherLanguage });
+        const updates: any = {};
+        // Only set isActive to true if there are already students (studentsCount > 0)
+        if (existingSession.studentsCount && existingSession.studentsCount > 0) {
+          updates.isActive = true;
+        }
+        if (teacherLanguage && teacherLanguage !== 'unknown') {
+          updates.teacherLanguage = teacherLanguage;
+        }
+        if (Object.keys(updates).length > 0) {
+          await this.storage.updateSession(sessionId, updates);
+        }
+        return;
+      }
+
+      // If not, create a new session with teacher language (inactive until student joins)
+      const sessionData: any = {
+        sessionId,
+        isActive: false // Will be set to true when first student joins
+        // startTime is automatically set by the database default
+      };
+      
+      if (teacherLanguage && teacherLanguage !== 'unknown') {
+        sessionData.teacherLanguage = teacherLanguage;
+      }
+      
+      await this.storage.createSession(sessionData);
+      logger.info('Successfully created new session in storage with teacher language:', { sessionId, teacherLanguage });
+    } catch (error: any) {
+      // Log other errors but don't throw - metrics should not break core functionality
+      logger.error('Failed to create or update session in storage:', { sessionId, teacherLanguage, error });
     }
   }
 }
