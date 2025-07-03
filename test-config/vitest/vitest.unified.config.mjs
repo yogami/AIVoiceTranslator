@@ -81,15 +81,18 @@ export default defineConfig({
       'server/services/DiagnosticsService.ts',
     ],
     ...getTestTimeouts(testMode),
+    // For integration tests, enforce strict sequential execution
     maxConcurrency: testMode === 'integration' ? 1 : 2,
     maxThreads: testMode === 'integration' ? 1 : 2,
-    minThreads: 1,
+    minThreads: testMode === 'integration' ? 1 : 1,
     silent: false,
     isolate: true,
+    // Use threads with single thread for integration tests
     pool: 'threads',
     poolOptions: {
       threads: {
         singleThread: testMode === 'integration',
+        useAtomics: testMode === 'integration', // Force atomic operations for integration tests
       }
     },
     setupFiles,

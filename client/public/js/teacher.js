@@ -169,7 +169,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 case 'register':
                     console.log('Register response received:', data); // Original log for line 185
                     if (data.status === 'success') {
-                        uiUpdater.updateStatus('Successfully registered with server.', 'success');
+                        uiUpdater.updateStatus('Registered as teacher', 'success');
                         console.log('Teacher registration successful:', data);
                         // Add any specific actions needed after successful teacher registration
                     } else {

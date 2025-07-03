@@ -197,7 +197,7 @@ describe('ConnectionLifecycleManager', () => {
       // Connection establishment via handleConnection method
       await manager.handleConnection(mockWebSocket, request);
       
-      expect(mockConnectionManager.addConnection).toHaveBeenCalledWith(mockWebSocket, expect.any(String));
+      expect(mockConnectionManager.addConnection).toHaveBeenCalledWith(mockWebSocket, expect.any(String), undefined);
       expect(mockStorageSessionManager.createSession).not.toHaveBeenCalled();
     });
 

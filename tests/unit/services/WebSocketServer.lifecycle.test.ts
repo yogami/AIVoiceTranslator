@@ -236,14 +236,17 @@ describe('WebSocketServer - Lifecycle Management', () => {
       const messageDispatcher = (webSocketServer as any).messageDispatcher;
       vi.spyOn(messageDispatcher, 'dispatch').mockResolvedValue(undefined);
 
-      // Call handleMessage directly
-      await webSocketServer.handleMessage(mockWs, '{"type":"ping"}');
+      // Ensure the throttling condition is met by clearing any existing timestamp
+      (mockWs as any).lastActivityUpdate = 0;
+
+      // Call handleMessage directly with a message type that triggers session activity updates
+      await webSocketServer.handleMessage(mockWs, '{"type":"transcription","text":"test"}');
 
       // Verify session activity was updated
       expect(mockSessionLifecycleService.updateSessionActivity).toHaveBeenCalledWith('test-session');
       
       // Verify message was dispatched
-      expect(messageDispatcher.dispatch).toHaveBeenCalledWith(mockWs, '{"type":"ping"}');
+      expect(messageDispatcher.dispatch).toHaveBeenCalledWith(mockWs, '{"type":"transcription","text":"test"}');
     });
   });
 

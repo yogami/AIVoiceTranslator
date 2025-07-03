@@ -11,7 +11,7 @@ export class PongMessageHandler implements IMessageHandler<PongMessageToServer> 
   }
 
   async handle(message: PongMessageToServer, context: MessageHandlerContext): Promise<void> {
-    // No specific handling needed for pong messages
-    // They are just acknowledgments of ping messages
+    // Mark connection as alive when we receive a pong
+    (context.ws as any).isAlive = true;
   }
 }

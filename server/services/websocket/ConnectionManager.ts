@@ -26,6 +26,7 @@ export class ConnectionManager {
   private roles: Map<WebSocketClient, string> = new Map();
   private languages: Map<WebSocketClient, string> = new Map();
   private sessionIds: Map<WebSocketClient, string> = new Map();
+  private classroomCodes: Map<WebSocketClient, string> = new Map();
   private clientSettings: Map<WebSocketClient, ClientSettings> = new Map();
   // Track whether a student connection has been counted in session stats
   private studentCounted: Map<WebSocketClient, boolean> = new Map();
@@ -33,9 +34,12 @@ export class ConnectionManager {
   /**
    * Add a new connection with its session ID
    */
-  addConnection(ws: WebSocketClient, sessionId: string): void {
+  addConnection(ws: WebSocketClient, sessionId: string, classroomCode?: string): void {
     this.connections.add(ws);
     this.sessionIds.set(ws, sessionId);
+    if (classroomCode) {
+      this.classroomCodes.set(ws, classroomCode);
+    }
     ws.sessionId = sessionId; // Also set on the WebSocket object for convenience
   }
 
@@ -47,6 +51,7 @@ export class ConnectionManager {
     this.roles.delete(ws);
     this.languages.delete(ws);
     this.sessionIds.delete(ws);
+    this.classroomCodes.delete(ws);
     this.clientSettings.delete(ws);
     this.studentCounted.delete(ws);
   }
@@ -105,6 +110,13 @@ export class ConnectionManager {
    */
   getClientSettings(ws: WebSocketClient): ClientSettings | undefined {
     return this.clientSettings.get(ws);
+  }
+
+  /**
+   * Get classroom code for a specific connection
+   */
+  getClassroomCode(ws: WebSocketClient): string | undefined {
+    return this.classroomCodes.get(ws);
   }
 
   /**

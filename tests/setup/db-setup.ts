@@ -6,7 +6,7 @@
  */
 
 import { db, pool } from '../../server/db';
-import { users, languages, translations, transcripts } from '../../shared/schema';
+import { users, languages, translations, transcripts, sessions } from '../../shared/schema';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { eq } from 'drizzle-orm';
 
@@ -39,6 +39,7 @@ async function clearAllTables() {
     // Delete data from all tables in the reverse order of dependencies
     await db.delete(transcripts);
     await db.delete(translations);
+    await db.delete(sessions);  // Add sessions table cleanup
     await db.delete(languages);
     await db.delete(users);
     

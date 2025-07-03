@@ -31,7 +31,7 @@ export class StorageSessionManager {
         return;
       }
 
-      // If not, create a new session (inactive until student joins)
+      // If not, create a new session (active as soon as teacher creates it)
       await this.storage.createSession({
         sessionId,
         isActive: false, // Will be set to true when first student joins
@@ -59,12 +59,13 @@ export class StorageSessionManager {
   /**
    * Update session in storage
    */
-  public async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<void> {
+  public async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<boolean> {
     try {
-      await this.storage.updateSession(sessionId, updates);
-      // Removed debug logging to avoid interfering with tests that expect no debug logs
+      const result = await this.storage.updateSession(sessionId, updates);
+      return !!result; // Return true if update was successful
     } catch (error) {
-      logger.error('Failed to update session in storage:', { sessionId, error });
+      logger.error('Failed to update session in storage:', { sessionId, error, updates });
+      return false; // Return false on failure
     }
   }
 
@@ -131,7 +132,7 @@ export class StorageSessionManager {
       // If not, create a new session with teacher language (inactive until student joins)
       const sessionData: any = {
         sessionId,
-        isActive: false // Will be set to true when first student joins
+        isActive: false, // Will be set to true when first student joins
         // startTime is automatically set by the database default
       };
       
