@@ -198,6 +198,38 @@ export class ClassroomSessionManager {
   }
 
   /**
+   * Get the number of active classroom sessions
+   */
+  public getActiveSessionCount(): number {
+    const now = Date.now();
+    let activeCount = 0;
+    
+    for (const session of this.classroomSessions.values()) {
+      if (now <= session.expiresAt) {
+        activeCount++;
+      }
+    }
+    
+    return activeCount;
+  }
+
+  /**
+   * Get all active sessions (primarily for debugging)
+   */
+  public getActiveSessions(): ClassroomSession[] {
+    const now = Date.now();
+    const activeSessions: ClassroomSession[] = [];
+    
+    for (const session of this.classroomSessions.values()) {
+      if (now <= session.expiresAt) {
+        activeSessions.push(session);
+      }
+    }
+    
+    return activeSessions;
+  }
+
+  /**
    * Manually trigger cleanup of expired sessions (primarily for testing)
    */
   public triggerCleanup(): number {

@@ -23,6 +23,7 @@ const mockConnectionManager = {
   getLanguage: vi.fn(),
   setLanguage: vi.fn(),
   getSessionId: vi.fn(),
+  getClassroomCode: vi.fn(),
   getClientSettings: vi.fn(),
   setClientSettings: vi.fn(),
   getConnections: vi.fn(() => []), // Return empty array by default
@@ -32,6 +33,7 @@ const mockConnectionManager = {
 
 const mockWebSocketServer = {
   classroomSessionManager: mockClassroomSessionManager,
+  _classroomSessionManager: mockClassroomSessionManager,
   storageSessionManager: mockStorageSessionManager,
   getSessionCleanupService: vi.fn()
 };
@@ -263,9 +265,9 @@ describe('RegisterMessageHandler', () => {
     });
 
     it('should create session with correct properties when first student joins', async () => {
+      // Setup: Session exists (created by teacher previously)
       mockStorage.getActiveSession = vi.fn()
-        .mockResolvedValueOnce(null) // First call returns null (no session)
-        .mockResolvedValueOnce({ // Second call returns created session 
+        .mockResolvedValue({ 
           sessionId: 'test-session-123', 
           studentsCount: 0,
           isActive: true 
@@ -282,12 +284,14 @@ describe('RegisterMessageHandler', () => {
 
       await handler.handle(message, context);
 
-      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123');
+      // Sessions are not created by students - they update existing sessions
+      expect(mockStorageSessionManager.createSession).not.toHaveBeenCalled();
       expect(mockStorageSessionManager.updateSession).toHaveBeenCalledWith(
         'test-session-123',
         expect.objectContaining({
           studentsCount: 1,
-          isActive: true
+          isActive: true,
+          studentLanguage: 'es'
         })
       );
       expect(mockConnectionManager.setStudentCounted).toHaveBeenCalledWith(mockWebSocket, true);
@@ -311,15 +315,15 @@ describe('RegisterMessageHandler', () => {
     });
 
     it('should store classCode and studentLanguage when student joins', async () => {
-      // Mock: No existing session in database
+      // Setup: Session exists (created by teacher previously)
       mockStorage.getActiveSession = vi.fn()
-        .mockResolvedValueOnce(null) // First call returns null (no session)
-        .mockResolvedValueOnce({ // Second call returns created session
+        .mockResolvedValue({ 
           sessionId: 'test-session-123',
           studentsCount: 0,
           isActive: true
         });
       mockConnectionManager.isStudentCounted.mockReturnValue(false);
+      mockClassroomSessionManager.isValidClassroomCode.mockReturnValue(true);
       
       const message: RegisterMessageToServer = {
         type: 'register',
@@ -331,8 +335,8 @@ describe('RegisterMessageHandler', () => {
 
       await handler.handle(message, context);
 
-      // Should create session with classCode and studentLanguage
-      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123');
+      // Should update session with classCode and studentLanguage (no creation)
+      expect(mockStorageSessionManager.createSession).not.toHaveBeenCalled();
       expect(mockStorageSessionManager.updateSession).toHaveBeenCalledWith(
         'test-session-123',
         expect.objectContaining({
@@ -420,9 +424,9 @@ describe('RegisterMessageHandler', () => {
     });
 
     it('should create session and count student when no session exists', async () => {
+      // Setup: Session exists (created by teacher previously)
       mockStorage.getActiveSession = vi.fn()
-        .mockResolvedValueOnce(null) // First call returns null (no session)
-        .mockResolvedValueOnce({ // Second call returns created session
+        .mockResolvedValue({ 
           sessionId: 'test-session-123',
           studentsCount: 0,
           isActive: true
@@ -438,12 +442,14 @@ describe('RegisterMessageHandler', () => {
 
       await handler.handle(message, context);
 
-      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123');
+      // Should update session (no creation by students)
+      expect(mockStorageSessionManager.createSession).not.toHaveBeenCalled();
       expect(mockStorageSessionManager.updateSession).toHaveBeenCalledWith(
         'test-session-123',
         expect.objectContaining({
           studentsCount: 1,
-          isActive: true
+          isActive: true,
+          studentLanguage: 'es'
         })
       );
       expect(mockConnectionManager.setStudentCounted).toHaveBeenCalledWith(mockWebSocket, true);

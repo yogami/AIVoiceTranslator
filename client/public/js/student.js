@@ -183,42 +183,52 @@
 
         handleMessage: function(event) {
             const data = JSON.parse(event.data);
-            // console.log('Student received message:', data);
             switch (data.type) {
-                case 'connection': // Server confirms WebSocket connection
-                    // console.log('Server confirmed WebSocket connection.');
-                    // Registration is typically done onopen or by explicit user action (connect button)
-                    // If server expects re-registration on this, ensure classroomCode is available.
-                    // this.register(appState.classroomCode); 
+                case 'connection':
+                    // Only show error if connection failed (status === 'error'), otherwise clear any error
+                    if (data.status === 'error' || data.error || data.message) {
+                        // Show nothing if the user is already connected (should not happen), else show friendly message
+                        if (domElements.translationDisplay) {
+                            domElements.translationDisplay.innerHTML = `<div style='color: orange;'>Waiting for teacher to start the session. Please try again in a moment.</div>`;
+                        }
+                        uiUpdater.updateConnectionStatus(false);
+                        appState.isConnected = false;
+                    } else {
+                        // Successful join: clear any error message and show default waiting message
+                        if (domElements.translationDisplay) {
+                            domElements.translationDisplay.innerHTML = `<div style='color: #333;'>Waiting for teacher to start speaking...</div>`;
+                        }
+                    }
                     break;
-                case 'register': // Confirmation of student registration
-                    // if (data.status === 'success') console.log('Student registration successful with server.');
-                    // else console.error('Student registration failed with server:', data);
+                case 'register':
                     break;
                 case 'translation':
                     uiUpdater.displayTranslation(data);
                     if (data.audioData) {
                         appState.currentAudioData = data.audioData;
                         if (domElements.playButton) domElements.playButton.disabled = false;
-                        playAudio(data.audioData); 
+                        playAudio(data.audioData);
                     }
                     break;
                 case 'error':
-                    console.error('Received error from server:', data.message);
-                    if (domElements.translationDisplay) {
-                        domElements.translationDisplay.innerHTML = `<div style="color: red;">Error: ${data.message}</div>`;
+                    // Only show error if user has tried to connect (not on page load)
+                    if (appState.isConnected) {
+                        console.error('Received error from server:', data.message);
+                        if (domElements.translationDisplay) {
+                            domElements.translationDisplay.innerHTML = `<div style=\"color: red;\">Error: ${data.message}</div>`;
+                        }
+                    } else {
+                        // If not connected, show a friendly message or ignore
+                        if (domElements.translationDisplay) {
+                            domElements.translationDisplay.innerHTML = `<div style='color: orange;'>Waiting for teacher to start the session. Please try again in a moment.</div>`;
+                        }
                     }
-                    // Potentially update connection status to disconnected if error is severe
-                    // uiUpdater.updateConnectionStatus(false); 
-                    // appState.isConnected = false;
                     break;
-                // Student typically doesn't need to handle incoming pings or send pongs explicitly
-                // unless server requires it for keep-alive beyond standard WebSocket pings.
                 default:
-                    // console.log('Student received unknown message type:', data.type, data);
-                    if (data.text || data.translatedText || data.message) {
-                        uiUpdater.displayTranslation(data);
+                    if (data.type !== 'ping' && data.type !== 'pong') {
+                        console.log('Student received unknown message type:', data.type, data);
                     }
+                    break;
             }
         }
     };
@@ -236,23 +246,24 @@
         domElements.h1Element = document.querySelector('h1');
 
         setupLanguageSelection();
-        
+
         const urlParams = new URLSearchParams(window.location.search);
         appState.classroomCode = urlParams.get('code');
-        
+
         if (!appState.classroomCode) {
             uiUpdater.showNoClassroomCodeError();
+            if (domElements.connectButton) domElements.connectButton.disabled = true;
             return;
         }
-        
+
         uiUpdater.showJoiningClassroomInfo(appState.classroomCode);
-        
+
         setupWebSocket();
-        
-        setTimeout(() => {
-            autoSelectFirstLanguage();
-            if (domElements.connectButton) domElements.connectButton.disabled = false;
-        }, 100);
+
+        // Do NOT auto-connect. Wait for user to select language and click connect.
+        autoSelectFirstLanguage();
+        if (domElements.connectButton) domElements.connectButton.disabled = false;
+        // No auto-connect or auto-register here. Only connect on button click.
     });
 
     function autoSelectFirstLanguage() {

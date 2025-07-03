@@ -4,7 +4,10 @@
  * Manages the lifecycle of WebSocket sessions including:
  * - Classification of sessions as real vs dead
  * - Automatic cleanup of inactive sessions
- * - Activity tracking and quality assessment
+ * - Activity t        }
+      }
+
+      logger.info('Cleaned up dead sessions', result);nd quality assessment
  */
 import logger from '../logger';
 import { IStorage } from '../storage.interface';
@@ -98,6 +101,15 @@ export class SessionLifecycleService {
    */
   public async updateSessionActivity(sessionId: string): Promise<void> {
     try {
+      // First check if the session exists in the database to avoid unnecessary updates
+      const existingSession = await this.storage.getActiveSession(sessionId);
+      if (!existingSession) {
+        // Session doesn't exist in DB yet (e.g., teacher-only session)
+        // Don't spam logs for this expected condition
+        logger.debug('Session not yet persisted to database, skipping activity update', { sessionId });
+        return;
+      }
+
       await this.storage.updateSession(sessionId, {
         lastActivityAt: new Date()
       });

@@ -265,7 +265,9 @@ export class DiagnosticsService {
   }
 
   private async getCurrentPerformanceMetrics(): Promise<CurrentPerformanceMetrics> {
+    // Use the IActiveSessionProvider interface to get active sessions
     const activeSessions = this.activeSessionProvider?.getActiveSessionsCount() || 0;
+    
     const studentsConnected = this.activeSessionProvider?.getActiveStudentCount() || 0;
     const teachersConnected = this.activeSessionProvider?.getActiveTeacherCount() || 0;
 

@@ -226,7 +226,12 @@ export class DbSessionStorage implements ISessionStorage {
         .set(updates)
         .where(eq(sessions.sessionId, sessionId)) // eq from drizzle-orm, sessions from ../../shared/schema
         .returning();
-      console.log('[DbSessionStorage.updateSession] Successfully updated session:', result[0]); // Added log
+      
+      if (result[0]) {
+        console.log('[DbSessionStorage.updateSession] Successfully updated session:', result[0]); // Added log
+      } else {
+        console.log('[DbSessionStorage.updateSession] No session found to update:', sessionId); // No session found
+      }
       return result[0];
     } catch (error: any) {
       console.error('[DbSessionStorage.updateSession] Error updating session:', { sessionId, updates, error: error && error.message ? error.message : error }); // Added log

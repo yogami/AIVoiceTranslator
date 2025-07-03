@@ -8,11 +8,16 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
   }
 
   async handle(message: AudioMessageToServer, context: MessageHandlerContext): Promise<void> {
-    const role = context.connectionManager.getRole(context.ws);
-    
-    // Only process audio from teacher
-    if (role !== 'teacher') {
-      logger.info('Ignoring audio from non-teacher role:', { role });
+    try {
+      const role = context.connectionManager.getRole(context.ws);
+      
+      // Only process audio from teacher
+      if (role !== 'teacher') {
+        logger.info('Ignoring audio from non-teacher role:', { role });
+        return;
+      }
+    } catch (error) {
+      logger.error('Error processing teacher audio:', { error });
       return;
     }
     

@@ -25,6 +25,7 @@ import { ConnectionValidationService } from './websocket/ConnectionValidationSer
 import { SessionMetricsService } from './websocket/SessionMetricsService'; // Added SessionMetricsService import
 import { WebSocketResponseService } from './websocket/WebSocketResponseService'; // Added WebSocketResponseService import
 import { SessionLifecycleService } from './SessionLifecycleService'; // Added SessionLifecycleService import
+import { SessionCountCacheService } from './SessionCountCacheService'; // Added SessionCountCacheService import
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
@@ -65,6 +66,11 @@ import { IStorage } from '../storage.interface';
 export class WebSocketServer implements IActiveSessionProvider { // Implement IActiveSessionProvider
   private wss: WSServer;
   private storage: IStorage;
+  
+  // Add static registry to track all instances for cleanup
+  private static instances: Set<WebSocketServer> = new Set();
+  private isShutdown = false;
+  
   private connectionManager: ConnectionManager; // Use ConnectionManager for connection tracking
   private sessionService: SessionService; // Injected SessionService for session management
   private translationOrchestrator: TranslationOrchestrator; // Injected TranslationOrchestrator for translation and TTS
@@ -77,6 +83,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private webSocketResponseService: WebSocketResponseService; // Handles WebSocket response formatting
   private sessionLifecycleService: SessionLifecycleService; // Handles session lifecycle management
   private sessionCleanupService: any; // Dynamically imported SessionCleanupService
+  private sessionCountCacheService: SessionCountCacheService; // Handles session count caching
   
   // Message handling infrastructure
   private messageHandlerRegistry: MessageHandlerRegistry;
@@ -89,6 +96,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   constructor(server: http.Server, storage: IStorage) { 
+    // Register this instance for cleanup tracking
+    WebSocketServer.instances.add(this);
+    
     this.wss = new WSServer({ server });
     this.storage = storage;
     this.connectionManager = new ConnectionManager(); // Initialize ConnectionManager
@@ -101,6 +111,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.sessionMetricsService = new SessionMetricsService(this.connectionManager, this.classroomSessionManager); // Initialize SessionMetricsService
     this.webSocketResponseService = new WebSocketResponseService(); // Initialize WebSocketResponseService
     this.sessionLifecycleService = new SessionLifecycleService(storage); // Initialize SessionLifecycleService
+    this.sessionCountCacheService = new SessionCountCacheService(storage); // Initialize SessionCountCacheService
     
     // Initialize message handling infrastructure
     this.messageHandlerRegistry = new MessageHandlerRegistry();
@@ -138,6 +149,9 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       logger.error('Failed to initialize SessionCleanupService during construction:', { error });
     });
     
+    // Start caching database session count for accurate metrics
+    this.sessionCountCacheService.start();
+    
     // Note: Classroom session cleanup is now handled by ClassroomSessionManager
   }
 
@@ -152,12 +166,13 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   }
 
   /**
-   * Get the number of active WebSocket connections (alias for getActiveSessionCount).
+   * Get the number of active sessions (actual classroom sessions from database).
    * Implements IActiveSessionProvider.
-   * @returns The number of active connections.
+   * @returns The number of active sessions.
    */
   public getActiveSessionsCount(): number { // Renamed from getActiveSessionCount to getActiveSessionsCount
-    return this.connectionManager.getConnectionCount();
+    // Return cached database session count for accuracy
+    return this.sessionCountCacheService.getActiveSessionCount();
   }
 
   /**
@@ -223,11 +238,32 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
    * Handle incoming WebSocket message
    */
   async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
-    // Update session activity when any message is received
-    await this.updateSessionActivity(ws);
+    // Debug: Log message types to identify source of continuous messages
+    let messageType = 'unknown';
+    try {
+      const messageData = JSON.parse(data);
+      messageType = messageData.type;
+      if (messageType !== 'ping' && messageType !== 'pong') {
+        logger.debug('Handling message', { type: messageType, sessionId: this.connectionManager.getSessionId(ws) });
+      }
+    } catch (error) {
+      // Ignore JSON parse errors for debugging
+    }
     
-    // Use the message dispatcher to handle all messages
-    await this.messageDispatcher.dispatch(ws, data);
+    // Use the message dispatcher to handle all messages first
+    try {
+      await this.messageDispatcher.dispatch(ws, data);
+    } catch (error) {
+      logger.error('Message dispatch error:', { error, data });
+      return; // Don't update session activity if message dispatch failed
+    }
+    
+    // Only update session activity AFTER message processing for meaningful messages
+    // that should happen after registration (not register itself)
+    const activityUpdateMessages = ['transcription', 'audio', 'settings'];
+    if (activityUpdateMessages.includes(messageType)) {
+      await this.updateSessionActivity(ws);
+    }
   }
   
   /**
@@ -283,7 +319,17 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
 
   // Method to gracefully shut down the WebSocket server
   public shutdown(): void {
+    // Prevent multiple shutdowns
+    if (this.isShutdown) {
+      logger.warn('[WebSocketServer] Shutdown already in progress or completed.');
+      return;
+    }
+    this.isShutdown = true;
+    
     logger.info('[WebSocketServer] Shutting down...');
+
+    // Unregister from static registry
+    WebSocketServer.instances.delete(this);
 
     // 1. Clear intervals
     if (this.heartbeatInterval) {
@@ -296,6 +342,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
       clearInterval(this.lifecycleCleanupInterval);
       this.lifecycleCleanupInterval = null;
       logger.info('[WebSocketServer] Session lifecycle interval cleared.');
+    }
+
+    if (this.sessionCountCacheService) {
+      this.sessionCountCacheService.stop();
+      logger.info('[WebSocketServer] Session count cache service stopped.');
     }
 
     // 2. Shutdown SessionService
@@ -342,6 +393,23 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // Assuming wss.close() handles detaching from the httpServer for now.
 
     logger.info('[WebSocketServer] Shutdown complete.');
+  }
+
+  /**
+   * Static method to shutdown all WebSocketServer instances
+   * Useful for test cleanup and process exit handlers
+   */
+  public static shutdownAll(): void {
+    logger.info(`[WebSocketServer] Shutting down ${WebSocketServer.instances.size} remaining instances...`);
+    const instances = Array.from(WebSocketServer.instances);
+    for (const instance of instances) {
+      try {
+        instance.shutdown();
+      } catch (error) {
+        logger.error('[WebSocketServer] Error during instance shutdown:', { error });
+      }
+    }
+    logger.info('[WebSocketServer] All instances shutdown complete.');
   }
 
   // Backward compatibility properties for unit tests
@@ -552,6 +620,11 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     // Process inactive sessions every 2 minutes  
     this.lifecycleCleanupInterval = setInterval(async () => {
       try {
+        // Skip processing if server is shutting down
+        if (this.isShutdown) {
+          return;
+        }
+        
         // Process inactive sessions (end sessions that haven't had activity)
         const inactiveResult = await this.sessionLifecycleService.processInactiveSessions();
         if (inactiveResult.endedCount > 0 || inactiveResult.classifiedCount > 0) {
@@ -601,6 +674,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.translationOrchestrator = new TranslationOrchestrator(newStorage);
     this.storageSessionManager = new StorageSessionManager(newStorage);
     this.sessionLifecycleService = new SessionLifecycleService(newStorage);
+    this.sessionCountCacheService.updateStorage(newStorage);
     
     // Update message dispatcher context
     const context: MessageHandlerContext = {
@@ -621,7 +695,19 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   public async updateSessionActivity(ws: WebSocketClient): Promise<void> {
     const sessionId = this.connectionManager.getSessionId(ws);
     if (sessionId) {
-      await this.sessionLifecycleService.updateSessionActivity(sessionId);
+      // Aggressive throttling to prevent database spam
+      // Only update if last update was more than 30 seconds ago
+      const now = Date.now();
+      const lastUpdate = (ws as any).lastActivityUpdate || 0;
+      if (now - lastUpdate > 30000) { // 30 seconds throttle (was 5 seconds)
+        (ws as any).lastActivityUpdate = now;
+        await this.sessionLifecycleService.updateSessionActivity(sessionId);
+      }
     }
+  }
+
+  // Helper getter for tests to access connectionHealthManager
+  public get _connectionHealthManager() {
+    return this.connectionHealthManager;
   }
 }

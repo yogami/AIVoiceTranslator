@@ -68,7 +68,7 @@ export class ConnectionLifecycleManager {
     }
     
     // Store connection data
-    this.connectionManager.addConnection(ws, sessionId);
+    this.connectionManager.addConnection(ws, sessionId, classroomCode || undefined);
     
     // Send immediate connection confirmation directly
     try {
@@ -113,10 +113,8 @@ export class ConnectionLifecycleManager {
    * Set up event handlers for a WebSocket connection
    */
   private setupConnectionEventHandlers(ws: WebSocketClient): void {
-    // Set up message handler
-    ws.on('message', (data: any) => {
-      this.handleMessage(ws, data.toString());
-    });
+    // Note: Message handling is done by WebSocketServer to avoid duplication
+    // Only set up close and error handlers here
     
     // Set up close handler
     ws.on('close', () => {
@@ -127,14 +125,6 @@ export class ConnectionLifecycleManager {
     ws.on('error', (error) => {
       logger.error('WebSocket error:', { error });
     });
-  }
-
-  /**
-   * Handle incoming WebSocket message
-   */
-  private async handleMessage(ws: WebSocketClient, data: string): Promise<void> {
-    // Delegate to message dispatcher
-    await this.messageDispatcher.dispatch(ws, data);
   }
 
   /**

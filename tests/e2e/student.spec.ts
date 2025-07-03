@@ -15,7 +15,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
   });
 
   test('should display correctly when no classroom code is provided', async () => {
-    await page.goto('http://127.0.0.1:5000/student'); // Use full URL
+    await page.goto('http://127.0.0.1:5001/student'); // Use correct port for test environment
     await page.waitForLoadState('domcontentloaded');
 
     // Verify connection status display
@@ -36,7 +36,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
   test('should display correctly and prepare for connection when classroom code is provided in URL', async () => {
     const classroomCode = 'TESTCODE123'; // Example classroom code
-    await page.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`); // Use full URL
+    await page.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`); // Use correct port for test environment
     await page.waitForLoadState('domcontentloaded');
 
     // Verify the "Joining Classroom" info bar is displayed
@@ -70,7 +70,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
   test('should attempt to connect and handle failure for a non-existent classroom code', async () => {
     const nonExistentCode = 'NONEXISTENTCODE123';
-    await page.goto(`http://127.0.0.1:5000/student?code=${nonExistentCode}`); // Use full URL
+    await page.goto(`http://127.0.0.1:5001/student?code=${nonExistentCode}`); // Use correct port for test environment
     await page.waitForLoadState('domcontentloaded');
 
     // Verify initial state: language auto-selected, connect button enabled
@@ -108,7 +108,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
     try {
       // 1. Teacher Setup
       teacherPage = await browser.newPage();
-      await teacherPage.goto('http://127.0.0.1:5000/teacher'); // Full URL
+      await teacherPage.goto('http://127.0.0.1:5001/teacher'); // Use correct port for test environment
       await expect(teacherPage.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
       const classroomCodeElement = teacherPage.locator('#classroom-code-display');
       await expect(classroomCodeElement).toBeVisible({ timeout: 10000 });
@@ -119,7 +119,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
       // 2. Student Setup
       studentPage = await browser.newPage();
-      await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`); // Full URL
+      await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`); // Use correct port for test environment
       await studentPage.waitForLoadState('domcontentloaded');
       // Assuming student defaults to or selects a language, e.g., en-US for this test flow
       // If student needs to select French to match mocked translation, add that step.

@@ -17,15 +17,13 @@ vi.mock('../../server/config', () => ({
 describe('OpenAI Service', () => {
   const mockOpenAI = {
     chat: {
-      completions: { // Adjusted to match openai.chat.completions.create
+      completions: {
         create: vi.fn(),
-      }
+      },
     },
-    // Add other OpenAI methods that are used in your service
-    // If getOpenAIEmbeddings was intended to use openai.embeddings.create, the mock would need:
-    // embeddings: {
-    //   create: vi.fn(),
-    // }
+    embeddings: {
+      create: vi.fn(),
+    },
   };
 
   beforeEach(() => {
@@ -47,12 +45,11 @@ describe('OpenAI Service', () => {
   describe('getOpenAIEmbeddings', () => {
     it('should return embeddings for the given input', async () => {
       const mockEmbedding = [0.1, 0.2, 0.3];
-      // Adjusted to mock the correct path
-      mockOpenAI.chat.completions.create.mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(mockEmbedding) } }] });
+      mockOpenAI.embeddings.create.mockResolvedValueOnce({ data: [{ embedding: mockEmbedding }] });
 
       const embeddings = await getOpenAIEmbeddings('test input');
       expect(embeddings).toEqual(mockEmbedding);
-      expect(mockOpenAI.chat.completions.create).toHaveBeenCalledTimes(1);
+      expect(mockOpenAI.embeddings.create).toHaveBeenCalledTimes(1);
     });
   });
 

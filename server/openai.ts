@@ -53,25 +53,14 @@ export function getOpenAIInstance(): OpenAI {
 
 export async function getOpenAIEmbeddings(input: string): Promise<any> {
   const openai = getOpenAIInstance() as any; 
-  // This implementation uses openai.chat.completions.create to match the actual SDK and test mock structure.
-  const response = await openai.chat.completions.create({ 
-    messages: [{ role: 'user', content: input }],
-    model: "text-embedding-ada-002" // Example embedding model, adjust if necessary or ensure tests mock appropriately
+  // Use the correct embeddings endpoint
+  const response = await openai.embeddings.create({ 
+    input: input,
+    model: "text-embedding-ada-002"
   });
-  const content = response.choices[0]?.message?.content;
-  if (content) {
-    try {
-      // Assuming embeddings are directly in content or need specific parsing based on actual API response for embeddings via chat
-      // For true embeddings, the response structure would be different (e.g., response.data[0].embedding)
-      // This part might need adjustment if the goal is to use a dedicated embeddings endpoint.
-      // For now, parsing JSON from content as per the test's expectation.
-      return JSON.parse(content); 
-    } catch (e) {
-      console.error("Failed to parse embeddings from chat response content:", content, e);
-      throw new Error('Failed to parse embeddings from chat response due to JSON parsing error.');
-    }
-  }
-  throw new Error('Failed to get embeddings from chat response (no content).');
+  
+  // Return the embedding data directly from the embeddings API response
+  return response.data[0].embedding;
 }
 
 export async function getOpenAIChat(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<string | null> {

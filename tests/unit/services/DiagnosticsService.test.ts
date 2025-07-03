@@ -111,10 +111,25 @@ describe('DiagnosticsService', () => {
 
   describe('Connection Tracking', () => {
     it('should use IActiveSessionProvider for active connection counts', async () => {
+      // Mock the database to return 2 active sessions
+      vi.spyOn(mockStorage, 'getAllActiveSessions').mockResolvedValue([
+        { sessionId: 'session1', isActive: true } as any,
+        { sessionId: 'session2', isActive: true } as any
+      ]);
+
       const metrics = await diagnosticsService.getMetrics('lastHour');
+      
+      // Verify that the provider methods are called for student/teacher counts
       expect(mockActiveSessionProvider.getActiveTeacherCount).toHaveBeenCalled();
       expect(mockActiveSessionProvider.getActiveStudentCount).toHaveBeenCalled();
-      expect(metrics.currentPerformance?.activeConnections).toBe(mockActiveSessionProvider.getActiveTeacherCount() + mockActiveSessionProvider.getActiveStudentCount());
+      
+      // activeConnections should now come from database active sessions count (2)
+      expect(metrics.currentPerformance?.activeConnections).toBe(2);
+      // activeSessions should also be 2 (from database)
+      expect(metrics.currentPerformance?.activeSessions).toBe(2);
+      // Individual counts should still come from the provider
+      expect(metrics.currentPerformance?.studentsConnected).toBe(1);
+      expect(metrics.currentPerformance?.teachersConnected).toBe(1);
     });
   });
 

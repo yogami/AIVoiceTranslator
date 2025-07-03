@@ -5,6 +5,7 @@ import { db } from '../db';
 
 export class SessionCleanupService {
   private cleanupInterval: NodeJS.Timeout | null = null;
+  private isExplicitlyStopped = false; // Track if service was explicitly stopped vs never started
   private readonly STALE_SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes - general inactivity
   private readonly NO_STUDENTS_TIMEOUT = 10 * 60 * 1000; // 10 minutes - teacher waiting for students
   private readonly ALL_STUDENTS_LEFT_TIMEOUT = 5 * 60 * 1000; // 5 minutes - grace period after all students leave
@@ -38,8 +39,16 @@ export class SessionCleanupService {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-      logger.info('Stopped session cleanup service');
     }
+    this.isExplicitlyStopped = true; // Mark as explicitly stopped
+    logger.info('Stopped session cleanup service');
+  }
+
+  /**
+   * Check if the service is stopped to prevent database operations after shutdown
+   */
+  private isStopped(): boolean {
+    return this.isExplicitlyStopped;
   }
 
   /**
@@ -47,6 +56,11 @@ export class SessionCleanupService {
    */
   async cleanupStaleSessions(): Promise<void> {
     try {
+      // Early exit if service is stopped
+      if (this.isStopped()) {
+        return;
+      }
+
       const now = Date.now();
       
       // Scenario 1: Sessions with no students that have been waiting too long
@@ -67,6 +81,11 @@ export class SessionCleanupService {
    * Clean up sessions where teacher is waiting but no students joined
    */
   private async cleanupEmptyTeacherSessions(now: number): Promise<void> {
+    // Early exit if service is stopped
+    if (this.isStopped()) {
+      return;
+    }
+
     const noStudentsThreshold = new Date(now - this.NO_STUDENTS_TIMEOUT);
     
     const emptySessions = await db
@@ -79,6 +98,11 @@ export class SessionCleanupService {
           lt(sessions.startTime, noStudentsThreshold)
         )
       );
+
+    // Check again after database query in case service was stopped during the query
+    if (this.isStopped()) {
+      return;
+    }
 
     if (emptySessions.length > 0) {
       logger.info(`Found ${emptySessions.length} empty teacher sessions to clean up`);
@@ -107,6 +131,11 @@ export class SessionCleanupService {
    * Clean up sessions where all students left (grace period for reconnection)
    */
   private async cleanupAbandonedSessions(now: number): Promise<void> {
+    // Early exit if service is stopped
+    if (this.isStopped()) {
+      return;
+    }
+
     const abandonedThreshold = new Date(now - this.ALL_STUDENTS_LEFT_TIMEOUT);
     const staleThreshold = new Date(now - this.STALE_SESSION_TIMEOUT);
     
@@ -123,6 +152,11 @@ export class SessionCleanupService {
           gt(sessions.lastActivityAt, staleThreshold) // But not inactive for 30+ minutes (handled by cleanupInactiveSessions)
         )
       );
+
+    // Check again after database query in case service was stopped during the query
+    if (this.isStopped()) {
+      return;
+    }
 
     if (abandonedSessions.length > 0) {
       logger.info(`Found ${abandonedSessions.length} potentially abandoned sessions to clean up`);
@@ -152,6 +186,11 @@ export class SessionCleanupService {
    * Clean up sessions with general long-term inactivity
    */
   private async cleanupInactiveSessions(now: number): Promise<void> {
+    // Early exit if service is stopped
+    if (this.isStopped()) {
+      return;
+    }
+
     const staleThreshold = new Date(now - this.STALE_SESSION_TIMEOUT);
     
     const staleSessions = await db
@@ -163,6 +202,11 @@ export class SessionCleanupService {
           lt(sessions.lastActivityAt, staleThreshold)
         )
       );
+
+    // Check again after database query in case service was stopped during the query
+    if (this.isStopped()) {
+      return;
+    }
 
     if (staleSessions.length > 0) {
       logger.info(`Found ${staleSessions.length} long-term inactive sessions to clean up`);
@@ -190,6 +234,11 @@ export class SessionCleanupService {
    * Update last activity time for a session
    */
   async updateSessionActivity(sessionId: string): Promise<void> {
+    // Early exit if service is stopped
+    if (this.isStopped()) {
+      return;
+    }
+
     try {
       await db
         .update(sessions)
@@ -206,6 +255,11 @@ export class SessionCleanupService {
    * Mark a specific session as ended (e.g., when user disconnects)
    */
   async endSession(sessionId: string, reason: string = 'User disconnected'): Promise<void> {
+    // Early exit if service is stopped
+    if (this.isStopped()) {
+      return;
+    }
+
     try {
       const endTime = new Date();
       await db
@@ -233,6 +287,11 @@ export class SessionCleanupService {
    * Clean up sessions older than a certain age (for housekeeping)
    */
   async cleanupOldSessions(daysOld: number = 30): Promise<void> {
+    // Early exit if service is stopped
+    if (this.isStopped()) {
+      return;
+    }
+
     try {
       const oldThreshold = new Date(Date.now() - (daysOld * 24 * 60 * 60 * 1000));
       

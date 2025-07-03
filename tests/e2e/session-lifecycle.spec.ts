@@ -1,15 +1,38 @@
-import { test, expect } from '@playwright/test';
-import { createTestSession, cleanupTestSessions, waitForTimeout } from './test-data-utils';
+import { test, expect, Browser } from '@playwright/test';
+import { clearDiagnosticData, seedSessions } from './test-data-utils';
+import type { InsertSession } from '../../shared/schema';
+
+// Global array to track test session IDs for cleanup
+let testSessionIds: string[] = [];
+
+// Helper function to create test sessions using the seeding utility
+async function createTestSession(sessionData: Partial<InsertSession> & { sessionId: string }) {
+  const fullSessionData: InsertSession = {
+    sessionId: sessionData.sessionId,
+    isActive: sessionData.isActive ?? true,
+    teacherLanguage: sessionData.teacherLanguage ?? 'en-US',
+    studentLanguage: sessionData.studentLanguage ?? 'es-ES',
+    classCode: sessionData.classCode ?? 'TEST',
+    startTime: sessionData.startTime ?? new Date(),
+    endTime: sessionData.endTime,
+    studentsCount: sessionData.studentsCount ?? 0,
+    totalTranslations: sessionData.totalTranslations ?? 0,
+    lastActivityAt: sessionData.lastActivityAt
+  };
+  
+  await seedSessions([fullSessionData]);
+}
 
 test.describe('Session Lifecycle E2E Tests', () => {
-  let testSessionIds: string[] = [];
+  test.beforeEach(async () => {
+    // Reset the test session IDs array before each test
+    testSessionIds = [];
+  });
 
   test.afterEach(async () => {
-    // Clean up test sessions
-    if (testSessionIds.length > 0) {
-      await cleanupTestSessions(testSessionIds);
-      testSessionIds = [];
-    }
+    // Clean up test data after each test
+    await clearDiagnosticData();
+    testSessionIds = [];
   });
 
   test('should clean up sessions when teacher waits too long without students', async ({ page }) => {
@@ -103,7 +126,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
     expect(hasExpiredSession).toBe(false);
   });
 
-  test('should update session activity when students interact', async ({ page, context }) => {
+  test('should update session activity when students interact', async ({ page, browser }) => {
     // This test simulates the real flow of student interaction updating session activity
     
     // Create a session that would normally be cleaned up due to inactivity
@@ -122,7 +145,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
     await page.goto('/teacher');
     
     // Open student page in new context to simulate student joining
-    const studentContext = await context.newContext();
+    const studentContext = await browser.newContext();
     const studentPage = await studentContext.newPage();
     
     // Student joins the session (this should update activity)

@@ -6,56 +6,62 @@
  */
 
 import { DatabaseStorage } from '../../server/database-storage';
-import crypto from 'crypto';
+
+// Force the NODE_ENV to 'test' for all tests that use this utility
+// This is a safety measure to ensure database reset works properly
+if (process.env.NODE_ENV !== 'test') {
+  console.warn('Forcing NODE_ENV to "test" for database operations in TestDatabaseIsolation');
+  process.env.NODE_ENV = 'test';
+}
 
 export class TestDatabaseIsolation {
-  private static testInstances = new Map<string, DatabaseStorage>();
-  private static testLocks = new Map<string, Promise<void>>();
-  private static globalInitLock: Promise<void> | null = null;
+  private static currentStorage: DatabaseStorage | null = null;
+  private static initPromise: Promise<DatabaseStorage> | null = null;
 
   /**
    * Get an isolated database storage instance for a test file
-   * This ensures each test file gets its own clean database state
+   * This ensures proper sequential access to the database
    */
   static async getIsolatedStorage(testFileId: string): Promise<DatabaseStorage> {
-    // Create a unique test instance identifier
-    const instanceId = `${testFileId}-${crypto.randomUUID()}`;
-    
-    // Ensure global initialization happens one at a time
-    if (this.globalInitLock) {
-      await this.globalInitLock;
+    // If there's already an initialization in progress, wait for it
+    if (this.initPromise) {
+      return this.initPromise;
     }
 
-    const initPromise = this.initializeIsolatedInstance(instanceId);
-    this.globalInitLock = initPromise.then(() => {});
+    // Start new initialization
+    this.initPromise = this.createFreshStorage(testFileId);
     
-    const storage = await initPromise;
-    this.testInstances.set(instanceId, storage);
-    
-    // Clean up the global lock
-    this.globalInitLock = null;
-    
-    return storage;
+    try {
+      this.currentStorage = await this.initPromise;
+      return this.currentStorage;
+    } finally {
+      this.initPromise = null;
+    }
   }
 
   /**
-   * Initialize a clean, isolated database instance
+   * Create a fresh storage instance
    */
-  private static async initializeIsolatedInstance(instanceId: string): Promise<DatabaseStorage> {
+  private static async createFreshStorage(testFileId: string): Promise<DatabaseStorage> {
+    console.log(`[TestIsolation] Creating fresh storage for ${testFileId}`);
+    
     const storage = new DatabaseStorage();
     
-    // Reset the database completely first
+    // Reset the database completely
+    console.log(`[TestIsolation] Resetting database for ${testFileId}`);
     await storage.reset();
     
-    // Add delay to ensure reset is complete
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Wait for reset to complete
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     // Initialize with default data
+    console.log(`[TestIsolation] Initializing default languages for ${testFileId}`);
     await storage.initializeDefaultLanguages();
     
-    // Final delay to ensure all async operations complete
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait for initialization to complete
+    await new Promise(resolve => setTimeout(resolve, 200));
     
+    console.log(`[TestIsolation] Database ready for ${testFileId}`);
     return storage;
   }
 
@@ -63,43 +69,30 @@ export class TestDatabaseIsolation {
    * Clean up a test instance
    */
   static async cleanupInstance(testFileId: string): Promise<void> {
-    // Wait for any pending operations
-    if (this.testLocks.has(testFileId)) {
-      await this.testLocks.get(testFileId);
-    }
-
-    // Find and cleanup instances for this test file
-    const instancesToCleanup = Array.from(this.testInstances.entries())
-      .filter(([id]) => id.startsWith(testFileId));
-
-    for (const [instanceId, storage] of instancesToCleanup) {
+    if (this.currentStorage) {
       try {
-        await storage.reset();
-        this.testInstances.delete(instanceId);
+        console.log(`[TestIsolation] Cleaning up storage for ${testFileId}`);
+        await this.currentStorage.reset();
       } catch (error) {
-        console.warn(`Failed to cleanup test instance ${instanceId}:`, error);
+        console.warn(`Failed to cleanup storage for ${testFileId}:`, error);
       }
     }
+    this.currentStorage = null;
   }
 
   /**
    * Global cleanup - should be called in test teardown
    */
   static async globalCleanup(): Promise<void> {
-    // Wait for all pending operations
-    await Promise.all(Array.from(this.testLocks.values()));
-    
-    // Reset all instances
-    for (const [instanceId, storage] of this.testInstances) {
+    if (this.currentStorage) {
       try {
-        await storage.reset();
+        await this.currentStorage.reset();
       } catch (error) {
-        console.warn(`Failed to cleanup instance ${instanceId}:`, error);
+        console.warn('Failed to perform global cleanup:', error);
       }
     }
-    
-    this.testInstances.clear();
-    this.testLocks.clear();
+    this.currentStorage = null;
+    this.initPromise = null;
   }
 }
 
