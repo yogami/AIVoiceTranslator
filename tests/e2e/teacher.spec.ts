@@ -14,7 +14,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
   let page: Page;
 
   test.beforeEach(async ({ browser, browserName }) => {
-    // Create a new context with permissions (only for Chromium)
+    // Create a new context with permiss        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);ons (only for Chromium)
     const contextOptions: any = {};
     if (browserName === 'chromium') {
       contextOptions.permissions = ['microphone'];
@@ -123,7 +123,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
     });
     
     // Navigate to teacher page
-    await page.goto('http://127.0.0.1:5000/teacher'); 
+    await page.goto('http://127.0.0.1:5001/teacher'); 
     await page.waitForLoadState('domcontentloaded');
   });
 
@@ -139,9 +139,9 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
     // Wait for the language dropdown to be visible
     await expect(page.locator('#teacherLanguage')).toBeVisible();
     
-    // Check that German (de) is selected by default
+    // Check that German (de-DE) is selected by default
     const selectedValue = await page.locator('#teacherLanguage').inputValue();
-    expect(selectedValue).toBe('de');
+    expect(selectedValue).toBe('de-DE');
     
     // Also check the displayed text
     const selectedText = await page.locator('#teacherLanguage option:checked').textContent();
@@ -422,7 +422,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       // SpeechRecognition itself is unavailable.
     });
     
-    await newPage.goto('http://127.0.0.1:5000/teacher'); 
+    await newPage.goto('http://127.0.0.1:5001/teacher'); 
     await newPage.waitForLoadState('domcontentloaded');
 
     // Wait for the record button to be visible and then click it
@@ -525,7 +525,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       });
       
       // Navigate to teacher page
-      await errorPage.goto('http://127.0.0.1:5000/teacher');
+      await errorPage.goto('http://127.0.0.1:5001/teacher');
       await errorPage.waitForLoadState('domcontentloaded');
       
       // Wait for WebSocket connection
@@ -562,7 +562,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         expect(classroomCode).toBeTruthy(); // Ensure classroomCode is not null or empty
         
         // Student navigates to their page with the classroom code
-        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects a language (e.g., Spanish)
@@ -596,7 +596,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
         
-        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
         await studentPage.waitForLoadState('domcontentloaded');
         
         // Student selects initial language (e.g., Spanish)
@@ -632,7 +632,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
         
-        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects language and connects
@@ -675,7 +675,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       const studentContext = await browser.newContext();
       const studentPage = await studentContext.newPage();
       try {
-        await studentPage.goto(`http://127.0.0.1:5000/student?code=${classroomCode}`);
+        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects Spanish
@@ -706,8 +706,8 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // Check that the "waiting" message is gone
         await expect(studentTranslationDisplay).not.toContainText('Waiting for teacher to start speaking...');
         
-        // Check for translated text (EXAMPLE - this might need adjustment based on actual translation service output)
-        const expectedSpanishTranslation = 'Hola, esta es una transcripción de prueba'; 
+        // Check for translated text (adjusting for actual translation output)
+        const expectedSpanishTranslation = 'Hola, esto es una transcripción de prueba'; 
         await expect(studentTranslationDisplay).toContainText(expectedSpanishTranslation, { timeout: 10000 }); 
 
         // Stop recording
