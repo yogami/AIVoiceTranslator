@@ -43,9 +43,9 @@ const getTestTimeouts = (mode) => {
   switch (mode) {
     case 'integration':
       return {
-        testTimeout: 60000,          // 60 seconds per integration test
-        hookTimeout: 30000,          // 30 seconds for hooks 
-        teardownTimeout: 15000,      // 15 seconds for teardown
+        testTimeout: 120000,         // 2 minutes per integration test
+        hookTimeout: 60000,          // 1 minute for hooks 
+        teardownTimeout: 30000,      // 30 seconds for teardown
       };
     case 'unit':
     default:
@@ -95,6 +95,9 @@ export default defineConfig({
         useAtomics: testMode === 'integration', // Force atomic operations for integration tests
       }
     },
+    // Increase worker timeouts to prevent RPC timeout errors
+    workerTimeout: testMode === 'integration' ? 180000 : 60000, // 3 minutes for integration, 1 minute for unit
+    fileParallelism: testMode === 'integration' ? false : true,
     setupFiles,
     coverage: {
       provider: 'v8',

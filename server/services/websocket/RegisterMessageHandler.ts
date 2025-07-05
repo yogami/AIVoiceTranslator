@@ -178,10 +178,20 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     message: RegisterMessageToServer, 
     context: MessageHandlerContext
   ): Promise<void> {
-    const studentSessionId = context.connectionManager.getSessionId(context.ws);
+    let studentSessionId = context.connectionManager.getSessionId(context.ws);
     const studentName = message.name || 'Unknown Student';
     const studentLanguage = message.languageCode || 'unknown';
     const classroomCode = context.connectionManager.getClassroomCode(context.ws) || message.classroomCode;
+
+    // DEBUG: Log all student registration details
+    logger.info('[DEBUG] Student registration started:', {
+      studentSessionId,
+      studentName,
+      studentLanguage,
+      classroomCode,
+      messageClassroomCode: message.classroomCode,
+      connectionClassroomCode: context.connectionManager.getClassroomCode(context.ws)
+    });
 
     if (!studentSessionId) {
       logger.error('Student has no session ID - this should not happen');
@@ -192,21 +202,58 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       // BUGFIX: If student has classroomCode but no session, look up session by classroom code
       let session = await context.storage.getActiveSession(studentSessionId);
       
+      // DEBUG: Log session lookup results
+      logger.info('[DEBUG] Student session lookup:', {
+        studentSessionId,
+        sessionFound: !!session,
+        sessionData: session ? {
+          id: session.id,
+          sessionId: session.sessionId,
+          isActive: session.isActive,
+          studentsCount: session.studentsCount,
+          classCode: session.classCode
+        } : null,
+        classroomCode
+      });
+      
       if (!session && classroomCode) {
         // Student connected without classroom code in URL, but provided it in registration
         // Look up the teacher's session using the classroom code
+        logger.info('[DEBUG] Looking up teacher session by classroom code:', { classroomCode });
         const sessionInfo = context.webSocketServer.classroomSessionManager.getSessionByCode(classroomCode);
+        
+        logger.info('[DEBUG] Teacher session lookup result:', {
+          sessionInfo: sessionInfo ? {
+            sessionId: sessionInfo.sessionId,
+            expiresAt: sessionInfo.expiresAt
+          } : null
+        });
+        
         if (sessionInfo) {
           // Found the teacher's session, now get it from storage
           session = await context.storage.getActiveSession(sessionInfo.sessionId);
+          logger.info('[DEBUG] Teacher session from storage:', {
+            teacherSessionId: sessionInfo.sessionId,
+            sessionFound: !!session,
+            sessionData: session ? {
+              id: session.id,
+              sessionId: session.sessionId,
+              isActive: session.isActive,
+              studentsCount: session.studentsCount,
+              classCode: session.classCode
+            } : null
+          });
+          
           if (session) {
             // Update the student's connection to use the correct session ID
             context.connectionManager.updateSessionId(context.ws, sessionInfo.sessionId);
-            logger.info('Student session ID updated to match teacher session:', { 
+            logger.info('[DEBUG] Student session ID updated to match teacher session:', { 
               oldSessionId: studentSessionId, 
               newSessionId: sessionInfo.sessionId, 
               classroomCode 
             });
+            // IMPORTANT: Update local variable so all future updates use the teacher's sessionId
+            studentSessionId = sessionInfo.sessionId;
           }
         }
       }
@@ -251,7 +298,33 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             updateData.studentLanguage = studentLanguage;
           }
           
+          // DEBUG: Log what we're about to update
+          logger.info('[DEBUG] About to update session:', {
+            sessionId: studentSessionId,
+            updateData,
+            currentSessionState: {
+              id: session.id,
+              sessionId: session.sessionId,
+              isActive: session.isActive,
+              studentsCount: session.studentsCount,
+              classCode: session.classCode
+            }
+          });
+          
           await context.webSocketServer.storageSessionManager.updateSession(studentSessionId, updateData);
+          
+          // DEBUG: Verify the update worked by reading the session back
+          const updatedSession = await context.storage.getActiveSession(studentSessionId);
+          logger.info('[DEBUG] Session after update:', {
+            sessionId: studentSessionId,
+            updatedSessionData: updatedSession ? {
+              id: updatedSession.id,
+              sessionId: updatedSession.sessionId,
+              isActive: updatedSession.isActive,
+              studentsCount: updatedSession.studentsCount,
+              classCode: updatedSession.classCode
+            } : null
+          });
           
           // Mark this student as counted (only if not already counted)
           if (!alreadyCounted) {
