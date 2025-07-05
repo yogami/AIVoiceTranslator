@@ -6,13 +6,20 @@ import { SpeechTranslationService } from '../../../server/services/TranslationSe
 import { createMockAudioBuffer, setupConsoleMocks } from '../utils/test-helpers';
 
 // Mock the TextToSpeechService
-vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => ({
-  ttsFactory: {
-    getService: vi.fn().mockReturnValue({
-      synthesizeSpeech: vi.fn().mockImplementation(async () => Buffer.from('mock-audio-buffer'))
-    })
-  }
-}));
+vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => {
+  const mockSynthesizeFunction = vi.fn().mockImplementation(async () => Buffer.from('mock-audio-buffer'));
+  const mockTTSService = {
+    synthesizeSpeech: mockSynthesizeFunction
+  };
+  
+  return {
+    ttsFactory: {
+      getService: vi.fn().mockReturnValue(mockTTSService)
+    },
+    // Export the mock service instance for direct access in tests
+    __mockTTSService: mockTTSService
+  };
+});
 
 // Mock DevelopmentModeHelper
 vi.mock('../../../server/services/helpers/DevelopmentModeHelper', () => ({
@@ -28,7 +35,7 @@ describe('SpeechTranslationService', () => {
   let mockTranscriptionService: any;
   let mockTranslationService: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create mock services
     mockTranscriptionService = {
       transcribe: vi.fn().mockResolvedValue('Transcribed text')
@@ -37,6 +44,9 @@ describe('SpeechTranslationService', () => {
     mockTranslationService = {
       translate: vi.fn().mockResolvedValue('Translated text')
     };
+    
+    // Reset all mocks
+    vi.clearAllMocks();
     
     // Create service instance
     service = new SpeechTranslationService(
@@ -130,27 +140,24 @@ describe('SpeechTranslationService', () => {
     const originalTranscription = "Successfully transcribed text";
     mockTranscriptionService.transcribe.mockResolvedValueOnce(originalTranscription);
     mockTranslationService.translate.mockRejectedValueOnce(new Error('Translation service is down'));
-    
-    // Mock the TTS service call to see what text it receives
+
+    // Patch the singleton ttsFactory.getService to always return a valid mock
     const { ttsFactory } = await import('../../../server/services/textToSpeech/TextToSpeechService');
-    const ttsServiceInstance = ttsFactory.getService(); // Get the mocked instance
+    const ttsServiceInstance = { synthesizeSpeech: vi.fn().mockResolvedValue(Buffer.from('mock-audio-buffer')) };
+    vi.spyOn(ttsFactory, 'getService').mockReturnValue(ttsServiceInstance);
     const synthesizeSpy = vi.spyOn(ttsServiceInstance, 'synthesizeSpeech');
 
     const audioBuffer = createMockAudioBuffer(100);
     const result = await service.translateSpeech(audioBuffer, 'en-US', 'es-ES');
 
     expect(result.originalText).toBe(originalTranscription);
-    expect(result.translatedText).toBe(''); // As per current implementation, translateText returns '' on error
-    
-    // Check that TTS was still attempted, likely with originalText as fallback
+    expect(result.translatedText).toBe('');
     expect(synthesizeSpy).toHaveBeenCalled();
     expect(synthesizeSpy).toHaveBeenCalledWith(expect.objectContaining({
-      text: originalTranscription, // Should use originalText because translatedText is empty
-      languageCode: 'es-ES' 
+      text: originalTranscription,
+      languageCode: 'es-ES'
     }));
-    expect(result.audioBuffer.toString()).toBe('mock-audio-buffer'); // From the default tts mock
-
-    // expect(consoleErrorSpy).toHaveBeenCalledWith('Translation service failed:', expect.any(Error));
+    expect(result.audioBuffer.toString()).toBe('mock-audio-buffer');
     synthesizeSpy.mockRestore();
   });
 
@@ -160,22 +167,19 @@ describe('SpeechTranslationService', () => {
     mockTranscriptionService.transcribe.mockResolvedValueOnce(originalTranscription);
     mockTranslationService.translate.mockResolvedValueOnce(successfullyTranslatedText);
 
-    // Mock the TTS service to throw an error
+    // Patch the singleton ttsFactory.getService to always return a valid mock
     const { ttsFactory } = await import('../../../server/services/textToSpeech/TextToSpeechService');
-    const ttsServiceInstance = ttsFactory.getService(); 
-    const synthesizeSpy = vi.spyOn(ttsServiceInstance, 'synthesizeSpeech').mockRejectedValueOnce(new Error('TTS boom'));
+    const ttsServiceInstance = { synthesizeSpeech: vi.fn().mockRejectedValueOnce(new Error('TTS boom')) };
+    vi.spyOn(ttsFactory, 'getService').mockReturnValue(ttsServiceInstance);
+    const synthesizeSpy = vi.spyOn(ttsServiceInstance, 'synthesizeSpeech');
 
-    const audioBuffer = createMockAudioBuffer(100, "original_audio_for_tts_failure_test"); // Corrected call
+    const audioBuffer = createMockAudioBuffer(100, "original_audio_for_tts_failure_test");
     const result = await service.translateSpeech(audioBuffer, 'en-US', 'es-ES');
 
     expect(result.originalText).toBe(originalTranscription);
     expect(result.translatedText).toBe(successfullyTranslatedText);
-    expect(result.audioBuffer).toBe(audioBuffer); // Should have fallen back to original audio buffer
+    expect(result.audioBuffer).toBe(audioBuffer);
     expect(synthesizeSpy).toHaveBeenCalled();
-    
-    // Optionally, verify console.error was called for the TTS error
-    // expect(consoleErrorSpy).toHaveBeenCalledWith('Error generating audio for translation:', expect.any(Error));
-
     synthesizeSpy.mockRestore();
   });
 
@@ -193,7 +197,13 @@ describe('SpeechTranslationService', () => {
     
     // TTS should not have been called either
     const { ttsFactory } = await import('../../../server/services/textToSpeech/TextToSpeechService');
-    const ttsServiceInstance = ttsFactory.getService(); 
+    const ttsServiceInstance = ttsFactory.getService();
+    
+    // Ensure the service instance is valid before spying
+    if (!ttsServiceInstance || typeof ttsServiceInstance.synthesizeSpeech !== 'function') {
+      throw new Error('TTS service instance is not properly mocked');
+    }
+    
     const synthesizeSpy = vi.spyOn(ttsServiceInstance, 'synthesizeSpeech');
     expect(synthesizeSpy).not.toHaveBeenCalled();
     synthesizeSpy.mockRestore(); // Important to restore spy even if not called for cleanup
