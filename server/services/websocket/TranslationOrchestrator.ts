@@ -6,6 +6,7 @@
  * Uses the core TranslationService for actual translation logic.
  */
 import logger from '../../logger';
+import { config } from '../../config';
 import { speechTranslationService } from '../TranslationService';
 import { textToSpeechService, ttsFactory } from '../textToSpeech/TextToSpeechService';
 import type { WebSocketClient } from './ConnectionManager';
@@ -396,7 +397,7 @@ export class TranslationOrchestrator {
 
     try {
       logger.info(`Generating TTS audio:`, { 
-        text: text.substring(0, 100) + (text.length > 100 ? '...' : ''), 
+        text: text.substring(0, config.session.logTextPreviewLength) + (text.length > config.session.logTextPreviewLength ? '...' : ''), 
         languageCode, 
         ttsServiceType, 
         voice 

@@ -9,6 +9,7 @@
  */
 
 import logger from '../../logger';
+import { config } from '../../config';
 import { WebSocketClient } from './ConnectionManager';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type {
@@ -79,7 +80,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           if (typeof context.ws.close === 'function') {
             setTimeout(() => {
               context.ws.close(1008, 'Invalid classroom session');
-            }, 100); // Small delay to ensure message is sent
+            }, config.session.invalidClassroomMessageDelay); // Small delay to ensure message is sent
           }
           return;
         }
@@ -117,25 +118,112 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
   ): Promise<void> {
     let sessionId = context.connectionManager.getSessionId(context.ws);
     let classroomCode: string;
+    let wasExistingSession = false; // Track if we reconnected to existing session
     
     if (!sessionId) {
       logger.error('Teacher has no session ID - this should not happen');
       return;
     }
     
-    // Check if session exists in database, if not create it
+    // Check if teacher has ANY active sessions first
+    // This handles the case where teacher accidentally closed page and reconnects
+    if (message.languageCode) {
+      try {
+        const activeSessions = await context.storage.getAllActiveSessions();
+        const existingSession = activeSessions.find((s: any) => 
+          s.teacherLanguage === message.languageCode && s.isActive && s.sessionId !== sessionId
+        );
+        
+        if (existingSession) {
+          logger.info(`Teacher has existing active session: ${existingSession.sessionId}, current session: ${sessionId}`);
+          
+          // If we found an existing session, we have two options:
+          // 1. Reuse the existing session (if it's recent)
+          // 2. End the existing session and use the new one
+          
+          const existingSessionAge = new Date().getTime() - new Date(existingSession.lastActivityAt).getTime();
+          const gracePermissionMs = config.session.teacherReconnectionGracePeriod;
+          
+          if (existingSessionAge < gracePermissionMs) {
+            // Reuse the existing session
+            logger.info(`Teacher reconnecting to existing recent session: ${existingSession.sessionId}`);
+            
+            // End the new session that was just created
+            const cleanupService = context.webSocketServer.getSessionCleanupService();
+            if (cleanupService) {
+              await cleanupService.endSession(sessionId, 'Duplicate session - teacher reconnected to existing');
+            }
+            
+            // Use the existing session instead
+            sessionId = existingSession.sessionId;
+            wasExistingSession = true;
+            
+            // Update the connection to use the existing session
+            context.connectionManager.updateSessionId(context.ws, existingSession.sessionId);
+            
+            // Update session activity to show teacher reconnected
+            if (cleanupService) {
+              await cleanupService.updateSessionActivity(sessionId);
+            }
+            
+            // If the existing session has a stored classroom code, restore it to ClassroomSessionManager
+            if (existingSession.classCode) {
+              context.webSocketServer.classroomSessionManager.restoreClassroomSession(
+                existingSession.classCode, 
+                sessionId
+              );
+              logger.info(`Restored classroom code ${existingSession.classCode} for reconnected teacher session ${sessionId}`);
+            }
+          } else {
+            // End the existing session - teacher created a new one
+            logger.info(`Ending existing session ${existingSession.sessionId} - teacher created new session ${sessionId}`);
+            const cleanupService = context.webSocketServer.getSessionCleanupService();
+            if (cleanupService) {
+              await cleanupService.endSession(existingSession.sessionId, 'Teacher created new session');
+            }
+          }
+        }
+      } catch (error: any) {
+        logger.error('Error searching for existing teacher sessions:', { error, teacherLanguage: message.languageCode });
+      }
+    }
+    
+    // Check if current session exists in database, if not create it
     try {
       let session = await context.storage.getActiveSession(sessionId);
       
-      if (!session) {
-        // Create the session for the teacher
-        logger.info('Creating session for teacher:', { sessionId });
-        await context.webSocketServer.storageSessionManager.createSession(sessionId);
-        session = await context.storage.getActiveSession(sessionId);
+      if (!session && !wasExistingSession) {
+        // If no existing session found, create a new one
+        if (!wasExistingSession) {
+          logger.info('Creating new session for teacher:', { sessionId, languageCode: message.languageCode });
+          await context.webSocketServer.storageSessionManager.createSession(sessionId);
+          session = await context.storage.getActiveSession(sessionId);
+        } else {
+          // Get the existing session we're reusing
+          session = await context.storage.getActiveSession(sessionId);
+        }
+      } else {
+        // Session already exists, just use it
+        logger.info('Using existing session for teacher:', { sessionId });
       }
       
       // Generate classroom code for this session
       classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
+      
+      // Store the classroom code in the database if this is a new session or if it's not already stored
+      if (sessionId && classroomCode) {
+        try {
+          const currentSession = await context.storage.getSessionById(sessionId);
+          if (currentSession && !currentSession.classCode) {
+            await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
+              classCode: classroomCode
+            });
+            logger.info(`Stored classroom code ${classroomCode} for session ${sessionId}`);
+          }
+        } catch (error: any) {
+          logger.error('Error storing classroom code:', { error, sessionId, classroomCode });
+        }
+      }
       
     } catch (error: any) {
       logger.error('Failed to create/get session for teacher:', { error, sessionId });
@@ -163,7 +251,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       type: 'classroom_code',
       code: classroomCode,
       sessionId: sessionId,
-      expiresAt: sessionInfo?.expiresAt || Date.now() + (2 * 60 * 60 * 1000) // Fallback expiration
+      expiresAt: sessionInfo?.expiresAt || Date.now() + config.session.classroomCodeExpiration // Fallback expiration
     };
     context.ws.send(JSON.stringify(response));
     
@@ -199,8 +287,14 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     }
 
     try {
-      // BUGFIX: If student has classroomCode but no session, look up session by classroom code
-      let session = await context.storage.getActiveSession(studentSessionId);
+      // BUGFIX: Students can join sessions regardless of isActive status
+      let session = await context.storage.getSessionById(studentSessionId);
+      
+      // Don't allow students to join ended sessions
+      if (session && session.endTime) {
+        logger.warn('Student trying to join ended session:', { studentSessionId, endTime: session.endTime });
+        session = null; // Treat as session not found
+      }
       
       // DEBUG: Log session lookup results
       logger.info('[DEBUG] Student session lookup:', {
@@ -231,7 +325,16 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
         
         if (sessionInfo) {
           // Found the teacher's session, now get it from storage
-          session = await context.storage.getActiveSession(sessionInfo.sessionId);
+          session = await context.storage.getSessionById(sessionInfo.sessionId);
+          
+          // Don't allow students to join ended sessions
+          if (session && session.endTime) {
+            logger.warn('Student trying to join ended session via classroom code:', { 
+              sessionId: sessionInfo.sessionId, 
+              endTime: session.endTime 
+            });
+            session = null; // Treat as session not found
+          }
           logger.info('[DEBUG] Teacher session from storage:', {
             teacherSessionId: sessionInfo.sessionId,
             sessionFound: !!session,
@@ -289,6 +392,15 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             studentsCount: alreadyCounted ? currentCount : currentCount + 1, 
             isActive: true 
           };
+          
+          // Update startTime when the first student joins (session becomes valid)
+          if (!alreadyCounted && currentCount === 0) {
+            updateData.startTime = new Date();
+            logger.info('[DEBUG] First student joining - updating startTime:', { 
+              sessionId: studentSessionId, 
+              studentName 
+            });
+          }
           
           // Always set classCode if we have it - this ensures it's set even if session already existed
           if (classroomCode) {

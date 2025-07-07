@@ -117,8 +117,8 @@ export class ConnectionLifecycleManager {
     // Only set up close and error handlers here
     
     // Set up close handler
-    ws.on('close', () => {
-      this.handleClose(ws);
+    ws.on('close', async () => {
+      await this.handleConnectionClose(ws);
     });
     
     // Set up error handler
@@ -136,27 +136,6 @@ export class ConnectionLifecycleManager {
       this.responseService.sendConnectionConfirmation(ws, finalSessionId || 'unknown', classroomCode || undefined);
     } catch (error) {
       logger.error('Error sending connection confirmation:', { error });
-    }
-  }
-
-  /**
-   * Handle WebSocket close event
-   */
-  private handleClose(ws: WebSocketClient): void {
-    const sessionId = this.connectionManager.getSessionId(ws);
-    logger.info('WebSocket disconnected, sessionId:', { sessionId });
-    
-    // Check if there are other connections with the same sessionId BEFORE removing this one
-    const hasOtherConnections = this.hasOtherConnectionsWithSessionId(sessionId);
-    
-    // Remove from tracking using ConnectionManager
-    this.connectionManager.removeConnection(ws);
-    
-    // End session in storage if no more connections with this sessionId
-    if (sessionId && !hasOtherConnections) {
-      this.storageSessionManager.endSession(sessionId).catch(error => {
-        logger.error('Failed to end session in storage:', { error });
-      });
     }
   }
 
@@ -196,7 +175,7 @@ export class ConnectionLifecycleManager {
       
       if (remainingStudents === 0) {
         if (remainingTeachers > 0) {
-          // Students left but teacher still there - start grace period
+          // Students left but teacher still there - update session activity
           try {
             const cleanupService = this.webSocketServer?.getSessionCleanupService();
             if (cleanupService) {
@@ -225,18 +204,50 @@ export class ConnectionLifecycleManager {
       logger.info(`Teacher disconnected from session ${sessionId}. Remaining: ${remainingStudents} students, ${remainingTeachers} teachers`);
       
       if (remainingTeachers === 0 && remainingStudents === 0) {
-        // No one left - end session immediately
+        // No one left - check if this session should be ended immediately or given grace period
+        try {
+          const session = await this.webSocketServer?.storage?.getActiveSession(sessionId);
+          const cleanupService = this.webSocketServer?.getSessionCleanupService();
+          
+          if (session && cleanupService) {
+            // End immediately if students were involved and all have disconnected
+            // Also end immediately if this was a very short teacher-only session
+            const hadStudents = session.studentsCount > 0;
+            // Calculate session age from startTime, or fall back to lastActivityAt if startTime is null
+            const sessionStartTime = session.startTime || session.lastActivityAt;
+            const sessionAge = sessionStartTime ? Date.now() - sessionStartTime.getTime() : 0;
+            const isVeryShortSession = sessionAge < config.session.veryShortSessionThreshold;
+            
+            if (hadStudents) {
+              // Session had students and now everyone has disconnected - end immediately
+              await cleanupService.endSession(sessionId, 'All users disconnected');
+              logger.info(`Ended session ${sessionId} immediately - all users disconnected from session with students.`);
+            } else if (isVeryShortSession) {
+              // Very short teacher-only session - end immediately (likely accidental)
+              await cleanupService.endSession(sessionId, 'Teacher disconnected, session too short');
+              logger.info(`Ended short teacher-only session ${sessionId} immediately - session was too short.`);
+            } else {
+              // Teacher-only session that ran for a reasonable time - give grace period for teacher reconnection
+              await cleanupService.updateSessionActivity(sessionId);
+              logger.info(`Teacher disconnected from teacher-only session ${sessionId}. Starting grace period for teacher reconnection.`);
+            }
+          }
+        } catch (error: any) {
+          logger.error('Error handling teacher disconnect:', error);
+        }
+      } else if (remainingTeachers === 0 && remainingStudents > 0) {
+        // Students remain but teacher left - give grace period for teacher reconnection
         try {
           const cleanupService = this.webSocketServer?.getSessionCleanupService();
           if (cleanupService) {
-            await cleanupService.endSession(sessionId, 'All users disconnected');
+            await cleanupService.updateSessionActivity(sessionId);
+            logger.info(`Teacher disconnected from session ${sessionId} with ${remainingStudents} students. Session activity updated.`);
           }
         } catch (error: any) {
-          logger.error('Error ending session:', error);
+          logger.error('Error updating session activity on teacher disconnect:', error);
         }
       }
-      // If students remain but no teachers, let them stay connected for a while
-      // The cleanup service will handle this scenario
+      // If other teachers remain, let them handle the session
     }
   }
 

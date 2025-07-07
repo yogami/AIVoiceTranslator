@@ -6,6 +6,7 @@
  */
 
 import logger from '../../logger';
+import { config } from '../../config';
 import { WebSocketClient } from './ConnectionManager';
 import type {
   WebSocketMessageToServer,
@@ -96,6 +97,40 @@ export class MessageDispatcher {
     try {
       // Parse message data
       const message = JSON.parse(data) as WebSocketMessageToServer;
+      
+      // Skip session validation for certain message types that don't require active sessions
+      const skipValidation = ['register', 'ping', 'pong'].includes(message.type);
+      
+      if (!skipValidation) {
+        // Validate session is still active for non-exempt message types
+        const sessionId = this.context.connectionManager.getSessionId(ws);
+        if (sessionId) {
+          try {
+            const session = await this.context.storage.getSessionById(sessionId);
+            if (!session || !session.isActive) {
+              // Session has expired - notify client and close connection
+              const errorResponse = {
+                type: 'session_expired',
+                message: 'Your class session has ended. Please ask your teacher for a new link.',
+                code: 'SESSION_EXPIRED'
+              };
+              ws.send(JSON.stringify(errorResponse));
+              
+              // Close connection after a brief delay
+              setTimeout(() => {
+                if (typeof ws.close === 'function') {
+                  ws.close(1008, 'Session expired');
+                }
+              }, config.session.sessionExpiredMessageDelay);
+              
+              logger.info(`Rejected message from expired session: ${sessionId}`);
+              return;
+            }
+          } catch (error) {
+            logger.error('Error validating session:', { sessionId, error });
+          }
+        }
+      }
       
       // Get handler for this message type
       const handler = this.registry.getHandler(message.type);

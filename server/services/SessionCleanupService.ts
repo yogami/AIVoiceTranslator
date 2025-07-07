@@ -1,4 +1,5 @@
 import logger from '../logger';
+import { config } from '../config';
 import { eq, and, lt, gt } from 'drizzle-orm';
 import { sessions } from '../../shared/schema';
 import { db } from '../db';
@@ -6,10 +7,6 @@ import { db } from '../db';
 export class SessionCleanupService {
   private cleanupInterval: NodeJS.Timeout | null = null;
   private isExplicitlyStopped = false; // Track if service was explicitly stopped vs never started
-  private readonly STALE_SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes - general inactivity
-  private readonly NO_STUDENTS_TIMEOUT = 10 * 60 * 1000; // 10 minutes - teacher waiting for students
-  private readonly ALL_STUDENTS_LEFT_TIMEOUT = 5 * 60 * 1000; // 5 minutes - grace period after all students leave
-  private readonly CLEANUP_INTERVAL = 2 * 60 * 1000; // 2 minutes - check more frequently
 
   constructor() {}
 
@@ -29,7 +26,7 @@ export class SessionCleanupService {
     // Set up periodic cleanup
     this.cleanupInterval = setInterval(() => {
       this.cleanupStaleSessions();
-    }, this.CLEANUP_INTERVAL);
+    }, config.session.cleanupInterval);
   }
 
   /**
@@ -86,7 +83,7 @@ export class SessionCleanupService {
       return;
     }
 
-    const noStudentsThreshold = new Date(now - this.NO_STUDENTS_TIMEOUT);
+    const noStudentsThreshold = new Date(now - config.session.emptyTeacherTimeout);
     
     const emptySessions = await db
       .select()
@@ -113,7 +110,7 @@ export class SessionCleanupService {
           isActive: false,
           endTime: new Date(),
           quality: 'no_students',
-          qualityReason: `No students joined within ${this.NO_STUDENTS_TIMEOUT / 60000} minutes`
+          qualityReason: `No students joined within ${config.session.emptyTeacherTimeout / 60000} minutes`
         })
         .where(
           and(
@@ -136,8 +133,8 @@ export class SessionCleanupService {
       return;
     }
 
-    const abandonedThreshold = new Date(now - this.ALL_STUDENTS_LEFT_TIMEOUT);
-    const staleThreshold = new Date(now - this.STALE_SESSION_TIMEOUT);
+    const abandonedThreshold = new Date(now - config.session.allStudentsLeftTimeout);
+    const staleThreshold = new Date(now - config.session.staleSessionTimeout);
     
     // Find sessions that had students but haven't been active recently
     // and likely all students have disconnected, but not old enough for general inactivity cleanup
@@ -167,7 +164,7 @@ export class SessionCleanupService {
           isActive: false,
           endTime: new Date(),
           quality: 'no_activity',
-          qualityReason: `All students disconnected, no activity for ${this.ALL_STUDENTS_LEFT_TIMEOUT / 60000} minutes`
+          qualityReason: `All students disconnected, no activity for ${config.session.allStudentsLeftTimeout / 60000} minutes`
         })
         .where(
           and(
@@ -191,7 +188,7 @@ export class SessionCleanupService {
       return;
     }
 
-    const staleThreshold = new Date(now - this.STALE_SESSION_TIMEOUT);
+    const staleThreshold = new Date(now - config.session.staleSessionTimeout);
     
     const staleSessions = await db
       .select()
@@ -217,7 +214,7 @@ export class SessionCleanupService {
           isActive: false,
           endTime: new Date(),
           quality: 'no_activity',
-          qualityReason: `Session inactive for ${this.STALE_SESSION_TIMEOUT / 60000} minutes`
+          qualityReason: `Session inactive for ${config.session.staleSessionTimeout / 60000} minutes`
         })
         .where(
           and(
@@ -364,4 +361,99 @@ export class SessionCleanupService {
       logger.error('Error marking students rejoined:', { sessionId, error });
     }
   }
+
+  /**
+   * Find the most recent active session for a teacher by language
+   * This helps prevent duplicate sessions when teachers reconnect
+   */
+  async findActiveTeacherSession(teacherLanguage: string): Promise<any | null> {
+    if (this.isStopped()) {
+      return null;
+    }
+
+    try {
+      const recentSessions = await db
+        .select()
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.isActive, true),
+            eq(sessions.teacherLanguage, teacherLanguage),
+            // Only sessions that are recent enough (within teacher reconnection grace period)
+            gt(sessions.lastActivityAt, new Date(Date.now() - config.session.teacherReconnectionGracePeriod))
+          )
+        )
+        .orderBy(sessions.lastActivityAt)
+        .limit(1);
+
+      return recentSessions.length > 0 ? recentSessions[0] : null;
+    } catch (error) {
+      logger.error('Error finding active teacher session:', { teacherLanguage, error });
+      return null;
+    }
+  }
+
+  /**
+   * End duplicate or orphaned sessions for the same teacher
+   * Called when a teacher creates a new session to clean up old ones
+   */
+  async endDuplicateTeacherSessions(currentSessionId: string, teacherLanguage: string): Promise<void> {
+    if (this.isStopped()) {
+      return;
+    }
+
+    try {
+      // First, get all active sessions for this teacher language
+      const allTeacherSessions = await db
+        .select()
+        .from(sessions)
+        .where(
+          and(
+            eq(sessions.isActive, true),
+            eq(sessions.teacherLanguage, teacherLanguage)
+          )
+        );
+
+      // Filter out the current session to find duplicates
+      const duplicateSessions = allTeacherSessions.filter((session: any) => session.sessionId !== currentSessionId);
+
+      if (duplicateSessions.length > 0) {
+        logger.info(`Found ${duplicateSessions.length} duplicate teacher sessions to clean up for language ${teacherLanguage}`);
+
+        // End each duplicate session individually
+        for (const session of duplicateSessions) {
+          await db
+            .update(sessions)
+            .set({
+              isActive: false,
+              endTime: new Date(),
+              quality: 'no_activity',
+              qualityReason: 'Duplicate session - teacher created new session'
+            })
+            .where(eq(sessions.sessionId, session.sessionId));
+        }
+
+        logger.info(`Ended ${duplicateSessions.length} duplicate teacher sessions`);
+      }
+    } catch (error) {
+      logger.error('Error ending duplicate teacher sessions:', { currentSessionId, teacherLanguage, error });
+    }
+  }
+
+  /**
+   * Migrate students from an old session to a new session
+   * This helps when a teacher reconnects and creates a new classroom code
+   */
+  async migrateOrphanedStudents(newSessionId: string, teacherLanguage: string): Promise<number> {
+    if (this.isStopped()) {
+      return 0;
+    }
+
+    // Implementation would require additional database schema to track student-session relationships
+    // For now, we log this for monitoring purposes
+    logger.info(`Migration of orphaned students would be handled here for session ${newSessionId}, teacher language ${teacherLanguage}`);
+    return 0;
+  }
+
+
 }

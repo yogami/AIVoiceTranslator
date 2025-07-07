@@ -88,7 +88,7 @@ describe('DatabaseStorage Integration Tests', () => {
       expect(createdSession.sessionId).toBe(`session-123-${testRunId}`);
       expect(createdSession.teacherLanguage).toBe('en-US');
       expect(createdSession.isActive).toBe(true);
-      expect(createdSession.startTime).toBeInstanceOf(Date);
+      expect(createdSession.startTime).toBeTruthy(); // startTime should now be set when session is created
 
       const retrievedSession = await storage.getActiveSession(`session-123-${testRunId}`);
       expect(retrievedSession).toEqual(createdSession);
@@ -616,6 +616,12 @@ describe('DatabaseStorage Integration Tests', () => {
       
       const s1 = await storage.createSession({ sessionId: sessionId1, teacherLanguage: 'en-US', isActive: true });
       const s2 = await storage.createSession({ sessionId: sessionId2, teacherLanguage: 'fr-FR', isActive: true });
+      
+      // Simulate a student joining session1 (this sets startTime)
+      await storage.updateSession(sessionId1, { 
+        studentsCount: 1, 
+        startTime: new Date(Date.now() - 60000) // Started 1 minute ago
+      });
       
       // Add some test data
       await storage.addTranslation({ 

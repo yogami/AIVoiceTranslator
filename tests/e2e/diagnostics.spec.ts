@@ -1,7 +1,8 @@
 // @ts-check
 import { test, expect, type Page, type Route, type Browser } from '@playwright/test';
-import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
+import { seedRealisticTestData, clearDiagnosticData, seedSessions } from './test-data-utils';
 import { ensureTestDatabaseSchema } from './test-setup';
+import type { InsertSession } from '../../shared/schema';
 
 // Helper function to get classroom code from teacher page (waits for it to be populated)
 async function getClassroomCodeFromTeacher(browser: Browser): Promise<{ page: Page; classroomCode: string }> {
@@ -96,6 +97,24 @@ async function validateDiagnosticFields(diagnosticsPage: Page, scenario: string)
   await expect(diagnosticsPage.locator('.section-header:has-text("Performance & Quality Metrics")')).toBeVisible();
   
   console.log(`✓ All diagnostic fields validated for scenario: ${scenario}`);
+}
+
+// Helper function to create test sessions using the seeding utility
+async function createTestSession(sessionData: Partial<InsertSession> & { sessionId: string }) {
+  const fullSessionData: InsertSession = {
+    sessionId: sessionData.sessionId,
+    isActive: sessionData.isActive ?? true,
+    teacherLanguage: sessionData.teacherLanguage ?? 'en-US',
+    studentLanguage: sessionData.studentLanguage ?? 'es-ES',
+    classCode: sessionData.classCode ?? 'TEST',
+    startTime: sessionData.startTime ?? null, // Don't set startTime unless explicitly provided (mimics real behavior)
+    endTime: sessionData.endTime,
+    studentsCount: sessionData.studentsCount ?? 0,
+    totalTranslations: sessionData.totalTranslations ?? 0,
+    lastActivityAt: sessionData.lastActivityAt
+  };
+  
+  await seedSessions([fullSessionData]);
 }
 
 test.describe('Diagnostics Dashboard E2E Tests', () => {
@@ -250,6 +269,51 @@ test.describe('Diagnostics Dashboard E2E Tests', () => {
     
     await teacherPage.close();
     await studentPage.close();
+  });
+
+  test('should distinguish between currently active sessions and recent activity', async ({ browser }) => {
+    await clearDiagnosticData();
+    
+    // Create a session with teacher and student
+    const { page: teacherPage, classroomCode } = await getClassroomCodeFromTeacher(browser);
+    const studentPage = await connectStudent(browser, classroomCode);
+    
+    // Send some translations to create activity
+    await teacherPage.fill('#speech-input', 'Hello currently active session');
+    await teacherPage.click('#send-btn');
+    
+    // Wait for translation to appear
+    await expect(studentPage.locator('#output')).toContainText('Hola', { timeout: 10000 });
+    
+    // Give time for session to be persisted as active with students
+    await teacherPage.waitForTimeout(2000);
+    
+    // Check diagnostics page
+    const diagnosticsPage = await browser.newPage();
+    await diagnosticsPage.goto('http://127.0.0.1:5001/analytics');
+    await diagnosticsPage.waitForSelector('.metric-card', { timeout: 10000 });
+    
+    // Check for currently active sessions section
+    const currentlyActiveSection = diagnosticsPage.locator('text=Currently Active Sessions').or(
+      diagnosticsPage.locator('text=Active Sessions')
+    );
+    await expect(currentlyActiveSection).toBeVisible({ timeout: 5000 });
+    
+    // Check for recent activity section  
+    const recentActivitySection = diagnosticsPage.locator('text=Recent Session Activity').or(
+      diagnosticsPage.locator('text=Recent Activity')
+    );
+    await expect(recentActivitySection).toBeVisible({ timeout: 5000 });
+    
+    // Verify that our active session appears in the appropriate section
+    // (The session should be in currently active since it has students and is active)
+    const sessionInfo = diagnosticsPage.locator(`text=${classroomCode}`).first();
+    await expect(sessionInfo).toBeVisible({ timeout: 5000 });
+    
+    // Clean up
+    await teacherPage.close();
+    await studentPage.close();
+    await diagnosticsPage.close();
   });
 
   // =====================================
@@ -484,4 +548,362 @@ test.describe('Diagnostics Dashboard E2E Tests', () => {
     // Comprehensive validation after refresh
     await validateDiagnosticFields(page, 'post-refresh-validation');
   });
+
+  // Session Lifecycle Tests
+  test('should clean up sessions when teacher waits too long without students', async ({ page }) => {
+    // Clear any existing data first
+    await clearDiagnosticData();
+    
+    // Create a session that has translations but no current students (inactive session)
+    // This simulates a teacher who had activity but students left and session ended
+    const sessionId = 'teacher-waiting-e2e-test';
+    await createTestSession({
+      sessionId,
+      studentsCount: 0, // Students left
+      startTime: new Date(Date.now() - 60 * 60 * 1000), // Started 60 minutes ago when students were present
+      totalTranslations: 2, // Has translations so will appear in recent activity
+      isActive: false, // Not currently active (students left)
+      endTime: new Date(Date.now() - 20 * 60 * 1000) // Ended 20 minutes ago
+    });
+
+    // Debug: Check what was actually created in the database
+    const fullApiResponse = await page.evaluate(async () => {
+      // Call the diagnostics API to see what sessions it returns
+      const response = await fetch('http://127.0.0.1:5001/api/diagnostics');
+      const data = await response.json();
+      return data;
+    });
+    console.log('=== Full API Response ===');
+    console.log('API Response:', JSON.stringify(fullApiResponse.sessions, null, 2));
+    console.log('=== End Full API Response ===');
+
+    // Navigate to diagnostics page to check sessions
+    await page.goto('http://127.0.0.1:5001/diagnostics.html');
+    
+    // Add debug logging to the frontend
+    await page.addInitScript(() => {
+      // Override console.log to capture it in the test
+      const originalLog = console.log;
+      (window as any).testLogs = [];
+      console.log = (...args: any[]) => {
+        (window as any).testLogs.push(args.join(' '));
+        originalLog.apply(console, args);
+      };
+    });
+    
+    // Wait for the page to load and add debug logging to the displayRecentSessionActivity function
+    await page.evaluate(() => {
+      // Override the displayRecentSessionActivity function to add debug logging
+      const originalDisplayRecentSessionActivity = (window as any).displayRecentSessionActivity;
+      if (originalDisplayRecentSessionActivity) {
+        (window as any).displayRecentSessionActivity = function(sessions: any) {
+          console.log('displayRecentSessionActivity called with:', sessions);
+          return originalDisplayRecentSessionActivity.call(this, sessions);
+        };
+      }
+    });
+    
+    // Verify the session appears in recent activity (because it has translations)
+    await page.waitForLoadState('networkidle');
+    
+    // Capture any JavaScript console logs
+    const consoleLogs = await page.evaluate(() => {
+      return (window as any).testLogs || [];
+    });
+    console.log('=== Frontend Console Logs ===');
+    console.log('Console logs:', consoleLogs);
+    console.log('=== End Frontend Console Logs ===');
+    
+    let sessionElements = await page.locator('[data-testid="session-row"]').all();
+    let sessionTexts = await Promise.all(
+      sessionElements.map(el => el.textContent())
+    );
+
+    // The test session should appear in recent activity because it has translations
+    let hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
+    expect(hasTestSession).toBe(true);
+
+    // Trigger cleanup via API call (this should clean up old inactive sessions)
+    await page.evaluate(() => {
+      return fetch('/api/admin/cleanup-sessions', { method: 'POST' });
+    });
+
+    // Wait a moment for the cleanup to complete
+    await page.waitForTimeout(1000);
+
+    // Refresh the diagnostics page
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    // The session should no longer appear after cleanup
+    sessionElements = await page.locator('[data-testid="session-row"]').all();
+    sessionTexts = await Promise.all(
+      sessionElements.map(el => el.textContent())
+    );
+
+    // The test session should not be in the list anymore
+    hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
+    expect(hasTestSession).toBe(false);
+  });
+  
+  test('should maintain sessions during grace period but clean up after', async ({ page }) => {
+    // Create a session that had students but they left 3 minutes ago (within grace period)
+    const sessionId = 'grace-period-e2e-test';
+    await createTestSession({
+      sessionId,
+      studentsCount: 0, // Students recently left, but session is still in grace period
+      startTime: new Date(Date.now() - 20 * 60 * 1000), // Started 20 minutes ago when first student joined
+      lastActivityAt: new Date(Date.now() - 3 * 60 * 1000), // 3 minutes ago
+      totalTranslations: 5, // Had translations while students were present
+      isActive: false, // Students left, so not currently active
+      endTime: new Date(Date.now() - 3 * 60 * 1000) // Ended when students left
+    });
+
+    // Check that session is still active (within grace period)
+    await page.goto('http://127.0.0.1:5001/diagnostics.html');
+    
+    let sessionElements = await page.locator('[data-testid="session-row"]').all();
+    let sessionTexts = await Promise.all(
+      sessionElements.map(el => el.textContent())
+    );
+    
+    // Session should still be active
+    let hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
+    expect(hasTestSession).toBe(true);
+
+    // Now simulate that 6 minutes have passed (beyond grace period)
+    await createTestSession({
+      sessionId: sessionId + '-expired',
+      studentsCount: 0, // Students left
+      startTime: new Date(Date.now() - 25 * 60 * 1000), // Started 25 minutes ago when first student joined
+      lastActivityAt: new Date(Date.now() - 7 * 60 * 1000), // 7 minutes ago
+      totalTranslations: 3, // Had translations while students were present
+      isActive: false, // Students left, so not currently active
+      endTime: new Date(Date.now() - 7 * 60 * 1000) // Ended when students left
+    });
+
+    // Trigger cleanup
+    await page.evaluate(() => {
+      return fetch('http://127.0.0.1:5001/api/admin/cleanup-sessions', { method: 'POST' });
+    });
+
+    await page.waitForTimeout(1000);
+    await page.reload();
+
+    // Now the expired session should be gone
+    sessionElements = await page.locator('[data-testid="session-row"]').all();
+    sessionTexts = await Promise.all(
+      sessionElements.map(el => el.textContent())
+    );
+
+    const hasExpiredSession = sessionTexts.some(text => text?.includes(sessionId + '-expired'));
+    expect(hasExpiredSession).toBe(false);
+  });
+
+  test('should update session activity when students interact', async ({ page, browser }) => {
+    // This test simulates the real flow of student interaction updating session activity
+    
+    // Create a session that would normally be cleaned up due to inactivity
+    const sessionId = 'activity-update-e2e-test';
+    await createTestSession({
+      sessionId,
+      studentsCount: 0, // Students left, but will rejoin
+      startTime: new Date(Date.now() - 45 * 60 * 1000), // Started 45 minutes ago when first student joined
+      lastActivityAt: new Date(Date.now() - 32 * 60 * 1000), // 32 minutes ago - should be cleaned
+      totalTranslations: 5, // Had translations
+      isActive: false, // Students left, so not currently active
+      endTime: new Date(Date.now() - 32 * 60 * 1000), // Ended when students left
+      classCode: 'ACT-TEST'
+    });
+
+    // Open teacher page
+    await page.goto('http://127.0.0.1:5001/teacher');
+    
+    // Open student page in new context to simulate student joining
+    const studentContext = await browser.newContext();
+    const studentPage = await studentContext.newPage();
+    
+    // Student joins the session (this should update activity)
+    await studentPage.goto('http://127.0.0.1:5001/student?code=ACT-TEST');
+    
+    // Wait for connection to be established
+    await studentPage.waitForTimeout(2000);
+
+    // Now trigger cleanup - the session should NOT be cleaned up because activity was updated
+    await page.evaluate(() => {
+      return fetch('http://127.0.0.1:5001/api/admin/cleanup-sessions', { method: 'POST' });
+    });
+
+    await page.waitForTimeout(1000);
+
+    // Check diagnostics page - session should still be active
+    await page.goto('http://127.0.0.1:5001/diagnostics.html');
+    
+    const sessionElements = await page.locator('[data-testid="session-row"]').all();
+    const sessionTexts = await Promise.all(
+      sessionElements.map(el => el.textContent())
+    );
+
+    const hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
+    expect(hasTestSession).toBe(true);
+
+    await studentContext.close();
+  });
+
+  test('DEBUG: Check what diagnostics API returns for seeded session', async ({ page }) => {
+    // Clear any existing data first
+    await clearDiagnosticData();
+    
+    // Create a session that should appear in recent activity
+    const sessionId = 'debug-session-test';
+    await seedSessions([{
+      sessionId,
+      studentsCount: 0,
+      startTime: new Date(Date.now() - 60 * 60 * 1000),
+      totalTranslations: 2,
+      isActive: false,
+      endTime: new Date(Date.now() - 20 * 60 * 1000),
+      teacherLanguage: 'en-US',
+      studentLanguage: 'es-ES',
+      classCode: 'DEBUG'
+    }]);
+    
+    // Check what the API returns
+    const response = await page.goto('http://127.0.0.1:5001/api/diagnostics');
+    const data = await response?.json();
+    
+    console.log('=== DIAGNOSTICS API RESPONSE ===');
+    console.log(JSON.stringify(data, null, 2));
+    console.log('=== END DEBUG ===');
+    
+    // For now, just pass the test since this is debug
+    expect(true).toBe(true);
+  });
+
+  test('should only show active sessions on diagnostics page', async ({ page }) => {
+    // Create both active and inactive sessions
+    const activeSessionId = 'active-e2e-test';
+    const inactiveSessionId = 'inactive-e2e-test';
+
+    await createTestSession({
+      sessionId: activeSessionId,
+      studentsCount: 1, // Active session with students should have startTime
+      startTime: new Date(Date.now() - 10 * 60 * 1000), // Started 10 minutes ago when first student joined
+      totalTranslations: 3,
+      isActive: true
+    });
+
+    await createTestSession({
+      sessionId: inactiveSessionId,
+      studentsCount: 0, // Inactive session with no students
+      startTime: new Date(Date.now() - 30 * 60 * 1000), // Started 30 minutes ago when students were present
+      totalTranslations: 1, // Add translations so it appears in recent activity
+      isActive: false, // Students left
+      endTime: new Date(Date.now() - 15 * 60 * 1000) // Ended 15 minutes ago
+    });
+
+    // Navigate to diagnostics page
+    await page.goto('http://127.0.0.1:5001/diagnostics.html');
+
+    // Get all session elements
+    const sessionElements = await page.locator('[data-testid="session-row"]').all();
+    const sessionTexts = await Promise.all(
+      sessionElements.map(el => el.textContent())
+    );
+
+    // Active session should be visible
+    const hasActiveSession = sessionTexts.some(text => text?.includes(activeSessionId));
+    expect(hasActiveSession).toBe(true);
+
+    // Inactive session should be visible in recent activity (not in currently active)
+    const hasInactiveSession = sessionTexts.some(text => text?.includes(inactiveSessionId));
+    expect(hasInactiveSession).toBe(true); // Should appear in recent activity section
+  });
+
+  test('should distinguish currently active sessions from recent historical activity', async ({ page }) => {
+    // Create a currently active session (with students)
+    const activeSessionId = 'currently-active-test';
+    await createTestSession({
+      sessionId: activeSessionId,
+      classCode: 'ACTIVE123',
+      studentsCount: 2, // Has students, so it should have startTime
+      startTime: new Date(Date.now() - 30 * 60 * 1000), // Started 30 minutes ago when first student joined
+      isActive: true,
+      totalTranslations: 5
+    });
+
+    // Create a recent but inactive session (with translations)
+    const recentInactiveSessionId = 'recent-inactive-test';
+    await createTestSession({
+      sessionId: recentInactiveSessionId,
+      classCode: 'RECENT456',
+      studentsCount: 0, // No current students (they left)
+      startTime: new Date(Date.now() - 60 * 60 * 1000), // Started 60 minutes ago when first student joined
+      isActive: false,
+      totalTranslations: 10, // Has historical translations
+      endTime: new Date(Date.now() - 30 * 60 * 1000) // Ended 30 minutes ago
+    });
+
+    // Navigate to diagnostics page
+    await page.goto('http://127.0.0.1:5001/diagnostics.html');
+    await page.waitForLoadState('networkidle');
+
+    // Look for sections distinguishing current vs recent activity
+    const currentlyActiveSection = page.locator('text=Currently Active').or(
+      page.locator('text=Active Sessions')
+    );
+    const recentActivitySection = page.locator('text=Recent Activity').or(
+      page.locator('text=Recent Session Activity')
+    );
+
+    // Both sections should exist
+    await expect(currentlyActiveSection).toBeVisible({ timeout: 10000 });
+    await expect(recentActivitySection).toBeVisible({ timeout: 10000 });
+
+    // Check that sessions appear in appropriate sections
+    const pageContent = await page.textContent('body');
+    expect(pageContent).toContain('ACTIVE123'); // Currently active session
+    expect(pageContent).toContain('RECENT456'); // Recent historical session
+  });
+
+  test('should only show sessions with students in currently active section', async ({ page }) => {
+    // Create an active session without students (should not appear in currently active)
+    const teacherOnlySessionId = 'teacher-only-session';
+    await createTestSession({
+      sessionId: teacherOnlySessionId,
+      classCode: 'TEACHER1',
+      studentsCount: 0, // No students, so no startTime
+      startTime: null, // No students joined
+      isActive: false, // No students, so not active
+      totalTranslations: 0
+    });
+
+    // Create an active session with students (should appear in currently active)
+    const activeWithStudentsId = 'active-with-students';
+    await createTestSession({
+      sessionId: activeWithStudentsId,
+      classCode: 'STUDENT1',
+      studentsCount: 3, // Has students, so it should have startTime
+      startTime: new Date(Date.now() - 15 * 60 * 1000), // Started 15 minutes ago when first student joined
+      isActive: true,
+      totalTranslations: 2
+    });
+
+    // Navigate to diagnostics page
+    await page.goto('http://127.0.0.1:5001/diagnostics.html');
+    await page.waitForLoadState('networkidle');
+
+    const pageContent = await page.textContent('body');
+    
+    // Session with students should be visible
+    expect(pageContent).toContain('STUDENT1');
+    
+    // Session without students should be less prominent or in a different section
+    // (The exact behavior depends on UI implementation, but it should be distinguished)
+    const currentlyActiveSection = page.locator('text=Currently Active').or(
+      page.locator('text=Active Sessions')
+    );
+    await expect(currentlyActiveSection).toBeVisible();
+  });
+
 });

@@ -255,4 +255,104 @@ button:disabled {
         gap: 10px;
         text-align: center;
     }
+}
+
+/* Session Activity Styles */
+.session-item {
+    background: white;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.session-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.session-id {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 16px;
+    color: #2c3e50;
+}
+
+.session-language {
+    font-size: 14px;
+    color: #7f8c8d;
+}
+
+.session-status {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-good {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-neutral {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.session-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 14px;
+}
+
+.session-stat {
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.no-data {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px dashed #dee2e6;
+}
+
+#currently-active-sessions,
+#recent-activity {
+    margin-bottom: 30px;
+}
+
+/* Mobile responsive adjustments for session items */
+@media (max-width: 768px) {
+    .session-header {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .session-details {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .session-item {
+        padding: 12px;
+    }
 } 

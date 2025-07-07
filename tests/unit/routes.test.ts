@@ -56,9 +56,12 @@ const mockStorage: IStorage = {
   updateSession: vi.fn(),
   getActiveSession: vi.fn(),
   getAllActiveSessions: vi.fn(),
+  getCurrentlyActiveSessions: vi.fn(),
   endSession: vi.fn(),
   getRecentSessionActivity: vi.fn(),
   getSessionById: vi.fn(),
+  getTranscriptCountBySession: vi.fn(),
+  getSessionQualityStats: vi.fn(),
 
   // Analytics methods
   getSessionAnalytics: vi.fn(),

@@ -5,6 +5,7 @@ import type { Session } from '../../../shared/schema';
 // Mock storage interface
 const mockStorage = {
   getAllActiveSessions: vi.fn(),
+  getCurrentlyActiveSessions: vi.fn(),
   getSessionById: vi.fn(),
   getActiveSession: vi.fn(),
   updateSession: vi.fn(),

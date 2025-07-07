@@ -2,6 +2,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConnectionLifecycleManager } from '../../../../server/services/websocket/ConnectionLifecycleManager';
 import { WebSocketClient } from '../../../../server/services/websocket/ConnectionManager';
 
+// Mock config
+vi.mock('../../../../server/config', () => ({
+  config: {
+    server: { host: 'localhost', port: 3000 },
+    session: {
+      veryShortSessionThreshold: 5 * 1000, // 5 seconds
+      staleSessionTimeout: 90 * 60 * 1000, // 90 minutes
+      emptyTeacherTimeout: 15 * 60 * 1000, // 15 minutes  
+      allStudentsLeftTimeout: 10 * 60 * 1000, // 10 minutes
+      cleanupInterval: 2 * 60 * 1000, // 2 minutes
+    }
+  }
+}));
+
 // Mock dependencies
 const mockConnectionManager = {
   addConnection: vi.fn(),
@@ -233,11 +247,30 @@ describe('ConnectionLifecycleManager', () => {
     it('should handle teacher disconnection without affecting student count', async () => {
       mockConnectionManager.getRole.mockReturnValue('teacher');
       mockConnectionManager.getSessionId.mockReturnValue('test-session-123');
+      
+      // Mock that there are no other connections (empty session)
+      mockConnectionManager.getConnections.mockReturnValue([]);
+      
+      // Mock getActiveSession to return a session
+      mockWebSocketServer.storage.getActiveSession.mockResolvedValue({
+        sessionId: 'test-session-123',
+        studentsCount: 0,
+        startTime: new Date(),
+        lastActivityAt: new Date()
+      });
+      
+      // Mock getSessionCleanupService
+      const mockCleanupService = {
+        updateSessionActivity: vi.fn(),
+        endSession: vi.fn()
+      };
+      mockWebSocketServer.getSessionCleanupService.mockReturnValue(mockCleanupService);
 
       await manager.handleConnectionClose(mockWebSocket);
       
       expect(mockConnectionManager.removeConnection).toHaveBeenCalledWith(mockWebSocket);
-      expect(mockWebSocketServer.storage.getActiveSession).not.toHaveBeenCalled();
+      // Now we expect getActiveSession to be called to check session details
+      expect(mockWebSocketServer.storage.getActiveSession).toHaveBeenCalledWith('test-session-123');
       expect(mockWebSocketServer.storageSessionManager.updateSession).not.toHaveBeenCalled();
     });
 

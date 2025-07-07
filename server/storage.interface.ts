@@ -66,8 +66,9 @@ export interface IStorage {
   updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined>;
   getActiveSession(sessionId: string): Promise<Session | undefined>;
   getAllActiveSessions(): Promise<Session[]>;
+  getCurrentlyActiveSessions(): Promise<Session[]>;
   endSession(sessionId: string): Promise<Session | undefined>;
-  getRecentSessionActivity(limit?: number): Promise<StorageRecentSessionActivity[]>;
+  getRecentSessionActivity(limit?: number, hoursBack?: number): Promise<StorageRecentSessionActivity[]>;
   getSessionById(sessionId: string): Promise<Session | undefined>;
   getTranscriptCountBySession(sessionId: string): Promise<number>;
   getSessionQualityStats(): Promise<{

@@ -35,7 +35,23 @@ vi.mock('../../../server/services/SessionLifecycleService', () => ({
 
 vi.mock('../../../server/config', () => ({
   config: {
-    server: { host: 'localhost', port: 3000 }
+    server: { host: 'localhost', port: 3000 },
+    session: {
+      staleSessionTimeout: 90 * 60 * 1000, // 90 minutes
+      emptyTeacherTimeout: 15 * 60 * 1000, // 15 minutes  
+      allStudentsLeftTimeout: 10 * 60 * 1000, // 10 minutes
+      cleanupInterval: 2 * 60 * 1000, // 2 minutes
+      classroomCodeExpiration: 2 * 60 * 60 * 1000, // 2 hours
+      classroomCodeCleanupInterval: 15 * 60 * 1000, // 15 minutes
+      healthCheckInterval: 30 * 1000, // 30 seconds
+      veryShortSessionThreshold: 5 * 1000, // 5 seconds
+      teacherReconnectionGracePeriod: 5 * 60 * 1000, // 5 minutes
+      minAudioDataLength: 100,
+      minAudioBufferLength: 100,
+      sessionExpiredMessageDelay: 1000,
+      invalidClassroomMessageDelay: 100,
+      textPreviewLength: 100
+    }
   }
 }));
 

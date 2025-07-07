@@ -298,7 +298,7 @@ async function testAPI() {
     clearDebug();
     
     try {
-        const response = await fetch('/api/health');
+        const response = await fetch(`${apiUrl}/api/health`);
         const data = await response.json();
         
         showDebug({
@@ -327,7 +327,7 @@ async function loadDiagnostics() {
     
     try {
         console.log('Fetching diagnostics from /api/diagnostics');
-        const response = await fetch('/api/diagnostics');
+        const response = await fetch(`${apiUrl}/api/diagnostics`);
         console.log('Response status:', response.status);
         
         if (!response.ok) {
@@ -347,6 +347,77 @@ async function loadDiagnostics() {
         updateStatus('Failed to load diagnostics', 'error');
         updateSystemStatus('Data Error', 'error');
     }
+}
+
+// Create session activity item
+function createSessionActivityItem(session, isActive = false) {
+    const item = document.createElement('div');
+    item.className = 'session-item';
+    item.setAttribute('data-testid', 'session-row');
+    
+    const statusIndicator = isActive ? 
+        '<span class="session-status status-good">🟢 LIVE</span>' : 
+        '<span class="session-status status-neutral">📊 Recent</span>';
+    
+    const studentInfo = session.studentCount > 0 ? 
+        `${session.studentCount} student${session.studentCount === 1 ? '' : 's'}` : 
+        'No students';
+    
+    const transcriptInfo = session.transcriptCount > 0 ? 
+        `${session.transcriptCount} translation${session.transcriptCount === 1 ? '' : 's'}` : 
+        'No translations';
+    
+    item.innerHTML = `
+        <div class="session-header">
+            <div class="session-id">
+                <strong>Class: ${session.classCode || session.sessionId}</strong>
+                ${statusIndicator}
+            </div>
+            <div class="session-language">
+                Language: ${session.language || 'N/A'}
+            </div>
+        </div>
+        <div class="session-details">
+            <span class="session-stat">👥 ${studentInfo}</span>
+            <span class="session-stat">💬 ${transcriptInfo}</span>
+            <span class="session-stat">⏱️ ${session.duration || 'N/A'}</span>
+            <span class="session-stat">🕒 ${session.lastActivity || 'N/A'}</span>
+        </div>
+    `;
+    
+    return item;
+}
+
+// Display currently active sessions
+function displayCurrentlyActiveSessions(sessions) {
+    const container = document.getElementById('currently-active-sessions');
+    container.innerHTML = '';
+    
+    if (!sessions || sessions.length === 0) {
+        container.innerHTML = '<div class="no-data">No currently active sessions with students</div>';
+        return;
+    }
+    
+    sessions.forEach(session => {
+        const item = createSessionActivityItem(session, true);
+        container.appendChild(item);
+    });
+}
+
+// Display recent session activity
+function displayRecentSessionActivity(sessions) {
+    const container = document.getElementById('recent-activity');
+    container.innerHTML = '';
+    
+    if (!sessions || sessions.length === 0) {
+        container.innerHTML = '<div class="no-data">No recent session activity in the last 24 hours</div>';
+        return;
+    }
+    
+    sessions.forEach(session => {
+        const item = createSessionActivityItem(session, false);
+        container.appendChild(item);
+    });
 }
 
 function displayDiagnostics(data) {
@@ -388,6 +459,15 @@ function displayDiagnostics(data) {
         metricsContainer.appendChild(systemCard);
     }
     
+    // Display session activity sections
+    if (data.sessions) {
+        // Display currently active sessions
+        displayCurrentlyActiveSessions(data.sessions.currentlyActiveSessions);
+        
+        // Display recent session activity
+        displayRecentSessionActivity(data.sessions.recentSessionActivity);
+    }
+    
     // Update last updated time
     if (data.lastUpdated) {
         const updateTime = new Date(data.lastUpdated).toLocaleString();
@@ -400,7 +480,7 @@ async function exportDiagnostics() {
         updateStatus('Exporting diagnostics...', 'info');
         console.log('Exporting diagnostics...');
         
-        const response = await fetch('/api/diagnostics/export');
+        const response = await fetch(`${apiUrl}/api/diagnostics/export`);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }

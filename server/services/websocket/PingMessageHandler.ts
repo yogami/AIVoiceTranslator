@@ -6,6 +6,7 @@
  */
 
 import logger from '../../logger';
+import { config } from '../../config';
 import { WebSocketClient } from './ConnectionManager';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type {
@@ -22,7 +23,8 @@ export class PingMessageHandler implements IMessageHandler<PingMessageToServer> 
     // Mark as alive for heartbeat
     context.ws.isAlive = true;
     
-    // Send pong response
+    // Always respond with pong for heartbeat functionality
+    // Session validation should happen during actual operations, not heartbeat checks
     const response: PongMessageToClient = {
       type: 'pong',
       timestamp: Date.now(),
