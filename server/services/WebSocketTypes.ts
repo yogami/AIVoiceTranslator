@@ -159,6 +159,12 @@ export interface StudentJoinedMessageToClient extends BaseWebSocketMessage {
   };
 }
 
+export interface SessionExpiredMessageToClient extends BaseWebSocketMessage {
+  type: 'session_expired';
+  message: string;
+  code: string;
+}
+
 // Union type for messages received by the server
 export type WebSocketMessageToServer =
   | RegisterMessageToServer
@@ -179,5 +185,6 @@ export type WebSocketMessageToClient =
   | SettingsResponseToClient
   | PongMessageToClient
   | ErrorMessageToClient
-  | StudentJoinedMessageToClient // Added here
+  | SessionExpiredMessageToClient
+  | StudentJoinedMessageToClient
   | BaseWebSocketMessage; // Fallback for ping etc.

@@ -34,9 +34,9 @@ export class StorageSessionManager {
       // If not, create a new session (active as soon as teacher creates it)
       await this.storage.createSession({
         sessionId,
-        isActive: false, // Will be set to true when first student joins
+        isActive: true, // Session is active when teacher registers
         teacherLanguage: null, // Will be set when teacher registers
-        classCode: null, // Will be set when student joins with a classroom code
+        classCode: null, // Will be set when classroom code is generated
         studentLanguage: null, // Will be set when student registers
         lastActivityAt: new Date() // Set initial activity timestamp
         // startTime is automatically set by the database default
@@ -116,10 +116,8 @@ export class StorageSessionManager {
       if (existingSession) {
         logger.info('Session already exists in storage, updating teacher language:', { sessionId, teacherLanguage });
         const updates: any = {};
-        // Only set isActive to true if there are already students (studentsCount > 0)
-        if (existingSession.studentsCount && existingSession.studentsCount > 0) {
-          updates.isActive = true;
-        }
+        // Session should be active when teacher is present
+        updates.isActive = true;
         if (teacherLanguage && teacherLanguage !== 'unknown') {
           updates.teacherLanguage = teacherLanguage;
         }
@@ -129,10 +127,11 @@ export class StorageSessionManager {
         return;
       }
 
-      // If not, create a new session with teacher language (inactive until student joins)
+      // If not, create a new session with teacher language (active when teacher registers)
       const sessionData: any = {
         sessionId,
-        isActive: false, // Will be set to true when first student joins
+        isActive: true, // Session is active when teacher registers
+        lastActivityAt: new Date() // Set initial activity timestamp
         // startTime is automatically set by the database default
       };
       

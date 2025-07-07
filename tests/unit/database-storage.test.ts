@@ -318,10 +318,12 @@ describe('DatabaseStorage Metrics', () => {
       const mockSessionData: Session = {
         id: 1,
         sessionId: 'test-session-db-1',
+        classCode: null,
         isActive: true,
         startTime: new Date(),
         endTime: null,
         teacherLanguage: 'en-US',
+        studentLanguage: null,
         studentsCount: 0,
         totalTranslations: 0, 
         averageLatency: null,

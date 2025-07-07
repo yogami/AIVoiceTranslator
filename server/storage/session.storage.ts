@@ -7,7 +7,7 @@ import {
 } from "../../shared/schema"; // Correct: Import schemas directly
 import { db, sql as dbSql } from "../db"; // Import db instance and sql from ../db
 // Import Drizzle operators directly from drizzle-orm
-import { eq, and, desc, count as drizzleCount, SQL } from "drizzle-orm"; 
+import { eq, and, or, desc, count as drizzleCount, gt, gte, SQL } from "drizzle-orm"; 
 import { StorageError, StorageErrorCode } from "../storage.error";
 
 export const DEFAULT_SESSION_QUERY_LIMIT = 10;
@@ -29,8 +29,9 @@ export interface ISessionStorage {
   updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined>;
   getActiveSession(sessionId: string): Promise<Session | undefined>;
   getAllActiveSessions(): Promise<Session[]>;
+  getCurrentlyActiveSessions(): Promise<Session[]>;
   endSession(sessionId: string): Promise<Session | undefined>;
-  getRecentSessionActivity(limit?: number): Promise<SessionActivity[]>;
+  getRecentSessionActivity(limit?: number, hoursBack?: number): Promise<SessionActivity[]>;
   getSessionById(sessionId: string): Promise<Session | undefined>;
   getTranscriptCountBySession(sessionId: string): Promise<number>;
   getSessionQualityStats(): Promise<{
@@ -72,7 +73,7 @@ export class MemSessionStorage implements ISessionStorage {
       classCode: insertSession.classCode ?? null,
       teacherLanguage: insertSession.teacherLanguage ?? null,
       studentLanguage: insertSession.studentLanguage ?? null,
-      startTime: new Date(),
+      startTime: null, // Don't set startTime at creation - will be set when first student joins
       endTime: null,
       studentsCount: insertSession.studentsCount ?? 0, // Ensure default is 0, not null
       totalTranslations: insertSession.totalTranslations ?? 0, // Default to 0
@@ -104,6 +105,11 @@ export class MemSessionStorage implements ISessionStorage {
     return Array.from(this.sessions.values()).filter(s => s.isActive);
   }
 
+  async getCurrentlyActiveSessions(): Promise<Session[]> {
+    // Return only active sessions (isActive implies students are present)
+    return Array.from(this.sessions.values()).filter(s => s.isActive);
+  }
+
   async endSession(sessionId: string): Promise<Session | undefined> {
     const session = await this.getActiveSession(sessionId); // Uses getActiveSession which checks isActive
     if (!session) {
@@ -118,19 +124,37 @@ export class MemSessionStorage implements ISessionStorage {
     return updatedSession;
   }
 
-  async getRecentSessionActivity(limit: number = 5): Promise<SessionActivity[]> { // Update return type to SessionActivity[]
+  async getRecentSessionActivity(limit: number = 5, hoursBack: number = 24): Promise<SessionActivity[]> { // Update return type to SessionActivity[]
+    // Calculate the cutoff time for "recent" activity
+    const cutoffTime = new Date();
+    cutoffTime.setHours(cutoffTime.getHours() - hoursBack);
+
     const recentSessions = Array.from(this.sessions.values())
+      .filter((s: Session) => {
+        // Timeline filter: sessions that started within the specified time range OR are currently active
+        const withinTimeRange = s.startTime ? new Date(s.startTime).getTime() >= cutoffTime.getTime() : false;
+        const isCurrentlyActive = s.isActive;
+        
+        // Activity filter: active sessions with students OR sessions with translations
+        const hasStudents = (s.studentsCount ?? 0) > 0;
+        const hasTranslations = (s.totalTranslations ?? 0) > 0;
+        const hasActivity = (s.isActive && hasStudents) || hasTranslations;
+        
+        // Include sessions that:
+        // 1. Are within time range AND have activity, OR
+        // 2. Are currently active (regardless of time, but must have activity)
+        return hasActivity && (withinTimeRange || isCurrentlyActive);
+      })
       .sort((a: Session, b: Session) => {
-        // Ensure startTime is valid before getTime()
-        const aTime = a.startTime ? new Date(a.startTime).getTime() : 0;
-        const bTime = b.startTime ? new Date(b.startTime).getTime() : 0;
-        return bTime - aTime; // Sort by startTime descending
+        // For sessions without startTime (no students joined yet), use lastActivityAt for sorting
+        const aTime = a.startTime ? new Date(a.startTime).getTime() : (a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0);
+        const bTime = b.startTime ? new Date(b.startTime).getTime() : (b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0);
+        return bTime - aTime; // Sort by startTime or lastActivityAt descending
       })
       .slice(0, limit);
 
     return recentSessions.map((s: Session) => {
-      const transcriptCount = Array.from(this.transcripts.values())
-        .filter((t: Transcript) => t.sessionId === s.sessionId).length;
+      const transcriptCount = s.totalTranslations ?? 0; // Use the stored totalTranslations for performance
       const duration = s.startTime && s.endTime
         ? new Date(s.endTime).getTime() - new Date(s.startTime).getTime()
         : (s.startTime && s.isActive ? Date.now() - new Date(s.startTime).getTime() : 0); // Calculate duration for active sessions
@@ -196,10 +220,11 @@ export class DbSessionStorage implements ISessionStorage {
         .insert(sessions)
         .values({
           ...session,
+          // Use application server time for consistent timing across the application
           startTime: new Date(),
           lastActivityAt: new Date(),
           endTime: null,
-          isActive: true
+          isActive: session.isActive ?? true
         })
         .returning();
       if (!result[0]) {
@@ -266,6 +291,18 @@ export class DbSessionStorage implements ISessionStorage {
     }
   }
 
+  async getCurrentlyActiveSessions(): Promise<Session[]> {
+    // Return only active sessions (isActive implies students are present)
+    try {
+      return await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.isActive, true));
+    } catch (error: any) {
+      throw new StorageError(`Failed to get currently active sessions: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+    }
+  }
+
   async endSession(sessionId: string): Promise<Session | undefined> {
     try {
       const result = await db // db from ../db
@@ -285,8 +322,12 @@ export class DbSessionStorage implements ISessionStorage {
     }
   }
 
-  async getRecentSessionActivity(limit: number = DEFAULT_SESSION_QUERY_LIMIT): Promise<SessionActivity[]> { // Update return type to SessionActivity[]
+  async getRecentSessionActivity(limit: number = DEFAULT_SESSION_QUERY_LIMIT, hoursBack: number = 24): Promise<SessionActivity[]> { // Update return type to SessionActivity[]
     try {
+      // Calculate the cutoff time for "recent" activity
+      const cutoffTime = new Date();
+      cutoffTime.setHours(cutoffTime.getHours() - hoursBack);
+
       // Subquery to count transcripts per session
       const transcriptCountsSubquery = db
         .select({
@@ -314,6 +355,21 @@ export class DbSessionStorage implements ISessionStorage {
           transcriptCountsSubquery,
           eq(sessions.sessionId, transcriptCountsSubquery.sq_sessionId) // Join using the aliased sessionId from subquery
         )
+        .where(and(
+          // Timeline filter: sessions that started within the specified time range OR are currently active
+          or(
+            gte(sessions.startTime, cutoffTime),
+            eq(sessions.isActive, true)
+          ),
+          // Activity filter: active sessions with students OR sessions with translations
+          or(
+            and(
+              eq(sessions.isActive, true), // Active sessions
+              gt(sessions.studentsCount, 0) // With at least one student
+            ),
+            gt(sessions.totalTranslations, 0) // Or completed sessions with at least one translation
+          )
+        ))
         .orderBy(desc(sessions.startTime))
         .limit(limit);
 

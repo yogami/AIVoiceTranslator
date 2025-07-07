@@ -119,8 +119,12 @@ describe('MessageDispatcher', () => {
     mockWs = { send: vi.fn() } as any;
     mockContext = {
       ws: mockWs,
-      connectionManager: {},
-      storage: {},
+      connectionManager: {
+        getSessionId: vi.fn().mockReturnValue(null)
+      },
+      storage: {
+        getSessionById: vi.fn().mockResolvedValue(null)
+      },
       sessionService: {},
       translationService: {},
       sessionLifecycleService: {},
@@ -173,6 +177,243 @@ describe('MessageDispatcher', () => {
           data: invalidMessage,
           error: expect.any(Error)
         })
+      );
+    });
+  });
+
+  describe('Session Expiration Handling', () => {
+    it('should check session validity before dispatching messages', async () => {
+      const mockHandler: IMessageHandler = {
+        getMessageType: () => 'test',
+        handle: vi.fn().mockResolvedValue(undefined)
+      };
+
+      // Mock storage to return inactive session
+      const mockStorage = {
+        getSessionById: vi.fn().mockResolvedValue({
+          sessionId: 'expired-session',
+          isActive: false
+        })
+      };
+
+      const mockConnectionManager = {
+        getSessionId: vi.fn().mockReturnValue('expired-session')
+      };
+
+      registry.register(mockHandler);
+      
+      const contextWithMocks = {
+        ...mockContext,
+        storage: mockStorage,
+        connectionManager: mockConnectionManager
+      };
+      
+      dispatcher = new MessageDispatcher(registry, contextWithMocks);
+
+      const message = JSON.stringify({ type: 'test', data: 'test data' });
+      await dispatcher.dispatch(mockWs, message);
+
+      // Handler should not be called for expired session
+      expect(mockHandler.handle).not.toHaveBeenCalled();
+      
+      // Should send session_expired message
+      expect(mockWs.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"session_expired"')
+      );
+    });
+
+    it('should allow messages for active sessions', async () => {
+      const mockHandler: IMessageHandler = {
+        getMessageType: () => 'test',
+        handle: vi.fn().mockResolvedValue(undefined)
+      };
+
+      // Mock storage to return active session
+      const mockStorage = {
+        getSessionById: vi.fn().mockResolvedValue({
+          sessionId: 'active-session',
+          isActive: true
+        })
+      };
+
+      const mockConnectionManager = {
+        getSessionId: vi.fn().mockReturnValue('active-session')
+      };
+
+      registry.register(mockHandler);
+      
+      const contextWithMocks = {
+        ...mockContext,
+        storage: mockStorage,
+        connectionManager: mockConnectionManager
+      };
+      
+      dispatcher = new MessageDispatcher(registry, contextWithMocks);
+
+      const message = JSON.stringify({ type: 'test', data: 'test data' });
+      await dispatcher.dispatch(mockWs, message);
+
+      // Handler should be called for active session
+      expect(mockHandler.handle).toHaveBeenCalledWith(
+        { type: 'test', data: 'test data' },
+        expect.objectContaining({
+          ws: mockWs,
+          storage: mockStorage,
+          connectionManager: mockConnectionManager
+        })
+      );
+      
+      // Should not send session_expired message
+      expect(mockWs.send).not.toHaveBeenCalledWith(
+        expect.stringContaining('"type":"session_expired"')
+      );
+    });
+
+    it('should handle cases where session ID is not available', async () => {
+      const mockHandler: IMessageHandler = {
+        getMessageType: () => 'test',
+        handle: vi.fn().mockResolvedValue(undefined)
+      };
+
+      const mockConnectionManager = {
+        getSessionId: vi.fn().mockReturnValue(null)
+      };
+
+      registry.register(mockHandler);
+      
+      const contextWithMocks = {
+        ...mockContext,
+        connectionManager: mockConnectionManager
+      };
+      
+      dispatcher = new MessageDispatcher(registry, contextWithMocks);
+
+      const message = JSON.stringify({ type: 'test', data: 'test data' });
+      await dispatcher.dispatch(mockWs, message);
+
+      // Handler should be called even without session ID (for initial registration)
+      expect(mockHandler.handle).toHaveBeenCalled();
+    });
+
+    it('should handle storage errors gracefully during session validation', async () => {
+      const mockHandler: IMessageHandler = {
+        getMessageType: () => 'test',
+        handle: vi.fn().mockResolvedValue(undefined)
+      };
+
+      // Mock storage to throw error
+      const mockStorage = {
+        getSessionById: vi.fn().mockRejectedValue(new Error('Database error'))
+      };
+
+      const mockConnectionManager = {
+        getSessionId: vi.fn().mockReturnValue('session-123')
+      };
+
+      registry.register(mockHandler);
+      
+      const contextWithMocks = {
+        ...mockContext,
+        storage: mockStorage,
+        connectionManager: mockConnectionManager
+      };
+      
+      dispatcher = new MessageDispatcher(registry, contextWithMocks);
+
+      const message = JSON.stringify({ type: 'test', data: 'test data' });
+      await dispatcher.dispatch(mockWs, message);
+
+      // Should handle storage error gracefully and still process message
+      expect(mockHandler.handle).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('Error validating session'),
+        expect.any(Object)
+      );
+    });
+
+    it('should close connection after sending session_expired message', async () => {
+      const mockHandler: IMessageHandler = {
+        getMessageType: () => 'test',
+        handle: vi.fn().mockResolvedValue(undefined)
+      };
+
+      // Mock storage to return inactive session
+      const mockStorage = {
+        getSessionById: vi.fn().mockResolvedValue({
+          sessionId: 'expired-session',
+          isActive: false
+        })
+      };
+
+      const mockConnectionManager = {
+        getSessionId: vi.fn().mockReturnValue('expired-session')
+      };
+
+      const mockWsWithClose = {
+        send: vi.fn(),
+        close: vi.fn()
+      } as any;
+
+      registry.register(mockHandler);
+      
+      const contextWithMocks = {
+        ...mockContext,
+        storage: mockStorage,
+        connectionManager: mockConnectionManager
+      };
+      
+      dispatcher = new MessageDispatcher(registry, contextWithMocks);
+
+      const message = JSON.stringify({ type: 'test', data: 'test data' });
+      await dispatcher.dispatch(mockWsWithClose, message);
+
+      // Should send session_expired and close connection
+      expect(mockWsWithClose.send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"session_expired"')
+      );
+      
+      // Wait for timeout to execute
+      await new Promise(resolve => setTimeout(resolve, 1100));
+      expect(mockWsWithClose.close).toHaveBeenCalled();
+    });
+
+    it('should skip session validation for exempt message types', async () => {
+      const mockHandler: IMessageHandler = {
+        getMessageType: () => 'register',
+        handle: vi.fn().mockResolvedValue(undefined)
+      };
+
+      // Mock storage to return inactive session
+      const mockStorage = {
+        getSessionById: vi.fn().mockResolvedValue({
+          sessionId: 'expired-session',
+          isActive: false
+        })
+      };
+
+      const mockConnectionManager = {
+        getSessionId: vi.fn().mockReturnValue('expired-session')
+      };
+
+      registry.register(mockHandler);
+      
+      const contextWithMocks = {
+        ...mockContext,
+        storage: mockStorage,
+        connectionManager: mockConnectionManager
+      };
+      
+      dispatcher = new MessageDispatcher(registry, contextWithMocks);
+
+      const message = JSON.stringify({ type: 'register', data: 'test data' });
+      await dispatcher.dispatch(mockWs, message);
+
+      // Handler should be called even for expired session because register is exempt
+      expect(mockHandler.handle).toHaveBeenCalled();
+      
+      // Should not send session_expired message for exempt types
+      expect(mockWs.send).not.toHaveBeenCalledWith(
+        expect.stringContaining('"type":"session_expired"')
       );
     });
   });

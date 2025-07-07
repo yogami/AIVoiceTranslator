@@ -33,6 +33,7 @@ interface LanguagePairMetric {
 
 interface SessionMetrics {
   activeSessions: number;
+  currentlyActiveSessions: SessionActivity[];
   totalSessions: number;
   averageSessionDuration: number;
   averageSessionDurationFormatted: string;
@@ -336,7 +337,7 @@ export class DiagnosticsService {
     const teachersConnected = this.activeSessionProvider?.getActiveTeacherCount() || 0;
     
     const recentActivityLimit = 5; // Match test expectation
-    const rawRecentActivity = await this.storage.getRecentSessionActivity(recentActivityLimit);
+    const rawRecentActivity = await this.storage.getRecentSessionActivity(recentActivityLimit, 24); // 24 hours back
     const recentSessionActivity: SessionActivity[] = rawRecentActivity.map(activity => ({
       sessionId: activity.sessionId,
       language: activity.studentLanguage || activity.teacherLanguage || 'N/A',
@@ -347,10 +348,26 @@ export class DiagnosticsService {
       duration: this.formatDuration(activity.duration, false),
     }));
 
+    // Get currently active sessions (isActive = true, which implies studentCount > 0)
+    const rawCurrentlyActive = await this.storage.getCurrentlyActiveSessions();
+    const currentlyActiveSessions: SessionActivity[] = rawCurrentlyActive.map(session => {
+      const duration = session.startTime ? Date.now() - new Date(session.startTime).getTime() : 0;
+      return {
+        sessionId: session.sessionId,
+        language: session.studentLanguage || session.teacherLanguage || 'N/A',
+        classCode: session.classCode || 'N/A',
+        transcriptCount: session.totalTranslations || 0,
+        lastActivity: session.lastActivityAt ? session.lastActivityAt.toISOString() : (session.startTime ? session.startTime.toISOString() : 'N/A'),
+        studentCount: session.studentsCount || 0,
+        duration: this.formatDuration(duration, false),
+      };
+    });
+
     const currentLanguages: string[] = []; 
 
     return {
       activeSessions,
+      currentlyActiveSessions,
       totalSessions: storageSessionMetrics.totalSessions,
       averageSessionDuration: storageSessionMetrics.averageSessionDuration,
       averageSessionDurationFormatted: this.formatDuration(storageSessionMetrics.averageSessionDuration, false),

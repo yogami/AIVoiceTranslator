@@ -1,6 +1,7 @@
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { AudioMessageToServer } from '../WebSocketTypes';
 import logger from '../../logger';
+import { config } from '../../config';
 
 export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer> {
   getMessageType(): string {
@@ -32,13 +33,13 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
    */
   private async processTeacherAudio(context: MessageHandlerContext, audioData: string): Promise<void> {
     // Validate audio data
-    if (!audioData || audioData.length < 100) {
+    if (!audioData || audioData.length < config.session.minAudioDataLength) {
       return;
     }
     try {
       // Convert base64 to buffer
       const audioBuffer = Buffer.from(audioData, 'base64');
-      if (audioBuffer.length < 100) {
+      if (audioBuffer.length < config.session.minAudioBufferLength) {
         return;
       }
       const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';

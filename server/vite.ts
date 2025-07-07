@@ -57,6 +57,21 @@ export async function setupVite(app: express.Express): Promise<void> {
             continue;
           }
           
+          // Special handling for analytics route - serve diagnostics.html
+          if (name === 'diagnostics') {
+            app.get('/analytics', async (req, res, next) => {
+              try {
+                const html = await fsPromises.readFile(filePath, 'utf-8');
+                const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
+                logger.info(`[VITE DEV] Serving transformed /analytics from ${filePath} (diagnostics.html)`);
+                res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
+              } catch (e: any) {
+                logger.error(`[VITE DEV] Error transforming HTML for /analytics: ${e.message}`);
+                return next(e);
+              }
+            });
+          }
+          
           if (name === 'main' && urlPath === '/') {
             app.get('/index.html', async (req, res, next) => {
               try {
@@ -127,7 +142,8 @@ export function serveStatic(app: express.Express): void {
     '/': 'index.html',
     '/teacher': 'teacher.html',
     '/student': 'student.html',
-    '/diagnostics.html': 'diagnostics.html'
+    '/diagnostics.html': 'diagnostics.html',
+    '/analytics': 'diagnostics.html'  // Analytics route serves diagnostics.html
   };
 
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {

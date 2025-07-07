@@ -5,6 +5,7 @@
  * Handles the generation and lifecycle of classroom sessions.
  */
 import logger from '../../logger';
+import { config } from '../../config';
 
 export interface ClassroomSession {
   code: string;
@@ -49,14 +50,14 @@ export class ClassroomSessionManager {
       }
     } while (this.classroomSessions.has(code));
     
-    // Create session with 2-hour expiration
+    // Create session with configurable expiration
     const session: ClassroomSession = {
       code,
       sessionId,
       createdAt: Date.now(),
       lastActivity: Date.now(),
       teacherConnected: true,
-      expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
+      expiresAt: Date.now() + config.session.classroomCodeExpiration
     };
     
     this.classroomSessions.set(code, session);
@@ -131,7 +132,7 @@ export class ClassroomSessionManager {
    * Set up periodic cleanup of expired classroom sessions
    */
   private setupCleanup(): void {
-    // Clean up expired sessions every 15 minutes
+    // Clean up expired sessions periodically
     this.cleanupInterval = setInterval(() => {
       const now = Date.now();
       let cleaned = 0;
@@ -146,7 +147,7 @@ export class ClassroomSessionManager {
       if (cleaned > 0) {
         logger.info(`Cleaned up ${cleaned} expired classroom sessions`);
       }
-    }, 15 * 60 * 1000); // 15 minutes
+    }, config.session.classroomCodeCleanupInterval);
   }
 
   /**
@@ -262,5 +263,33 @@ export class ClassroomSessionManager {
    */
   public hasSession(code: string): boolean {
     return this.classroomSessions.has(code);
+  }
+
+  /**
+   * Restore a classroom session from database (used during teacher reconnection)
+   */
+  public restoreClassroomSession(classroomCode: string, sessionId: string): void {
+    // Check if this classroom code already exists
+    const existingSession = this.classroomSessions.get(classroomCode);
+    if (existingSession) {
+      // Update existing session
+      existingSession.lastActivity = Date.now();
+      existingSession.teacherConnected = true;
+      logger.info(`Restored existing classroom session: ${classroomCode} for session ${sessionId}`);
+      return;
+    }
+
+    // Create new classroom session entry
+    const session: ClassroomSession = {
+      code: classroomCode,
+      sessionId,
+      createdAt: Date.now(),
+      lastActivity: Date.now(),
+      teacherConnected: true,
+      expiresAt: Date.now() + config.session.classroomCodeExpiration // Configurable expiration from now
+    };
+
+    this.classroomSessions.set(classroomCode, session);
+    logger.info(`Restored classroom session: ${classroomCode} for session ${sessionId}`);
   }
 }

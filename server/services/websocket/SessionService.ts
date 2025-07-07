@@ -6,6 +6,7 @@
  */
 
 import logger from '../../logger';
+import { config } from '../../config';
 import { IStorage } from '../../storage.interface';
 import type { InsertSession } from '../../../shared/schema';
 
@@ -63,7 +64,7 @@ export class SessionService {
       createdAt: Date.now(),
       lastActivity: Date.now(),
       teacherConnected: true,
-      expiresAt: Date.now() + (2 * 60 * 60 * 1000) // 2 hours
+      expiresAt: Date.now() + config.session.classroomCodeExpiration // Configurable expiration
     };
 
     this.classroomSessions.set(result, session);
@@ -126,10 +127,10 @@ export class SessionService {
    * Start periodic cleanup task
    */
   private startCleanupTask(): void {
-    // Clean up expired sessions every 30 minutes
+    // Clean up expired sessions periodically
     this.classroomCleanupInterval = setInterval(() => {
       this.cleanupExpiredSessions();
-    }, 30 * 60 * 1000);
+    }, config.session.classroomCodeCleanupInterval);
 
     logger.info('Started classroom session cleanup task');
   }

@@ -99,7 +99,21 @@ export class DatabaseStorage implements IStorage {
   async getTranslation(id: number): Promise<Translation | undefined> {
     return this.translationStorage.getTranslation(id);
   }
-  async addTranslation(translation: InsertTranslation) { return this.translationStorage.addTranslation(translation); }
+  async addTranslation(translation: InsertTranslation) { 
+    const savedTranslation = await this.translationStorage.addTranslation(translation);
+    
+    // If this translation is associated with a session, increment the totalTranslations count
+    if (translation.sessionId) {
+      const currentSession = await this.sessionStorage.getSessionById(translation.sessionId);
+      if (currentSession) {
+        await this.sessionStorage.updateSession(translation.sessionId, {
+          totalTranslations: (currentSession.totalTranslations || 0) + 1
+        });
+      }
+    }
+    
+    return savedTranslation;
+  }
   async getTranslationsByLanguage(targetLanguage: string, limit?: number) { return this.translationStorage.getTranslationsByLanguage(targetLanguage, limit); }
   async getTranslations(limit?: number, offset?: number): Promise<Translation[]> {
      return this.translationStorage.getTranslations(limit, offset);
@@ -115,10 +129,11 @@ export class DatabaseStorage implements IStorage {
   // Session methods
   async getActiveSession(sessionId: string) { return this.sessionStorage.getActiveSession(sessionId); }
   async getAllActiveSessions() { return this.sessionStorage.getAllActiveSessions(); }
+  async getCurrentlyActiveSessions() { return this.sessionStorage.getCurrentlyActiveSessions(); }
   async endSession(sessionId: string) { return this.sessionStorage.endSession(sessionId); }
 
-  async getRecentSessionActivity(limit: number = 5): Promise<SessionActivity[]> {
-    return this.sessionStorage.getRecentSessionActivity(limit);
+  async getRecentSessionActivity(limit: number = 5, hoursBack: number = 24): Promise<SessionActivity[]> {
+    return this.sessionStorage.getRecentSessionActivity(limit, hoursBack);
   }
   
   async getSessionById(sessionId: string): Promise<Session | undefined> {

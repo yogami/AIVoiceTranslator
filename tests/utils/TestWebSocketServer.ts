@@ -63,4 +63,9 @@ export class TestWebSocketServer extends WebSocketServer {
   public getTranslationOrchestrator(): any {
     return (this as any).translationOrchestrator;
   }
+
+  // Expose the session cleanup service for testing
+  public getSessionCleanupService(): any {
+    return (this as any).sessionCleanupService;
+  }
 }

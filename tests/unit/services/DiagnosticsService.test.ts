@@ -106,6 +106,21 @@ describe('DiagnosticsService', () => {
         duration: 3600000 // 1 hour (if still running, this might be current duration)
       }
     ]);
+
+    vi.spyOn(mockStorage, 'getCurrentlyActiveSessions').mockResolvedValue([
+      {
+        sessionId: 'active-session-1',
+        teacherLanguage: 'en-US',
+        studentLanguage: 'es-ES',
+        classCode: 'LIVE123',
+        totalTranslations: 3,
+        studentsCount: 2,
+        startTime: new Date(Date.now() - 1800000), // 30 minutes ago
+        lastActivityAt: new Date(Date.now() - 300000), // 5 minutes ago
+        isActive: true
+      } as any
+    ]);
+
     (global as any).wsServer = undefined;
   });
 
@@ -200,6 +215,39 @@ describe('DiagnosticsService', () => {
       const totalConnections = metrics.sessions.studentsConnected + metrics.sessions.teachersConnected;
       expect(totalConnections).toBe(11);
       expect(metrics.sessions.activeSessions).toBe(1); // Should NOT equal totalConnections
+    });
+
+    it('should include currentlyActiveSessions in session metrics', async () => {
+      const metrics = await diagnosticsService.getMetrics();
+      
+      // Verify getCurrentlyActiveSessions was called
+      expect(mockStorage.getCurrentlyActiveSessions).toHaveBeenCalled();
+      
+      // Verify currentlyActiveSessions is included in the response
+      expect(metrics.sessions.currentlyActiveSessions).toBeDefined();
+      expect(Array.isArray(metrics.sessions.currentlyActiveSessions)).toBe(true);
+      expect(metrics.sessions.currentlyActiveSessions.length).toBe(1);
+      
+      // Verify the structure of currentlyActiveSessions items
+      const activeSession = metrics.sessions.currentlyActiveSessions[0];
+      expect(activeSession).toHaveProperty('sessionId');
+      expect(activeSession).toHaveProperty('language');
+      expect(activeSession).toHaveProperty('classCode');
+      expect(activeSession).toHaveProperty('transcriptCount');
+      expect(activeSession).toHaveProperty('lastActivity');
+      expect(activeSession).toHaveProperty('studentCount');
+      expect(activeSession).toHaveProperty('duration');
+    });
+
+    it('should use timeline filtering for recentSessionActivity', async () => {
+      const metrics = await diagnosticsService.getMetrics();
+      
+      // Verify getRecentSessionActivity was called with timeline parameter
+      expect(mockStorage.getRecentSessionActivity).toHaveBeenCalledWith(5, 24);
+      
+      // Verify recentSessionActivity is still included
+      expect(metrics.sessions.recentSessionActivity).toBeDefined();
+      expect(Array.isArray(metrics.sessions.recentSessionActivity)).toBe(true);
     });
   });
 
@@ -311,7 +359,7 @@ describe('DiagnosticsService', () => {
       expect(mockStorage.getLanguagePairUsage).toHaveBeenCalledWith(expect.objectContaining({ startDate: timeRange.startDate, endDate: timeRange.endDate }));
       // getRecentSessionActivity is called by getSessionMetrics if timeRange is present.
       // The mock for getSessionMetrics is resolved, so this check is for the argument passed to getRecentSessionActivity by DiagnosticsService's getSessionMetrics
-      expect(mockStorage.getRecentSessionActivity).toHaveBeenCalledWith(5); // Default count
+      expect(mockStorage.getRecentSessionActivity).toHaveBeenCalledWith(5, 24); // Default count and 24 hours back
       expect(metrics.timeRange?.startDate).toBe(timeRange.startDate.toISOString());
     });
 
@@ -374,7 +422,7 @@ describe('DiagnosticsService', () => {
       expect(getTranslationMetricsSpy).toHaveBeenCalledWith(undefined);
       expect(getSessionMetricsSpy).toHaveBeenCalledWith(undefined);
       expect(getLanguagePairUsageSpy).toHaveBeenCalledWith(undefined);
-      expect(getRecentSessionActivitySpy).toHaveBeenCalledWith(5); // Default count for recent activity
+      expect(getRecentSessionActivitySpy).toHaveBeenCalledWith(5, 24); // Default count and 24 hours back for recent activity
     });
   });
 

@@ -83,7 +83,7 @@ describe('Session Storage', () => {
       expect(createdSession.sessionId).toBe('sess-abc');
       expect(createdSession.teacherLanguage).toBe('en');
       expect(createdSession.isActive).toBe(true);
-      expect(createdSession.startTime).toBeInstanceOf(Date);
+      expect(createdSession.startTime).toBeNull(); // startTime should be null until first student joins
       expect(sessionsMap.get(1)).toEqual(createdSession);
       expect(idCounter.value).toBe(2);
     });
@@ -132,6 +132,20 @@ describe('Session Storage', () => {
       expect(activeSessions.find(s => s.sessionId === 's3')).toBeUndefined();
     });
 
+    it('should get currently active sessions (alias for getAllActiveSessions)', async () => {
+      await sessionStorage.createSession({ sessionId: 'current1', teacherLanguage: 'en', isActive: true });
+      await sessionStorage.createSession({ sessionId: 'current2', teacherLanguage: 'fr', isActive: true });
+      await sessionStorage.createSession({ sessionId: 'inactive1', teacherLanguage: 'de', isActive: false });
+      
+      const currentlyActiveSessions = await sessionStorage.getCurrentlyActiveSessions();
+      
+      // getCurrentlyActiveSessions returns active sessions with students
+      expect(currentlyActiveSessions.length).toBe(2);
+      expect(currentlyActiveSessions.find(s => s.sessionId === 'current1')).toBeDefined();
+      expect(currentlyActiveSessions.find(s => s.sessionId === 'current2')).toBeDefined();
+      expect(currentlyActiveSessions.find(s => s.sessionId === 'inactive1')).toBeUndefined();
+    });
+
     it('should end an active session', async () => {
       await sessionStorage.createSession({ sessionId: 'end-this-sess', teacherLanguage: 'pt' });
       const endedSession = await sessionStorage.endSession('end-this-sess');
@@ -153,9 +167,9 @@ describe('Session Storage', () => {
       await new Promise(resolve => setTimeout(resolve, 5)); 
       const s2 = await sessionStorage.createSession({ sessionId: 'recent2', teacherLanguage: 'fr' });
       
-      transcriptsMap.set(1, { id: 1, sessionId: 'recent1', language: 'en', text: 't1', timestamp: new Date() });
-      transcriptsMap.set(2, { id: 2, sessionId: 'recent1', language: 'en', text: 't2', timestamp: new Date() });
-      transcriptsMap.set(3, { id: 3, sessionId: 'recent2', language: 'fr', text: 't3', timestamp: new Date() });
+      // Update sessions with totalTranslations to simulate what happens when translations are added
+      await sessionStorage.updateSession('recent1', { totalTranslations: 2 });
+      await sessionStorage.updateSession('recent2', { totalTranslations: 1 });
 
       const activity = await sessionStorage.getRecentSessionActivity(2);
       expect(activity.length).toBe(2);
@@ -164,10 +178,33 @@ describe('Session Storage', () => {
       expect(activity[1].sessionId).toBe('recent1');
       expect(activity[1].transcriptCount).toBe(2);
     });
+
+    it('should support timeline filtering in getRecentSessionActivity', async () => {
+      // Create sessions normally
+      const oldSession = await sessionStorage.createSession({ sessionId: 'old-session', teacherLanguage: 'en' });
+      const recentSession = await sessionStorage.createSession({ sessionId: 'recent-session', teacherLanguage: 'fr' });
+      
+      // Manually set the old session's startTime to simulate an old session
+      const oldTime = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+      const oldSessionUpdated = { ...oldSession, startTime: oldTime, totalTranslations: 1, isActive: false };
+      sessionsMap.set(oldSession.id, oldSessionUpdated);
+      
+      // Update recent session with totalTranslations
+      await sessionStorage.updateSession('recent-session', { totalTranslations: 1 });
+
+      // Test with 1 hour filter - should only show recent session
+      const recentActivity = await sessionStorage.getRecentSessionActivity(10, 1);
+      expect(recentActivity.length).toBe(1);
+      expect(recentActivity[0].sessionId).toBe('recent-session');
+
+      // Test with 24 hour filter - should show both sessions
+      const allActivity = await sessionStorage.getRecentSessionActivity(10, 24);
+      expect(allActivity.length).toBe(2);
+    });
     
     it('should correctly initialize idCounter if sessionsMap is pre-populated', () => {
-      sessionsMap.set(3, { id: 3, sessionId: 'pre1', isActive: true, teacherLanguage: 'en', startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null });
-      sessionsMap.set(8, { id: 8, sessionId: 'pre8', isActive: false, teacherLanguage: 'fr', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null });
+      sessionsMap.set(3, { id: 3, sessionId: 'pre1', isActive: true, teacherLanguage: 'en', studentLanguage: null, classCode: null, startTime: null, endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null });
+      sessionsMap.set(8, { id: 8, sessionId: 'pre8', isActive: false, teacherLanguage: 'fr', studentLanguage: null, classCode: null, startTime: null, endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null });
       idCounter = { value: 1 };
       const prePopulatedStorage = new MemSessionStorage(sessionsMap, idCounter, transcriptsMap);
       expect(idCounter.value).toBe(9); // maxId + 1
@@ -201,10 +238,11 @@ describe('Session Storage', () => {
 
     it('should create a session in DB', async () => {
       const newSessionData: InsertSession = { sessionId: 'db-session-1', teacherLanguage: 'en-GB' };
-      const returnedSession: Session = { 
-        id: 1, ...newSessionData, isActive: true, startTime: new Date(), endTime: null, 
+      const returnedSession: Session = {
+        id: 1, ...newSessionData, isActive: true, startTime: null, endTime: null, 
         studentsCount: 0, totalTranslations: 0, averageLatency: null,
         teacherLanguage: newSessionData.teacherLanguage ?? null,
+        studentLanguage: null, classCode: null,
         quality: 'unknown', qualityReason: null, lastActivityAt: null
       };
       (mockedDb.returning as Mock).mockResolvedValueOnce([returnedSession]);
@@ -240,8 +278,9 @@ describe('Session Storage', () => {
     it('should update a session in DB', async () => {
       const updates: Partial<InsertSession> = { teacherLanguage: 'es', studentsCount: 3 };
       const returnedSession: Session = { 
-        id: 1, sessionId: 'db-sess-upd', teacherLanguage: 'es', studentsCount: 3, 
-        isActive: true, startTime: new Date(), endTime: null, totalTranslations: 0, averageLatency: null,
+        id: 1, sessionId: 'db-sess-upd', teacherLanguage: 'es', studentLanguage: null, 
+        classCode: null, studentsCount: 3, 
+        isActive: true, startTime: null, endTime: null, totalTranslations: 0, averageLatency: null,
         quality: 'unknown', qualityReason: null, lastActivityAt: null
       };
       (mockedDb.returning as Mock).mockResolvedValueOnce([returnedSession]);
@@ -275,8 +314,9 @@ describe('Session Storage', () => {
     
     it('should get an active session by sessionId from DB', async () => {
       const mockSession: Session = { 
-        id: 1, sessionId: 'db-active', teacherLanguage: 'it', isActive: true, 
-        startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null,
+        id: 1, sessionId: 'db-active', teacherLanguage: 'it', studentLanguage: null, 
+        classCode: null, isActive: true, 
+        startTime: null, endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null,
         quality: 'unknown', qualityReason: null, lastActivityAt: null
       };
       ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => resolveCallback([mockSession]));
@@ -312,8 +352,8 @@ describe('Session Storage', () => {
 
     it('should get all active sessions from DB', async () => {
       const mockSessionsData: Session[] = [
-        { id: 1, sessionId: 'db-active1', teacherLanguage: 'ja', isActive: true, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
-        { id: 2, sessionId: 'db-active2', teacherLanguage: 'en', isActive: true, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
+        { id: 1, sessionId: 'db-active1', teacherLanguage: 'ja', studentLanguage: null, classCode: null, isActive: true, startTime: null, endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
+        { id: 2, sessionId: 'db-active2', teacherLanguage: 'en', studentLanguage: null, classCode: null, isActive: true, startTime: null, endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
       ];
       ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => resolveCallback(mockSessionsData));
       
@@ -329,10 +369,28 @@ describe('Session Storage', () => {
       // Removed toSQL checks
     });
 
+    it('should get currently active sessions from DB (alias for getAllActiveSessions)', async () => {
+      const mockSessionsData: Session[] = [
+        { id: 1, sessionId: 'db-current1', teacherLanguage: 'ja', studentLanguage: null, classCode: null, isActive: true, startTime: new Date(), endTime: null, studentsCount: 2, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
+        { id: 2, sessionId: 'db-current2', teacherLanguage: 'en', studentLanguage: null, classCode: null, isActive: true, startTime: new Date(), endTime: null, studentsCount: 1, totalTranslations: 0, averageLatency: null, quality: 'unknown', qualityReason: null, lastActivityAt: null },
+      ];
+      ((mockedDb as any).then as Mock).mockImplementationOnce((resolveCallback: (value: any) => void) => resolveCallback(mockSessionsData));
+      
+      const currentlyActiveSessions = await dbSessionStorage.getCurrentlyActiveSessions();
+      
+      expect(currentlyActiveSessions).toEqual(mockSessionsData);
+      expect(mockedDb.select).toHaveBeenCalled();
+      expect(mockedDb.from).toHaveBeenCalledWith(actualDrizzleSessionsTable); 
+      expect(mockedDb.where).toHaveBeenCalledTimes(1);
+      const whereArg = (mockedDb.where as Mock).mock.calls[0][0];
+      expect(whereArg).toEqual(expect.any(Object)); // Should be same as getAllActiveSessions
+    });
+
     it('should end an active session in DB', async () => {
       const sessionIdToEnd = 'db-end-this';
       const endedSessionData: Session = { 
-        id: 1, sessionId: sessionIdToEnd, teacherLanguage: 'ko', isActive: false, 
+        id: 1, sessionId: sessionIdToEnd, teacherLanguage: 'ko', studentLanguage: null, 
+        classCode: null, isActive: false, 
         startTime: new Date(Date.now() - 1000 * 60 * 5), endTime: new Date(), 
         studentsCount: 2, totalTranslations: 10, averageLatency: 150.5,
         quality: 'real', qualityReason: 'Session completed', lastActivityAt: new Date()
@@ -547,6 +605,41 @@ describe('Session Storage', () => {
       await expect(dbSessionStorage.getSessionQualityStats()).rejects.toThrow(StorageError);
       await expect(dbSessionStorage.getSessionQualityStats()).rejects.toSatisfy((e: StorageError) => e.code === 'STORAGE_ERROR');
     });
+
+    it('should respect isActive value when creating session (not hardcode to true)', async () => {
+      // Test that createSession uses the provided isActive value instead of hardcoding true
+      const sessionData: InsertSession = {
+        sessionId: 'test-inactive-session',
+        teacherLanguage: 'en',
+        isActive: false,
+        studentsCount: 0,
+        totalTranslations: 5
+      };
+
+      const mockResult = [{
+        id: 1,
+        sessionId: 'test-inactive-session',
+        teacherLanguage: 'en',
+        isActive: false,
+        studentsCount: 0,
+        totalTranslations: 5,
+        lastActivityAt: new Date()
+      }];
+
+      (mockedDb.returning as Mock).mockResolvedValueOnce(mockResult);
+
+      const result = await dbSessionStorage.createSession(sessionData);
+
+      // Verify the insert was called with the correct isActive value (not hardcoded to true)
+      expect(mockedDb.insert).toHaveBeenCalledWith(expect.any(Object));
+      expect(mockedDb.values).toHaveBeenCalledWith(expect.objectContaining({
+        isActive: false, // Should use the input value, not hardcode to true
+        totalTranslations: 5
+      }));
+
+      expect(result.isActive).toBe(false);
+      expect(result.totalTranslations).toBe(5);
+    });
   });
 
   describe('MemSessionStorage - New Methods', () => {
@@ -585,12 +678,12 @@ describe('Session Storage', () => {
 
     it('should get session quality stats', async () => {
       // Add sessions with different quality values
-      sessionsMap.set(1, { id: 1, sessionId: 'real1', quality: 'real', isActive: false, teacherLanguage: 'en', startTime: new Date(), endTime: new Date(), studentsCount: 2, totalTranslations: 5, averageLatency: null, qualityReason: 'Real session', lastActivityAt: new Date() });
-      sessionsMap.set(2, { id: 2, sessionId: 'real2', quality: 'real', isActive: false, teacherLanguage: 'fr', startTime: new Date(), endTime: new Date(), studentsCount: 1, totalTranslations: 3, averageLatency: null, qualityReason: 'Real session', lastActivityAt: new Date() });
-      sessionsMap.set(3, { id: 3, sessionId: 'dead1', quality: 'no_students', isActive: false, teacherLanguage: 'es', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: 'No students', lastActivityAt: null });
-      sessionsMap.set(4, { id: 4, sessionId: 'dead2', quality: 'no_activity', isActive: false, teacherLanguage: 'de', startTime: new Date(), endTime: new Date(), studentsCount: 1, totalTranslations: 0, averageLatency: null, qualityReason: 'No activity', lastActivityAt: null });
-      sessionsMap.set(5, { id: 5, sessionId: 'dead3', quality: 'too_short', isActive: false, teacherLanguage: 'it', startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: 'Too short', lastActivityAt: null });
-      sessionsMap.set(6, { id: 6, sessionId: 'unknown1', quality: 'unknown', isActive: true, teacherLanguage: 'pt', startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: null, lastActivityAt: null });
+      sessionsMap.set(1, { id: 1, sessionId: 'real1', quality: 'real', isActive: false, teacherLanguage: 'en', studentLanguage: null, classCode: null, startTime: new Date(), endTime: new Date(), studentsCount: 2, totalTranslations: 5, averageLatency: null, qualityReason: 'Real session', lastActivityAt: new Date() });
+      sessionsMap.set(2, { id: 2, sessionId: 'real2', quality: 'real', isActive: false, teacherLanguage: 'fr', studentLanguage: null, classCode: null, startTime: new Date(), endTime: new Date(), studentsCount: 1, totalTranslations: 3, averageLatency: null, qualityReason: 'Real session', lastActivityAt: new Date() });
+      sessionsMap.set(3, { id: 3, sessionId: 'dead1', quality: 'no_students', isActive: false, teacherLanguage: 'es', studentLanguage: null, classCode: null, startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: 'No students', lastActivityAt: null });
+      sessionsMap.set(4, { id: 4, sessionId: 'dead2', quality: 'no_activity', isActive: false, teacherLanguage: 'de', studentLanguage: null, classCode: null, startTime: new Date(), endTime: new Date(), studentsCount: 1, totalTranslations: 0, averageLatency: null, qualityReason: 'No activity', lastActivityAt: null });
+      sessionsMap.set(5, { id: 5, sessionId: 'dead3', quality: 'too_short', isActive: false, teacherLanguage: 'it', studentLanguage: null, classCode: null, startTime: new Date(), endTime: new Date(), studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: 'Too short', lastActivityAt: null });
+      sessionsMap.set(6, { id: 6, sessionId: 'unknown1', quality: 'unknown', isActive: true, teacherLanguage: 'pt', studentLanguage: null, classCode: null, startTime: new Date(), endTime: null, studentsCount: 0, totalTranslations: 0, averageLatency: null, qualityReason: null, lastActivityAt: null });
 
       const stats = await sessionStorage.getSessionQualityStats();
 
@@ -617,6 +710,70 @@ describe('Session Storage', () => {
         dead: 0,
         breakdown: {}
       });
+    });
+  });
+
+  describe('getRecentSessionActivity', () => {
+    let sessionStorage: MemSessionStorage;
+    let sessionsMap: Map<number, Session>;
+    let idCounter: { value: number };
+
+    beforeEach(() => {
+      sessionsMap = new Map<number, Session>();
+      idCounter = { value: 1 };
+      sessionStorage = new MemSessionStorage(sessionsMap, idCounter, new Map());
+    });
+
+    it('should return active sessions and completed sessions with at least one translation', async () => {
+      // Arrange
+      const activeSession: Session = {
+        id: 1,
+        sessionId: 'active-session',
+        teacherLanguage: 'en',
+        studentLanguage: 'es',
+        classCode: 'class-1',
+        startTime: new Date(),
+        endTime: null,
+        studentsCount: 1,
+        totalTranslations: 0,
+        averageLatency: null,
+        isActive: true,
+        quality: 'unknown',
+        qualityReason: null,
+        lastActivityAt: new Date()
+      };
+
+      const completedSessionWithTranslations: Session = {
+        ...activeSession,
+        id: 2,
+        sessionId: 'completed-with-translations',
+        isActive: false,
+        totalTranslations: 5,
+        endTime: new Date()
+      };
+
+      const completedSessionWithoutTranslations: Session = {
+        ...activeSession,
+        id: 3,
+        sessionId: 'completed-without-translations',
+        isActive: false,
+        totalTranslations: 0,
+        endTime: new Date()
+      };
+
+      sessionsMap.set(activeSession.id, activeSession);
+      sessionsMap.set(completedSessionWithTranslations.id, completedSessionWithTranslations);
+      sessionsMap.set(completedSessionWithoutTranslations.id, completedSessionWithoutTranslations);
+
+      // Act
+      const result = await sessionStorage.getRecentSessionActivity();
+
+      // Assert
+      expect(result).toHaveLength(2);
+      const sessionIds = result.map(r => r.sessionId);
+      expect(sessionIds).toContain('active-session');
+      expect(sessionIds).toContain('completed-with-translations');
+      expect(sessionIds).not.toContain('completed-without-translations');
     });
   });
 });

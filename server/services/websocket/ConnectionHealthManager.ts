@@ -5,6 +5,7 @@
  * Handles the health aspect of WebSocket connections.
  */
 import logger from '../../logger';
+import { config } from '../../config';
 import { WebSocketClient } from './ConnectionManager';
 import { WebSocketServer as WSServer } from 'ws';
 
@@ -42,7 +43,7 @@ export class ConnectionHealthManager {
           logger.debug('Failed to send ping message, connection might be closing');
         }
       });
-    }, 30000); // 30 seconds
+    }, config.session.healthCheckInterval);
   }
 
   /**
