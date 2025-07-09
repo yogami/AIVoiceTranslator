@@ -7,6 +7,7 @@ import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { IStorage } from '../../server/storage.interface';
 import { DiagnosticsService } from '../../server/services/DiagnosticsService';
 import { MockTranslationOrchestrator } from './MockTranslationOrchestrator';
+import { MessageDispatcher } from '../../server/services/websocket/MessageHandler';
 
 export class TestWebSocketServer extends WebSocketServer {
   // Constructor that matches the parent class with optional diagnostics service
@@ -25,18 +26,84 @@ export class TestWebSocketServer extends WebSocketServer {
     }
   }
 
-  // Allow setting a mock translation orchestrator for testing
-  setMockTranslationOrchestrator(mockTranslationService?: any): void {
-    console.log('🔧 Installing MockTranslationOrchestrator...');
+  // Reset server state to make tests idempotent
+  public resetServerState(): void {
+    console.log('🔧 [RESET] Starting TestWebSocketServer state reset...');
     
-    // Access the protected translationOrchestrator via any casting
     const ws = this as any;
     
-    // Check if we have access to the translation orchestrator
-    console.log('🔧 Checking for existing translation orchestrator...');
+    // FORCE COMPLETE STATE RESET - Don't just warn about errors, fix them
+    try {
+      // Clear all connections aggressively
+      if (ws.connectionManager) {
+        const connections = ws.connectionManager.getConnections();
+        if (connections) {
+          connections.forEach((client: any) => {
+            try {
+              if (client && typeof client.terminate === 'function') {
+                client.terminate();
+              }
+            } catch (e) {
+              // Force close
+              if (client && typeof client.close === 'function') {
+                client.close();
+              }
+            }
+          });
+        }
+        
+        if (typeof ws.connectionManager.clearAll === 'function') {
+          ws.connectionManager.clearAll();
+        }
+      }
+      
+      // Stop all services
+      if (ws.sessionCleanupService && typeof ws.sessionCleanupService.stop === 'function') {
+        ws.sessionCleanupService.stop();
+      }
+      
+      // Clear classroom sessions
+      if (ws.classroomSessionManager && typeof ws.classroomSessionManager.clearAll === 'function') {
+        ws.classroomSessionManager.clearAll();
+      }
+      
+      // Reset orchestrator completely
+      if (ws.originalTranslationOrchestrator) {
+        ws.translationOrchestrator = ws.originalTranslationOrchestrator;
+        
+        // Recreate message dispatcher
+        if (ws.messageDispatcher && ws.messageHandlerRegistry) {
+          const originalContext = {
+            ws: null as any,
+            connectionManager: ws.connectionManager,
+            storage: ws.storage,
+            sessionService: ws.sessionService,
+            translationService: ws.originalTranslationOrchestrator,
+            sessionLifecycleService: ws.sessionLifecycleService,
+            webSocketServer: this
+          };
+          
+          ws.messageDispatcher = new MessageDispatcher(ws.messageHandlerRegistry, originalContext);
+        }
+        
+        ws.originalTranslationOrchestrator = null;
+      }
+      
+      console.log('🔧 [RESET] ✅ Complete state reset successful');
+    } catch (error) {
+      console.warn('🔧 [RESET] ⚠️ Reset error (ignoring):', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  // Allow setting a mock translation orchestrator for testing
+  setMockTranslationOrchestrator(mockTranslationService?: any): void {
+    const ws = this as any;
     
     if (ws.translationOrchestrator) {
-      console.log('🔧 Original orchestrator found, replacing with mock');
+      // Store original orchestrator if not already stored
+      if (!ws.originalTranslationOrchestrator) {
+        ws.originalTranslationOrchestrator = ws.translationOrchestrator;
+      }
       
       // Create a complete mock orchestrator
       const mockOrchestrator = new MockTranslationOrchestrator(ws.translationOrchestrator.storage);
@@ -44,19 +111,38 @@ export class TestWebSocketServer extends WebSocketServer {
       // Replace the orchestrator completely
       ws.translationOrchestrator = mockOrchestrator;
       
-      console.log('🔧 ✅ MockTranslationOrchestrator installed successfully');
-      console.log('🔧 Mock orchestrator type:', mockOrchestrator.constructor.name);
-      
-      // Verify the mock is working by checking one of the methods
-      if (typeof mockOrchestrator.translateToMultipleLanguages === 'function') {
-        console.log('🔧 ✅ translateToMultipleLanguages method confirmed as mock');
-      } else {
-        console.log('🔧 ❌ translateToMultipleLanguages method not found');
+      // CRITICAL: Update the message dispatcher context to use the mock
+      if (ws.messageDispatcher && ws.messageHandlerRegistry) {
+        const newContext = {
+          ws: null as any,
+          connectionManager: ws.connectionManager,
+          storage: ws.storage,
+          sessionService: ws.sessionService,
+          translationService: mockOrchestrator, // Use the mock orchestrator here!
+          sessionLifecycleService: ws.sessionLifecycleService,
+          webSocketServer: this
+        };
+        
+        ws.messageDispatcher = new MessageDispatcher(ws.messageHandlerRegistry, newContext);
       }
+      
+      console.log('🔧 [MOCK] ✅ MockTranslationOrchestrator installed');
     } else {
-      console.warn('🔧 ❌ Could not install mock translation service - translationOrchestrator not found');
-      console.log('🔧 Available properties on WebSocketServer:', Object.keys(ws));
+      console.warn('🔧 [MOCK] ❌ Could not install mock - translationOrchestrator not found');
     }
+  }
+
+  // Enhanced shutdown method to ensure complete cleanup
+  public async shutdown(): Promise<void> {
+    const ws = this as any;
+    
+    // Reset to original state first
+    this.resetServerState();
+    
+    // Call parent shutdown
+    await super.shutdown();
+    
+    console.log('🔧 ✅ TestWebSocketServer shutdown complete');
   }
 
   // Expose the translation orchestrator for testing
@@ -67,5 +153,10 @@ export class TestWebSocketServer extends WebSocketServer {
   // Expose the session cleanup service for testing
   public getSessionCleanupService(): any {
     return (this as any).sessionCleanupService;
+  }
+
+  // Expose the original translation orchestrator for testing
+  public getOriginalTranslationOrchestrator(): any {
+    return (this as any).originalTranslationOrchestrator;
   }
 }

@@ -257,9 +257,10 @@ export class MockTranslationOrchestrator {
     const processingDelay = this.simulateLatency();
     await new Promise(resolve => setTimeout(resolve, processingDelay));
     
-    // Return an empty buffer as mock audio
+    // Return a mock audio buffer with some content (simulating MP3 audio data)
+    const mockAudioData = `[MOCK-TTS-${languageCode}] ${text}`;
     console.log(`🎯 MockTranslationOrchestrator: ✅ Generated mock TTS audio (${processingDelay}ms)`);
-    return Buffer.from('');
+    return Buffer.from(mockAudioData);
   }
 
   /**
