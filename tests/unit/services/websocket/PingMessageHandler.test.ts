@@ -129,7 +129,7 @@ describe('PingMessageHandler', () => {
   });
 
   describe('Session Expiration Handling', () => {
-    it('should check session validity before responding to ping', async () => {
+    it('should always respond with pong for heartbeat functionality', async () => {
       const mockStorage = {
         getSessionById: vi.fn().mockResolvedValue({
           sessionId: 'expired-session',
@@ -154,13 +154,14 @@ describe('PingMessageHandler', () => {
 
       await handler.handle(pingMessage, contextWithMocks);
 
-      // Should not respond with pong for expired session
-      expect(mockWs.send).not.toHaveBeenCalledWith(
+      // Should always respond with pong for heartbeat functionality
+      // Session validation happens during actual operations, not heartbeat checks
+      expect(mockWs.send).toHaveBeenCalledWith(
         expect.stringContaining('{"type":"pong"')
       );
       
-      // Should send session_expired message
-      expect(mockWs.send).toHaveBeenCalledWith(
+      // Should not send session_expired message during ping
+      expect(mockWs.send).not.toHaveBeenCalledWith(
         expect.stringContaining('"type":"session_expired"')
       );
     });
@@ -257,7 +258,7 @@ describe('PingMessageHandler', () => {
       expect(mockWs.isAlive).toBe(true);
     });
 
-    it('should close connection after sending session_expired message', async () => {
+    it('should respond with pong and mark connection as alive', async () => {
       const mockStorage = {
         getSessionById: vi.fn().mockResolvedValue({
           sessionId: 'expired-session',
@@ -289,14 +290,16 @@ describe('PingMessageHandler', () => {
 
       await handler.handle(pingMessage, contextWithMocks);
 
-      // Should send session_expired and close connection
+      // Should always respond with pong for heartbeat functionality
       expect(mockWsWithClose.send).toHaveBeenCalledWith(
-        expect.stringContaining('"type":"session_expired"')
+        expect.stringContaining('"type":"pong"')
       );
       
-      // Wait for the timeout to execute
-      await new Promise(resolve => setTimeout(resolve, 1100));
-      expect(mockWsWithClose.close).toHaveBeenCalled();
+      // Should mark connection as alive
+      expect(mockWsWithClose.isAlive).toBe(true);
+      
+      // Should not close connection during ping
+      expect(mockWsWithClose.close).not.toHaveBeenCalled();
       
       // Should not mark connection as alive for expired session
       expect(mockWsWithClose.isAlive).toBe(true); // It's set to true first, then connection is closed
