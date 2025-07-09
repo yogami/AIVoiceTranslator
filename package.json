@@ -31,6 +31,7 @@
     "db-test:reset": "npx tsx ./db-migration-scripts/reset-db-test.ts",
     "test": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs",
     "test:unit": "NODE_ENV=test TEST_MODE=unit vitest run tests/unit --config=test-config/vitest/vitest.unified.config.mjs",
+    "test:component": "NODE_ENV=test TEST_MODE=component vitest run tests/component --config test-config/vitest/vitest.unified.config.mjs",
     "test:integration": "NODE_ENV=test TEST_MODE=integration vitest run tests/integration --config test-config/vitest/vitest.unified.config.mjs",
     "test:integration:watch": "NODE_ENV=test TEST_MODE=integration vitest --config test-config/vitest/vitest.unified.config.mjs",
     "test:coverage": "NODE_ENV=test vitest --config=test-config/vitest/vitest.unified.config.mjs --coverage",
