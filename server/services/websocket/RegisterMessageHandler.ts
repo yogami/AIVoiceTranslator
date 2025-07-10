@@ -125,9 +125,89 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       return;
     }
     
+    // NOTE: We'll update the session with teacherId AFTER ensuring it exists in the database
+    
     // Check if teacher has ANY active sessions first
     // This handles the case where teacher accidentally closed page and reconnects
-    if (message.languageCode) {
+    if (message.teacherId) {
+      // Teacher ID provided - look for existing session with this teacherId
+      try {
+        logger.info(`[TEACHER_RECONNECT] Looking for existing session with teacherId: ${message.teacherId}`);
+        let existingSession = await context.storage.findActiveSessionByTeacherId(message.teacherId);
+        
+        // If no active session found, look for recent sessions (handles disconnection + quick reconnection)
+        if (!existingSession) {
+          logger.info(`[TEACHER_RECONNECT] No active session found, checking for recent sessions for teacherId: ${message.teacherId}`);
+          const recentSession = await context.storage.findRecentSessionByTeacherId(message.teacherId, 10); // 10 minutes
+          
+          if (recentSession && !recentSession.isActive) {
+            logger.info(`[TEACHER_RECONNECT] Found recent inactive session, reactivating: ${recentSession.sessionId}`);
+            // Use the dedicated reactivateSession method
+            existingSession = await context.storage.reactivateSession(recentSession.sessionId);
+            if (existingSession) {
+              logger.info(`[TEACHER_RECONNECT] Successfully reactivated session: ${existingSession.sessionId}`);
+            } else {
+              logger.warn(`[TEACHER_RECONNECT] Failed to reactivate session: ${recentSession.sessionId}`);
+            }
+          }
+        }
+        
+        logger.info(`[TEACHER_RECONNECT] Found existing session:`, existingSession ? {
+          sessionId: existingSession.sessionId,
+          teacherId: existingSession.teacherId,
+          isActive: existingSession.isActive,
+          classCode: existingSession.classCode
+        } : 'NONE');
+        
+        if (existingSession && existingSession.sessionId !== sessionId) {
+          logger.info(`[TEACHER_RECONNECT] Teacher has existing active session with teacherId: ${existingSession.sessionId}, current session: ${sessionId}`);
+          
+          // Reuse the existing session
+          logger.info(`[TEACHER_RECONNECT] Teacher reconnecting to existing session with teacherId: ${existingSession.sessionId}`);
+          
+          // End the new session that was just created
+          const cleanupService = context.webSocketServer.getSessionCleanupService();
+          if (cleanupService) {
+            await cleanupService.endSession(sessionId, 'Duplicate session - teacher reconnected to existing with teacherId');
+          }
+          
+          // Use the existing session instead
+          sessionId = existingSession.sessionId;
+          wasExistingSession = true;
+          
+          // Update the connection to use the existing session
+          context.connectionManager.updateSessionId(context.ws, existingSession.sessionId);
+          
+          // Update session activity to show teacher reconnected
+          if (cleanupService) {
+            await cleanupService.updateSessionActivity(sessionId);
+          }
+          
+          // If the existing session has a stored classroom code, restore it to ClassroomSessionManager
+          if (existingSession.classCode) {
+            context.webSocketServer.classroomSessionManager.restoreClassroomSession(
+              existingSession.classCode, 
+              sessionId
+            );
+            logger.info(`[TEACHER_RECONNECT] Restored classroom code ${existingSession.classCode} for reconnected teacher session ${sessionId}`);
+          }
+        } else if (existingSession && existingSession.sessionId === sessionId) {
+          logger.info(`[TEACHER_RECONNECT] Teacher connected to same session as existing - no action needed`);
+        } else {
+          logger.info(`[TEACHER_RECONNECT] No existing session found for teacherId: ${message.teacherId}, proceeding with new session: ${sessionId}`);
+        }
+      } catch (error: any) {
+        logger.error('Error searching for existing teacher sessions by teacherId:', { 
+          teacherId: message.teacherId,
+          errorMessage: error?.message || 'No error message',
+          errorStack: error?.stack || 'No stack trace',
+          errorCode: error?.code || 'No error code',
+          errorName: error?.name || 'No error name',
+          fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        });
+      }
+    } else if (message.languageCode) {
+      // Fallback to old behavior if no teacherId provided
       try {
         const activeSessions = await context.storage.getAllActiveSessions();
         const existingSession = activeSessions.find((s: any) => 
@@ -195,8 +275,8 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       if (!session && !wasExistingSession) {
         // If no existing session found, create a new one
         if (!wasExistingSession) {
-          logger.info('Creating new session for teacher:', { sessionId, languageCode: message.languageCode });
-          await context.webSocketServer.storageSessionManager.createSession(sessionId);
+          logger.info('Creating new session for teacher:', { sessionId, languageCode: message.languageCode, teacherId: message.teacherId });
+          await context.webSocketServer.storageSessionManager.createSession(sessionId, message.teacherId);
           session = await context.storage.getActiveSession(sessionId);
         } else {
           // Get the existing session we're reusing
@@ -236,9 +316,13 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     // Update session with teacher language since we created it
     if (sessionId && message.languageCode) {
       try {
-        const result = await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
+        const updateData: any = {
           teacherLanguage: message.languageCode
-        });
+        };
+        
+        // Note: teacherId was already stored above, so we don't need to store it again
+        
+        const result = await context.webSocketServer.storageSessionManager.updateSession(sessionId, updateData);
         if (!result) {
           logger.warn('Failed to update session with teacher language', { sessionId });
         }
@@ -459,27 +543,59 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
         }
 
       // Notify the teacher(s) in the same session
-      context.connectionManager.getConnections().forEach((client: any) => {
+      const allConnections = context.connectionManager.getConnections();
+      logger.info('[DEBUG] Looking for teachers to notify about student_joined:', {
+        totalConnections: allConnections.length,
+        studentSessionId,
+        studentName
+      });
+      
+      let teachersFound = 0;
+      let teachersNotified = 0;
+      
+      allConnections.forEach((client: any, index: number) => {
         const clientRole = context.connectionManager.getRole(client);
         const clientSessionId = context.connectionManager.getSessionId(client);
         
-        if (client !== context.ws && clientRole === 'teacher' && clientSessionId === studentSessionId) {
-          const studentJoinedMessage: StudentJoinedMessageToClient = {
-            type: 'student_joined',
-            payload: {
-              // Generate a simple unique ID for the student for this message
-              studentId: `student-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-              name: studentName,
-              languageCode: studentLanguage,
+        logger.info(`[DEBUG] Connection ${index}:`, {
+          isSameAsStudentWs: client === context.ws,
+          clientRole,
+          clientSessionId,
+          studentSessionId,
+          isMatchingSession: clientSessionId === studentSessionId,
+          isTeacher: clientRole === 'teacher'
+        });
+        
+        if (client !== context.ws && clientRole === 'teacher') {
+          teachersFound++;
+          
+          if (clientSessionId === studentSessionId) {
+            const studentJoinedMessage: StudentJoinedMessageToClient = {
+              type: 'student_joined',
+              payload: {
+                // Generate a simple unique ID for the student for this message
+                studentId: `student-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+                name: studentName,
+                languageCode: studentLanguage,
+              }
+            };
+            try {
+              client.send(JSON.stringify(studentJoinedMessage));
+              teachersNotified++;
+              logger.info(`[DEBUG] Successfully sent 'student_joined' to teacher for student: ${studentName} in session ${studentSessionId}`);
+            } catch (error) {
+              logger.error(`[DEBUG] Failed to send 'student_joined' message to teacher:`, { error });
             }
-          };
-          try {
-            client.send(JSON.stringify(studentJoinedMessage));
-            logger.info(`Sent 'student_joined' to teacher for student: ${studentName} in session ${studentSessionId}`);
-          } catch (error) {
-            logger.error(`Failed to send 'student_joined' message to teacher:`, { error });
           }
         }
+      });
+      
+      logger.info('[DEBUG] Student notification summary:', {
+        totalConnections: allConnections.length,
+        teachersFound,
+        teachersNotified,
+        studentSessionId,
+        studentName
       });
     } catch (error: any) {
       logger.error('Failed to handle student registration:', { error });

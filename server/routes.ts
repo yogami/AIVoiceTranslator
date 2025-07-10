@@ -13,6 +13,7 @@ import { DiagnosticsService } from './services/DiagnosticsService.js';
 import { IStorage } from './storage.interface.js';
 import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
 import { SessionCleanupService } from './services/SessionCleanupService.js';
+import authRoutes from './routes/auth';
 
 // Constants
 const API_VERSION = '1.0.0';
@@ -348,6 +349,9 @@ export const createApiRoutes = (
 
   // User routes
   router.get('/user', getUser); // Example, might need auth
+
+  // Authentication routes
+  router.use('/auth', authRoutes);
 
   // Health & diagnostics routes
   router.get('/health', healthCheck);

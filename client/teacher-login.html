@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Login - AI Voice Translator</title>
+    <link rel="stylesheet" href="public/css/teacher.css">
+    <style>
+        .login-container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .form-group label {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .form-group input {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        .form-group input:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        
+        .login-btn, .register-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .login-btn {
+            background-color: #007bff;
+            color: white;
+        }
+        
+        .login-btn:hover {
+            background-color: #0056b3;
+        }
+        
+        .register-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .register-btn:hover {
+            background-color: #1e7e34;
+        }
+        
+        .error-message {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        
+        .success-message {
+            color: #155724;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        
+        .toggle-mode {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .toggle-mode button {
+            background: none;
+            border: none;
+            color: #007bff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="login-container">
+            <h1 id="form-title">Teacher Login</h1>
+            
+            <div id="error-message" class="error-message"></div>
+            <div id="success-message" class="success-message"></div>
+            
+            <form id="auth-form" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <button type="submit" id="submit-btn" class="login-btn">Login</button>
+            </form>
+            
+            <div class="toggle-mode">
+                <p>
+                    <span id="toggle-text">Don't have an account?</span>
+                    <button type="button" id="toggle-btn">Register here</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isLoginMode = true;
+
+        const formTitle = document.getElementById('form-title');
+        const authForm = document.getElementById('auth-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const toggleText = document.getElementById('toggle-text');
+        const toggleBtn = document.getElementById('toggle-btn');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
+
+        function toggleMode() {
+            isLoginMode = !isLoginMode;
+            
+            if (isLoginMode) {
+                formTitle.textContent = 'Teacher Login';
+                submitBtn.textContent = 'Login';
+                submitBtn.className = 'login-btn';
+                toggleText.textContent = "Don't have an account?";
+                toggleBtn.textContent = 'Register here';
+            } else {
+                formTitle.textContent = 'Teacher Registration';
+                submitBtn.textContent = 'Register';
+                submitBtn.className = 'register-btn';
+                toggleText.textContent = 'Already have an account?';
+                toggleBtn.textContent = 'Login here';
+            }
+            
+            hideMessages();
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            successMessage.textContent = message;
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+        }
+
+        function hideMessages() {
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+        }
+
+        toggleBtn.addEventListener('click', toggleMode);
+
+        authForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+
+            try {
+                const endpoint = isLoginMode ? '/api/auth/login' : '/api/auth/register';
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ username, password }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (isLoginMode) {
+                        // Store teacher authentication info in localStorage
+                        localStorage.setItem('teacherToken', data.token);
+                        localStorage.setItem('teacherUser', JSON.stringify(data.user));
+                        
+                        // Redirect to teacher page
+                        window.location.href = '/teacher';
+                    } else {
+                        showSuccess('Registration successful! You can now login.');
+                        toggleMode(); // Switch to login mode
+                        document.getElementById('username').value = username;
+                        document.getElementById('password').value = '';
+                    }
+                } else {
+                    showError(data.error || 'Authentication failed');
+                }
+            } catch (error) {
+                showError('Network error. Please try again.');
+                console.error('Auth error:', error);
+            }
+        });
+    </script>
+</body>
+</html>

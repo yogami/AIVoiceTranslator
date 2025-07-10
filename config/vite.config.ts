@@ -120,6 +120,7 @@ export default defineConfig(async ({ mode, command }) => {
         input: {
           main: path.resolve(clientRoot, 'index.html'),
           teacher: path.resolve(clientRoot, 'teacher.html'),
+          'teacher-login': path.resolve(clientRoot, 'teacher-login.html'),
           student: path.resolve(clientRoot, 'public/student.html'), // Corrected path
           diagnostics: path.resolve(clientRoot, 'public/diagnostics.html'), // Corrected path
         },

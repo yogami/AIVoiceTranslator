@@ -51,9 +51,9 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
       }
     }
     
-    // Get all student connections and their languages
+    // Get all student connections and their languages for this session only
     const { connections: studentConnections, languages: studentLanguages } = 
-      context.connectionManager.getStudentConnectionsAndLanguages();
+      context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId!);
     
     if (studentConnections.length === 0) {
       logger.info('No students connected, skipping translation');

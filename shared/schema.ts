@@ -56,7 +56,8 @@ export const insertTranscriptSchema = createInsertSchema(transcripts).pick({
 export const sessions = pgTable("sessions", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull().unique(),
-  classCode: text("class_code"),
+  teacherId: text("teacher_id"), // Optional during transition, will be populated by authenticated users
+  classCode: text("class_code"), // Generated at session creation, temporarily nullable during migration
   teacherLanguage: text("teacher_language"),
   studentLanguage: text("student_language"),
   startTime: timestamp("start_time").defaultNow(),

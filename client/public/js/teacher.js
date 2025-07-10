@@ -8,6 +8,36 @@
 
 console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
+// Authentication check - ensure teacher is logged in
+(function checkAuthentication() {
+    const token = localStorage.getItem('teacherToken');
+    const teacherUser = localStorage.getItem('teacherUser');
+    
+    if (!token || !teacherUser) {
+        console.warn('[DEBUG] teacher.js: No authentication found, redirecting to login');
+        window.location.href = '/teacher-login';
+        return;
+    }
+    
+    try {
+        const user = JSON.parse(teacherUser);
+        if (!user.id) {
+            console.warn('[DEBUG] teacher.js: Invalid user data, redirecting to login');
+            localStorage.removeItem('teacherToken');
+            localStorage.removeItem('teacherUser');
+            window.location.href = '/teacher-login';
+            return;
+        }
+        console.log('[DEBUG] teacher.js: Authentication verified for user:', user.username);
+    } catch (error) {
+        console.error('[DEBUG] teacher.js: Error parsing user data:', error);
+        localStorage.removeItem('teacherToken');
+        localStorage.removeItem('teacherUser');
+        window.location.href = '/teacher-login';
+        return;
+    }
+})();
+
 (function() {
     console.log('[DEBUG] teacher.js: IIFE executed.');
     const appState = {
@@ -141,12 +171,27 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         register: function() {
             console.log('[DEBUG] teacher.js: webSocketHandler.register called.');
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                // Get authenticated teacher info from localStorage
+                const teacherUser = JSON.parse(localStorage.getItem('teacherUser') || '{}');
+                const teacherId = teacherUser.id ? teacherUser.id.toString() : null;
+                
+                if (!teacherId) {
+                    console.error('[DEBUG] teacher.js: No teacherId available, redirecting to login');
+                    uiUpdater.updateStatus('Authentication error: No teacher ID found', 'error');
+                    localStorage.removeItem('teacherToken');
+                    localStorage.removeItem('teacherUser');
+                    window.location.href = '/teacher-login';
+                    return;
+                }
+                
                 const message = {
                     type: 'register',
                     role: 'teacher',
-                    languageCode: appState.selectedLanguage
+                    languageCode: appState.selectedLanguage,
+                    teacherId: teacherId // Pass the authenticated teacher ID
                 };
-                console.log('[DEBUG] teacher.js: Sending register message:', message);
+                
+                console.log('[DEBUG] teacher.js: Sending register message with teacherId:', message);
                 appState.ws.send(JSON.stringify(message));
             } else {
                 console.warn('[DEBUG] teacher.js: WebSocket not open. Cannot send register message. State:', appState.ws ? appState.ws.readyState : 'null');
@@ -385,6 +430,32 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
     document.addEventListener('DOMContentLoaded', function main() {
         console.log('[DEBUG] teacher.js: DOMContentLoaded event fired.');
+        
+        // Check authentication and display teacher info
+        const teacherUser = JSON.parse(localStorage.getItem('teacherUser') || '{}');
+        const teacherInfoElement = document.getElementById('teacher-info');
+        if (teacherInfoElement && teacherUser.username) {
+            teacherInfoElement.textContent = `Welcome, ${teacherUser.username}`;
+        }
+        
+        // Setup logout button
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', function() {
+                // Clear authentication data
+                localStorage.removeItem('teacherToken');
+                localStorage.removeItem('teacherUser');
+                
+                // Close WebSocket connection
+                if (appState.ws) {
+                    appState.ws.close();
+                }
+                
+                // Redirect to login page
+                window.location.href = '/teacher-login';
+            });
+        }
+        
         // Initialize DOM element references
         domElements.languageSelect = document.getElementById('teacherLanguage');
         domElements.classroomInfo = document.getElementById('classroomInfo');

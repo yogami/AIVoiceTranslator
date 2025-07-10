@@ -222,8 +222,8 @@ export class ConnectionLifecycleManager {
               // Session had students and now everyone has disconnected - end immediately
               await cleanupService.endSession(sessionId, 'All users disconnected');
               logger.info(`Ended session ${sessionId} immediately - all users disconnected from session with students.`);
-            } else if (isVeryShortSession) {
-              // Very short teacher-only session - end immediately (likely accidental)
+            } else if (isVeryShortSession && !session.teacherId) {
+              // Very short teacher-only session WITHOUT teacherId - end immediately (likely accidental)
               await cleanupService.endSession(sessionId, 'Teacher disconnected, session too short');
               logger.info(`Ended short teacher-only session ${sessionId} immediately - session was too short.`);
             } else {

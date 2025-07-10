@@ -106,6 +106,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.translationOrchestrator = new TranslationOrchestrator(storage); // Initialize TranslationOrchestrator
     this.classroomSessionManager = new ClassroomSessionManager(); // Initialize ClassroomSessionManager
     this.storageSessionManager = new StorageSessionManager(storage); // Initialize StorageSessionManager
+    this.storageSessionManager.setClassroomSessionManager(this.classroomSessionManager); // Inject classroom session manager
     this.connectionHealthManager = new ConnectionHealthManager(this.wss); // Initialize ConnectionHealthManager
     this.connectionValidationService = new ConnectionValidationService(this.classroomSessionManager); // Initialize ConnectionValidationService
     this.sessionMetricsService = new SessionMetricsService(this.connectionManager, this.classroomSessionManager); // Initialize SessionMetricsService
@@ -673,6 +674,7 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
     this.sessionService = new SessionService(newStorage);
     this.translationOrchestrator = new TranslationOrchestrator(newStorage);
     this.storageSessionManager = new StorageSessionManager(newStorage);
+    this.storageSessionManager.setClassroomSessionManager(this.classroomSessionManager); // Inject classroom session manager
     this.sessionLifecycleService = new SessionLifecycleService(newStorage);
     this.sessionCountCacheService.updateStorage(newStorage);
     

@@ -19,6 +19,10 @@ import { DatabaseStorage } from '../../server/database-storage';
 import { DbSessionStorage } from '../../server/storage/session.storage';
 import { IStorage } from '../../server/storage.interface';
 import { Session, sessions, translations } from '../../shared/schema';
+import { setupTestIsolation } from '../../test-config/test-isolation';
+
+// Set up test isolation for this unit test suite
+setupTestIsolation('DatabaseStorage Unit Tests', 'unit');
 
 // Mock the sub-storages
 vi.mock('../../server/storage/user.storage');
@@ -318,6 +322,7 @@ describe('DatabaseStorage Metrics', () => {
       const mockSessionData: Session = {
         id: 1,
         sessionId: 'test-session-db-1',
+        teacherId: 'teacher-db-1', // Added missing teacherId
         classCode: null,
         isActive: true,
         startTime: new Date(),

@@ -10,15 +10,23 @@ import { type InsertSession } from '../../../shared/schema';
 
 export class StorageSessionManager {
   private storage: IStorage;
+  private classroomSessionManager?: any; // Will be injected
 
   constructor(storage: IStorage) {
     this.storage = storage;
   }
 
   /**
+   * Set the classroom session manager (injected from WebSocketServer)
+   */
+  public setClassroomSessionManager(classroomSessionManager: any): void {
+    this.classroomSessionManager = classroomSessionManager;
+  }
+
+  /**
    * Create session in storage for metrics tracking
    */
-  public async createSession(sessionId: string): Promise<void> {
+  public async createSession(sessionId: string, teacherId?: string): Promise<void> {
     try {
       // Check if a session with this ID already exists
       const existingSession = await this.storage.getSessionById(sessionId);
@@ -31,17 +39,35 @@ export class StorageSessionManager {
         return;
       }
 
+      // Generate a teacherId if not provided (for cases where teacher doesn't provide one)
+      // NOTE: This should rarely happen in production - teachers should be authenticated
+      const finalTeacherId = teacherId || `teacher_${sessionId}`;
+      
+      if (!teacherId) {
+        logger.warn('Creating session without authenticated teacher ID - using fallback:', { sessionId, fallbackTeacherId: finalTeacherId });
+      }
+
+      // Generate classroom code immediately when creating the session
+      let classCode: string;
+      if (this.classroomSessionManager) {
+        classCode = this.classroomSessionManager.generateClassroomCode(sessionId);
+      } else {
+        // Fallback if classroom session manager is not set - generate a simple code
+        classCode = this.generateFallbackClassCode();
+      }
+
       // If not, create a new session (active as soon as teacher creates it)
       await this.storage.createSession({
         sessionId,
+        teacherId: finalTeacherId, // Always provide a teacher ID
+        classCode: classCode, // Provide the classroom code immediately
         isActive: true, // Session is active when teacher registers
         teacherLanguage: null, // Will be set when teacher registers
-        classCode: null, // Will be set when classroom code is generated
         studentLanguage: null, // Will be set when student registers
         lastActivityAt: new Date() // Set initial activity timestamp
         // startTime is automatically set by the database default
       });
-      logger.info('Successfully created new session in storage:', { sessionId });
+      logger.info('Successfully created new session in storage:', { sessionId, teacherId: finalTeacherId });
     } catch (error: any) {
       // Check if it's a duplicate key error (race condition)
       if (error?.code === '23505' || error?.details?.code === '23505' || 
@@ -109,7 +135,7 @@ export class StorageSessionManager {
   /**
    * Create session in storage with teacher language
    */
-  public async createSessionWithLanguage(sessionId: string, teacherLanguage: string): Promise<void> {
+  public async createSessionWithLanguage(sessionId: string, teacherLanguage: string, teacherId?: string): Promise<void> {
     try {
       // Check if a session with this ID already exists
       const existingSession = await this.storage.getSessionById(sessionId);
@@ -127,9 +153,28 @@ export class StorageSessionManager {
         return;
       }
 
+      // Generate a teacherId if not provided (for cases where teacher doesn't provide one)
+      // NOTE: This should rarely happen in production - teachers should be authenticated  
+      const finalTeacherId = teacherId || `teacher_${sessionId}`;
+      
+      if (!teacherId) {
+        logger.warn('Creating session without authenticated teacher ID - using fallback:', { sessionId, fallbackTeacherId: finalTeacherId });
+      }
+
+      // Generate classroom code immediately when creating the session
+      let classCode: string;
+      if (this.classroomSessionManager) {
+        classCode = this.classroomSessionManager.generateClassroomCode(sessionId);
+      } else {
+        // Fallback if classroom session manager is not set - generate a simple code
+        classCode = this.generateFallbackClassCode();
+      }
+
       // If not, create a new session with teacher language (active when teacher registers)
       const sessionData: any = {
         sessionId,
+        teacherId: finalTeacherId, // Always provide a teacher ID
+        classCode: classCode, // Provide the classroom code immediately
         isActive: true, // Session is active when teacher registers
         lastActivityAt: new Date() // Set initial activity timestamp
         // startTime is automatically set by the database default
@@ -140,10 +185,22 @@ export class StorageSessionManager {
       }
       
       await this.storage.createSession(sessionData);
-      logger.info('Successfully created new session in storage with teacher language:', { sessionId, teacherLanguage });
+      logger.info('Successfully created new session in storage with teacher language:', { sessionId, teacherLanguage, teacherId: finalTeacherId });
     } catch (error: any) {
       // Log other errors but don't throw - metrics should not break core functionality
       logger.error('Failed to create or update session in storage:', { sessionId, teacherLanguage, error });
     }
+  }
+
+  /**
+   * Generate a fallback classroom code when classroom session manager is not available
+   */
+  private generateFallbackClassCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
   }
 }

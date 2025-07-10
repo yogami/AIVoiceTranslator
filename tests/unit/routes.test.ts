@@ -63,6 +63,11 @@ const mockStorage: IStorage = {
   getTranscriptCountBySession: vi.fn(),
   getSessionQualityStats: vi.fn(),
 
+  // Teacher ID session methods
+  findActiveSessionByTeacherId: vi.fn(),
+  findRecentSessionByTeacherId: vi.fn(),
+  reactivateSession: vi.fn(),
+
   // Analytics methods
   getSessionAnalytics: vi.fn(),
 
