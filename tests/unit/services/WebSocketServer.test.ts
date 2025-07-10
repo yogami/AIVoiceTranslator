@@ -2,6 +2,10 @@ import { describe, it, expect, beforeEach, vi, type Mock, afterEach } from 'vite
 import type { Server as HTTPServer } from 'http';
 import { EventEmitter } from 'events';
 import type { IStorage } from '../../../server/storage.interface';
+import { setupTestIsolation } from '../../../test-config/test-isolation';
+
+// Set up test isolation for this unit test suite
+setupTestIsolation('WebSocketServer Unit Tests', 'unit');
 
 // Extend global type for test context
 declare global {
@@ -83,7 +87,6 @@ vi.mock('../../../server/services/websocket/TranslationOrchestrator', () => ({
 vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
   ClassroomSessionManager: vi.fn().mockImplementation(() => {
     const sessions = new Map();
-    const generatedCodes = new Set();
     let cleanupInterval: NodeJS.Timeout | null = null;
     
     // Set up automatic cleanup like the real implementation
@@ -95,7 +98,6 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
         for (const [code, session] of sessions.entries()) {
           if (now > session.expiresAt) {
             sessions.delete(code);
-            generatedCodes.delete(code);
             cleaned++;
           }
         }
@@ -114,7 +116,6 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
     return {
       clearAll: vi.fn(() => {
         sessions.clear();
-        generatedCodes.clear();
       }),
       generateClassroomCode: vi.fn((sessionId) => {
         // Check if we already have a code for this session (like the real implementation)
@@ -127,19 +128,17 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
           }
         }
         
-        // Generate truly unique 6-character codes
+        // Generate 6-character code using the same method as the real implementation
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let code;
-        do {
-          code = Math.random().toString(36).substring(2, 8).toUpperCase();
-          // Ensure it's exactly 6 characters
-          if (code.length < 6) {
-            code = code.padEnd(6, '0');
-          } else if (code.length > 6) {
-            code = code.substring(0, 6);
-          }
-        } while (generatedCodes.has(code) && generatedCodes.size < 1000000); // Avoid infinite loop
         
-        generatedCodes.add(code);
+        // Ensure uniqueness by checking against existing sessions (not generatedCodes)
+        do {
+          code = '';
+          for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+        } while (sessions.has(code));
         
         // Create session object like the real implementation
         const session = {
@@ -178,7 +177,6 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
       }),
       clear: vi.fn(() => {
         sessions.clear();
-        generatedCodes.clear();
       }),
       shutdown: vi.fn(() => {
         if (cleanupInterval) {
@@ -186,7 +184,6 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
           cleanupInterval = null;
         }
         sessions.clear();
-        generatedCodes.clear();
       }),
       getSessionMetrics: vi.fn().mockReturnValue({ totalSessions: 0, activeSessions: [] }),
       triggerCleanup: vi.fn(() => {
@@ -197,7 +194,6 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
         for (const [code, session] of sessions.entries()) {
           if (now > session.expiresAt) {
             sessions.delete(code);
-            generatedCodes.delete(code);
             cleaned++;
           }
         }
@@ -2568,7 +2564,7 @@ describe('WebSocketServer', () => {
       expect(mockSessionLifecycleService.updateSessionActivity).toHaveBeenCalledTimes(1);
 
       // Simulate time passing (31+ seconds)
-      (testWs as any).lastActivityUpdate = Date.now() - 31000;
+      (testWs as any).lastActivityUpdate = Date.now() - 31000; // 31 seconds ago
       await webSocketServer.handleMessage(testWs, messageData);
       expect(mockSessionLifecycleService.updateSessionActivity).toHaveBeenCalledTimes(2);
     });
@@ -2643,7 +2639,7 @@ describe('WebSocketServer', () => {
       await webSocketServer.updateSessionActivity(testWs);
       expect(mockSessionLifecycleService.updateSessionActivity).toHaveBeenCalledTimes(1);
 
-      // Simulate 30+ seconds passing
+      // Simulate time passing (30+ seconds)
       (testWs as any).lastActivityUpdate = Date.now() - 30001; // 30.001 seconds ago
 
       // Should now allow the update

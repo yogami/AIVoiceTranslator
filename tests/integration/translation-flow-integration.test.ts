@@ -17,6 +17,7 @@ import { WebSocketServer as WSServer } from 'ws';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { IStorage } from '../../server/storage.interface';
 import { speechTranslationService } from '../../server/services/TranslationService';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 
 // Mock the translation service
 vi.mock('../../server/services/TranslationService', () => ({
@@ -30,6 +31,9 @@ const TEST_PORT = 0; // Use 0 to let the system assign an available port
 let actualPort: number; // Store the actual assigned port
 
 describe('Translation Flow Integration', () => {
+  // Set up test isolation for this integration test suite
+  setupTestIsolation('Translation Flow Integration', 'integration');
+  
   let httpServer: Server;
   let wsServer: WebSocketServer;
   let teacherClient: WebSocket;

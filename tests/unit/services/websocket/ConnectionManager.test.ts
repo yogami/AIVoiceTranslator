@@ -181,6 +181,61 @@ describe('ConnectionManager', () => {
     });
   });
 
+  describe('getStudentConnectionsAndLanguagesForSession', () => {
+    beforeEach(() => {
+      connectionManager.addConnection(mockClient1, 'session-1');
+      connectionManager.addConnection(mockClient2, 'session-1'); 
+      connectionManager.addConnection(mockClient3, 'session-2');
+    });
+
+    it('should return only student connections from specified session', () => {
+      connectionManager.setRole(mockClient1, 'teacher');
+      connectionManager.setRole(mockClient2, 'student');
+      connectionManager.setRole(mockClient3, 'student');
+      
+      connectionManager.setLanguage(mockClient2, 'es');
+      connectionManager.setLanguage(mockClient3, 'fr');
+
+      const result = connectionManager.getStudentConnectionsAndLanguagesForSession('session-1');
+
+      expect(result.connections).toHaveLength(1);
+      expect(result.connections).toContain(mockClient2);
+      expect(result.connections).not.toContain(mockClient3);
+      expect(result.languages).toEqual(['es']);
+    });
+
+    it('should return empty arrays when no students in session', () => {
+      connectionManager.setRole(mockClient1, 'teacher');
+      connectionManager.setRole(mockClient2, 'teacher');
+      connectionManager.setRole(mockClient3, 'student');
+
+      const result = connectionManager.getStudentConnectionsAndLanguagesForSession('session-1');
+
+      expect(result.connections).toHaveLength(0);
+      expect(result.languages).toHaveLength(0);
+    });
+
+    it('should default to "en" for students without language in session', () => {
+      connectionManager.setRole(mockClient2, 'student');
+      // No language set for mockClient2
+
+      const result = connectionManager.getStudentConnectionsAndLanguagesForSession('session-1');
+
+      expect(result.connections).toHaveLength(1);
+      expect(result.languages).toEqual(['en']);
+    });
+
+    it('should return empty arrays for non-existent session', () => {
+      connectionManager.setRole(mockClient1, 'student');
+      connectionManager.setRole(mockClient2, 'student');
+
+      const result = connectionManager.getStudentConnectionsAndLanguagesForSession('non-existent-session');
+
+      expect(result.connections).toHaveLength(0);
+      expect(result.languages).toHaveLength(0);
+    });
+  });
+
   describe('student counting', () => {
     it('should check if student is not counted by default', () => {
       connectionManager.addConnection(mockClient1, 'session-1');

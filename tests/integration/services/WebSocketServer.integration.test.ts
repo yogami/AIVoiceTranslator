@@ -462,4 +462,298 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       console.log('[INTEGRATION] Network timeout test passed');
     });
   });
+
+  describe('Teacher ID Integration - Session Reconnection', () => {
+    it('should allow teacher to reconnect using teacherId and restore session', async () => {
+      console.log('[INTEGRATION] Starting Teacher ID reconnection test...');
+      
+      // Step 1: Teacher connects and creates session
+      teacherClient = await createClient('/', 1);
+      await waitForMessage(teacherClient, 'connection', 1);
+      
+      const teacherId = `teacher-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      await sendAndWait(teacherClient, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'Reconnection Test Teacher',
+        teacherId: teacherId
+      }, 'register', 1);
+      
+      const classroomCodeMessage = await waitForMessage(teacherClient, 'classroom_code', 1);
+      const originalSessionId = classroomCodeMessage.sessionId;
+      const classroomCode = classroomCodeMessage.code;
+      
+      console.log(`[INTEGRATION] Teacher created session ${originalSessionId} with classroom code ${classroomCode}`);
+      
+      // Step 2: Student joins the session
+      studentClient = await createClient(`/ws?code=${classroomCode}`, 2);
+      await waitForMessage(studentClient, 'connection', 2);
+      
+      await sendAndWait(studentClient, {
+        type: 'register',
+        role: 'student',
+        classroomCode: classroomCode,
+        languageCode: 'es-ES',
+        name: 'Reconnection Test Student'
+      }, 'register', 2);
+      
+      await waitForMessage(teacherClient, 'student_joined', 1);
+      
+      // Step 3: Teacher disconnects (simulate network issue)
+      console.log('[INTEGRATION] Simulating teacher disconnect...');
+      teacherClient.terminate();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Step 4: Teacher reconnects with same teacherId
+      console.log('[INTEGRATION] Teacher reconnecting with same teacherId...');
+      teacherClient = await createClient('/', 3);
+      await waitForMessage(teacherClient, 'connection', 3);
+      
+      await sendAndWait(teacherClient, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'Reconnection Test Teacher',
+        teacherId: teacherId // Same teacherId for reconnection
+      }, 'register', 3);
+      
+      // Step 5: Verify session was restored
+      const reconnectedMessage = await waitForMessage(teacherClient, 'classroom_code', 3);
+      expect(reconnectedMessage.sessionId).toBe(originalSessionId);
+      expect(reconnectedMessage.code).toBe(classroomCode);
+      
+      // Step 6: Verify student is still connected and can receive messages
+      await sendAndWait(teacherClient, {
+        type: 'transcription',
+        text: 'Reconnection test message',
+        isFinal: true,
+        languageCode: 'en-US'
+      }, undefined, 3);
+      
+      // Student should still receive messages after teacher reconnection
+      await waitForMessage(studentClient, 'translation', 2);
+      
+      console.log('[INTEGRATION] Teacher ID reconnection test passed');
+    });
+
+    it('should prevent session mix-ups with multiple teachers', async () => {
+      console.log('[INTEGRATION] Starting multiple teachers session isolation test...');
+      
+      // Create two different teacher IDs
+      const teacherId1 = `teacher1-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const teacherId2 = `teacher2-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Step 1: Teacher 1 creates session
+      const teacher1Client = await createClient('/', 1);
+      await waitForMessage(teacher1Client, 'connection', 1);
+      
+      await sendAndWait(teacher1Client, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'Teacher One',
+        teacherId: teacherId1
+      }, 'register', 1);
+      
+      const teacher1ClassroomCode = await waitForMessage(teacher1Client, 'classroom_code', 1);
+      const session1Id = teacher1ClassroomCode.sessionId;
+      const classroomCode1 = teacher1ClassroomCode.code;
+      
+      // Step 2: Teacher 2 creates separate session
+      const teacher2Client = await createClient('/', 2);
+      await waitForMessage(teacher2Client, 'connection', 2);
+      
+      await sendAndWait(teacher2Client, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'fr-FR',
+        name: 'Teacher Two',
+        teacherId: teacherId2
+      }, 'register', 2);
+      
+      const teacher2ClassroomCode = await waitForMessage(teacher2Client, 'classroom_code', 2);
+      const session2Id = teacher2ClassroomCode.sessionId;
+      const classroomCode2 = teacher2ClassroomCode.code;
+      
+      // Step 3: Verify sessions are different
+      expect(session1Id).not.toBe(session2Id);
+      expect(classroomCode1).not.toBe(classroomCode2);
+      
+      // Step 4: Students join respective sessions
+      const student1Client = await createClient(`/ws?code=${classroomCode1}`, 3);
+      await waitForMessage(student1Client, 'connection', 3);
+      
+      await sendAndWait(student1Client, {
+        type: 'register',
+        role: 'student',
+        classroomCode: classroomCode1,
+        languageCode: 'es-ES',
+        name: 'Student One'
+      }, 'register', 3);
+      
+      const student2Client = await createClient(`/ws?code=${classroomCode2}`, 4);
+      await waitForMessage(student2Client, 'connection', 4);
+      
+      await sendAndWait(student2Client, {
+        type: 'register',
+        role: 'student',
+        classroomCode: classroomCode2,
+        languageCode: 'de-DE',
+        name: 'Student Two'
+      }, 'register', 4);
+      
+      await waitForMessage(teacher1Client, 'student_joined', 1);
+      await waitForMessage(teacher2Client, 'student_joined', 2);
+      
+      // Step 5: Both teachers disconnect
+      console.log('[INTEGRATION] Both teachers disconnecting...');
+      teacher1Client.terminate();
+      teacher2Client.terminate();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Step 6: Teachers reconnect with correct teacherIds
+      console.log('[INTEGRATION] Teachers reconnecting...');
+      
+      const reconnectedTeacher1 = await createClient('/', 5);
+      await waitForMessage(reconnectedTeacher1, 'connection', 5);
+      
+      await sendAndWait(reconnectedTeacher1, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'Teacher One',
+        teacherId: teacherId1 // Reconnect with original ID
+      }, 'register', 5);
+      
+      const reconnectedTeacher2 = await createClient('/', 6);
+      await waitForMessage(reconnectedTeacher2, 'connection', 6);
+      
+      await sendAndWait(reconnectedTeacher2, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'fr-FR',
+        name: 'Teacher Two',
+        teacherId: teacherId2 // Reconnect with original ID
+      }, 'register', 6);
+      
+      // Step 7: Verify each teacher gets their original session back
+      const teacher1Reconnected = await waitForMessage(reconnectedTeacher1, 'classroom_code', 5);
+      const teacher2Reconnected = await waitForMessage(reconnectedTeacher2, 'classroom_code', 6);
+      
+      expect(teacher1Reconnected.sessionId).toBe(session1Id);
+      expect(teacher1Reconnected.code).toBe(classroomCode1);
+      expect(teacher2Reconnected.sessionId).toBe(session2Id);
+      expect(teacher2Reconnected.code).toBe(classroomCode2);
+      
+      // Step 8: Verify isolated communication
+      await sendAndWait(reconnectedTeacher1, {
+        type: 'transcription',
+        text: 'Message for session 1',
+        isFinal: true,
+        languageCode: 'en-US'
+      }, undefined, 5);
+      
+      await sendAndWait(reconnectedTeacher2, {
+        type: 'transcription',
+        text: 'Message pour session 2',
+        isFinal: true,
+        languageCode: 'fr-FR'
+      }, undefined, 6);
+      
+      // Students should only receive messages from their own teacher
+      const student1Translation = await waitForMessage(student1Client, 'translation', 3);
+      const student2Translation = await waitForMessage(student2Client, 'translation', 4);
+      
+      expect(student1Translation.originalText).toBe('Message for session 1');
+      expect(student1Translation.sourceLanguage).toBe('en-US');
+      expect(student1Translation.targetLanguage).toBe('es-ES');
+      
+      expect(student2Translation.originalText).toBe('Message pour session 2');
+      expect(student2Translation.sourceLanguage).toBe('fr-FR');
+      expect(student2Translation.targetLanguage).toBe('de-DE');
+      
+      // Clean up additional clients
+      reconnectedTeacher1.terminate();
+      reconnectedTeacher2.terminate();
+      student1Client.terminate();
+      student2Client.terminate();
+      
+      console.log('[INTEGRATION] Multiple teachers session isolation test passed');
+    });
+
+    it('should handle teacher reconnection with different teacherId (new session)', async () => {
+      console.log('[INTEGRATION] Starting teacher new session test...');
+      
+      // Step 1: Teacher creates initial session
+      teacherClient = await createClient('/', 1);
+      await waitForMessage(teacherClient, 'connection', 1);
+      
+      const originalTeacherId = `teacher-original-${Date.now()}`;
+      
+      await sendAndWait(teacherClient, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'Original Teacher',
+        teacherId: originalTeacherId
+      }, 'register', 1);
+      
+      const originalSession = await waitForMessage(teacherClient, 'classroom_code', 1);
+      const originalSessionId = originalSession.sessionId;
+      
+      // Step 2: Teacher disconnects
+      teacherClient.terminate();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Step 3: Teacher reconnects with DIFFERENT teacherId
+      teacherClient = await createClient('/', 2);
+      await waitForMessage(teacherClient, 'connection', 2);
+      
+      const newTeacherId = `teacher-new-${Date.now()}`;
+      
+      await sendAndWait(teacherClient, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'New Teacher Session',
+        teacherId: newTeacherId // Different teacherId
+      }, 'register', 2);
+      
+      // Step 4: Verify new session is created (not reconnected to old one)
+      const newSession = await waitForMessage(teacherClient, 'classroom_code', 2);
+      const newSessionId = newSession.sessionId;
+      
+      expect(newSessionId).not.toBe(originalSessionId);
+      expect(newSession.code).not.toBe(originalSession.code);
+      
+      console.log('[INTEGRATION] Teacher new session test passed - different teacherId creates new session');
+    });
+
+    it('should handle reconnection when no previous session exists', async () => {
+      console.log('[INTEGRATION] Starting no previous session test...');
+      
+      // Teacher connects with teacherId but no previous session exists
+      teacherClient = await createClient('/', 1);
+      await waitForMessage(teacherClient, 'connection', 1);
+      
+      const newTeacherId = `teacher-never-existed-${Date.now()}`;
+      
+      await sendAndWait(teacherClient, {
+        type: 'register',
+        role: 'teacher',
+        languageCode: 'en-US',
+        name: 'New Teacher',
+        teacherId: newTeacherId
+      }, 'register', 1);
+      
+      // Should create new session since no previous session exists
+      const newSession = await waitForMessage(teacherClient, 'classroom_code', 1);
+      expect(newSession.sessionId).toBeDefined();
+      expect(newSession.code).toMatch(/^[A-Z0-9]{6}$/);
+      
+      console.log('[INTEGRATION] No previous session test passed - new session created');
+    });
+  });
 });

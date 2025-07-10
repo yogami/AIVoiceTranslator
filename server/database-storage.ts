@@ -348,6 +348,22 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
+  // Teacher ID session methods - delegate to sessionStorage
+  async findActiveSessionByTeacherId(teacherId: string): Promise<Session | null> {
+    await this.ensureInitialized();
+    return this.sessionStorage.findActiveSessionByTeacherId(teacherId);
+  }
+
+  async findRecentSessionByTeacherId(teacherId: string, withinMinutes?: number): Promise<Session | null> {
+    await this.ensureInitialized();
+    return this.sessionStorage.findRecentSessionByTeacherId(teacherId, withinMinutes);
+  }
+
+  async reactivateSession(sessionId: string): Promise<Session | null> {
+    await this.ensureInitialized();
+    return this.sessionStorage.reactivateSession(sessionId);
+  }
+
   async createTranslation(translationData: InsertTranslation): Promise<Translation> {
     return this.translationStorage.createTranslation(translationData);
   }

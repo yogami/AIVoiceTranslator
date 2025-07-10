@@ -26,6 +26,8 @@ const getTestPattern = (mode) => {
   switch (mode) {
     case 'unit':
       return ['**/tests/unit/**/*.{test,spec}.{js,jsx,ts,tsx}'];
+    case 'component':
+      return ['**/tests/component/**/*.{test,spec}.{js,jsx,ts,tsx}'];
     case 'integration':
       return ['**/tests/integration/**/*.{test,spec}.{js,jsx,ts,tsx}'];
     case 'all':
@@ -33,6 +35,7 @@ const getTestPattern = (mode) => {
       // Exclude e2e tests from default 'all' mode (they use Playwright)
       return [
         'tests/unit/**/*.{test,spec}.?(c|m)[jt]s?(x)',
+        'tests/component/**/*.{test,spec}.?(c|m)[jt]s?(x)',
         'tests/integration/**/*.{test,spec}.?(c|m)[jt]s?(x)'
       ];
   }
@@ -47,6 +50,12 @@ const getTestTimeouts = (mode) => {
         hookTimeout: 60000,          // 1 minute for hooks 
         teardownTimeout: 30000,      // 30 seconds for teardown
       };
+    case 'component':
+      return {
+        testTimeout: 60000,          // 1 minute per component test
+        hookTimeout: 30000,          // 30 seconds for hooks 
+        teardownTimeout: 15000,      // 15 seconds for teardown
+      };
     case 'unit':
     default:
       return {
@@ -60,6 +69,8 @@ const getTestTimeouts = (mode) => {
 const setupFiles = [
   './test-config/test-env.js',  // This will now handle all env var checks and loading from .env.test
   './test-config/vitest/vitest.setup.ts',
+  // Add test isolation setup for component and integration tests
+  ...(testMode === 'component' || testMode === 'integration' ? ['./test-config/test-isolation.ts'] : [])
 ];
 
 export default defineConfig({
@@ -82,22 +93,22 @@ export default defineConfig({
     ],
     ...getTestTimeouts(testMode),
     // For integration tests, enforce strict sequential execution
-    maxConcurrency: testMode === 'integration' ? 1 : 2,
-    maxThreads: testMode === 'integration' ? 1 : 2,
-    minThreads: testMode === 'integration' ? 1 : 1,
+    maxConcurrency: testMode === 'integration' ? 1 : (testMode === 'component' ? 1 : 2),
+    maxThreads: testMode === 'integration' ? 1 : (testMode === 'component' ? 1 : 2),
+    minThreads: testMode === 'integration' ? 1 : (testMode === 'component' ? 1 : 1),
     silent: false,
     isolate: true,
-    // Use threads with single thread for integration tests
+    // Use threads with single thread for integration and component tests
     pool: 'threads',
     poolOptions: {
       threads: {
-        singleThread: testMode === 'integration',
-        useAtomics: testMode === 'integration', // Force atomic operations for integration tests
+        singleThread: testMode === 'integration' || testMode === 'component',
+        useAtomics: testMode === 'integration' || testMode === 'component', // Force atomic operations for integration/component tests
       }
     },
     // Increase worker timeouts to prevent RPC timeout errors
-    workerTimeout: testMode === 'integration' ? 180000 : 60000, // 3 minutes for integration, 1 minute for unit
-    fileParallelism: testMode === 'integration' ? false : true,
+    workerTimeout: testMode === 'integration' ? 180000 : (testMode === 'component' ? 120000 : 60000), // 3min/2min/1min
+    fileParallelism: testMode === 'integration' || testMode === 'component' ? false : true,
     setupFiles,
     coverage: {
       provider: 'v8',

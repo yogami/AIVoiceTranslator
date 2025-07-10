@@ -6,11 +6,56 @@
     <title>AI Voice Translator - Teacher Interface</title>
     <link rel="stylesheet" href="/css/teacher.css"> <!-- Changed path here -->
     <!-- Load runtime-config.ts. Vite will process client/src/runtime-config.ts -->
-    <script type="module" src="../src/runtime-config.ts"></script>
+    <script type="module" src="/src/runtime-config.ts"></script>
+    
+    <!-- Authentication Check -->
+    <script>
+        // Check if teacher is authenticated
+        const token = localStorage.getItem('teacherToken');
+        if (!token) {
+            // Redirect to login page if not authenticated
+            window.location.href = '/teacher-login';
+        } else {
+            // Verify token is still valid
+            fetch('/api/auth/me', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Token is invalid, redirect to login
+                    localStorage.removeItem('teacherToken');
+                    localStorage.removeItem('teacherUser');
+                    window.location.href = '/teacher-login';
+                } else {
+                    return response.json();
+                }
+            })
+            .then(data => {
+                if (data && data.user) {
+                    // Update stored user info if token is valid
+                    localStorage.setItem('teacherUser', JSON.stringify(data.user));
+                }
+            })
+            .catch(() => {
+                // Network error or server down, redirect to login
+                localStorage.removeItem('teacherToken');
+                localStorage.removeItem('teacherUser');
+                window.location.href = '/teacher-login';
+            });
+        }
+    </script>
 </head>
 <body>
     <div class="container">
-        <h1>🎓 Teacher Interface</h1>
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>🎓 Teacher Interface</h1>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span id="teacher-info" style="color: #666;"></span>
+                <button id="logout-btn" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Logout</button>
+            </div>
+        </header>
         
         <!-- Single classroom info section at the top -->
         <div class="classroom-info" id="classroomInfo">

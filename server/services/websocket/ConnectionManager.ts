@@ -141,6 +141,31 @@ export class ConnectionManager {
   }
 
   /**
+   * Get all student connections and their languages for a specific session
+   * Used for broadcasting translations only to students in the same session
+   */
+  getStudentConnectionsAndLanguagesForSession(sessionId: string): { 
+    connections: WebSocketClient[]; 
+    languages: string[] 
+  } {
+    const studentConnections: WebSocketClient[] = [];
+    const studentLanguages: string[] = [];
+
+    for (const [connection, role] of this.roles.entries()) {
+      if (role === 'student' && this.sessionIds.get(connection) === sessionId) {
+        studentConnections.push(connection);
+        const language = this.languages.get(connection) || 'en';
+        studentLanguages.push(language);
+      }
+    }
+
+    return { 
+      connections: studentConnections, 
+      languages: studentLanguages 
+    };
+  }
+
+  /**
    * Get all student connections and their languages
    * Used for broadcasting translations
    */

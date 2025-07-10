@@ -78,6 +78,7 @@ describe('DatabaseStorage Integration Tests', () => {
     it('should create and retrieve an active session', async () => {
       const sessionData: InsertSession = {
         sessionId: `session-123-${testRunId}`,
+        teacherId: `teacher-123-${testRunId}`,
         teacherLanguage: 'en-US',
         isActive: true,
       };
@@ -95,7 +96,10 @@ describe('DatabaseStorage Integration Tests', () => {
     });
 
     it('should update a session', async () => {
-      const initialSessionData: InsertSession = { sessionId: `session-to-update-${testRunId}` };
+      const initialSessionData: InsertSession = { 
+        sessionId: `session-to-update-${testRunId}`,
+        teacherId: `teacher-update-${testRunId}`
+      };
       const createdSession = await storage.createSession(initialSessionData);
       
       // Verify session was created
@@ -120,7 +124,11 @@ describe('DatabaseStorage Integration Tests', () => {
     });
 
     it('should end an active session', async () => {
-      const sessionData: InsertSession = { sessionId: `session-to-end-${testRunId}`, isActive: true };
+      const sessionData: InsertSession = { 
+        sessionId: `session-to-end-${testRunId}`, 
+        teacherId: `teacher-end-${testRunId}`,
+        isActive: true 
+      };
       const createdSession = await storage.createSession(sessionData);
 
       const endedSession = await storage.endSession(createdSession.sessionId);
@@ -141,11 +149,11 @@ describe('DatabaseStorage Integration Tests', () => {
         }
       }
 
-      await storage.createSession({ sessionId: `active-1-${testRunId}`, isActive: true });
+      await storage.createSession({ sessionId: `active-1-${testRunId}`, teacherId: `teacher-active1-${testRunId}`, isActive: true });
       // Create an inactive session by first creating it active, then ending it.
-      const inactiveSession = await storage.createSession({ sessionId: `inactive-1-${testRunId}`, isActive: true });
+      const inactiveSession = await storage.createSession({ sessionId: `inactive-1-${testRunId}`, teacherId: `teacher-inactive1-${testRunId}`, isActive: true });
       await storage.endSession(inactiveSession.sessionId);
-      await storage.createSession({ sessionId: `active-2-${testRunId}`, isActive: true });
+      await storage.createSession({ sessionId: `active-2-${testRunId}`, teacherId: `teacher-active2-${testRunId}`, isActive: true });
 
       const activeSessions = await storage.getAllActiveSessions();
       // Filter to only count sessions from this test run
@@ -160,8 +168,8 @@ describe('DatabaseStorage Integration Tests', () => {
       const sessionId1 = `activity-session1-${testRunId}-${Date.now()}`;
       const sessionId2 = `activity-session2-${testRunId}-${Date.now() + 1}`;
       
-      const s1 = await storage.createSession({ sessionId: sessionId1, teacherLanguage: 'en-US', isActive: true });
-      const s2 = await storage.createSession({ sessionId: sessionId2, teacherLanguage: 'fr-FR', isActive: true });
+      const s1 = await storage.createSession({ sessionId: sessionId1, teacherId: `teacher-activity1-${testRunId}`, teacherLanguage: 'en-US', isActive: true });
+      const s2 = await storage.createSession({ sessionId: sessionId2, teacherId: `teacher-activity2-${testRunId}`, teacherLanguage: 'fr-FR', isActive: true });
       
       // Add some test data
       await storage.addTranscript({ sessionId: sessionId1, language: 'en-US', text: 'Activity transcript 1' });
@@ -578,7 +586,7 @@ describe('DatabaseStorage Integration Tests', () => {
     it('should get session analytics for a specific session', async () => {
       // Create a unique session for this test
       const sessionId = `analytics-session-${testRunId}-${Date.now()}`;
-      const s1 = await storage.createSession({ sessionId, teacherLanguage: 'en-US', isActive: true });
+      const s1 = await storage.createSession({ sessionId, teacherId: `teacher-analytics-${testRunId}`, teacherLanguage: 'en-US', isActive: true });
       
       // Add some test data
       await storage.addTranscript({ sessionId, language: 'en-US', text: 'Test transcript' });
@@ -614,8 +622,8 @@ describe('DatabaseStorage Integration Tests', () => {
       const sessionId1 = `metrics-session1-${testRunId}-${Date.now()}`;
       const sessionId2 = `metrics-session2-${testRunId}-${Date.now() + 1}`;
       
-      const s1 = await storage.createSession({ sessionId: sessionId1, teacherLanguage: 'en-US', isActive: true });
-      const s2 = await storage.createSession({ sessionId: sessionId2, teacherLanguage: 'fr-FR', isActive: true });
+      const s1 = await storage.createSession({ sessionId: sessionId1, teacherId: `teacher-metrics1-${testRunId}`, teacherLanguage: 'en-US', isActive: true });
+      const s2 = await storage.createSession({ sessionId: sessionId2, teacherId: `teacher-metrics2-${testRunId}`, teacherLanguage: 'fr-FR', isActive: true });
       
       // Simulate a student joining session1 (this sets startTime)
       await storage.updateSession(sessionId1, { 
@@ -646,7 +654,7 @@ describe('DatabaseStorage Integration Tests', () => {
       // Create unique sessions for this test
       const sessionId = `translation-metrics-${testRunId}-${Date.now()}`;
       
-      const s1 = await storage.createSession({ sessionId, teacherLanguage: 'en-US', isActive: true });
+      const s1 = await storage.createSession({ sessionId, teacherId: `teacher-translation-metrics-${testRunId}`, teacherLanguage: 'en-US', isActive: true });
       
       // Add translation data
       await storage.addTranslation({ 
@@ -675,7 +683,7 @@ describe('DatabaseStorage Integration Tests', () => {
       // Create unique sessions for this test
       const sessionId = `langpair-metrics-${testRunId}-${Date.now()}`;
       
-      const s1 = await storage.createSession({ sessionId, teacherLanguage: 'en-US', isActive: true });
+      const s1 = await storage.createSession({ sessionId, teacherId: `teacher-langpair-${testRunId}`, teacherLanguage: 'en-US', isActive: true });
       
       // Add translation data for language pairs
       await storage.addTranslation({ 

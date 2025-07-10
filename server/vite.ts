@@ -141,6 +141,7 @@ export function serveStatic(app: express.Express): void {
   const htmlEntries: { [key: string]: string } = {
     '/': 'index.html',
     '/teacher': 'teacher.html',
+    '/teacher-login.html': 'teacher-login.html',
     '/student': 'student.html',
     '/diagnostics.html': 'diagnostics.html',
     '/analytics': 'diagnostics.html'  // Analytics route serves diagnostics.html

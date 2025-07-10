@@ -32,6 +32,7 @@ describe('SessionLifecycleService', () => {
       const session: Session = {
         id: 1,
         sessionId: 'test-session',
+        teacherId: 'teacher-1',
         classCode: null,
         teacherLanguage: 'en-US',
         studentLanguage: null,
@@ -58,6 +59,7 @@ describe('SessionLifecycleService', () => {
       const session: Session = {
         id: 1,
         sessionId: 'test-session',
+        teacherId: 'teacher-2',
         classCode: null,
         teacherLanguage: 'en-US',
         studentLanguage: null,
@@ -84,6 +86,7 @@ describe('SessionLifecycleService', () => {
       const session: Session = {
         id: 1,
         sessionId: 'test-session',
+        teacherId: 'teacher-3',
         classCode: null,
         teacherLanguage: 'en-US',
         studentLanguage: null,
@@ -110,6 +113,7 @@ describe('SessionLifecycleService', () => {
       const session: Session = {
         id: 1,
         sessionId: 'test-session',
+        teacherId: 'teacher-4',
         classCode: null,
         teacherLanguage: 'en-US',
         studentLanguage: null,

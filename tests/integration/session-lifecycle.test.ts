@@ -4,8 +4,12 @@ import { config } from '../../server/config';
 import { db } from '../../server/db';
 import { sessions } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 
 describe('Session Lifecycle Integration Tests', () => {
+  // Set up test isolation for this integration test suite
+  setupTestIsolation('Session Lifecycle Integration Tests', 'integration');
+  
   let cleanupService: SessionCleanupService;
   let testSessionIds: string[] = [];
 

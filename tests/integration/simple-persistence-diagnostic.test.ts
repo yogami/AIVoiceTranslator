@@ -4,8 +4,12 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DatabaseStorage } from '../../server/database-storage';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 
 describe('Database Persistence Diagnostic', () => {
+  // Set up test isolation for this integration test suite
+  setupTestIsolation('Database Persistence Diagnostic', 'integration');
+  
   let storage: DatabaseStorage;
 
   beforeEach(async () => {
@@ -22,6 +26,7 @@ describe('Database Persistence Diagnostic', () => {
     // Create session
     const createdSession = await storage.createSession({
       sessionId,
+      teacherId: 'diagnostic-teacher-123',
       teacherLanguage: 'en-US',
       isActive: true
     });

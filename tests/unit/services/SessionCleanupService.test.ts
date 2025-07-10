@@ -3,6 +3,10 @@ import { SessionCleanupService } from '../../../server/services/SessionCleanupSe
 import { db } from '../../../server/db';
 import { sessions } from '../../../shared/schema';
 import { eq, and, lt, gt } from 'drizzle-orm';
+import { setupTestIsolation } from '../../../test-config/test-isolation';
+
+// Set up test isolation for this unit test suite
+setupTestIsolation('SessionCleanupService Unit Tests', 'unit');
 
 // Mock the database
 vi.mock('../../../server/db', () => ({

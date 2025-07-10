@@ -78,6 +78,11 @@ export interface IStorage {
     breakdown: Record<string, number>;
   }>;
   
+  // Teacher ID session methods
+  findActiveSessionByTeacherId(teacherId: string): Promise<Session | null>;
+  findRecentSessionByTeacherId(teacherId: string, withinMinutes?: number): Promise<Session | null>;
+  reactivateSession(sessionId: string): Promise<Session | null>;
+  
   // Analytics methods
   getSessionAnalytics(sessionId: string): Promise<{ // Consider defining a type for this return
     totalTranslations: number;

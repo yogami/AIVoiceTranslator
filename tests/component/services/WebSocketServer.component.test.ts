@@ -5,6 +5,7 @@ import WebSocket from 'ws';
 import { IStorage } from '../../../server/storage.interface';
 import { setupIsolatedTest, cleanupIsolatedTest } from '../../utils/test-database-isolation';
 import { initTestDatabase, closeDatabaseConnection } from '../../setup/db-setup';
+import { setupTestIsolation } from '../../../test-config/test-isolation';
 
 // Test configuration
 const TEST_CONFIG = {
@@ -15,6 +16,9 @@ const TEST_CONFIG = {
 };
 
 describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
+  // Set up test isolation for this component test suite
+  setupTestIsolation('WebSocketServer Component Tests', 'component');
+  
   // Use a different port range for WebSocket tests to avoid conflicts with diagnostics tests
   const PORT_RANGE_START = 40000;
   const PORT_RANGE_END = 45000;

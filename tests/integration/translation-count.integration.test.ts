@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseStorage } from '../../server/database-storage';
 import { setupIsolatedTest, cleanupIsolatedTest } from '../utils/test-database-isolation';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 
 describe('Translation Count Integration', () => {
+  // Set up test isolation for this integration test suite
+  setupTestIsolation('Translation Count Integration', 'integration');
+  
   let storage: DatabaseStorage;
 
   beforeEach(async () => {
@@ -17,6 +21,7 @@ describe('Translation Count Integration', () => {
     // Create a session
     const session = await storage.createSession({
       sessionId: 'test-session-123',
+      teacherId: 'teacher-translation-count',
       teacherLanguage: 'en'
     });
 

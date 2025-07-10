@@ -9,6 +9,7 @@ import { db, sql as dbSql } from "../db"; // Import db instance and sql from ../
 // Import Drizzle operators directly from drizzle-orm
 import { eq, and, or, desc, count as drizzleCount, gt, gte, SQL } from "drizzle-orm"; 
 import { StorageError, StorageErrorCode } from "../storage.error";
+import logger from "../logger"; // Add logger import
 
 export const DEFAULT_SESSION_QUERY_LIMIT = 10;
 
@@ -34,6 +35,9 @@ export interface ISessionStorage {
   getRecentSessionActivity(limit?: number, hoursBack?: number): Promise<SessionActivity[]>;
   getSessionById(sessionId: string): Promise<Session | undefined>;
   getTranscriptCountBySession(sessionId: string): Promise<number>;
+  findActiveSessionByTeacherId(teacherId: string): Promise<Session | null>;
+  findRecentSessionByTeacherId(teacherId: string, withinMinutes?: number): Promise<Session | null>;
+  reactivateSession(sessionId: string): Promise<Session | null>;
   getSessionQualityStats(): Promise<{
     total: number;
     real: number; 
@@ -61,6 +65,9 @@ export class MemSessionStorage implements ISessionStorage {
     if (!sessionData.sessionId) {
       throw new StorageError('Session ID is required', StorageErrorCode.VALIDATION_ERROR);
     }
+    if (!sessionData.teacherId) {
+      throw new StorageError('Teacher ID is required', StorageErrorCode.VALIDATION_ERROR);
+    }
     // Add other validation rules as needed
   }
 
@@ -70,6 +77,7 @@ export class MemSessionStorage implements ISessionStorage {
     const session: Session = {
       id,
       sessionId: insertSession.sessionId,
+      teacherId: insertSession.teacherId ?? null,
       classCode: insertSession.classCode ?? null,
       teacherLanguage: insertSession.teacherLanguage ?? null,
       studentLanguage: insertSession.studentLanguage ?? null,
@@ -207,10 +215,75 @@ export class MemSessionStorage implements ISessionStorage {
 
     return { total, real, dead, breakdown };
   }
+
+  async findActiveSessionByTeacherId(teacherId: string): Promise<Session | null> {
+    const session = Array.from(this.sessions.values()).find(s => 
+      s.teacherId === teacherId && s.isActive
+    );
+    return session || null;
+  }
+
+  async findRecentSessionByTeacherId(teacherId: string, withinMinutes: number = 10): Promise<Session | null> {
+    const cutoffTime = new Date();
+    cutoffTime.setMinutes(cutoffTime.getMinutes() - withinMinutes);
+    
+    // Find the most recent ENDED session for this teacher (not active sessions)
+    const sessions = Array.from(this.sessions.values())
+      .filter(s => s.teacherId === teacherId)
+      .filter(s => {
+        // Only include inactive (ended) sessions
+        if (s.isActive) return false;
+        
+        // For ended sessions, prioritize endTime over lastActivityAt
+        const activityTime = s.endTime || s.lastActivityAt;
+        return activityTime && new Date(activityTime).getTime() >= cutoffTime.getTime();
+      })
+      .sort((a, b) => {
+        // Sort by most recent activity (prioritize endTime for ended sessions)
+        const aTime = a.endTime || a.lastActivityAt || new Date(0);
+        const bTime = b.endTime || b.lastActivityAt || new Date(0);
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
+    
+    return sessions[0] || null;
+  }
+
+  async reactivateSession(sessionId: string): Promise<Session | null> {
+    const session = Array.from(this.sessions.values()).find(s => s.sessionId === sessionId);
+    if (!session) {
+      return null;
+    }
+    
+    // Only reactivate if session is currently inactive
+    if (session.isActive) {
+      return null;
+    }
+    
+    const reactivatedSession: Session = {
+      ...session,
+      isActive: true,
+      endTime: null,
+      lastActivityAt: new Date()
+    };
+    
+    this.sessions.set(session.id, reactivatedSession);
+    return reactivatedSession;
+  }
 }
 
 export class DbSessionStorage implements ISessionStorage {
+  protected validateSessionInput(sessionData: InsertSession): void {
+    if (!sessionData.sessionId) {
+      throw new StorageError('Session ID is required', StorageErrorCode.VALIDATION_ERROR);
+    }
+    if (!sessionData.teacherId) {
+      throw new StorageError('Teacher ID is required', StorageErrorCode.VALIDATION_ERROR);
+    }
+    // Add other validation rules as needed
+  }
+
   async createSession(session: InsertSession): Promise<Session> {
+    this.validateSessionInput(session);
     try {
       console.log('[DbSessionStorage.createSession] Attempting to insert session:', {
         sessionId: session.sessionId,
@@ -472,6 +545,132 @@ export class DbSessionStorage implements ISessionStorage {
       return { total, real, dead, breakdown };
     } catch (error: any) {
       throw new StorageError(`Failed to get session quality stats: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+    }
+  }
+
+  async findActiveSessionByTeacherId(teacherId: string): Promise<Session | null> {
+    try {
+      if (!teacherId) {
+        logger.info(`[DbSessionStorage] No teacherId provided to findActiveSessionByTeacherId`);
+        return null;
+      }
+      
+      logger.info(`[DbSessionStorage] Searching for active session with teacherId: ${teacherId}`);
+      
+      // Use individual condition queries instead of 'and' to debug
+      const allSessions = await db.select().from(sessions);
+      logger.info(`[DbSessionStorage] Total sessions in DB: ${allSessions.length}`);
+      
+      const sessionsWithTeacherId = allSessions.filter((s: Session) => s.teacherId === teacherId);
+      logger.info(`[DbSessionStorage] Sessions with teacherId ${teacherId}: ${sessionsWithTeacherId.length}`);
+      
+      const activeSessions = sessionsWithTeacherId.filter((s: Session) => s.isActive);
+      logger.info(`[DbSessionStorage] Active sessions with teacherId ${teacherId}: ${activeSessions.length}`);
+      
+      const activeSession = activeSessions[0] || null;
+      
+      if (activeSession) {
+        logger.info(`[DbSessionStorage] Found active session for teacherId: ${teacherId}`, {
+          sessionId: activeSession.sessionId,
+          isActive: activeSession.isActive,
+          classCode: activeSession.classCode
+        });
+      } else {
+        logger.info(`[DbSessionStorage] No active session found for teacherId: ${teacherId}`);
+      }
+      
+      return activeSession;
+    } catch (error: any) {
+      logger.error(`[DbSessionStorage] Error in findActiveSessionByTeacherId for teacherId ${teacherId}:`, {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        detail: error.detail
+      });
+      return null; // Always return null on error to allow graceful fallback
+    }
+  }
+
+  async findRecentSessionByTeacherId(teacherId: string, withinMinutes: number = 10): Promise<Session | null> {
+    try {
+      logger.info(`[DbSessionStorage] Finding recent session for teacherId: ${teacherId} within ${withinMinutes} minutes`);
+      
+      const cutoffTime = new Date();
+      cutoffTime.setMinutes(cutoffTime.getMinutes() - withinMinutes);
+      
+      const result = await db
+        .select()
+        .from(sessions)
+        .where(and(
+          eq(sessions.teacherId, teacherId),
+          eq(sessions.isActive, false), // Only inactive (ended) sessions
+          or(
+            gte(sessions.endTime, cutoffTime),
+            gte(sessions.lastActivityAt, cutoffTime)
+          )
+        ))
+        .orderBy(desc(sessions.endTime), desc(sessions.lastActivityAt))
+        .limit(1);
+      
+      logger.info(`[DbSessionStorage] Recent session query result for teacherId ${teacherId}:`, {
+        resultCount: result.length,
+        session: result[0] ? {
+          sessionId: result[0].sessionId,
+          teacherId: result[0].teacherId,
+          isActive: result[0].isActive,
+          lastActivityAt: result[0].lastActivityAt,
+          endTime: result[0].endTime
+        } : null
+      });
+      
+      return result[0] || null;
+    } catch (error: any) {
+      logger.error(`[DbSessionStorage] Error in findRecentSessionByTeacherId for ${teacherId}:`, {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        details: error
+      });
+      throw new StorageError(`Failed to find recent session for teacher ${teacherId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
+    }
+  }
+
+  async reactivateSession(sessionId: string): Promise<Session | null> {
+    try {
+      logger.info(`[DbSessionStorage] Reactivating session: ${sessionId}`);
+      
+      const result = await db
+        .update(sessions)
+        .set({
+          isActive: true,
+          endTime: null,
+          lastActivityAt: new Date()
+        })
+        .where(and(
+          eq(sessions.sessionId, sessionId),
+          eq(sessions.isActive, false) // Only reactivate if currently inactive
+        ))
+        .returning();
+      
+      if (result[0]) {
+        logger.info(`[DbSessionStorage] Successfully reactivated session:`, {
+          sessionId: result[0].sessionId,
+          teacherId: result[0].teacherId,
+          isActive: result[0].isActive
+        });
+      } else {
+        logger.warn(`[DbSessionStorage] No session found to reactivate: ${sessionId}`);
+      }
+      
+      return result[0] || null;
+    } catch (error: any) {
+      logger.error(`[DbSessionStorage] Error reactivating session ${sessionId}:`, {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        details: error
+      });
+      throw new StorageError(`Failed to reactivate session ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
 }

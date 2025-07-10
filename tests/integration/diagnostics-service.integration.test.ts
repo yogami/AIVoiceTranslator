@@ -18,8 +18,12 @@ import { DiagnosticsService, type SessionActivity } from '../../server/services/
 import { StorageError, StorageErrorCode } from '../../server/storage.error';
 import { IStorage } from '../../server/storage.interface';
 import { createMockTranslationService } from '../utils/test-mocks';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 
 describe('Diagnostics Service Integration', () => {
+  // Set up test isolation for this integration test suite
+  setupTestIsolation('Diagnostics Service Integration', 'integration');
+  
   let httpServer: Server;
   let wsServer: TestWebSocketServer;
   let actualPort: number;
@@ -752,6 +756,7 @@ describe('Diagnostics Service Integration', () => {
       // Step 1: Create sessions using storage methods (like E2E seeding does)
       const sessionData = {
         sessionId: 'e2e-test-session-1',
+        teacherId: 'teacher-123',
         teacherLanguage: 'en'
       };
       
@@ -1296,8 +1301,8 @@ describe('Diagnostics Service Integration', () => {
       
       if (wsServerInternal?.sessionLifecycleService) {
         // Create test sessions with different characteristics
-        await testStorage.createSession({ sessionId: 'test-dead-session', teacherLanguage: 'en-US' });
-        await testStorage.createSession({ sessionId: 'test-real-session', teacherLanguage: 'en-US' });
+        await testStorage.createSession({ sessionId: 'test-dead-session', teacherId: 'teacher-123', teacherLanguage: 'en-US' });
+        await testStorage.createSession({ sessionId: 'test-real-session', teacherId: 'teacher-456', teacherLanguage: 'en-US' });
         
         // Add student to real session
         await testStorage.updateSession('test-real-session', { studentsCount: 2 });
@@ -1343,6 +1348,7 @@ describe('Diagnostics Service Integration', () => {
       const testSessionId = 'test-quality-session-' + Date.now();
       await testStorage.createSession({ 
         sessionId: testSessionId, 
+        teacherId: 'teacher-789',
         teacherLanguage: 'en-US',
         studentsCount: 1,
         startTime: new Date(Date.now() - 60000), // Started 1 minute ago
@@ -1381,6 +1387,7 @@ describe('Diagnostics Service Integration', () => {
         // First, create some test sessions with different quality classifications
         await testStorage.createSession({
           sessionId: 'test-stats-session-1',
+          teacherId: 'teacher-001',
           isActive: false,
           studentsCount: 2,
           totalTranslations: 5,
@@ -1390,6 +1397,7 @@ describe('Diagnostics Service Integration', () => {
 
         await testStorage.createSession({
           sessionId: 'test-stats-session-2', 
+          teacherId: 'teacher-002',
           isActive: false,
           studentsCount: 0,
           totalTranslations: 0,
@@ -1399,6 +1407,7 @@ describe('Diagnostics Service Integration', () => {
 
         await testStorage.createSession({
           sessionId: 'test-stats-session-3',
+          teacherId: 'teacher-003',
           isActive: false, 
           studentsCount: 0,
           totalTranslations: 0,
@@ -1408,6 +1417,7 @@ describe('Diagnostics Service Integration', () => {
 
         await testStorage.createSession({
           sessionId: 'test-stats-session-4',
+          teacherId: 'teacher-004',
           isActive: false,
           studentsCount: 1, 
           totalTranslations: 0,

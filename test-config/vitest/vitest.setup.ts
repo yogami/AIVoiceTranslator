@@ -12,6 +12,17 @@ if (!process.env.OPENAI_API_KEY) {
   process.env.OPENAI_API_KEY = 'test-key-for-unit-tests';
 }
 
+// Determine test mode from environment
+const testMode = process.env.TEST_MODE || 'all';
+console.log(`[Vitest Setup] Test mode: ${testMode}`);
+
+// Initialize test isolation based on mode
+if (testMode !== 'unit') {
+  // Enable test isolation for component and integration tests
+  process.env.TEST_ISOLATION_ENABLED = 'true';
+  console.log('[Vitest Setup] Test isolation enabled for non-unit tests');
+}
+
 // Global cleanup handler to ensure all WebSocketServer instances are properly shut down
 // This prevents background intervals from causing "Cannot use a pool after calling end on the pool" errors
 process.on('exit', () => {
@@ -27,9 +38,9 @@ process.on('exit', () => {
   }
 });
 
-// Handle uncaught exceptions and unhandled rejections during tests
+// Enhanced error handling for different test modes
 process.on('uncaughtException', (error) => {
-  console.error('[Test] Uncaught Exception:', error);
+  console.error(`[Test ${testMode}] Uncaught Exception:`, error);
   // Try to cleanup before exiting
   try {
     const { WebSocketServer } = require('../../server/services/WebSocketServer');
@@ -42,7 +53,7 @@ process.on('uncaughtException', (error) => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[Test] Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error(`[Test ${testMode}] Unhandled Rejection at:`, promise, 'reason:', reason);
   // Try to cleanup
   try {
     const { WebSocketServer } = require('../../server/services/WebSocketServer');
@@ -53,5 +64,14 @@ process.on('unhandledRejection', (reason, promise) => {
     // Ignore cleanup errors
   }
 });
+
+// Add test isolation markers
+if (process.env.TEST_ISOLATION_ENABLED === 'true') {
+  const startTime = Date.now();
+  console.log(`[Vitest Setup] Test isolation active - Started at ${new Date(startTime).toISOString()}`);
+  
+  // Track test suite start
+  process.env.TEST_SUITE_START_TIME = startTime.toString();
+}
 
 // Don't set global config in setup file, it will be handled by config files

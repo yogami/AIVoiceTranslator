@@ -654,7 +654,7 @@ describe('RegisterMessageHandler', () => {
       await handler.handle(message, context);
 
       // Should create new session
-      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123');
+      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123', undefined);
       
       // Should generate classroom code for new session
       expect(mockClassroomSessionManager.generateClassroomCode).toHaveBeenCalledWith('test-session-123');
@@ -721,7 +721,7 @@ describe('RegisterMessageHandler', () => {
       expect(mockConnectionManager.updateSessionId).not.toHaveBeenCalled();
       
       // Should create new session
-      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123');
+      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123', undefined);
       
       // Should generate new classroom code
       expect(mockClassroomSessionManager.generateClassroomCode).toHaveBeenCalledWith('test-session-123');
@@ -742,7 +742,7 @@ describe('RegisterMessageHandler', () => {
       await handler.handle(message, context);
 
       // Should still create new session when search fails
-      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123');
+      expect(mockStorageSessionManager.createSession).toHaveBeenCalledWith('test-session-123', undefined);
       
       // Should generate classroom code
       expect(mockClassroomSessionManager.generateClassroomCode).toHaveBeenCalledWith('test-session-123');

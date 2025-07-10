@@ -5,8 +5,12 @@ import express from 'express';
 import { WebSocketServer as WSServer } from 'ws';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 
 describe('Message Handler Integration - Unique Tests', () => {
+  // Set up test isolation for this integration test suite
+  setupTestIsolation('Message Handler Integration - Unique Tests', 'integration');
+  
   let httpServer: Server;
   let wsServer: WebSocketServer;
   let wsUrl: string;

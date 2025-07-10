@@ -35,6 +35,10 @@ describe('TranscriptionMessageHandler', () => {
         getStudentConnectionsAndLanguages: vi.fn().mockReturnValue({
           connections: [{ ws: mockWs }],
           languages: ['es', 'fr']
+        }),
+        getStudentConnectionsAndLanguagesForSession: vi.fn().mockReturnValue({
+          connections: [{ ws: mockWs }],
+          languages: ['es', 'fr']
         })
       } as any,
       storage: {
