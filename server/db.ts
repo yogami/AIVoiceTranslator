@@ -34,7 +34,7 @@ let db: any;
 const isNeon = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech');
 const isValidDatabaseUrl = process.env.DATABASE_URL && 
   process.env.DATABASE_URL !== 'your_neondb_url_here' && 
-  process.env.DATABASE_URL.startsWith('postgresql://');
+  (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://'));
 
 if (isValidDatabaseUrl) {
   if (isNeon) {

@@ -2,15 +2,18 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseStorage } from '../../server/database-storage';
 import { setupIsolatedTest, cleanupIsolatedTest } from '../utils/test-database-isolation';
 import { setupTestIsolation } from '../../test-config/test-isolation';
+import { randomUUID } from 'crypto';
 
 describe('Translation Count Integration', () => {
   // Set up test isolation for this integration test suite
   setupTestIsolation('Translation Count Integration', 'integration');
   
   let storage: DatabaseStorage;
+  let testId: string;
 
   beforeEach(async () => {
     storage = new DatabaseStorage();
+    testId = randomUUID(); // Generate unique ID for each test run
   });
 
   afterEach(async () => {
@@ -18,10 +21,10 @@ describe('Translation Count Integration', () => {
   });
 
   it('should increment totalTranslations when a translation is saved to a session', async () => {
-    // Create a session
+    // Create a session with unique ID
     const session = await storage.createSession({
-      sessionId: 'test-session-123',
-      teacherId: 'teacher-translation-count',
+      sessionId: `test-session-${testId}`,
+      teacherId: `teacher-translation-count-${testId}`,
       teacherLanguage: 'en'
     });
 
@@ -69,7 +72,7 @@ describe('Translation Count Integration', () => {
   it('should handle non-existent sessionId gracefully', async () => {
     // Add translation with non-existent sessionId
     await storage.addTranslation({
-      sessionId: 'non-existent-session',
+      sessionId: `non-existent-session-${testId}`,
       sourceLanguage: 'en',
       targetLanguage: 'es',
       originalText: 'Hello',
