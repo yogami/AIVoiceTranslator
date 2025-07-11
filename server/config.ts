@@ -90,8 +90,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_VERY_SHORT_THRESHOLD_MS must be a valid number');
         return parsed;
       }
-      // Default: 5 seconds for production, 1 second for test
-      return process.env.NODE_ENV === 'test' ? 1000 : 5000;
+      // Default: 5 seconds
+      return 5000;
     })(),
     
     // SessionCleanupService timeouts (in milliseconds)
@@ -102,8 +102,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_STALE_TIMEOUT_MS must be a valid number');
         return parsed;
       }
-      // Default: 90 minutes for production, 30 seconds for test
-      return process.env.NODE_ENV === 'test' ? 30000 : 90 * 60 * 1000;
+      // Default: 90 minutes
+      return 90 * 60 * 1000;
     })(),
     
     allStudentsLeftTimeout: (() => {
@@ -113,8 +113,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS must be a valid number');
         return parsed;
       }
-      // Default: 10 minutes for production, 5 seconds for test
-      return process.env.NODE_ENV === 'test' ? 5000 : 10 * 60 * 1000;
+      // Default: 10 minutes
+      return 10 * 60 * 1000;
     })(),
     
     emptyTeacherTimeout: (() => {
@@ -124,8 +124,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_EMPTY_TEACHER_TIMEOUT_MS must be a valid number');
         return parsed;
       }
-      // Default: 15 minutes for production, 3 seconds for test
-      return process.env.NODE_ENV === 'test' ? 3000 : 15 * 60 * 1000;
+      // Default: 15 minutes
+      return 15 * 60 * 1000;
     })(),
     
     cleanupInterval: (() => {
@@ -135,8 +135,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_CLEANUP_INTERVAL_MS must be a valid number');
         return parsed;
       }
-      // Default: 2 minutes for production, 5 seconds for test
-      return process.env.NODE_ENV === 'test' ? 5000 : 2 * 60 * 1000;
+      // Default: 2 minutes
+      return 2 * 60 * 1000;
     })(),
     
     classroomCodeExpiration: (() => {
@@ -146,8 +146,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('CLASSROOM_CODE_EXPIRATION_MS must be a valid number');
         return parsed;
       }
-      // Default: 2 hours for production, 30 seconds for test
-      return process.env.NODE_ENV === 'test' ? 30000 : 2 * 60 * 60 * 1000;
+      // Default: 2 hours
+      return 2 * 60 * 60 * 1000;
     })(),
     
     classroomCodeCleanupInterval: (() => {
@@ -157,8 +157,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('CLASSROOM_CODE_CLEANUP_INTERVAL_MS must be a valid number');
         return parsed;
       }
-      // Default: 15 minutes for production, 10 seconds for test
-      return process.env.NODE_ENV === 'test' ? 10000 : 15 * 60 * 1000;
+      // Default: 15 minutes
+      return 15 * 60 * 1000;
     })(),
     
     healthCheckInterval: (() => {
@@ -168,8 +168,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('HEALTH_CHECK_INTERVAL_MS must be a valid number');
         return parsed;
       }
-      // Default: 30 seconds for production, 5 seconds for test
-      return process.env.NODE_ENV === 'test' ? 5000 : 30000;
+      // Default: 30 seconds
+      return 30000;
     })(),
     
     teacherReconnectionGracePeriod: (() => {
@@ -179,8 +179,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('TEACHER_RECONNECTION_GRACE_PERIOD_MS must be a valid number');
         return parsed;
       }
-      // Default: 5 minutes for production, 10 seconds for test
-      return process.env.NODE_ENV === 'test' ? 10000 : 5 * 60 * 1000;
+      // Default: 5 minutes
+      return 5 * 60 * 1000;
     })(),
     
     minAudioDataLength: (() => {
@@ -212,8 +212,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_EXPIRED_MESSAGE_DELAY_MS must be a valid number');
         return parsed;
       }
-      // Default: 1 second for production, 100ms for test
-      return process.env.NODE_ENV === 'test' ? 100 : 1000;
+      // Default: 1 second
+      return 1000;
     })(),
     
     invalidClassroomMessageDelay: (() => {

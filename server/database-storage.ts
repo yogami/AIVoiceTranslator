@@ -12,16 +12,7 @@ import logger from './logger';
 import { avg, count, desc, eq, gte, lte, and, sql, isNotNull } from 'drizzle-orm';
 import { db as drizzleDB } from './db';
 
-// Import database lock for test isolation
-let withDatabaseLock: any = null;
-if (process.env.NODE_ENV === 'test') {
-  try {
-    const lockModule = require('../../tests/utils/database-lock');
-    withDatabaseLock = lockModule.withDatabaseLock;
-  } catch (error) {
-    // Ignore if lock module not available
-  }
-}
+
 
 // Import sub-storage classes
 import { DbUserStorage } from './storage/user.storage';
@@ -368,39 +359,6 @@ export class DatabaseStorage implements IStorage {
     return this.translationStorage.createTranslation(translationData);
   }
 
-  async reset(): Promise<void> {
-    if (process.env.NODE_ENV === 'test') {
-      const resetOperation = async () => {
-        // Add a small delay to avoid race conditions
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // Clear tables in dependency order and handle potential foreign key constraints
-        try {
-          await drizzleDB.delete(translations).execute();
-          await drizzleDB.delete(transcriptsTable).execute(); // Use aliased import
-          await drizzleDB.delete(sessions).execute();
-          await drizzleDB.delete(users).execute();
-          await drizzleDB.delete(languages).execute();
-          
-          // Add another delay to ensure all deletions are committed
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          logger.info('DatabaseStorage reset complete for test environment.');
-        } catch (error) {
-          logger.error('Error during DatabaseStorage reset:', error);
-          throw error;
-        }
-      };
-
-      // Use database lock if available, otherwise run directly
-      if (withDatabaseLock) {
-        await withDatabaseLock(resetOperation);
-      } else {
-        await resetOperation();
-      }
-    } else {
-      logger.warn('DatabaseStorage.reset() called outside of test environment. Operation aborted.');
-      throw new Error('Database reset is only allowed in test environments.');
-    }
-  }
+  // Note: Database reset functionality has been moved to test utilities
+  // to avoid contaminating production code with test-specific methods
 }

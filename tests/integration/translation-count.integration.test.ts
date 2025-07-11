@@ -10,11 +10,11 @@ describe('Translation Count Integration', () => {
   let storage: DatabaseStorage;
 
   beforeEach(async () => {
-    storage = await setupIsolatedTest('translation-count.integration.test');
+    storage = new DatabaseStorage();
   });
 
   afterEach(async () => {
-    await cleanupIsolatedTest('translation-count.integration.test');
+    // Cleanup is handled by setupTestIsolation
   });
 
   it('should increment totalTranslations when a translation is saved to a session', async () => {

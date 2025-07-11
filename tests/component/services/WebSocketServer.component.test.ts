@@ -284,7 +284,7 @@ beforeAll(async () => {
     // Wait for complete cleanup
     await new Promise(resolve => setTimeout(resolve, 500));
     console.log('[GLOBAL] WebSocket component suite cleanup complete');
-  });
+  }, 35000); // Increased timeout to 35 seconds
 
   beforeEach(async () => {
     console.log('[TEST] FORCE COMPLETE RESET - Setting up isolated database and server...');

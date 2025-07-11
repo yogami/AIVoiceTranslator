@@ -1,4 +1,5 @@
-import dotenv from 'dotenv';
+// Environment variables are loaded by the npm script (dotenv -e .env)
+// Removed dotenv import to prevent conflicts
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
@@ -9,10 +10,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..'); // Goes up one level from server/ to project root
 
-// Load appropriate .env file based on NODE_ENV
-const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
-dotenv.config({ path: path.resolve(rootDir, envFile) });
-console.log(`🔧 SERVER: Loading environment from ${envFile} (NODE_ENV=${process.env.NODE_ENV})`);
+// Environment variables are loaded by the npm script (dotenv -e .env)
+// No need to load them again here
 
 /**
  * Main application entry point

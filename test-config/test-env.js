@@ -7,6 +7,9 @@
 
 require('dotenv').config({ path: '.env.test' });
 
+// Set NODE_ENV to 'test' for tests (override any existing value)
+process.env.NODE_ENV = 'test';
+
 // All test environment variables must be set explicitly in .env.test. No defaults or fallbacks allowed.
 const requiredTestEnvVars = [
   'NODE_ENV',
