@@ -4,17 +4,18 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DatabaseStorage } from '../../server/database-storage';
+import { TestDatabaseManager } from '../utils/TestDatabaseManager';
 import { setupTestIsolation } from '../../test-config/test-isolation';
 
 describe('Database Persistence Diagnostic', () => {
   // Set up test isolation for this integration test suite
   setupTestIsolation('Database Persistence Diagnostic', 'integration');
   
-  let storage: DatabaseStorage;
+  let storage: TestDatabaseManager;
 
   beforeEach(async () => {
-    storage = new DatabaseStorage();
-    await storage.reset();
+    storage = new TestDatabaseManager();
+    await storage.resetDatabase();
     await storage.initializeDefaultLanguages();
     console.log('[DEBUG] Reset completed in beforeEach');
   });

@@ -4,7 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "dotenv -e .env -- npx tsx server/index.ts",
+    "dev": "DATABASE_URL='postgresql://postgres.rbvjzsasjrnycvphispd:A12azwVwd1JeT5yG@aws-0-eu-north-1.pooler.supabase.com:5432/postgres' dotenv -e .env -- npx tsx server/index.ts",
     "dev:test": "NODE_ENV=test E2E_TEST_MODE=true LOG_LEVEL=info PORT=5001 dotenv -e .env.test -- npx tsx server/index.ts",
     "dev:client": "dotenv -e .env -- vite --config config/vite.config.ts",
     "build": "npm run build:client && npm run build:server",

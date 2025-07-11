@@ -5,19 +5,18 @@
  * Uses Neon serverless PostgreSQL with WebSocket support.
  */
 
-import dotenv from 'dotenv';
+// Environment variables are loaded by the npm script (dotenv -e .env)
+// Removed dotenv import to prevent conflicts
 
-if (process.env.NODE_ENV === 'test') {
-  console.log('🔧 DATABASE: Loading test environment config from .env.test');
-  dotenv.config({ path: '.env.test', override: true });
-} else {
-  console.log('🔧 DATABASE: Loading default environment config from .env');
-  dotenv.config();
-}
+// Prefer IPv6 for DNS resolution (for Supabase free tier) - but only in production
+// Test environments should use default DNS resolution to avoid localhost issues
+// TEMPORARILY DISABLED: Force IPv4 for pooler connection
+// if (process.env.NODE_ENV !== 'test' && process.env.DATABASE_URL?.includes('supabase.com')) {
+//   dns.setDefaultResultOrder('ipv6first');
+// }
 
-console.log('🔧 DATABASE: NODE_ENV =', process.env.NODE_ENV);
-console.log('🔧 DATABASE: DATABASE_URL exists =', !!process.env.DATABASE_URL);
-console.log('🔧 DATABASE: DATABASE_URL type =', process.env.DATABASE_URL?.includes('neon.tech') ? 'Neon' : 'Standard Postgres');
+// Environment variables are loaded by the npm script (dotenv -e .env)
+// No need to load them again here
 
 import * as schema from "../shared/schema";
 import { Pool, neonConfig, PoolConfig } from '@neondatabase/serverless';
@@ -33,8 +32,11 @@ let pool: any;
 let db: any;
 
 const isNeon = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech');
+const isValidDatabaseUrl = process.env.DATABASE_URL && 
+  process.env.DATABASE_URL !== 'your_neondb_url_here' && 
+  process.env.DATABASE_URL.startsWith('postgresql://');
 
-if (process.env.DATABASE_URL) {
+if (isValidDatabaseUrl) {
   if (isNeon) {
     // Neon (production/dev)
     neonConfig.webSocketConstructor = ws;
@@ -47,8 +49,21 @@ if (process.env.DATABASE_URL) {
     pool = new Pool(poolConfig);
     db = neonDrizzle({ client: pool, schema });
   } else {
-    // Standard Postgres (testcontainers/tests/local)
-    pool = postgres(process.env.DATABASE_URL, { max: 10 });
+    // Standard Postgres (testcontainers/tests/local/Supabase)
+    console.log('🔍 DEBUG: All environment variables with DATABASE:', Object.keys(process.env).filter(k => k.includes('DATABASE')).map(k => `${k}=${process.env[k]}`));
+    console.log('🔍 DEBUG: process.env.DATABASE_URL:', process.env.DATABASE_URL);
+    console.log('🔍 DEBUG: process.env object has DATABASE_URL:', 'DATABASE_URL' in process.env);
+    const databaseUrl = process.env.DATABASE_URL;
+    console.log('🔍 DB MODULE: DATABASE_URL from env:', databaseUrl);
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL is required but not provided');
+    }
+    pool = postgres(databaseUrl, { 
+      max: 10,
+      connect_timeout: 10, // 10 seconds connection timeout
+      idle_timeout: 20,    // 20 seconds idle timeout
+      max_lifetime: 60 * 30 // 30 minutes max connection lifetime
+    });
     db = pgDrizzle(pool, { schema });
   }
 } else {

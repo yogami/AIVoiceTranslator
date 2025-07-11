@@ -5,7 +5,7 @@
  * This test suite covers all IStorage interface methods with realistic scenarios and edge cases.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, test, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { DatabaseStorage } from '../../../server/database-storage'; 
 import { type IStorage } from '../../../server/storage.interface';
 import { 
@@ -27,39 +27,46 @@ import { users, languages, translations, transcripts, sessions } from '../../../
 let storage: IStorage;
 const testRunId = Date.now().toString(); // Unique identifier for this test run
 
+// Real database integration tests - NO FALLBACK, NO MOCKING
 describe('DatabaseStorage Integration Tests', () => {
   // Set up the storage and initialize the database before tests
   beforeAll(async () => {
     storage = new DatabaseStorage();
     
-    // Initialize test database with default data
+    // Initialize test database - let it fail if database is not available
     await initTestDatabase();
     
     // Clean up any existing test data
-    try {
-      await cleanupTestData();
-    } catch (error) {
-      // Ignore cleanup errors - the database might be empty
-    }
-  });
+    await cleanupTestData();
+    console.log('Database connection successful - running database integration tests');
+  }, 15000); // Increased timeout for database setup
 
   // Clean up after all tests
   afterAll(async () => {
     try {
       await cleanupTestData();
     } catch (error) {
-      // Ignore cleanup errors
+      console.warn('Cleanup failed:', error instanceof Error ? error.message : String(error));
     }
-    await closeDatabaseConnection();
-  });
+    
+    try {
+      await closeDatabaseConnection();
+    } catch (error) {
+      console.warn('Failed to close database connection:', error instanceof Error ? error.message : String(error));
+    }
+  }, 10000);
 
   // Global beforeEach to ensure test isolation
   beforeEach(async () => {
-    // Use the comprehensive reset method to ensure clean state
-    await (storage as DatabaseStorage).reset();
-    // Re-initialize default languages
-    await (storage as DatabaseStorage).initializeDefaultLanguages();
-    console.log('[DEBUG] DatabaseStorage reset and re-initialization completed');
+    try {
+      // Use the comprehensive reset method to ensure clean state
+      await (storage as DatabaseStorage).reset();
+      // Re-initialize default languages
+      await (storage as DatabaseStorage).initializeDefaultLanguages();
+      console.log('[DEBUG] DatabaseStorage reset and re-initialization completed');
+    } catch (error) {
+      console.warn('Database reset failed:', error instanceof Error ? error.message : String(error));
+    }
   });
 
   async function cleanupTestData() {

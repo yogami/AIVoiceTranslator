@@ -344,12 +344,9 @@ export class TranslationOrchestrator {
                   // In test environments, we might want to propagate this error further
                   // For now, we'll continue to catch it to avoid breaking translation flow
                   // but make it extremely visible in logs
-                  if (process.env.NODE_ENV === 'test') {
-                    console.error('=== TRANSLATION STORAGE FAILED IN TEST ===');
-                    console.error('This database error should be investigated:');
-                    console.error(storageError);
-                    console.error('=== END STORAGE ERROR ===');
-                  }
+                  logger.error('=== TRANSLATION STORAGE FAILED ===');
+                  logger.error('This database error should be investigated:', storageError);
+                  logger.error('=== END STORAGE ERROR ===');
                 }
               })();
             } else {

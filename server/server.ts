@@ -2,14 +2,8 @@
  * Server setup functionality extracted for easier testing
  */
 // TODO: Temporary fix for TTS service not picking up OPENAI_API_KEY
-// Root cause: If this file is run directly (or imported before index.ts), environment variables from .env are not loaded before TTS is initialized.
-// This causes TTS to use a placeholder API key, breaking audio on the student page.
-// We load dotenv here as a workaround, but this should be investigated further to ensure all entry points load env config before any service initialization.
-import dotenv from 'dotenv';
-// Load appropriate .env file based on NODE_ENV (consistent with server/index.ts and server/db.ts)
-const envFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
-dotenv.config({ path: envFile });
-console.log(`🔧 SERVER/SERVER: Loading environment from ${envFile} (NODE_ENV=${process.env.NODE_ENV})`);
+// Environment variables are now loaded by the npm script (dotenv -e .env)
+// This ensures proper loading order and avoids conflicts
 
 import express from 'express';
 import { createServer, type Server } from 'http';
@@ -194,10 +188,7 @@ export async function startServer(app: express.Express): Promise<Server> {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const appInstance = express();
   logger.info('[DIRECT_RUN] server.ts is being run directly. Initializing and starting server...');
-  // Load appropriate .env file based on NODE_ENV (consistent with other server files)
-  const directRunEnvFile = process.env.NODE_ENV === 'test' ? '.env.test' : '.env';
-  dotenv.config({ path: directRunEnvFile }); 
-  console.log(`🔧 SERVER/DIRECT_RUN: Loading environment from ${directRunEnvFile} (NODE_ENV=${process.env.NODE_ENV})`);
+  // Environment variables should already be loaded by the npm script
   startServer(appInstance).catch(error => {
     logger.error('[DIRECT_RUN] Failed to start server from direct run:', error);
     process.exit(1);

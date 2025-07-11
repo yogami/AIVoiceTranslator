@@ -12,21 +12,23 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { createApiRoutes } from '../../server/routes';
-import { setupIsolatedTest, cleanupIsolatedTest } from '../utils/test-database-isolation';
+import { setupTestIsolation } from '../../test-config/test-isolation';
 import { DiagnosticsService } from '../../server/services/DiagnosticsService';
 import { StorageSessionManager } from '../../server/services/websocket/StorageSessionManager';
 import logger from '../../server/logger';
 import { DatabaseStorage } from '../../server/database-storage';
 
 describe('Teacher Authentication Flow E2E Tests', () => {
+  setupTestIsolation('Teacher Authentication Flow E2E Tests', 'integration');
+  
   let app: express.Application;
   let storage: DatabaseStorage;
   let storageSessionManager: StorageSessionManager;
-  const testId = 'teacher-auth-flow-e2e-test';
+  const testId = `teacher-auth-flow-e2e-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   beforeEach(async () => {
-    // Create isolated test storage
-    storage = await setupIsolatedTest(testId);
+    // Create isolated test storage - test isolation manages database state
+    storage = new DatabaseStorage();
     
     // Create StorageSessionManager
     storageSessionManager = new StorageSessionManager(storage);
@@ -63,25 +65,34 @@ describe('Teacher Authentication Flow E2E Tests', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await cleanupIsolatedTest(testId);
+    // Cleanup is handled by setupTestIsolation
   });
 
   describe('Authentication Requirements for Teacher Page Access', () => {
     it('should verify teacher token before allowing session creation', async () => {
       // Register and login teacher
-      await request(app)
+      const registrationResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'auth.required.teacher',
+          username: `auth.required.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure registration succeeded
+      expect(registrationResponse.status).toBe(201);
+      expect(registrationResponse.body.message).toBe('Teacher registered successfully');
 
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'auth.required.teacher',
+          username: `auth.required.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure login succeeded  
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.token).toBeTruthy();
+      expect(loginResponse.body.user).toBeTruthy();
 
       const token = loginResponse.body.token;
       const teacherId = loginResponse.body.user.id.toString();
@@ -123,19 +134,28 @@ describe('Teacher Authentication Flow E2E Tests', () => {
   describe('Classroom Code Availability at Teacher Page Load', () => {
     it('should have classroom code immediately available when teacher creates session', async () => {
       // Register and login teacher
-      await request(app)
+      const registrationResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'immediate.code.teacher',
+          username: `immediate.code.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure registration succeeded
+      expect(registrationResponse.status).toBe(201);
+      expect(registrationResponse.body.message).toBe('Teacher registered successfully');
 
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'immediate.code.teacher',
+          username: `immediate.code.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure login succeeded  
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.token).toBeTruthy();
+      expect(loginResponse.body.user).toBeTruthy();
 
       const teacherId = loginResponse.body.user.id.toString();
 
@@ -158,19 +178,28 @@ describe('Teacher Authentication Flow E2E Tests', () => {
 
     it('should generate student URL with classroom code for teacher page display', async () => {
       // Register and login teacher
-      await request(app)
+      const registrationResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'student.url.teacher',
+          username: `student.url.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure registration succeeded
+      expect(registrationResponse.status).toBe(201);
+      expect(registrationResponse.body.message).toBe('Teacher registered successfully');
 
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'student.url.teacher',
+          username: `student.url.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure login succeeded  
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.token).toBeTruthy();
+      expect(loginResponse.body.user).toBeTruthy();
 
       const teacherId = loginResponse.body.user.id.toString();
 
@@ -196,19 +225,28 @@ describe('Teacher Authentication Flow E2E Tests', () => {
 
     it('should maintain same classroom code across teacher reconnections', async () => {
       // Register and login teacher
-      await request(app)
+      const registrationResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'reconnect.code.teacher',
+          username: `reconnect.code.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure registration succeeded
+      expect(registrationResponse.status).toBe(201);
+      expect(registrationResponse.body.message).toBe('Teacher registered successfully');
 
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'reconnect.code.teacher',
+          username: `reconnect.code.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure login succeeded  
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.token).toBeTruthy();
+      expect(loginResponse.body.user).toBeTruthy();
 
       const teacherId = loginResponse.body.user.id.toString();
 
@@ -240,7 +278,7 @@ describe('Teacher Authentication Flow E2E Tests', () => {
       const registerResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'complete.flow.teacher',
+          username: `complete.flow.teacher.${testId}`,
           password: 'password123'
         })
         .expect(201);
@@ -252,7 +290,7 @@ describe('Teacher Authentication Flow E2E Tests', () => {
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'complete.flow.teacher',
+          username: `complete.flow.teacher.${testId}`,
           password: 'password123'
         })
         .expect(200);
@@ -309,25 +347,29 @@ describe('Teacher Authentication Flow E2E Tests', () => {
 
     it('should demonstrate analytics capability with persistent teacherId', async () => {
       // Register teacher once
-      await request(app)
+      const registrationResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'analytics.demo.teacher',
+          username: `analytics.demo.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure registration succeeded
+      expect(registrationResponse.status).toBe(201);
+      expect(registrationResponse.body.message).toBe('Teacher registered successfully');
 
       // Teacher can login multiple times and create multiple sessions
       const session1LoginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'analytics.demo.teacher',
+          username: `analytics.demo.teacher.${testId}`,
           password: 'password123'
         });
 
       const session2LoginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'analytics.demo.teacher',
+          username: `analytics.demo.teacher.${testId}`,
           password: 'password123'
         });
 
@@ -337,14 +379,23 @@ describe('Teacher Authentication Flow E2E Tests', () => {
       const persistentTeacherId = session1LoginResponse.body.user.id.toString();
 
       // Create multiple sessions (different days, different classrooms, etc.)
-      await storageSessionManager.createSession('analytics-session-monday', persistentTeacherId);
-      await storageSessionManager.createSession('analytics-session-tuesday', persistentTeacherId);
-      await storageSessionManager.createSession('analytics-session-wednesday', persistentTeacherId);
+      const mondaySessionId = `analytics-session-monday-${testId}`;
+      const tuesdaySessionId = `analytics-session-tuesday-${testId}`;
+      const wednesdaySessionId = `analytics-session-wednesday-${testId}`;
+
+      await storageSessionManager.createSession(mondaySessionId, persistentTeacherId);
+      await storageSessionManager.createSession(tuesdaySessionId, persistentTeacherId);
+      await storageSessionManager.createSession(wednesdaySessionId, persistentTeacherId);
 
       // All sessions have same teacherId for analytics
-      const mondaySession = await storage.getSessionById('analytics-session-monday');
-      const tuesdaySession = await storage.getSessionById('analytics-session-tuesday');
-      const wednesdaySession = await storage.getSessionById('analytics-session-wednesday');
+      const mondaySession = await storage.getSessionById(mondaySessionId);
+      const tuesdaySession = await storage.getSessionById(tuesdaySessionId);
+      const wednesdaySession = await storage.getSessionById(wednesdaySessionId);
+
+      // Ensure sessions were created successfully
+      expect(mondaySession).toBeTruthy();
+      expect(tuesdaySession).toBeTruthy();
+      expect(wednesdaySession).toBeTruthy();
 
       expect(mondaySession!.teacherId).toBe(persistentTeacherId);
       expect(tuesdaySession!.teacherId).toBe(persistentTeacherId);
@@ -373,19 +424,28 @@ describe('Teacher Authentication Flow E2E Tests', () => {
   describe('Security and Edge Cases', () => {
     it('should handle concurrent session creation gracefully', async () => {
       // Register teacher
-      await request(app)
+      const registrationResponse = await request(app)
         .post('/api/auth/register')
         .send({
-          username: 'concurrent.teacher',
+          username: `concurrent.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure registration succeeded
+      expect(registrationResponse.status).toBe(201);
+      expect(registrationResponse.body.message).toBe('Teacher registered successfully');
 
       const loginResponse = await request(app)
         .post('/api/auth/login')
         .send({
-          username: 'concurrent.teacher',
+          username: `concurrent.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure login succeeded  
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.body.token).toBeTruthy();
+      expect(loginResponse.body.user).toBeTruthy();
 
       const teacherId = loginResponse.body.user.id.toString();
 

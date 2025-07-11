@@ -285,10 +285,6 @@ export class DbSessionStorage implements ISessionStorage {
   async createSession(session: InsertSession): Promise<Session> {
     this.validateSessionInput(session);
     try {
-      console.log('[DbSessionStorage.createSession] Attempting to insert session:', {
-        sessionId: session.sessionId,
-        values: { ...session }
-      });
       const result = await db
         .insert(sessions)
         .values({
@@ -301,16 +297,10 @@ export class DbSessionStorage implements ISessionStorage {
         })
         .returning();
       if (!result[0]) {
-        console.error('[DbSessionStorage.createSession] Insert returned no result for sessionId:', session.sessionId);
         throw new StorageError('Failed to create session', StorageErrorCode.CREATE_FAILED);
       }
-      console.log('[DbSessionStorage.createSession] Successfully inserted session:', result[0]);
       return result[0];
     } catch (error: any) {
-      console.error('[DbSessionStorage.createSession] Error inserting session:', {
-        sessionId: session.sessionId,
-        error: error && error.message ? error.message : error
-      });
       if (error instanceof StorageError) throw error;
       throw new StorageError(`Failed to create session: ${error.message}`, StorageErrorCode.CREATE_FAILED, error);
     }
@@ -318,21 +308,14 @@ export class DbSessionStorage implements ISessionStorage {
 
   async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<Session | undefined> {
     try {
-      console.log('[DbSessionStorage.updateSession] Attempting to update session:', { sessionId, updates }); // Added log
       const result = await db // db from ../db
         .update(sessions) // sessions from ../../shared/schema
         .set(updates)
         .where(eq(sessions.sessionId, sessionId)) // eq from drizzle-orm, sessions from ../../shared/schema
         .returning();
       
-      if (result[0]) {
-        console.log('[DbSessionStorage.updateSession] Successfully updated session:', result[0]); // Added log
-      } else {
-        console.log('[DbSessionStorage.updateSession] No session found to update:', sessionId); // No session found
-      }
       return result[0];
     } catch (error: any) {
-      console.error('[DbSessionStorage.updateSession] Error updating session:', { sessionId, updates, error: error && error.message ? error.message : error }); // Added log
       throw new StorageError(`Failed to update session ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }

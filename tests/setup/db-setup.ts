@@ -64,21 +64,30 @@ export async function initTestDatabase() {
  */
 async function ensureSchemaUpToDate() {
   try {
-    // Check if teacher_id column exists in sessions table
-    // Use the pool directly with SQL template literal syntax
-    const result = await pool`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'sessions' AND column_name = 'teacher_id'
-    `;
+    // Add timeout to prevent hanging
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Schema check timeout')), 15000)
+    );
     
-    if (result.length === 0) {
-      console.log('Adding missing teacher_id column to sessions table...');
-      await pool`ALTER TABLE sessions ADD COLUMN teacher_id TEXT`;
-      console.log('teacher_id column added successfully.');
-    } else {
-      console.log('teacher_id column already exists.');
-    }
+    const schemaCheck = (async () => {
+      // Check if teacher_id column exists in sessions table
+      // Use the pool directly with SQL template literal syntax
+      const result = await pool`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'sessions' AND column_name = 'teacher_id'
+      `;
+      
+      if (result.length === 0) {
+        console.log('Adding missing teacher_id column to sessions table...');
+        await pool`ALTER TABLE sessions ADD COLUMN teacher_id TEXT`;
+        console.log('teacher_id column added successfully.');
+      } else {
+        console.log('teacher_id column already exists.');
+      }
+    })();
+    
+    await Promise.race([schemaCheck, timeout]);
   } catch (error) {
     console.error('Error ensuring schema is up to date:', error);
     throw error;
@@ -96,17 +105,27 @@ async function clearAllTablesWithRetry(maxRetries = 3) {
     try {
       console.log(`[DB Setup] Clearing tables for suite ${stateKey} (attempt ${attempt}/${maxRetries})`);
       
-      // Wait for any pending operations to complete
-      await waitForAsyncOperations(2000);
+      // Wait for any pending operations to complete (reduced timeout)
+      await waitForAsyncOperations(1000);
       
-      // Delete data from all tables in the reverse order of dependencies
-      await db.delete(transcripts);
-      await db.delete(translations);
-      await db.delete(sessions);
-      await db.delete(languages);
-      await db.delete(users);
+      // Add timeout for the entire clear operation
+      const clearTimeout = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Clear tables timeout')), 10000)
+      );
       
-      console.log(`[DB Setup] All tables cleared successfully for suite: ${stateKey}`);
+      const clearOperation = (async () => {
+        // Delete data from all tables in the reverse order of dependencies
+        await db.delete(transcripts);
+        await db.delete(translations);
+        await db.delete(sessions);
+        await db.delete(languages);
+        await db.delete(users);
+        
+        console.log(`[DB Setup] All tables cleared successfully for suite: ${stateKey}`);
+      })();
+      
+      // Use race to enforce timeout
+      await Promise.race([clearOperation, clearTimeout]);
       return;
     } catch (error) {
       lastError = error as Error;
@@ -186,14 +205,18 @@ export async function closeDatabaseConnection() {
   try {
     console.log(`[DB Setup] Closing database connection for suite: ${stateKey}`);
     
-    // Create cleanup promise
+    // Create cleanup promise with timeout
+    const cleanupTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Database cleanup timeout')), 25000)
+    );
+    
     const cleanupPromise = (async () => {
-      // Wait for any pending operations
-      await waitForAsyncOperations(1000);
+      // Wait for any pending operations (reduced timeout)
+      await waitForAsyncOperations(500);
       
-      // Clear tables one more time to ensure clean state for next test suite
+      // Clear tables with fewer retries for faster cleanup
       try {
-        await clearAllTablesWithRetry(2);
+        await clearAllTablesWithRetry(1);
       } catch (error) {
         console.warn(`[DB Setup] Warning: Failed to clear tables during cleanup:`, error);
       }
@@ -207,7 +230,8 @@ export async function closeDatabaseConnection() {
     const currentState = testDatabaseState.get(stateKey) || { initialized: false };
     testDatabaseState.set(stateKey, { ...currentState, cleanupPromise });
     
-    await cleanupPromise;
+    // Use race to enforce timeout
+    await Promise.race([cleanupPromise, cleanupTimeout]);
     
   } catch (error) {
     console.error(`[DB Setup] Error during database cleanup for suite ${stateKey}:`, error);

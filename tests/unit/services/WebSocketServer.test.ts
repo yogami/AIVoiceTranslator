@@ -84,10 +84,17 @@ vi.mock('../../../server/services/websocket/TranslationOrchestrator', () => ({
   TranslationOrchestrator: vi.fn().mockImplementation(() => ({}))
 }));
 
-vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
-  ClassroomSessionManager: vi.fn().mockImplementation(() => {
-    const sessions = new Map();
-    let cleanupInterval: NodeJS.Timeout | null = null;
+vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => {
+  // Shared sessions map across all mock instances to ensure uniqueness
+  const globalSessions = new Map();
+  
+  // Make it accessible globally for test cleanup
+  (global as any).globalSessions = globalSessions;
+  
+  return {
+    ClassroomSessionManager: vi.fn().mockImplementation(() => {
+      const sessions = globalSessions; // Use shared sessions map
+      let cleanupInterval: NodeJS.Timeout | null = null;
     
     // Set up automatic cleanup like the real implementation
     const setupCleanup = () => {
@@ -229,10 +236,12 @@ vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => ({
       })
     };
   })
-}));
+  };
+});
 
 vi.mock('../../../server/services/websocket/StorageSessionManager', () => ({
   StorageSessionManager: vi.fn().mockImplementation((storage) => ({
+    setClassroomSessionManager: vi.fn(), // Add the missing method
     createSession: vi.fn(async (sessionId) => {
       // Actually call the mocked storage to trigger test expectations - mimic real implementation
       if (storage && storage.getSessionById) {
@@ -892,6 +901,11 @@ describe('WebSocketServer', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    
+    // Clear global sessions to ensure test isolation for classroom code uniqueness
+    if ((global as any).globalSessions) {
+      (global as any).globalSessions.clear();
+    }
     
     // Set the global logger reference to the mocked logger
     globalMockLogger = logger;

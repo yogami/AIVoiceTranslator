@@ -16,6 +16,8 @@ import { MessageDispatcher } from './MessageHandler';
 import { WebSocketResponseService } from './WebSocketResponseService';
 import type { ConnectionMessageToClient } from '../WebSocketTypes';
 
+
+
 export class ConnectionLifecycleManager {
   private sessionCounter: number = 0;
   private connectionManager: ConnectionManager;
@@ -299,6 +301,7 @@ export class ConnectionLifecycleManager {
    * Generate a unique session ID
    */
   private generateSessionId(): string {
+    // Default session ID generation
     this.sessionCounter++;
     return `session-${this.sessionCounter}-${Date.now()}`;
   }
