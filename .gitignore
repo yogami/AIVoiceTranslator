@@ -1,6 +1,8 @@
 node_modules
 dist
 .env
+.env.production
+.env.local
 config/vite.config.ts.*
 .DS_Store
 *.log
