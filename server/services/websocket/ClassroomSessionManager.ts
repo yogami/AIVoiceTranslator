@@ -28,15 +28,20 @@ export class ClassroomSessionManager {
    * Generate a classroom code for a session
    */
   public generateClassroomCode(sessionId: string): string {
+    console.log(`🔍 DEBUG: generateClassroomCode called with sessionId: ${sessionId}`);
+    
     // Check if we already have a code for this session
     for (const [code, session] of this.classroomSessions.entries()) {
       if (session.sessionId === sessionId) {
         // Update activity and return existing code
         session.lastActivity = Date.now();
         session.teacherConnected = true;
+        console.log(`🔍 DEBUG: Found existing code ${code} for sessionId ${sessionId}, reusing it`);
         return code;
       }
     }
+    
+    console.log(`🔍 DEBUG: No existing code found for sessionId ${sessionId}, generating new one`);
     
     // Generate new 6-character code
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -49,6 +54,8 @@ export class ClassroomSessionManager {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
     } while (this.classroomSessions.has(code));
+    
+    console.log(`🔍 DEBUG: Generated new classroom code: ${code} for sessionId: ${sessionId}`);
     
     // Create session with configurable expiration
     const session: ClassroomSession = {

@@ -49,8 +49,8 @@ describe('SessionService', () => {
       const id1 = sessionService.generateSessionId();
       const id2 = sessionService.generateSessionId();
       
-      const counter1 = parseInt(id1.split('-')[2]);
-      const counter2 = parseInt(id2.split('-')[2]);
+      const counter1 = parseInt(id1.split('-')[1]); // Counter is at position 1
+      const counter2 = parseInt(id2.split('-')[1]); // Counter is at position 1
       
       expect(counter2).toBe(counter1 + 1);
     });

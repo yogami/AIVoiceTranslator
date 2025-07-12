@@ -7,6 +7,7 @@
 import logger from '../../logger';
 import { config } from '../../config';
 import { URL } from 'url';
+import { randomUUID, randomBytes } from 'crypto';
 import { WebSocketClient } from './ConnectionManager';
 import { ConnectionManager } from './ConnectionManager';
 import { ClassroomSessionManager } from './ClassroomSessionManager';
@@ -301,9 +302,15 @@ export class ConnectionLifecycleManager {
    * Generate a unique session ID
    */
   private generateSessionId(): string {
-    // Default session ID generation
-    this.sessionCounter++;
-    return `session-${this.sessionCounter}-${Date.now()}`;
+    // Use randomUUID for better uniqueness to prevent duplicate session IDs
+    try {
+      return `session-${randomUUID()}`;
+    } catch (error) {
+      // Fallback: use randomBytes for better entropy than counter + timestamp
+      const randomBytesHex = randomBytes(16).toString('hex');
+      this.sessionCounter++;
+      return `session-${this.sessionCounter}-${Date.now()}-${randomBytesHex}`;
+    }
   }
 
   /**
