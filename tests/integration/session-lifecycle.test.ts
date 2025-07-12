@@ -5,6 +5,7 @@ import { db } from '../../server/db';
 import { sessions } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import { setupTestIsolation } from '../../test-config/test-isolation';
+import { randomUUID } from 'crypto';
 
 describe('Session Lifecycle Integration Tests', () => {
   // Set up test isolation for this integration test suite
@@ -12,10 +13,15 @@ describe('Session Lifecycle Integration Tests', () => {
   
   let cleanupService: SessionCleanupService;
   let testSessionIds: string[] = [];
+  let testId: string;
 
   beforeAll(async () => {
     // Ensure test database is ready
     cleanupService = new SessionCleanupService();
+  });
+
+  beforeEach(async () => {
+    testId = randomUUID(); // Generate unique ID for each test run
   });
 
   afterAll(async () => {
@@ -84,7 +90,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Teacher Waiting Scenario - 10 Minute Timeout', () => {
     it('should clean up teacher sessions with no students after 10 minutes', async () => {
       // Create a session where teacher has been waiting beyond the empty teacher timeout
-      const sessionId = 'teacher-waiting-expired';
+      const sessionId = `teacher-waiting-expired-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 0,
@@ -109,7 +115,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
     it('should NOT clean up recent teacher sessions', async () => {
       // Create a session where teacher has been waiting for less than the timeout
-      const sessionId = 'teacher-waiting-recent';
+      const sessionId = `teacher-waiting-recent-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 0,
@@ -135,7 +141,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Students Disconnect Scenario - 10 Minute Grace Period', () => {
     it('should clean up sessions after 10 minute grace period when all students left', async () => {
       // Create a session that had students but they left 12 minutes ago
-      const sessionId = 'students-left-12min';
+      const sessionId = `students-left-12min-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 2, // Had students
@@ -160,7 +166,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
     it('should NOT clean up sessions still in grace period', async () => {
       // Create a session where students left only 3 minutes ago
-      const sessionId = 'students-left-3min';
+      const sessionId = `students-left-3min-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 1,
@@ -186,7 +192,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Grace Period Cancellation', () => {
     it('should cancel grace period when students rejoin', async () => {
       // Create a session in grace period
-      const sessionId = 'grace-period-test';
+      const sessionId = `grace-period-test-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 1,
@@ -215,7 +221,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('General Inactivity Cleanup - 90 Minutes', () => {
     it('should clean up sessions inactive for 90+ minutes', async () => {
       // Create a session that's been inactive for 95 minutes
-      const sessionId = 'inactive-95min';
+      const sessionId = `inactive-95min-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 2,
@@ -242,7 +248,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Activity Tracking', () => {
     it('should update session activity and prevent premature cleanup', async () => {
       // Create a session that would normally be cleaned up
-      const sessionId = 'activity-test';
+      const sessionId = `activity-test-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 1,
@@ -270,7 +276,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
   describe('Edge Cases', () => {
     it('should handle sessions with zero students count correctly', async () => {
-      const sessionId = 'zero-students';
+      const sessionId = `zero-students-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 0,
@@ -290,7 +296,7 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should handle manual session ending', async () => {
-      const sessionId = 'manual-end';
+      const sessionId = `manual-end-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 2,
@@ -313,7 +319,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Performance and Reliability', () => {
     it('should handle multiple concurrent cleanup operations', async () => {
       // Create multiple test sessions
-      const sessionIds = ['concurrent-1', 'concurrent-2', 'concurrent-3'];
+      const sessionIds = [`concurrent-1-${testId}`, `concurrent-2-${testId}`, `concurrent-3-${testId}`];
       
       await Promise.all(
         sessionIds.map(sessionId =>
@@ -351,7 +357,7 @@ describe('Session Lifecycle Integration Tests', () => {
       // Create a session with students and 60 minutes of inactivity
       // This should be cleaned up by abandoned sessions logic (10-minute timeout)
       // But let's test the 90-minute boundary differently
-      const sessionId = 'test-session-60min';
+      const sessionId = `test-session-60min-${testId}`;
       const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
       
       await createTestSession({
@@ -379,7 +385,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
     it('should end sessions after 90 minutes of inactivity', async () => {
       // Create a session with 95 minutes of inactivity (should be cleaned up)
-      const sessionId = 'test-session-95min';
+      const sessionId = `test-session-95min-${testId}`;
       const ninetyFiveMinutesAgo = new Date(Date.now() - 95 * 60 * 1000);
       
       await createTestSession({
@@ -409,7 +415,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Teacher Reconnection Logic', () => {
     it('should find existing active session for teacher language within grace period', async () => {
       // Create an active session for English teacher within grace period
-      const sessionId = 'teacher-session-en';
+      const sessionId = `teacher-session-en-${testId}`;
       const oneSecondAgo = new Date(Date.now() - 1000); // 1 second ago - within 3 second grace period
       
       await createTestSession({
@@ -436,7 +442,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
     it('should not find sessions outside grace period', async () => {
       // Create an active session for English teacher outside grace period
-      const sessionId = 'teacher-session-old';
+      const sessionId = `teacher-session-old-${testId}`;
       const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
       
       await createTestSession({
@@ -514,7 +520,7 @@ describe('Session Lifecycle Integration Tests', () => {
   describe('Extended Grace Periods', () => {
     it('should use 15-minute timeout for empty teacher sessions', async () => {
       // Create a session with no students, 12 minutes old (should not be cleaned up yet)
-      const sessionId = 'empty-teacher-12min';
+      const sessionId = `empty-teacher-12min-${testId}`;
       const twelveMinutesAgo = new Date(Date.now() - 12 * 60 * 1000);
       
       await createTestSession({
@@ -540,7 +546,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
     it('should use 10-minute timeout for abandoned sessions', async () => {
       // Create a session that had students, 7 minutes of inactivity (should not be cleaned up yet)
-      const sessionId = 'abandoned-session-7min';
+      const sessionId = `abandoned-session-7min-${testId}`;
       const sevenMinutesAgo = new Date(Date.now() - 7 * 60 * 1000);
       
       await createTestSession({
@@ -566,7 +572,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
     it('should end abandoned sessions after 10 minutes of inactivity', async () => {
       // Create a session that had students, 12 minutes of inactivity (should be cleaned up)
-      const sessionId = 'abandoned-session-12min';
+      const sessionId = `abandoned-session-12min-${testId}`;
       const twelveMinutesAgo = new Date(Date.now() - 12 * 60 * 1000);
       
       await createTestSession({
@@ -595,7 +601,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
   describe('Session Activity Updates', () => {
     it('should update session activity timestamp', async () => {
-      const sessionId = 'test-activity-update';
+      const sessionId = `test-activity-update-${testId}`;
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       
       await createTestSession({
@@ -620,7 +626,7 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should handle all students left grace period', async () => {
-      const sessionId = 'test-students-left';
+      const sessionId = `test-students-left-${testId}`;
       
       await createTestSession({
         sessionId,
@@ -646,7 +652,7 @@ describe('Session Lifecycle Integration Tests', () => {
   });
 
   it('should create session with totalTranslations and return it in getRecentSessionActivity', async () => {
-    const sessionId = 'test-session-with-translations';
+    const sessionId = `test-session-with-translations-${testId}`;
     
     // Create a session with totalTranslations
     const sessionData = {

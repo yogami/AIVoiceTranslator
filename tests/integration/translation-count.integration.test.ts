@@ -13,7 +13,7 @@ describe('Translation Count Integration', () => {
 
   beforeEach(async () => {
     storage = new DatabaseStorage();
-    testId = randomUUID(); // Generate unique ID for each test run
+    testId = randomUUID();
   });
 
   afterEach(async () => {
@@ -21,9 +21,9 @@ describe('Translation Count Integration', () => {
   });
 
   it('should increment totalTranslations when a translation is saved to a session', async () => {
-    // Create a session with unique ID
+    // Create a session
     const session = await storage.createSession({
-      sessionId: `test-session-${testId}`,
+      sessionId: `test-session-123-${testId}`,
       teacherId: `teacher-translation-count-${testId}`,
       teacherLanguage: 'en'
     });
