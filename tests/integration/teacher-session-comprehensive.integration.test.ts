@@ -243,6 +243,7 @@ describe('Fast Teacher Session Integration Tests', () => {
       type: 'register',
       role: 'teacher',
       languageCode,
+      teacherId: `teacher-${testIdentifier}`, // Add unique teacherId to prevent session reuse
       name: `Test Teacher ${testIdentifier}`, // Add unique name
       testId: testIdentifier // Add test identifier for debugging
     }));

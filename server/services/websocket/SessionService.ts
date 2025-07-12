@@ -36,7 +36,7 @@ export class SessionService {
    */
   generateSessionId(): string {
     this.sessionCounter++;
-    return `session-${Date.now()}-${this.sessionCounter}`;
+    return `session-${this.sessionCounter}-${Date.now()}`;
   }
 
   /**

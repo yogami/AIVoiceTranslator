@@ -18,6 +18,7 @@ describe('Session Lifecycle Integration Tests', () => {
   beforeAll(async () => {
     // Ensure test database is ready
     cleanupService = new SessionCleanupService();
+    // DON'T start the service automatically - we only want manual cleanup in tests
   });
 
   beforeEach(async () => {
@@ -25,7 +26,10 @@ describe('Session Lifecycle Integration Tests', () => {
   });
 
   afterAll(async () => {
-    cleanupService?.stop();
+    // Ensure cleanup service is stopped
+    if (cleanupService) {
+      cleanupService.stop();
+    }
     
     // Clean up any test sessions
     if (testSessionIds.length > 0) {

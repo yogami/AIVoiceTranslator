@@ -120,6 +120,8 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     let classroomCode: string;
     let wasExistingSession = false; // Track if we reconnected to existing session
     
+    console.log(`🔍 DEBUG: handleTeacherRegistration - sessionId from connection: ${sessionId}, message.teacherId: ${message.teacherId || 'NONE'}`);
+    
     if (!sessionId) {
       logger.error('Teacher has no session ID - this should not happen');
       return;
@@ -288,6 +290,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       }
       
       // Generate classroom code for this session
+      console.log(`🔍 DEBUG: About to generate classroom code for sessionId: ${sessionId}`);
       classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
       
       // Store the classroom code in the database if this is a new session or if it's not already stored
@@ -308,6 +311,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     } catch (error: any) {
       logger.error('Failed to create/get session for teacher:', { error, sessionId });
       // Generate classroom code anyway for temporary use
+      console.log(`🔍 DEBUG: About to generate classroom code (fallback) for sessionId: ${sessionId}`);
       classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
     }
     

@@ -5,7 +5,7 @@
  * to a test instance of the Express app.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express, { Express } from 'express';
 import http from 'http';
@@ -19,16 +19,19 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('API Routes', () => {
   let app: Express;
+  let server: http.Server;
+  let webSocketServer: WebSocketServer;
+  let storage: DatabaseStorage;
   
   beforeEach(async () => {
     // Create dependencies for the API routes
-    const storage = new DatabaseStorage();
+    storage = new DatabaseStorage();
     const diagnosticsService = new DiagnosticsService(storage, null);
     
     // Create a test HTTP server for WebSocket
     app = express();
-    const server = http.createServer(app);
-    const webSocketServer = new WebSocketServer(server, storage);
+    server = http.createServer(app);
+    webSocketServer = new WebSocketServer(server, storage);
     
     // Create API routes with dependencies
     const apiRoutes = createApiRoutes(storage, diagnosticsService, webSocketServer);
@@ -37,6 +40,16 @@ describe('API Routes', () => {
     app.use(express.json());
     app.use('/api', apiRoutes);
     app.use('/api', apiErrorHandler);
+  });
+  
+  afterEach(async () => {
+    // Clean up resources to prevent hanging
+    if (webSocketServer) {
+      webSocketServer.shutdown();
+    }
+    if (server) {
+      server.close();
+    }
   });
   
   it('should handle health check endpoint', async () => {

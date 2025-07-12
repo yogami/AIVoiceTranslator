@@ -58,11 +58,15 @@ if (isValidDatabaseUrl) {
     if (!databaseUrl) {
       throw new Error('DATABASE_URL is required but not provided');
     }
+    // Detect if we're using Aiven free tier (which has connection limits)
+    const isAivenFree = databaseUrl.includes('aivencloud.com');
+    const isTestEnvironment = process.env.NODE_ENV === 'test';
+    
     pool = postgres(databaseUrl, { 
-      max: 10,
+      max: isAivenFree || isTestEnvironment ? 1 : 10,  // Single connection for Aiven free tier
       connect_timeout: 10, // 10 seconds connection timeout
-      idle_timeout: 20,    // 20 seconds idle timeout
-      max_lifetime: 60 * 30 // 30 minutes max connection lifetime
+      idle_timeout: isAivenFree || isTestEnvironment ? 5 : 20,    // Shorter timeout for free tier
+      max_lifetime: isAivenFree || isTestEnvironment ? 60 * 5 : 60 * 30 // Shorter lifetime for free tier
     });
     db = pgDrizzle(pool, { schema });
   }
