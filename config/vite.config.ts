@@ -33,16 +33,20 @@ export default defineConfig(async ({ mode, command }) => {
 
   // Ensure critical environment variables are available for the Vite config itself
   // These are used by the `define` block to inject into client-side code.
-  if (!env.VITE_API_URL) {
-    throw new Error('VITE_API_URL environment variable must be set for define block.');
+  // For Railway deployment, provide defaults during build if not set
+  const apiUrl = env.VITE_API_URL || (mode === 'production' ? 'https://placeholder.railway.app' : 'http://localhost:5000');
+  const wsUrl = env.VITE_WS_URL || (mode === 'production' ? 'wss://placeholder.railway.app' : 'ws://localhost:5000');
+  
+  if (!env.VITE_API_URL && mode === 'production') {
+    console.warn('[vite.config.ts] WARNING: VITE_API_URL not set, using placeholder. Update after Railway deployment.');
   }
-  if (!env.VITE_WS_URL) {
-    throw new Error('VITE_WS_URL environment variable must be set for define block.');
+  if (!env.VITE_WS_URL && mode === 'production') {
+    console.warn('[vite.config.ts] WARNING: VITE_WS_URL not set, using placeholder. Update after Railway deployment.');
   }
 
   console.log('[vite.config.ts] Mode:', mode, 'Command:', command);
-  console.log('[vite.config.ts] For define block - VITE_API_URL:', env.VITE_API_URL);
-  console.log('[vite.config.ts] For define block - VITE_WS_URL:', env.VITE_WS_URL);
+  console.log('[vite.config.ts] For define block - VITE_API_URL:', apiUrl);
+  console.log('[vite.config.ts] For define block - VITE_WS_URL:', wsUrl);
 
   // Dynamically import cartographer only if it\'s likely a Replit environment
   let cartographerPlugin = null;
@@ -90,11 +94,11 @@ export default defineConfig(async ({ mode, command }) => {
     publicDir: path.resolve(clientRoot, 'public'), // Relative to root
     define: {
       // Change to define global constants, these are injected into client-side code
-      'process.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL),
-      'process.env.VITE_WS_URL': JSON.stringify(env.VITE_WS_URL),
+      'process.env.VITE_API_URL': JSON.stringify(apiUrl),
+      'process.env.VITE_WS_URL': JSON.stringify(wsUrl),
       // Keep existing __VITE_... definitions if your client code uses them
-      '__VITE_API_URL__': JSON.stringify(env.VITE_API_URL),
-      '__VITE_WS_URL__': JSON.stringify(env.VITE_WS_URL),
+      '__VITE_API_URL__': JSON.stringify(apiUrl),
+      '__VITE_WS_URL__': JSON.stringify(wsUrl),
     },
     server: {
       // port: 3000, // Vite will try this port first, then increment if busy. Let Vite pick.
