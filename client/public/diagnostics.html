@@ -861,6 +861,7 @@
                 data.sessions.recentSessionActivity.forEach(session => {
                     const sessionDiv = document.createElement('div');
                     sessionDiv.className = 'session-item';
+                    sessionDiv.setAttribute('data-testid', 'session-row');
                     
                     const isFullClass = isSessionFullClass(session);
                     const hasGoodClassSize = (session.studentCount || 0) >= 15; // 15+ students is a good classroom size

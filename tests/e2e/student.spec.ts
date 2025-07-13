@@ -108,7 +108,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
     try {
       // 1. Teacher Setup
       teacherPage = await browser.newPage();
-      await teacherPage.goto('http://127.0.0.1:5001/teacher'); // Use correct port for test environment
+      await teacherPage.goto('http://127.0.0.1:5001/teacher?e2e=true'); // Use correct port for test environment
       await expect(teacherPage.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
       const classroomCodeElement = teacherPage.locator('#classroom-code-display');
       await expect(classroomCodeElement).toBeVisible({ timeout: 10000 });

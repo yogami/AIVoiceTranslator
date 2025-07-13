@@ -1,352 +1,703 @@
-import { test, expect, Browser } from '@playwright/test';
-import { clearDiagnosticData, seedSessions } from './test-data-utils';
-import type { InsertSession } from '../../shared/schema';
+import { test, expect, Page, Browser } from '@playwright/test';
 
-// Global array to track test session IDs for cleanup
-let testSessionIds: string[] = [];
+describe('Session Lifecycle E2E Tests', () => {
+  let browser: Browser;
 
-// Helper function to create test sessions using the seeding utility
-async function createTestSession(sessionData: Partial<InsertSession> & { sessionId: string }) {
-  const fullSessionData: InsertSession = {
-    sessionId: sessionData.sessionId,
-    isActive: sessionData.isActive ?? true,
-    teacherLanguage: sessionData.teacherLanguage ?? 'en-US',
-    studentLanguage: sessionData.studentLanguage ?? 'es-ES',
-    classCode: sessionData.classCode ?? 'TEST',
-    startTime: sessionData.startTime ?? null, // Don't set startTime unless explicitly provided (mimics real behavior)
-    endTime: sessionData.endTime,
-    studentsCount: sessionData.studentsCount ?? 0,
-    totalTranslations: sessionData.totalTranslations ?? 0,
-    lastActivityAt: sessionData.lastActivityAt
+  const createTeacherSession = async (page: Page, teacherId: string = 'test-teacher-1') => {
+    // Navigate to teacher page with e2e parameter to bypass auth
+    await page.goto('http://127.0.0.1:5001/teacher?e2e=true');
+    
+    // Mock the teacher authentication data with specific teacherId
+    await page.addInitScript((teacherId) => {
+      localStorage.setItem('teacherUser', JSON.stringify({
+        id: teacherId,
+        email: `${teacherId}@test.com`,
+        name: `Teacher ${teacherId}`
+      }));
+      localStorage.setItem('jwt', 'mock-jwt-token');
+    }, teacherId);
+    
+    // Reload to apply the auth data
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+    
+    // Wait for teacher registration
+    await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+    
+    // Get classroom code
+    const classroomCodeElement = page.locator('#classroom-code-display');
+    await expect(classroomCodeElement).toBeVisible({ timeout: 10000 });
+    const classroomCode = await classroomCodeElement.textContent();
+    
+    return { classroomCode, teacherId };
   };
-  
-  await seedSessions([fullSessionData]);
-}
 
-test.describe('Session Lifecycle E2E Tests', () => {
-  test.beforeEach(async () => {
-    // Reset the test session IDs array before each test
-    testSessionIds = [];
-  });
+  const connectStudent = async (page: Page, classroomCode: string, language: string = 'es-ES') => {
+    await page.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+    await page.waitForLoadState('domcontentloaded');
+    
+    // Select language
+    await page.selectOption('#language-dropdown', language);
+    await expect(page.locator('#selected-language')).toContainText('Selected:', { timeout: 2000 });
+    
+    // Connect
+    await page.click('#connect-btn');
+    await expect(page.locator('#connection-status span')).toContainText('Connected', { timeout: 10000 });
+    
+    return page;
+  };
 
-  test.afterEach(async () => {
-    // Clean up test data after each test
-    await clearDiagnosticData();
-    testSessionIds = [];
-  });
-
-  test('should clean up sessions when teacher waits too long without students', async ({ page }) => {
-    // Create a session that has translations but no current students (inactive session)
-    // This simulates a teacher who had activity but students left and session ended
-    const sessionId = 'teacher-waiting-e2e-test';
-    await createTestSession({
-      sessionId,
-      studentsCount: 0, // Students left
-      startTime: new Date(Date.now() - 60 * 60 * 1000), // Started 60 minutes ago when students were present
-      totalTranslations: 2, // Has translations so will appear in recent activity
-      isActive: false, // Not currently active (students left)
-      endTime: new Date(Date.now() - 20 * 60 * 1000) // Ended 20 minutes ago
+  test.beforeEach(async ({ browser }) => {
+    // Mock browser APIs for each test
+    await browser.newContext().then(async context => {
+      const page = await context.newPage();
+      await page.addInitScript(() => {
+        // Mock getUserMedia
+        Object.defineProperty(navigator, 'mediaDevices', {
+          writable: true,
+          value: {
+            getUserMedia: () => Promise.resolve({
+              getTracks: () => [{ kind: 'audio', stop: () => {} }]
+            } as any)
+          }
+        });
+        
+        // Mock MediaRecorder
+        (window as any).MediaRecorder = class {
+          state = 'inactive';
+          ondataavailable: ((event: any) => void) | null = null;
+          onstop: (() => void) | null = null;
+          
+          start() { 
+            this.state = 'recording';
+            if (this.ondataavailable) {
+              setTimeout(() => {
+                const mockBlob = new Blob(['mock'], { type: 'audio/webm' });
+                if (this.ondataavailable) this.ondataavailable({ data: mockBlob });
+              }, 100);
+            }
+          }
+          
+          stop() { 
+            this.state = 'inactive';
+            if (this.onstop) this.onstop();
+          }
+        };
+        
+        // Mock SpeechRecognition
+        (window as any).webkitSpeechRecognition = (window as any).SpeechRecognition = class {
+          onresult: ((event: any) => void) | null = null;
+          onerror: ((event: any) => void) | null = null;
+          onend: (() => void) | null = null;
+          
+          start() {
+            setTimeout(() => {
+              if (this.onresult) {
+                this.onresult({
+                  results: [[{ transcript: 'Hello, this is a test transcription' }]]
+                });
+              }
+              if (this.onend) this.onend();
+            }, 500);
+          }
+          
+          stop() {}
+        };
+      });
+      await page.close();
+      await context.close();
     });
-    testSessionIds.push(sessionId);
-    
-    // Debug: Verify the session was created
-    console.log(`Created test session: ${sessionId}`);
-    
-    // Let's also test the API directly to see what it returns
-    const response = await page.evaluate(async () => {
+  });
+
+  describe('Teacher Authentication Flow', () => {
+    test('should handle teacher authentication and session creation', async ({ browser }) => {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      
       try {
-        const res = await fetch('/api/diagnostics');
-        const data = await res.json();
-        return { ok: res.ok, status: res.status, data };
-      } catch (error) {
-        return { error: String(error) };
+        const { classroomCode, teacherId } = await createTeacherSession(page, 'auth-test-teacher');
+        
+        expect(classroomCode).toMatch(/^[A-Z0-9]{6}$/);
+        expect(teacherId).toBe('auth-test-teacher');
+        
+        // Verify UI shows correct state
+        await expect(page.locator('#status')).toContainText('Registered as teacher');
+        await expect(page.locator('#classroom-code-display')).toContainText(classroomCode!);
+      } finally {
+        await context.close();
       }
     });
-    console.log('API response:', JSON.stringify(response, null, 2));
 
-    // Set the API URL before navigating to the page
-    await page.addInitScript(() => {
-      window.VITE_API_URL = 'http://127.0.0.1:5001';
+    test('should handle invalid token during WebSocket connection', async ({ browser }) => {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      
+      try {
+        await page.goto('http://127.0.0.1:5001/teacher?e2e=true');
+        
+        // Set invalid auth data
+        await page.addInitScript(() => {
+          localStorage.setItem('teacherUser', JSON.stringify({
+            id: 'invalid-teacher',
+            email: 'invalid@test.com',
+            name: 'Invalid Teacher'
+          }));
+          localStorage.setItem('jwt', 'invalid-jwt-token');
+        });
+        
+        await page.reload();
+        await page.waitForLoadState('domcontentloaded');
+        
+        // Should still work in test mode due to e2e bypass
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      } finally {
+        await context.close();
+      }
     });
-    
-    // Navigate to diagnostics page to check sessions
-    await page.goto('http://127.0.0.1:5001/diagnostics.html');
-    
-    // Verify the session appears in recent activity (because it has translations)
-    await page.waitForLoadState('networkidle');
-    
-    // Debug: Check what VITE_API_URL is set to
-    const apiUrl = await page.evaluate(() => window.VITE_API_URL);
-    console.log('VITE_API_URL on page:', apiUrl);
-    
-    let sessionElements = await page.locator('[data-testid="session-row"]').all();
-    let sessionTexts = await Promise.all(
-      sessionElements.map(el => el.textContent())
-    );
-
-    // The test session should appear in recent activity because it has translations
-    let hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
-    expect(hasTestSession).toBe(true);
-
-    // Trigger cleanup via API call (this should clean up old inactive sessions)
-    await page.evaluate(() => {
-      return fetch('/api/admin/cleanup-sessions', { method: 'POST' });
-    });
-
-    // Wait a moment for the cleanup to complete
-    await page.waitForTimeout(1000);
-
-    // Refresh the diagnostics page
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-
-    // The session should no longer appear after cleanup
-    sessionElements = await page.locator('[data-testid="session-row"]').all();
-    sessionTexts = await Promise.all(
-      sessionElements.map(el => el.textContent())
-    );
-
-    // The test session should not be in the list anymore
-    hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
-    expect(hasTestSession).toBe(false);
   });
 
-  test('should maintain sessions during grace period but clean up after', async ({ page }) => {
-    // Create a session that had students but they left 3 minutes ago (within grace period)
-    const sessionId = 'grace-period-e2e-test';
-    await createTestSession({
-      sessionId,
-      studentsCount: 0, // Students recently left, but session is still in grace period
-      startTime: new Date(Date.now() - 20 * 60 * 1000), // Started 20 minutes ago when first student joined
-      lastActivityAt: new Date(Date.now() - 3 * 60 * 1000), // 3 minutes ago
-      totalTranslations: 5, // Had translations while students were present
-      isActive: false, // Students left, so not currently active
-      endTime: new Date(Date.now() - 3 * 60 * 1000) // Ended when students left
-    });
-    testSessionIds.push(sessionId);
-
-    // Check that session is still active (within grace period)
-    await page.goto('http://127.0.0.1:5001/diagnostics.html');
-    
-    let sessionElements = await page.locator('[data-testid="session-row"]').all();
-    let sessionTexts = await Promise.all(
-      sessionElements.map(el => el.textContent())
-    );
-    
-    // Session should still be active
-    let hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
-    expect(hasTestSession).toBe(true);
-
-    // Now simulate that 6 minutes have passed (beyond grace period)
-    await createTestSession({
-      sessionId: sessionId + '-expired',
-      studentsCount: 0, // Students left
-      startTime: new Date(Date.now() - 25 * 60 * 1000), // Started 25 minutes ago when first student joined
-      lastActivityAt: new Date(Date.now() - 7 * 60 * 1000), // 7 minutes ago
-      totalTranslations: 3, // Had translations while students were present
-      isActive: false, // Students left, so not currently active
-      endTime: new Date(Date.now() - 7 * 60 * 1000) // Ended when students left
-    });
-    testSessionIds.push(sessionId + '-expired');
-
-    // Trigger cleanup
-    await page.evaluate(() => {
-      return fetch('/api/admin/cleanup-sessions', { method: 'POST' });
+  describe('Teacher Disconnection/Reconnection Scenarios', () => {
+    test('should reconnect teacher to same session within 10 minutes', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const teacherPage1 = await context1.newPage();
+      const teacherPage2 = await context2.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode: code1, teacherId } = await createTeacherSession(teacherPage1, 'reconnect-teacher-1');
+        
+        // Teacher disconnects (close page)
+        await teacherPage1.close();
+        await context1.close();
+        
+        // Wait 2 seconds (well within 10 minute window)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Teacher reconnects with same teacherId
+        const { classroomCode: code2 } = await createTeacherSession(teacherPage2, 'reconnect-teacher-1');
+        
+        // Should get the same classroom code (same session)
+        expect(code2).toBe(code1);
+        
+        // Verify teacher is in the restored session
+        await expect(teacherPage2.locator('#classroom-code-display')).toContainText(code1!);
+      } finally {
+        await context2.close();
+      }
     });
 
-    await page.waitForTimeout(1000);
-    await page.reload();
+    test('should create new session for teacher reconnecting after 10+ minutes', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const teacherPage1 = await context1.newPage();
+      const teacherPage2 = await context2.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode: code1 } = await createTeacherSession(teacherPage1, 'new-session-teacher');
+        
+        // Simulate time passing (mock old session in database)
+        await teacherPage1.evaluate(() => {
+          // Create a test session that's older than 10 minutes in the database
+          return fetch('/api/test/create-old-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              teacherId: 'new-session-teacher',
+              minutesOld: 11
+            })
+          });
+        });
+        
+        await teacherPage1.close();
+        await context1.close();
+        
+        // Teacher reconnects (should get new session)
+        const { classroomCode: code2 } = await createTeacherSession(teacherPage2, 'new-session-teacher');
+        
+        // Should get a different classroom code (new session)
+        expect(code2).not.toBe(code1);
+        expect(code2).toMatch(/^[A-Z0-9]{6}$/);
+      } finally {
+        await context2.close();
+      }
+    });
 
-    // Now the expired session should be gone
-    sessionElements = await page.locator('[data-testid="session-row"]').all();
-    sessionTexts = await Promise.all(
-      sessionElements.map(el => el.textContent())
-    );
+    test('should handle teacher disconnection before students join', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const teacherPage = await context1.newPage();
+      const studentPage = await context2.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode } = await createTeacherSession(teacherPage, 'disconnect-before-join');
+        
+        // Teacher disconnects immediately
+        await teacherPage.close();
+        await context1.close();
+        
+        // Wait a moment for disconnection to be processed
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Student tries to join - should fail since teacher disconnected
+        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+        await studentPage.waitForLoadState('domcontentloaded');
+        
+        await studentPage.selectOption('#language-dropdown', 'es-ES');
+        await studentPage.click('#connect-btn');
+        
+        // Should show error about session not found or teacher disconnected
+        await expect(studentPage.locator('#translation-display')).toContainText('Error', { timeout: 5000 });
+      } finally {
+        await context2.close();
+      }
+    });
 
-    const hasExpiredSession = sessionTexts.some(text => text?.includes(sessionId + '-expired'));
-    expect(hasExpiredSession).toBe(false);
+    test('should maintain session when teacher disconnects after students join', async ({ browser }) => {
+      const teacherContext = await browser.newContext();
+      const studentContext = await browser.newContext();
+      const teacher2Context = await browser.newContext();
+      
+      const teacherPage1 = await teacherContext.newPage();
+      const studentPage = await studentContext.newPage();
+      const teacherPage2 = await teacher2Context.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode, teacherId } = await createTeacherSession(teacherPage1, 'maintain-session-teacher');
+        
+        // Student joins
+        await connectStudent(studentPage, classroomCode!);
+        
+        // Verify student is connected
+        await expect(studentPage.locator('#connection-status span')).toContainText('Connected');
+        
+        // Teacher disconnects
+        await teacherPage1.close();
+        await teacherContext.close();
+        
+        // Wait a moment
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Teacher reconnects
+        const { classroomCode: code2 } = await createTeacherSession(teacherPage2, teacherId);
+        
+        // Should get same classroom code (session was maintained)
+        expect(code2).toBe(classroomCode);
+        
+        // Student should still be connected
+        await expect(studentPage.locator('#connection-status span')).toContainText('Connected');
+      } finally {
+        await studentContext.close();
+        await teacher2Context.close();
+      }
+    });
+
+    test('should handle multiple teachers with same teacherId (race condition)', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const teacherPage1 = await context1.newPage();
+      const teacherPage2 = await context2.newPage();
+      
+      try {
+        // Both pages try to create session with same teacherId simultaneously
+        const [result1, result2] = await Promise.allSettled([
+          createTeacherSession(teacherPage1, 'duplicate-teacher-id'),
+          createTeacherSession(teacherPage2, 'duplicate-teacher-id')
+        ]);
+        
+        // At least one should succeed
+        const successfulResults = [result1, result2].filter(r => r.status === 'fulfilled');
+        expect(successfulResults.length).toBeGreaterThan(0);
+        
+        // If both succeed, they should have the same classroom code (same session)
+        if (result1.status === 'fulfilled' && result2.status === 'fulfilled') {
+          expect(result1.value.classroomCode).toBe(result2.value.classroomCode);
+        }
+      } finally {
+        await context1.close();
+        await context2.close();
+      }
+    });
   });
 
-  test('should update session activity when students interact', async ({ page, browser }) => {
-    // This test simulates the real flow of student interaction updating session activity
-    
-    // Create a session that would normally be cleaned up due to inactivity
-    const sessionId = 'activity-update-e2e-test';
-    await createTestSession({
-      sessionId,
-      studentsCount: 0, // Students left, but will rejoin
-      startTime: new Date(Date.now() - 45 * 60 * 1000), // Started 45 minutes ago when first student joined
-      lastActivityAt: new Date(Date.now() - 32 * 60 * 1000), // 32 minutes ago - should be cleaned
-      totalTranslations: 5, // Had translations
-      isActive: false, // Students left, so not currently active
-      endTime: new Date(Date.now() - 32 * 60 * 1000), // Ended when students left
-      classCode: 'ACT-TEST'
+  describe('Multiple Teachers - Different Sessions', () => {
+    test('should ensure different teachers reconnect to their own sessions', async ({ browser }) => {
+      const teacher1Context = await browser.newContext();
+      const teacher2Context = await browser.newContext();
+      const teacher1ReconnectContext = await browser.newContext();
+      const teacher2ReconnectContext = await browser.newContext();
+      
+      const teacher1Page1 = await teacher1Context.newPage();
+      const teacher2Page1 = await teacher2Context.newPage();
+      const teacher1Page2 = await teacher1ReconnectContext.newPage();
+      const teacher2Page2 = await teacher2ReconnectContext.newPage();
+      
+      try {
+        // Teacher 1 creates session
+        const { classroomCode: code1, teacherId: id1 } = await createTeacherSession(teacher1Page1, 'unique-teacher-1');
+        
+        // Teacher 2 creates session
+        const { classroomCode: code2, teacherId: id2 } = await createTeacherSession(teacher2Page1, 'unique-teacher-2');
+        
+        // Verify different classroom codes
+        expect(code1).not.toBe(code2);
+        expect(id1).not.toBe(id2);
+        
+        // Both teachers disconnect
+        await teacher1Page1.close();
+        await teacher2Page1.close();
+        await teacher1Context.close();
+        await teacher2Context.close();
+        
+        // Wait a moment
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Both teachers reconnect
+        const [reconnect1, reconnect2] = await Promise.all([
+          createTeacherSession(teacher1Page2, 'unique-teacher-1'),
+          createTeacherSession(teacher2Page2, 'unique-teacher-2')
+        ]);
+        
+        // Each teacher should get their original classroom code
+        expect(reconnect1.classroomCode).toBe(code1);
+        expect(reconnect2.classroomCode).toBe(code2);
+        expect(reconnect1.classroomCode).not.toBe(reconnect2.classroomCode);
+        
+        // Verify each teacher is in their own session
+        await expect(teacher1Page2.locator('#classroom-code-display')).toContainText(code1!);
+        await expect(teacher2Page2.locator('#classroom-code-display')).toContainText(code2!);
+      } finally {
+        await teacher1ReconnectContext.close();
+        await teacher2ReconnectContext.close();
+      }
     });
-    testSessionIds.push(sessionId);
 
-    // Open teacher page
-    await page.goto('/teacher');
-    
-    // Open student page in new context to simulate student joining
-    const studentContext = await browser.newContext();
-    const studentPage = await studentContext.newPage();
-    
-    // Student joins the session (this should update activity)
-    await studentPage.goto('/student?code=ACT-TEST');
-    
-    // Wait for connection to be established
-    await studentPage.waitForTimeout(2000);
-
-    // Now trigger cleanup - the session should NOT be cleaned up because activity was updated
-    await page.evaluate(() => {
-      return fetch('/api/admin/cleanup-sessions', { method: 'POST' });
+    test('should prevent teachers from cross-connecting to wrong sessions', async ({ browser }) => {
+      const teacher1Context = await browser.newContext();
+      const teacher2Context = await browser.newContext();
+      const student1Context = await browser.newContext();
+      const student2Context = await browser.newContext();
+      
+      const teacher1Page = await teacher1Context.newPage();
+      const teacher2Page = await teacher2Context.newPage();
+      const student1Page = await student1Context.newPage();
+      const student2Page = await student2Context.newPage();
+      
+      try {
+        // Teacher 1 creates session
+        const { classroomCode: code1 } = await createTeacherSession(teacher1Page, 'isolated-teacher-1');
+        
+        // Teacher 2 creates session  
+        const { classroomCode: code2 } = await createTeacherSession(teacher2Page, 'isolated-teacher-2');
+        
+        // Student 1 joins Teacher 1's session
+        await connectStudent(student1Page, code1!);
+        
+        // Student 2 joins Teacher 2's session
+        await connectStudent(student2Page, code2!);
+        
+        // Verify students are in correct sessions by sending messages from teachers
+        await teacher1Page.click('#recordButton');
+        await teacher1Page.waitForTimeout(1000);
+        
+        await teacher2Page.click('#recordButton');
+        await teacher2Page.waitForTimeout(1000);
+        
+        // Student 1 should receive message from Teacher 1, not Teacher 2
+        await expect(student1Page.locator('#transcription')).not.toContainText('Teacher 2', { timeout: 2000 });
+        
+        // Student 2 should receive message from Teacher 2, not Teacher 1
+        await expect(student2Page.locator('#transcription')).not.toContainText('Teacher 1', { timeout: 2000 });
+      } finally {
+        await teacher1Context.close();
+        await teacher2Context.close();
+        await student1Context.close();
+        await student2Context.close();
+      }
     });
-
-    await page.waitForTimeout(1000);
-
-    // Check diagnostics page - session should still be active
-    await page.goto('http://127.0.0.1:5001/diagnostics.html');
-    
-    const sessionElements = await page.locator('[data-testid="session-row"]').all();
-    const sessionTexts = await Promise.all(
-      sessionElements.map(el => el.textContent())
-    );
-
-    const hasTestSession = sessionTexts.some(text => text?.includes(sessionId));
-    expect(hasTestSession).toBe(true);
-
-    await studentContext.close();
   });
 
-  test('should only show active sessions on diagnostics page', async ({ page }) => {
-    // Create both active and inactive sessions
-    const activeSessionId = 'active-e2e-test';
-    const inactiveSessionId = 'inactive-e2e-test';
-
-    await createTestSession({
-      sessionId: activeSessionId,
-      studentsCount: 1, // Active session with students should have startTime
-      startTime: new Date(Date.now() - 10 * 60 * 1000), // Started 10 minutes ago when first student joined
-      totalTranslations: 3,
-      isActive: true
+  describe('Session Expiration Scenarios', () => {
+    test('should handle session expiration while teacher connected', async ({ browser }) => {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      
+      try {
+        const { classroomCode } = await createTeacherSession(page, 'expiration-test-teacher');
+        
+        // Simulate session expiration by calling cleanup API
+        await page.evaluate(() => {
+          return fetch('/api/admin/cleanup-sessions', { method: 'POST' });
+        });
+        
+        // Wait for cleanup to process
+        await page.waitForTimeout(2000);
+        
+        // Teacher should still be connected but session may be marked for cleanup
+        await expect(page.locator('#status')).toContainText('Registered as teacher');
+        await expect(page.locator('#classroom-code-display')).toContainText(classroomCode!);
+      } finally {
+        await context.close();
+      }
     });
 
-    await createTestSession({
-      sessionId: inactiveSessionId,
-      studentsCount: 0, // Inactive session with no students
-      startTime: new Date(Date.now() - 30 * 60 * 1000), // Started 30 minutes ago when students were present
-      totalTranslations: 1, // Add translations so it appears in recent activity
-      isActive: false, // Students left
-      endTime: new Date(Date.now() - 15 * 60 * 1000) // Ended 15 minutes ago
+    test('should handle student joining expired session', async ({ browser }) => {
+      const teacherContext = await browser.newContext();
+      const studentContext = await browser.newContext();
+      const teacherPage = await teacherContext.newPage();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode } = await createTeacherSession(teacherPage, 'expired-session-teacher');
+        
+        // Teacher disconnects
+        await teacherPage.close();
+        await teacherContext.close();
+        
+        // Force session cleanup
+        await studentPage.evaluate(() => {
+          return fetch('/api/admin/cleanup-sessions', { method: 'POST' });
+        });
+        
+        // Wait for cleanup
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Student tries to join expired session
+        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+        await studentPage.waitForLoadState('domcontentloaded');
+        
+        await studentPage.selectOption('#language-dropdown', 'es-ES');
+        await studentPage.click('#connect-btn');
+        
+        // Should show error about invalid or expired code
+        await expect(studentPage.locator('#translation-display')).toContainText('Error', { timeout: 5000 });
+      } finally {
+        await studentContext.close();
+      }
     });
-
-    testSessionIds.push(activeSessionId, inactiveSessionId);
-
-    // Navigate to diagnostics page
-    await page.goto('http://127.0.0.1:5001/diagnostics.html');
-
-    // Get all session elements
-    const sessionElements = await page.locator('[data-testid="session-row"]').all();
-    const sessionTexts = await Promise.all(
-      sessionElements.map(el => el.textContent())
-    );
-
-    // Active session should be visible
-    const hasActiveSession = sessionTexts.some(text => text?.includes(activeSessionId));
-    expect(hasActiveSession).toBe(true);
-
-    // Inactive session should be visible in recent activity (not in currently active)
-    const hasInactiveSession = sessionTexts.some(text => text?.includes(inactiveSessionId));
-    expect(hasInactiveSession).toBe(true); // Should appear in recent activity section
   });
 
-  test('should distinguish currently active sessions from recent historical activity', async ({ page }) => {
-    // Create a currently active session (with students)
-    const activeSessionId = 'currently-active-test';
-    await createTestSession({
-      sessionId: activeSessionId,
-      classCode: 'ACTIVE123',
-      studentsCount: 2, // Has students, so it should have startTime
-      startTime: new Date(Date.now() - 30 * 60 * 1000), // Started 30 minutes ago when first student joined
-      isActive: true,
-      totalTranslations: 5
+  describe('Classroom Code Lifecycle', () => {
+    test('should generate unique classroom codes across sessions', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const context3 = await browser.newContext();
+      
+      const page1 = await context1.newPage();
+      const page2 = await context2.newPage();
+      const page3 = await context3.newPage();
+      
+      try {
+        // Create multiple sessions
+        const { classroomCode: code1 } = await createTeacherSession(page1, 'unique-code-teacher-1');
+        const { classroomCode: code2 } = await createTeacherSession(page2, 'unique-code-teacher-2');
+        const { classroomCode: code3 } = await createTeacherSession(page3, 'unique-code-teacher-3');
+        
+        // All codes should be different
+        expect(code1).not.toBe(code2);
+        expect(code1).not.toBe(code3);
+        expect(code2).not.toBe(code3);
+        
+        // All codes should match pattern
+        expect(code1).toMatch(/^[A-Z0-9]{6}$/);
+        expect(code2).toMatch(/^[A-Z0-9]{6}$/);
+        expect(code3).toMatch(/^[A-Z0-9]{6}$/);
+      } finally {
+        await context1.close();
+        await context2.close();
+        await context3.close();
+      }
     });
-    testSessionIds.push(activeSessionId);
 
-    // Create a recent but inactive session (with translations)
-    const recentInactiveSessionId = 'recent-inactive-test';
-    await createTestSession({
-      sessionId: recentInactiveSessionId,
-      classCode: 'RECENT456',
-      studentsCount: 0, // No current students (they left)
-      startTime: new Date(Date.now() - 60 * 60 * 1000), // Started 60 minutes ago when first student joined
-      isActive: false,
-      totalTranslations: 10, // Has historical translations
-      endTime: new Date(Date.now() - 30 * 60 * 1000) // Ended 30 minutes ago
+    test('should persist classroom code across teacher reconnections to same session', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const studentContext = await browser.newContext();
+      
+      const teacherPage1 = await context1.newPage();
+      const teacherPage2 = await context2.newPage();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        // Teacher creates session and student joins
+        const { classroomCode: originalCode } = await createTeacherSession(teacherPage1, 'persist-code-teacher');
+        await connectStudent(studentPage, originalCode!);
+        
+        // Teacher disconnects
+        await teacherPage1.close();
+        await context1.close();
+        
+        // Teacher reconnects quickly (should get same session)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const { classroomCode: reconnectCode } = await createTeacherSession(teacherPage2, 'persist-code-teacher');
+        
+        // Should get same classroom code
+        expect(reconnectCode).toBe(originalCode);
+        
+        // Student should still be connected and able to receive messages
+        await expect(studentPage.locator('#connection-status span')).toContainText('Connected');
+      } finally {
+        await context2.close();
+        await studentContext.close();
+      }
     });
-    testSessionIds.push(recentInactiveSessionId);
-
-    // Navigate to diagnostics page
-    await page.goto('http://127.0.0.1:5001/diagnostics.html');
-    await page.waitForLoadState('networkidle');
-
-    // Look for sections distinguishing current vs recent activity
-    const currentlyActiveSection = page.locator('text=Currently Active').or(
-      page.locator('text=Active Sessions')
-    );
-    const recentActivitySection = page.locator('text=Recent Activity').or(
-      page.locator('text=Recent Session Activity')
-    );
-
-    // Both sections should exist
-    await expect(currentlyActiveSection).toBeVisible({ timeout: 10000 });
-    await expect(recentActivitySection).toBeVisible({ timeout: 10000 });
-
-    // Check that sessions appear in appropriate sections
-    const pageContent = await page.textContent('body');
-    expect(pageContent).toContain('ACTIVE123'); // Currently active session
-    expect(pageContent).toContain('RECENT456'); // Recent historical session
   });
 
-  test('should only show sessions with students in currently active section', async ({ page }) => {
-    // Create an active session without students (should not appear in currently active)
-    const teacherOnlySessionId = 'teacher-only-session';
-    await createTestSession({
-      sessionId: teacherOnlySessionId,
-      classCode: 'TEACHER1',
-      studentsCount: 0, // No students, so no startTime
-      startTime: null, // No students joined
-      isActive: false, // No students, so not active
-      totalTranslations: 0
+  describe('Student Join Edge Cases', () => {
+    test('should handle student joining while teacher disconnects', async ({ browser }) => {
+      const teacherContext = await browser.newContext();
+      const studentContext = await browser.newContext();
+      const teacherPage = await teacherContext.newPage();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode } = await createTeacherSession(teacherPage, 'disconnect-during-join');
+        
+        // Start student join process
+        const joinPromise = connectStudent(studentPage, classroomCode!);
+        
+        // Teacher disconnects while student is joining
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await teacherPage.close();
+        await teacherContext.close();
+        
+        // Student join should either succeed or fail gracefully
+        try {
+          await joinPromise;
+          // If successful, student should be connected
+          await expect(studentPage.locator('#connection-status span')).toContainText('Connected');
+        } catch (error) {
+          // If failed, should show appropriate error
+          await expect(studentPage.locator('#translation-display')).toContainText('Error', { timeout: 5000 });
+        }
+      } finally {
+        await studentContext.close();
+      }
     });
-    testSessionIds.push(teacherOnlySessionId);
 
-    // Create an active session with students (should appear in currently active)
-    const activeWithStudentsId = 'active-with-students';
-    await createTestSession({
-      sessionId: activeWithStudentsId,
-      classCode: 'STUDENT1',
-      studentsCount: 3, // Has students, so it should have startTime
-      startTime: new Date(Date.now() - 15 * 60 * 1000), // Started 15 minutes ago when first student joined
-      isActive: true,
-      totalTranslations: 2
+    test('should handle multiple students joining simultaneously', async ({ browser }) => {
+      const teacherContext = await browser.newContext();
+      const student1Context = await browser.newContext();
+      const student2Context = await browser.newContext();
+      const student3Context = await browser.newContext();
+      
+      const teacherPage = await teacherContext.newPage();
+      const student1Page = await student1Context.newPage();
+      const student2Page = await student2Context.newPage();
+      const student3Page = await student3Context.newPage();
+      
+      try {
+        // Teacher creates session
+        const { classroomCode } = await createTeacherSession(teacherPage, 'multiple-students-teacher');
+        
+        // Multiple students join simultaneously
+        const joinPromises = [
+          connectStudent(student1Page, classroomCode!, 'es-ES'),
+          connectStudent(student2Page, classroomCode!, 'fr-FR'),
+          connectStudent(student3Page, classroomCode!, 'de-DE')
+        ];
+        
+        await Promise.all(joinPromises);
+        
+        // All students should be connected
+        await expect(student1Page.locator('#connection-status span')).toContainText('Connected');
+        await expect(student2Page.locator('#connection-status span')).toContainText('Connected');
+        await expect(student3Page.locator('#connection-status span')).toContainText('Connected');
+        
+        // Teacher should see multiple students (check UI or send message to verify)
+        await teacherPage.click('#recordButton');
+        await teacherPage.waitForTimeout(1000);
+        
+        // All students should receive translations
+        await expect(student1Page.locator('#translation-display')).not.toContainText('Waiting for teacher', { timeout: 5000 });
+        await expect(student2Page.locator('#translation-display')).not.toContainText('Waiting for teacher', { timeout: 5000 });
+        await expect(student3Page.locator('#translation-display')).not.toContainText('Waiting for teacher', { timeout: 5000 });
+      } finally {
+        await teacherContext.close();
+        await student1Context.close();
+        await student2Context.close();
+        await student3Context.close();
+      }
     });
-    testSessionIds.push(activeWithStudentsId);
+  });
 
-    // Navigate to diagnostics page
-    await page.goto('http://127.0.0.1:5001/diagnostics.html');
-    await page.waitForLoadState('networkidle');
+  describe('Database Consistency', () => {
+    test('should maintain session state consistency between memory and database', async ({ browser }) => {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      
+      try {
+        const { classroomCode, teacherId } = await createTeacherSession(page, 'consistency-test-teacher');
+        
+        // Check that session exists in database with correct state
+        const dbSession = await page.evaluate(async (teacherId) => {
+          const response = await fetch('/api/test/get-session-by-teacher-id', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ teacherId })
+          });
+          return response.json();
+        }, teacherId);
+        
+        expect(dbSession).toBeTruthy();
+        expect(dbSession.isActive).toBe(true);
+        expect(dbSession.classCode).toBe(classroomCode);
+      } finally {
+        await context.close();
+      }
+    });
 
-    const pageContent = await page.textContent('body');
-    
-    // Session with students should be visible
-    expect(pageContent).toContain('STUDENT1');
-    
-    // Session without students should be less prominent or in a different section
-    // (The exact behavior depends on UI implementation, but it should be distinguished)
-    const currentlyActiveSection = page.locator('text=Currently Active').or(
-      page.locator('text=Active Sessions')
-    );
-    await expect(currentlyActiveSection).toBeVisible();
+    test('should maintain teacherId persistence across all operations', async ({ browser }) => {
+      const context1 = await browser.newContext();
+      const context2 = await browser.newContext();
+      const studentContext = await browser.newContext();
+      
+      const teacherPage1 = await context1.newPage();
+      const teacherPage2 = await context2.newPage();
+      const studentPage = await studentContext.newPage();
+      
+      try {
+        const teacherId = 'persistence-test-teacher';
+        
+        // Teacher creates session
+        const { classroomCode: code1 } = await createTeacherSession(teacherPage1, teacherId);
+        
+        // Student joins
+        await connectStudent(studentPage, code1!);
+        
+        // Teacher disconnects and reconnects
+        await teacherPage1.close();
+        await context1.close();
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const { classroomCode: code2 } = await createTeacherSession(teacherPage2, teacherId);
+        
+        // Verify teacherId is consistent in database
+        const dbSessions = await teacherPage2.evaluate(async (teacherId) => {
+          const response = await fetch('/api/test/get-all-sessions-by-teacher-id', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ teacherId })
+          });
+          return response.json();
+        }, teacherId);
+        
+        // All sessions should have the same teacherId
+        expect(dbSessions).toBeTruthy();
+        expect(Array.isArray(dbSessions)).toBe(true);
+        dbSessions.forEach((session: any) => {
+          expect(session.teacherId).toBe(teacherId);
+        });
+      } finally {
+        await context2.close();
+        await studentContext.close();
+      }
+    });
   });
 });

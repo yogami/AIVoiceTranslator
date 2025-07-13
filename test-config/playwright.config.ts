@@ -62,6 +62,12 @@ export default defineConfig({
     stdout: 'pipe',
     stderr: 'pipe',
     timeout: 120 * 1000, // 2 minutes
+    env: {
+      NODE_ENV: 'test',
+      E2E_TEST_MODE: 'true',
+      VITE_API_URL: 'http://127.0.0.1:5001',
+      VITE_WS_URL: 'ws://127.0.0.1:5001',
+    },
   },
 });
 
