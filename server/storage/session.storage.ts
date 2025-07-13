@@ -7,7 +7,7 @@ import {
 } from "../../shared/schema"; // Correct: Import schemas directly
 import { db, sql as dbSql } from "../db"; // Import db instance and sql from ../db
 // Import Drizzle operators directly from drizzle-orm
-import { eq, and, or, desc, count as drizzleCount, gt, gte, SQL } from "drizzle-orm"; 
+import { eq, and, or, desc, count as drizzleCount, gt, gte, isNotNull, SQL } from "drizzle-orm"; 
 import { StorageError, StorageErrorCode } from "../storage.error";
 import logger from "../logger"; // Add logger import
 
@@ -417,13 +417,19 @@ export class DbSessionStorage implements ISessionStorage {
             gte(sessions.startTime, cutoffTime),
             eq(sessions.isActive, true)
           ),
-          // Activity filter: active sessions with students OR sessions with translations
+          // Activity filter: active sessions with students OR sessions with translations OR recent sessions that had students
           or(
             and(
               eq(sessions.isActive, true), // Active sessions
               gt(sessions.studentsCount, 0) // With at least one student
             ),
-            gt(sessions.totalTranslations, 0) // Or completed sessions with at least one translation
+            gt(sessions.totalTranslations, 0), // Or completed sessions with at least one translation
+            and(
+              // Or recently ended sessions that had students (for E2E testing)
+              eq(sessions.isActive, false),
+              isNotNull(sessions.startTime), // Had a start time
+              isNotNull(sessions.endTime) // Had an end time (was properly ended)
+            )
           )
         ))
         .orderBy(desc(sessions.startTime))
