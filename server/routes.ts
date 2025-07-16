@@ -277,6 +277,16 @@ export const createApiRoutes = (
     const activeSessions = await storage.getAllActiveSessions();
     const recentActivity = await storage.getRecentSessionActivity(100, 24);
     
+    // Calculate unique students from active sessions
+    const uniqueStudents = new Set();
+    activeSessions.forEach((session: any) => {
+      if (session.students && Array.isArray(session.students)) {
+        session.students.forEach((student: any) => {
+          if (student.id) uniqueStudents.add(student.id);
+        });
+      }
+    });
+    
     // Calculate comprehensive statistics
     const stats = {
       activeSessions: activeSessions.length,
@@ -287,7 +297,8 @@ export const createApiRoutes = (
         return activityDate.toDateString() === today.toDateString();
       }).length,
       averageSessionDuration: recentActivity.length > 0 ? 
-        recentActivity.reduce((acc: number, activity: any) => acc + (activity.duration || 0), 0) / recentActivity.length : 0
+        recentActivity.reduce((acc: number, activity: any) => acc + (activity.duration || 0), 0) / recentActivity.length : 0,
+      uniqueStudents: uniqueStudents.size
     };
 
     // Analyze the question and provide intelligent responses
@@ -296,6 +307,8 @@ export const createApiRoutes = (
 
     if (questionLower.includes('active') && questionLower.includes('session')) {
       answer = `There are currently ${stats.activeSessions} active sessions running.`;
+    } else if (questionLower.includes('student')) {
+      answer = `There are currently ${stats.uniqueStudents} unique students active in the system.`;
     } else if (questionLower.includes('today') || questionLower.includes('day')) {
       answer = `Today there have been ${stats.sessionsToday} sessions.`;
     } else if (questionLower.includes('recent') || questionLower.includes('last')) {
@@ -306,10 +319,10 @@ export const createApiRoutes = (
     } else if (questionLower.includes('total') || questionLower.includes('how many')) {
       answer = `Session overview: ${stats.activeSessions} active sessions, ${stats.recentSessions} recent sessions, ${stats.sessionsToday} today.`;
     } else if (questionLower.includes('status') || questionLower.includes('overview')) {
-      answer = `System Overview:\n- Active Sessions: ${stats.activeSessions}\n- Recent Sessions (24h): ${stats.recentSessions}\n- Sessions Today: ${stats.sessionsToday}\n- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes`;
+      answer = `System Overview:\n- Active Sessions: ${stats.activeSessions}\n- Recent Sessions (24h): ${stats.recentSessions}\n- Sessions Today: ${stats.sessionsToday}\n- Active Students: ${stats.uniqueStudents}\n- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes`;
     } else {
       // Default response for unrecognized questions
-      answer = `Based on your question "${question}", here's what I found:\n\n📊 Current System Status:\n- Active Sessions: ${stats.activeSessions}\n- Recent Sessions (24h): ${stats.recentSessions}\n- Sessions Today: ${stats.sessionsToday}\n- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes\n\nTry asking about "active sessions", "today's sessions", or "average duration" for more specific information.`;
+      answer = `Based on your question "${question}", here's what I found:\n\n📊 Current System Status:\n- Active Sessions: ${stats.activeSessions}\n- Recent Sessions (24h): ${stats.recentSessions}\n- Sessions Today: ${stats.sessionsToday}\n- Active Students: ${stats.uniqueStudents}\n- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes\n\nTry asking about "active sessions", "today's sessions", "students", or "average duration" for more specific information.`;
     }
 
     // Return structured response for analytics
