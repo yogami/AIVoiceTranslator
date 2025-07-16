@@ -1,6 +1,6 @@
 import { db as prodDb } from '../server/db';
-import { neon } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-http';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
@@ -28,9 +28,10 @@ async function applyMigration() {
     if (!testDbUrl) {
       throw new Error('DATABASE_URL not found in test environment');
     }
-    const testConnection = neon(testDbUrl);
+    const testConnection = postgres(testDbUrl);
     const testDb = drizzle(testConnection);
     await testDb.execute(sql);
+    await testConnection.end();
     console.log('✅ Migration applied to test database');
     
   } catch (error) {

@@ -63,11 +63,11 @@ export class SessionCleanupService {
       // Scenario 1: Sessions with no students that have been waiting too long
       await this.cleanupEmptyTeacherSessions(now);
       
-      // Scenario 2: General inactivity cleanup (30+ minutes) - takes precedence
-      await this.cleanupInactiveSessions(now);
-      
-      // Scenario 3: Sessions where all students left (grace period for recent disconnections)
+      // Scenario 2: Sessions where all students left (grace period for recent disconnections) - more specific
       await this.cleanupAbandonedSessions(now);
+      
+      // Scenario 3: General inactivity cleanup (30+ minutes) - broader fallback
+      await this.cleanupInactiveSessions(now);
       
     } catch (error) {
       logger.error('Error during session cleanup:', error);

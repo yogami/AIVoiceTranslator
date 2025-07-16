@@ -58,8 +58,11 @@ export class ConnectionLifecycleManager {
     // Parse URL for classroom code and generate session ID
     const { sessionId, classroomCode } = this.parseConnectionRequest(request);
     
+    console.log(`[DEBUG] ConnectionLifecycleManager: parsed classroomCode=${classroomCode}, sessionId=${sessionId}`);
+    
     // Validate classroom code if provided
     if (classroomCode && !this.classroomSessionManager.isValidClassroomCode(classroomCode)) {
+      console.log(`[DEBUG] ConnectionLifecycleManager: Invalid classroom code ${classroomCode} - closing connection`);
       logger.warn(`Invalid classroom code attempted: ${classroomCode}`);
       ws.send(JSON.stringify({
         type: 'error',
@@ -69,6 +72,8 @@ export class ConnectionLifecycleManager {
       ws.close(1008, 'Invalid classroom session');
       return;
     }
+    
+    console.log(`[DEBUG] ConnectionLifecycleManager: Classroom code ${classroomCode} is valid or not provided - continuing`);
     
     // Store connection data
     this.connectionManager.addConnection(ws, sessionId, classroomCode || undefined);

@@ -13,7 +13,7 @@ import request from 'supertest';
 import express from 'express';
 import { createApiRoutes } from '../../server/routes';
 import { setupTestIsolation } from '../../test-config/test-isolation';
-import { DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { SessionCleanupService } from '../../server/services/SessionCleanupService';
 import { StorageSessionManager } from '../../server/services/websocket/StorageSessionManager';
 import logger from '../../server/logger';
 import { DatabaseStorage } from '../../server/database-storage';
@@ -24,6 +24,7 @@ describe('Teacher Authentication Flow E2E Tests', () => {
   let app: express.Application;
   let storage: DatabaseStorage;
   let storageSessionManager: StorageSessionManager;
+  let cleanupService: SessionCleanupService;
   const testId = `teacher-auth-flow-e2e-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   beforeEach(async () => {
@@ -33,8 +34,8 @@ describe('Teacher Authentication Flow E2E Tests', () => {
     // Create StorageSessionManager
     storageSessionManager = new StorageSessionManager(storage);
     
-    // Create mock services
-    const diagnosticsService = new DiagnosticsService(storage, null);
+    // Create cleanup service
+    cleanupService = new SessionCleanupService();
     const mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(0),
       getActiveSessions: vi.fn().mockReturnValue([]),
@@ -48,7 +49,7 @@ describe('Teacher Authentication Flow E2E Tests', () => {
     app.use(express.json());
     
     // Create API routes with test storage and mock services
-    const apiRoutes = createApiRoutes(storage, diagnosticsService, mockActiveSessionProvider);
+    const apiRoutes = createApiRoutes(storage, mockActiveSessionProvider, cleanupService);
     app.use('/api', apiRoutes);
     
     // Silence logs during tests

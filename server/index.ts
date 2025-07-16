@@ -17,7 +17,7 @@ const rootDir = path.resolve(__dirname, '..'); // Goes up one level from server/
  * Main application entry point
  */
 
-import { validateConfig } from './config'; // Import validateConfig
+import { validateConfig, debugTimingScaling } from './config'; // Import both functions
 import { startServer } from './server'; // Ensure this matches your export from server.ts
 
 console.log(`[${new Date().toISOString()}] SERVER_INDEX_TS: Script starting`);
@@ -30,6 +30,9 @@ try {
   console.log(`[${new Date().toISOString()}] SERVER_INDEX_TS: Calling validateConfig()`);
   validateConfig();
   console.log(`[${new Date().toISOString()}] SERVER_INDEX_TS: validateConfig() completed successfully`);
+  
+  // Show timing scaling info in test environment
+  debugTimingScaling();
 
   console.log(`[${new Date().toISOString()}] SERVER_INDEX_TS: Creating Express app instance`);
   const app = express(); // Create the app instance

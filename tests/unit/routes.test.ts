@@ -1,7 +1,7 @@
 // Set all required env vars for strict config at the very top (no fallbacks)
 process.env.PORT = '5001';
 process.env.HOST = '127.0.0.1';
-process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_8VHatecgqv4Z@ep-silent-sun-a29jrxc7-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require';
+process.env.DATABASE_URL = 'postgresql://test_user:test_pass@localhost:5432/testdb';
 process.env.OPENAI_API_KEY = 'sk-test-key';
 process.env.VITE_API_URL = 'http://127.0.0.1:5001';
 process.env.VITE_WS_URL = 'ws://127.0.0.1:5001';
@@ -23,7 +23,7 @@ import express from 'express';
 import type { Express, Router } from 'express';
 import { createApiRoutes, apiErrorHandler } from '../../server/routes';
 import { type IStorage } from '../../server/storage.interface';
-import { type DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { type SessionCleanupService } from '../../server/services/SessionCleanupService';
 import { type IActiveSessionProvider } from '../../server/services/IActiveSessionProvider';
 import type { Language, Translation, Transcript, User, Session, InsertSession, InsertTranslation, InsertTranscript, InsertUser, InsertLanguage } from '../../shared/schema';
 
@@ -70,17 +70,15 @@ const mockStorage: IStorage = {
 
   // Analytics methods
   getSessionAnalytics: vi.fn(),
-
-  // Diagnostics methods
   getSessionMetrics: vi.fn(),
   getTranslationMetrics: vi.fn(),
   getLanguagePairUsage: vi.fn(),
 };
 
-const mockDiagnosticsService = {
-  getMetrics: vi.fn(),
-  getExportData: vi.fn(),
-} as unknown as DiagnosticsService;
+const mockCleanupService = {
+  start: vi.fn(),
+  stop: vi.fn(),
+} as unknown as SessionCleanupService;
 
 const mockActiveSessionProvider: IActiveSessionProvider = {
   getActiveSessionsCount: vi.fn().mockReturnValue(0),
@@ -123,13 +121,10 @@ describe('API Routes', () => {
       { id: 1, code, name: 'Test Language', isActive } as Language
     ));
     vi.mocked(mockStorage.getRecentSessionActivity).mockResolvedValue([]);
-    vi.mocked(mockStorage.getSessionMetrics).mockResolvedValue({ totalSessions: 0, activeSessions: 0, averageSessionDuration: 0, sessionsLast24Hours: 0 });
-    vi.mocked(mockStorage.getTranslationMetrics).mockResolvedValue({ totalTranslations: 0, averageLatency: 0, recentTranslations: 0 });
-    vi.mocked(mockStorage.getLanguagePairUsage).mockResolvedValue([]);
 
 
-    vi.mocked(mockDiagnosticsService.getMetrics).mockClear();
-    vi.mocked(mockDiagnosticsService.getExportData).mockClear();
+    vi.mocked(mockCleanupService.start).mockClear();
+    vi.mocked(mockCleanupService.stop).mockClear();
 
     vi.mocked(mockActiveSessionProvider.getActiveSessionsCount).mockClear().mockReturnValue(0);
     vi.mocked(mockActiveSessionProvider.getActiveTeacherCount).mockClear().mockReturnValue(0);
@@ -140,8 +135,8 @@ describe('API Routes', () => {
 
     const apiRouter: Router = createApiRoutes(
       mockStorage,
-      mockDiagnosticsService,
-      mockActiveSessionProvider
+      mockActiveSessionProvider,
+      mockCleanupService
     );
     app.use('/api', apiRouter);
     // Mount the error handler globally, after other routes
@@ -426,65 +421,6 @@ describe('API Routes', () => {
         .get('/api/join/ABC!23')
         .expect(400);
       expect(response.body).toEqual({ error: "Invalid classroom code format" });
-    });
-  });
-
-  describe('/api/diagnostics', () => {
-    it('should return diagnostics data from the service', async () => {
-      const mockMetrics = {
-        global: {
-          totalSessions: 10,
-          activeSessions: 2,
-          averageSessionDuration: 30,
-          sessionsLast24Hours: 5,
-          totalTranslations: 100,
-          averageLatency: 50,
-          recentTranslations: 10,
-          languagePairUsage: [{ sourceLanguage: 'en-US', targetLanguage: 'es-ES', count: 50 }],
-          currentPerformance: {
-            activeSessions: 2,
-            activeTeachers: 1,
-            activeStudents: 1,
-            cpuUsage: '50%',
-            memoryUsage: '200MB',
-            networkThroughput: '10Mbps'
-          }
-        },
-        sessions: []
-      };
-      (mockDiagnosticsService.getMetrics as Mock).mockResolvedValue(mockMetrics);
-
-      const response = await request(app)
-        .get('/api/diagnostics')
-        .expect(200);
-
-      expect(response.body).toEqual(mockMetrics);
-      expect(mockDiagnosticsService.getMetrics).toHaveBeenCalledTimes(1);
-    });
-
-    it('should return 500 if diagnostics service fails', async () => {
-      const expectedErrorMessage = 'Metrics service failed';
-      (mockDiagnosticsService.getMetrics as Mock).mockRejectedValue(new Error(expectedErrorMessage));
-
-      const response = await request(app)
-        .get('/api/diagnostics')
-        .expect(500);
-
-      expect(response.body).toEqual({ error: 'Failed to get diagnostics' });
-    });
-  });
-
-  describe('/api/diagnostics/export', () => {
-    it('should return export data from the service', async () => {
-      const mockExportPayload = { data: 'exported', timestamp: new Date().toISOString() }; // Using a generic object
-      vi.mocked(mockDiagnosticsService.getExportData).mockResolvedValueOnce(mockExportPayload as any);
-
-      const response = await request(app)
-        .get('/api/diagnostics/export')
-        .expect(200);
-
-      expect(response.body).toEqual(mockExportPayload);
-      expect(mockDiagnosticsService.getExportData).toHaveBeenCalledTimes(1);
     });
   });
 

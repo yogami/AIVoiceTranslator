@@ -11,8 +11,8 @@ import express, { Express } from 'express';
 import http from 'http';
 import { createApiRoutes, apiErrorHandler } from '../../../server/routes';
 import { DatabaseStorage } from '../../../server/database-storage';
-import { DiagnosticsService } from '../../../server/services/DiagnosticsService';
 import { WebSocketServer } from '../../../server/services/WebSocketServer';
+import { SessionCleanupService } from '../../../server/services/SessionCleanupService';
 
 // Simple wrapper function to wait for promises
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,11 +22,12 @@ describe('API Routes', () => {
   let server: http.Server;
   let webSocketServer: WebSocketServer;
   let storage: DatabaseStorage;
+  let cleanupService: SessionCleanupService;
   
   beforeEach(async () => {
     // Create dependencies for the API routes
     storage = new DatabaseStorage();
-    const diagnosticsService = new DiagnosticsService(storage, null);
+    cleanupService = new SessionCleanupService();
     
     // Create a test HTTP server for WebSocket
     app = express();
@@ -34,7 +35,7 @@ describe('API Routes', () => {
     webSocketServer = new WebSocketServer(server, storage);
     
     // Create API routes with dependencies
-    const apiRoutes = createApiRoutes(storage, diagnosticsService, webSocketServer);
+    const apiRoutes = createApiRoutes(storage, webSocketServer, cleanupService);
     
     // Set up the Express app
     app.use(express.json());

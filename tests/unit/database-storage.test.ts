@@ -1,7 +1,7 @@
 // Set all required env vars for strict config at the very top (no fallbacks)
 process.env.PORT = '5001';
 process.env.HOST = '127.0.0.1';
-process.env.DATABASE_URL = 'postgresql://neondb_owner:npg_8VHatecgqv4Z@ep-silent-sun-a29jrxc7-pooler.eu-central-1.aws.neon.tech/neondb?sslmode=require';
+process.env.DATABASE_URL = 'postgresql://test_user:test_pass@localhost:5432/testdb';
 process.env.OPENAI_API_KEY = 'sk-test-key';
 process.env.VITE_API_URL = 'http://127.0.0.1:5001';
 process.env.VITE_WS_URL = 'ws://127.0.0.1:5001';

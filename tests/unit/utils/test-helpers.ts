@@ -107,25 +107,6 @@ export function createMockTranslationService() {
 }
 
 /**
- * Creates a mock diagnostics service
- */
-export function createMockDiagnosticsService() {
-  return {
-    recordConnection: vi.fn(),
-    recordConnectionActive: vi.fn(),
-    recordConnectionClosed: vi.fn(),
-    recordTranslation: vi.fn(),
-    recordAudioGeneration: vi.fn(),
-    getMetrics: vi.fn().mockResolvedValue({
-      connections: { total: 10, active: 2 },
-      translations: { total: 50, averageTime: 1500 },
-      audio: { totalGenerated: 30, averageGenerationTime: 800 },
-      system: { memoryUsage: 100000000, uptime: 3600 }
-    })
-  };
-}
-
-/**
  * Sets up console mocks for testing.
  * This is a placeholder and can be expanded if needed.
  */

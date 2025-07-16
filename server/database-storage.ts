@@ -186,159 +186,6 @@ export class DatabaseStorage implements IStorage {
     return { totalTranslations: totalTranslationsCount, averageLatency: averageLatencyValue, languagePairs: Array.from(languagePairsMap.values()) };
   }
 
-  async getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
-    totalSessions: number;
-    averageSessionDuration: number;
-    activeSessions: number;
-    sessionsLast24Hours: number;
-  }> {
-    logger.debug('DatabaseStorage.getSessionMetrics called', { timeRange });
-
-    const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
-    
-    const totalSessionsResult = await drizzleDB
-      .select({ totalSessions: count() })
-      .from(sessions)
-      .where(timeRange ? and(gte(sessions.startTime, timeRange.startDate), lte(sessions.startTime, timeRange.endDate)) : undefined)
-      .prepare(totalSessionsQueryName)
-      .execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : undefined);
-    const totalSessionsCount = Number(totalSessionsResult[0]?.totalSessions) || 0;
-
-    let averageSessionDurationValue = 0;
-    if (totalSessionsCount > 0) {
-      const durationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
-      const durationResult = await drizzleDB
-        .select({
-          totalDuration: sql<string>`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
-          countSessions: count(sessions.id),
-        })
-        .from(sessions)
-        .where(timeRange ?
-          and(gte(sessions.startTime, timeRange.startDate), lte(sessions.startTime, timeRange.endDate), isNotNull(sessions.endTime)) :
-          isNotNull(sessions.endTime)
-        )
-        .prepare(durationQueryName)
-        .execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : undefined);
-
-      if (durationResult && durationResult.length > 0 && durationResult[0].countSessions && Number(durationResult[0].countSessions) > 0) {
-        averageSessionDurationValue = (Number(durationResult[0].totalDuration) || 0) / (Number(durationResult[0].countSessions));
-      }
-    }
-
-    const activeSessionsResult = await drizzleDB
-      .select({ count: count() })
-      .from(sessions)
-      .where(eq(sessions.isActive, true))
-      .prepare("active_sessions_query")
-      .execute();
-    const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
-
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
-    const sessionsLast24HoursResult = await drizzleDB
-      .select({ count: count() })
-      .from(sessions)
-      .where(gte(sessions.startTime, twentyFourHoursAgo))
-      .prepare("sessions_last_24_hours_query")
-      .execute();
-    const sessionsLast24HoursCount = Number(sessionsLast24HoursResult[0]?.count) || 0;
-
-    logger.debug('DatabaseStorage.getSessionMetrics results', { totalSessionsCount, averageSessionDuration: averageSessionDurationValue, activeSessionsCount, sessionsLast24Hours: sessionsLast24HoursCount });
-    return {
-      totalSessions: totalSessionsCount,
-      averageSessionDuration: averageSessionDurationValue,
-      activeSessions: activeSessionsCount,
-      sessionsLast24Hours: sessionsLast24HoursCount,
-    };
-  }
-
-  async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
-    totalTranslations: number;
-    averageLatency: number;
-    recentTranslations: number;
-  }> {
-    logger.debug('DatabaseStorage.getTranslationMetrics called', { timeRange });
-    const mainQueryName = timeRange ? "translation_metrics_main_with_range" : "translation_metrics_main_no_range";
-
-    let query = drizzleDB
-      .select({
-        total_translations: count(translations.id),
-        avg_latency: avg(translations.latency),
-      })
-      .from(translations);
-
-    if (timeRange) {
-      query = query.where(and(gte(translations.timestamp, timeRange.startDate), lte(translations.timestamp, timeRange.endDate))) as any;
-    }
-
-    const mainMetricsResult = await query.prepare(mainQueryName).execute(timeRange);
-
-    let totalTranslationsValue = 0;
-    let averageLatencyValue = 0;
-
-    if (mainMetricsResult && mainMetricsResult.length > 0) {
-      totalTranslationsValue = Number(mainMetricsResult[0].total_translations) || 0;
-      averageLatencyValue = Math.round(Number(mainMetricsResult[0].avg_latency)) || 0;
-    }
-
-    const recentTranslationsQueryName = "translation_metrics_recent";
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    
-    const recentTranslationsResult = await drizzleDB
-      .select({ count: count(translations.id) })
-      .from(translations)
-      .where(gte(translations.timestamp, oneHourAgo))
-      .prepare(recentTranslationsQueryName)
-      .execute();
-
-    let recentTranslationsCount = 0;
-    if (recentTranslationsResult && recentTranslationsResult.length > 0 && recentTranslationsResult[0].count !== null) {
-      recentTranslationsCount = Number(recentTranslationsResult[0].count) || 0;
-    }
-    logger.debug('DatabaseStorage.getTranslationMetrics results', { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount });
-    return { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount };
-  }
-
-  async getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<Array<{
-    sourceLanguage: string;
-    targetLanguage: string;
-    count: number;
-    averageLatency: number;
-  }>> {
-    logger.debug('DatabaseStorage.getLanguagePairUsage called', { timeRange });
-    const queryName = timeRange ? "language_pair_usage_query_with_range" : "language_pair_usage_query_no_range";
-
-    let queryBuilder = drizzleDB
-      .select({
-        source_language: translations.sourceLanguage,
-        target_language: translations.targetLanguage,
-        pair_count: count(translations.id),
-        avg_latency: avg(translations.latency),
-      })
-      .from(translations);
-
-    if (timeRange) {
-      queryBuilder = queryBuilder.where(and(gte(translations.timestamp, timeRange.startDate), lte(translations.timestamp, timeRange.endDate))) as any;
-    }
-
-    const finalQuery = queryBuilder
-      .groupBy(translations.sourceLanguage, translations.targetLanguage)
-      .orderBy(desc(count(translations.id)));
-
-    const results = await finalQuery.prepare(queryName).execute(timeRange);
-
-    if (!results || results.length === 0) {
-      return [];
-    }
-
-    return results.map((row: any) => ({
-      sourceLanguage: row.source_language ?? "unknown",
-      targetLanguage: row.target_language ?? "unknown",
-      count: Number(row.pair_count) || 0,
-      averageLatency: Math.round(Number(row.avg_latency)) || 0,
-    }));
-  }
-
   // Teacher ID session methods - delegate to sessionStorage
   async findActiveSessionByTeacherId(teacherId: string): Promise<Session | null> {
     await this.ensureInitialized();
@@ -357,6 +204,145 @@ export class DatabaseStorage implements IStorage {
 
   async createTranslation(translationData: InsertTranslation): Promise<Translation> {
     return this.translationStorage.createTranslation(translationData);
+  }
+
+  // Analytics methods for metrics
+  async getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalSessions: number;
+    averageSessionDuration: number;
+    activeSessions: number;
+    sessionsLast24Hours: number;
+  }> {
+    logger.debug('DatabaseStorage.getSessionMetrics called', { timeRange });
+    const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
+    
+    const totalSessionsResult = await drizzleDB
+      .select({ totalSessions: count() })
+      .from(sessions)
+      .where(timeRange ? and(gte(sessions.startTime, timeRange.startDate), lte(sessions.startTime, timeRange.endDate)) : undefined)
+      .prepare(totalSessionsQueryName)
+      .execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : undefined);
+    const totalSessionsCount = Number(totalSessionsResult[0]?.totalSessions) || 0;
+    
+    let averageSessionDurationValue = 0;
+    if (totalSessionsCount > 0) {
+      const durationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
+      const durationResult = await drizzleDB
+        .select({
+          totalDuration: sql<string>`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
+          countSessions: count(sessions.id),
+        })
+        .from(sessions)
+        .where(timeRange ?
+          and(gte(sessions.startTime, timeRange.startDate), lte(sessions.startTime, timeRange.endDate), isNotNull(sessions.endTime)) :
+          isNotNull(sessions.endTime)
+        )
+        .prepare(durationQueryName)
+        .execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : undefined);
+      if (durationResult && durationResult.length > 0 && durationResult[0].countSessions && Number(durationResult[0].countSessions) > 0) {
+        averageSessionDurationValue = (Number(durationResult[0].totalDuration) || 0) / (Number(durationResult[0].countSessions));
+      }
+    }
+    
+    const activeSessionsResult = await drizzleDB
+      .select({ count: count() })
+      .from(sessions)
+      .where(eq(sessions.isActive, true))
+      .prepare("active_sessions_query")
+      .execute();
+    const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
+    
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const sessionsLast24HoursResult = await drizzleDB
+      .select({ count: count() })
+      .from(sessions)
+      .where(gte(sessions.startTime, twentyFourHoursAgo))
+      .prepare("sessions_last_24_hours_query")
+      .execute();
+    const sessionsLast24HoursCount = Number(sessionsLast24HoursResult[0]?.count) || 0;
+    
+    logger.debug('DatabaseStorage.getSessionMetrics results', { totalSessionsCount, averageSessionDuration: averageSessionDurationValue, activeSessionsCount, sessionsLast24Hours: sessionsLast24HoursCount });
+    return {
+      totalSessions: totalSessionsCount,
+      averageSessionDuration: averageSessionDurationValue,
+      activeSessions: activeSessionsCount,
+      sessionsLast24Hours: sessionsLast24HoursCount,
+    };
+  }
+  
+  async getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
+    recentTranslations: number;
+  }> {
+    logger.debug('DatabaseStorage.getTranslationMetrics called', { timeRange });
+    const mainQueryName = timeRange ? "translation_metrics_main_with_range" : "translation_metrics_main_no_range";
+    let query = drizzleDB
+      .select({
+        total_translations: count(translations.id),
+        avg_latency: avg(translations.latency),
+      })
+      .from(translations);
+    if (timeRange) {
+      query = query.where(and(gte(translations.timestamp, timeRange.startDate), lte(translations.timestamp, timeRange.endDate))) as any;
+    }
+    const mainMetricsResult = await query.prepare(mainQueryName).execute(timeRange);
+    let totalTranslationsValue = 0;
+    let averageLatencyValue = 0;
+    if (mainMetricsResult && mainMetricsResult.length > 0) {
+      totalTranslationsValue = Number(mainMetricsResult[0].total_translations) || 0;
+      averageLatencyValue = Math.round(Number(mainMetricsResult[0].avg_latency)) || 0;
+    }
+    const recentTranslationsQueryName = "translation_metrics_recent";
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    
+    const recentTranslationsResult = await drizzleDB
+      .select({ count: count(translations.id) })
+      .from(translations)
+      .where(gte(translations.timestamp, oneHourAgo))
+      .prepare(recentTranslationsQueryName)
+      .execute();
+    let recentTranslationsCount = 0;
+    if (recentTranslationsResult && recentTranslationsResult.length > 0 && recentTranslationsResult[0].count !== null) {
+      recentTranslationsCount = Number(recentTranslationsResult[0].count) || 0;
+    }
+    logger.debug('DatabaseStorage.getTranslationMetrics results', { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount });
+    return { totalTranslations: totalTranslationsValue, averageLatency: averageLatencyValue, recentTranslations: recentTranslationsCount };
+  }
+  
+  async getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<Array<{
+    sourceLanguage: string;
+    targetLanguage: string;
+    count: number;
+    averageLatency: number;
+  }>> {
+    logger.debug('DatabaseStorage.getLanguagePairUsage called', { timeRange });
+    const queryName = timeRange ? "language_pair_usage_query_with_range" : "language_pair_usage_query_no_range";
+    let queryBuilder = drizzleDB
+      .select({
+        source_language: translations.sourceLanguage,
+        target_language: translations.targetLanguage,
+        pair_count: count(translations.id),
+        avg_latency: avg(translations.latency),
+      })
+      .from(translations);
+    if (timeRange) {
+      queryBuilder = queryBuilder.where(and(gte(translations.timestamp, timeRange.startDate), lte(translations.timestamp, timeRange.endDate))) as any;
+    }
+    const finalQuery = queryBuilder
+      .groupBy(translations.sourceLanguage, translations.targetLanguage)
+      .orderBy(desc(count(translations.id)));
+    const results = await finalQuery.prepare(queryName).execute(timeRange);
+    if (!results || results.length === 0) {
+      return [];
+    }
+    return results.map((row: any) => ({
+      sourceLanguage: row.source_language ?? "unknown",
+      targetLanguage: row.target_language ?? "unknown",
+      count: Number(row.pair_count) || 0,
+      averageLatency: Math.round(Number(row.avg_latency)) || 0,
+    }));
   }
 
   // Note: Database reset functionality has been moved to test utilities

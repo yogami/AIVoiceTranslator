@@ -1,13 +1,13 @@
-import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import { sessions, translations, transcripts, users, languages } from '../shared/schema';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
 
-const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+const connection = postgres(process.env.DATABASE_URL!);
+const db = drizzle(connection);
 
 async function clearProductionData() {
     console.log('🔧 Clearing all data from production database...');
@@ -35,6 +35,8 @@ async function clearProductionData() {
     } catch (error) {
         console.error('❌ Error clearing production data:', error);
         throw error;
+    } finally {
+        await connection.end();
     }
 }
 

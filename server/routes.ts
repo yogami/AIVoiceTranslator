@@ -9,7 +9,6 @@
  * - Clean Code: Self-documenting function names and clear structure
  */
 import { Router, Request, Response, NextFunction } from 'express';
-import { DiagnosticsService } from './services/DiagnosticsService.js';
 import { IStorage } from './storage.interface.js';
 import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
 import { SessionCleanupService } from './services/SessionCleanupService.js';
@@ -68,7 +67,6 @@ function parseLimit(limitParam: any, defaultLimit: number = 10): number {
 // Create router instance via a function to allow dependency injection
 export const createApiRoutes = (
   storage: IStorage,
-  diagnosticsService: DiagnosticsService,
   activeSessionProvider: IActiveSessionProvider, // Or WebSocketServer if direct interaction is needed
   sessionCleanupService?: SessionCleanupService // Add optional cleanup service for admin endpoints
 ): Router => {
@@ -243,41 +241,6 @@ export const createApiRoutes = (
     });
   });
 
-  /**
-   * Get application diagnostics
-   */
-  const getDiagnostics = asyncHandler(async (req: Request, res: Response) => {
-    // Handle timeRange query parameter
-    const timeRangeParam = req.query.timeRange as string | undefined;
-    let timeRange: any = undefined;
-    
-    if (timeRangeParam) {
-      // Validate that it's a valid preset
-      const validPresets = ['lastHour', 'last24Hours', 'last7Days', 'last30Days'];
-      if (validPresets.includes(timeRangeParam)) {
-        timeRange = timeRangeParam;
-      } else {
-        return res.status(400).json({ error: 'Invalid timeRange parameter. Valid values: ' + validPresets.join(', ') });
-      }
-    }
-    
-    const metrics = await diagnosticsService.getMetrics(timeRange);
-    res.json(metrics);
-  });
-
-  /**
-   * Export diagnostics data
-   */
-  const exportDiagnostics = asyncHandler(async (req: Request, res: Response) => {
-    const exportData = await diagnosticsService.getExportData(); // Uses injected diagnosticsService
-
-    // Set headers for file download
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="diagnostics-${Date.now()}.json"`);
-
-    res.json(exportData);
-  });
-
   // ============================================================================
   // Classroom Routes
   // ============================================================================
@@ -297,6 +260,45 @@ export const createApiRoutes = (
   });
 
   // ============================================================================
+  // Analytics Routes
+  // ============================================================================
+
+  /**
+   * Handle natural language analytics queries
+   */
+  const handleAnalyticsQuery = asyncHandler(async (req: Request, res: Response) => {
+    const { question } = req.body;
+    
+    if (!question || typeof question !== 'string') {
+      throw new ApiError(400, 'Question is required and must be a string');
+    }
+
+    // Get session data using the correct IStorage methods
+    const activeSessions = await storage.getAllActiveSessions();
+    const recentActivity = await storage.getRecentSessionActivity(100, 24);
+    
+    // Simple analytics based on common questions
+    const stats = {
+      activeSessions: activeSessions.length,
+      recentSessions: recentActivity.length,
+      sessionsToday: recentActivity.filter((activity: any) => {
+        const today = new Date();
+        const activityDate = new Date(activity.createdAt);
+        return activityDate.toDateString() === today.toDateString();
+      }).length,
+      averageSessionDuration: recentActivity.length > 0 ? 
+        recentActivity.reduce((acc: number, activity: any) => acc + (activity.duration || 0), 0) / recentActivity.length : 0
+    };
+
+    // Return structured response for analytics
+    res.json({
+      answer: `Here are your session statistics: ${JSON.stringify(stats, null, 2)}`,
+      data: stats,
+      question
+    });
+  });
+
+  // ============================================================================
   // Test Routes
   // ============================================================================
 
@@ -309,26 +311,6 @@ export const createApiRoutes = (
       timestamp: new Date().toISOString()
     });
   };
-
-  /**
-   * Admin endpoint to manually trigger session cleanup (for testing)
-   */
-  const triggerSessionCleanup = asyncHandler(async (req: Request, res: Response) => {
-    if (!sessionCleanupService) {
-      throw new ApiError(503, 'Session cleanup service not available');
-    }
-
-    if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
-      throw new ApiError(403, 'Admin endpoints only available in test/development mode');
-    }
-
-    await sessionCleanupService.cleanupStaleSessions();
-    
-    res.json({
-      message: 'Session cleanup triggered successfully',
-      timestamp: new Date().toISOString()
-    });
-  });
 
   // ============================================================================
   // Route Registration
@@ -353,21 +335,18 @@ export const createApiRoutes = (
   // Authentication routes
   router.use('/auth', authRoutes);
 
-  // Health & diagnostics routes
+  // Health check route
   router.get('/health', healthCheck);
-  router.get('/diagnostics', getDiagnostics);
-  router.get('/diagnostics/export', exportDiagnostics);
 
   // Classroom routes
   router.get('/join/:classCode', joinClassroom);
 
+  // Analytics routes
+  router.post('/analytics/query', handleAnalyticsQuery);
+  router.post('/analytics/ask', handleAnalyticsQuery); // Alias for client compatibility
+
   // Test routes
   router.get('/test', testEndpoint);
-  
-  // Admin routes (only in test/dev)
-  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
-    router.post('/admin/cleanup-sessions', triggerSessionCleanup);
-  }
 
   return router;
 };

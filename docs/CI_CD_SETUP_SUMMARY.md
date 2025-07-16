@@ -4,7 +4,7 @@
 
 ### 🔧 Core Infrastructure Files
 - **`.github/workflows/ci-cd.yml`** - Complete CI/CD pipeline with testing and deployment
-- **`Dockerfile`** - Production-ready container configuration
+- **`dist/Dockerfile`** - Production-ready container configuration
 - **`railway.json`** - Railway platform deployment configuration
 - **`.env.production`** - Production environment variables template
 - **`scripts/setup-railway.sh`** - Interactive Railway setup script

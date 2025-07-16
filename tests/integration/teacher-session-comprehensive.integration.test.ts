@@ -18,7 +18,7 @@ import request from 'supertest';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { createApiRoutes } from '../../server/routes';
 import { setupTestIsolation, getCurrentTestContext } from '../../test-config/test-isolation';
-import { DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { SessionCleanupService } from '../../server/services/SessionCleanupService';
 import { DatabaseStorage } from '../../server/database-storage';
 import { initTestDatabase, closeDatabaseConnection } from '../setup/db-setup';
 import logger from '../../server/logger';
@@ -84,7 +84,7 @@ describe('Fast Teacher Session Integration Tests', () => {
     await initTestDatabase();
     
     // Create real services
-    const diagnosticsService = new DiagnosticsService(storage, null);
+    const cleanupService = new SessionCleanupService();
     const mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(0),
       getActiveSessions: vi.fn().mockReturnValue([]),
@@ -98,7 +98,7 @@ describe('Fast Teacher Session Integration Tests', () => {
     app.use(express.json());
     
     // Create API routes with test storage and mock services
-    const apiRoutes = createApiRoutes(storage, diagnosticsService, mockActiveSessionProvider);
+    const apiRoutes = createApiRoutes(storage, mockActiveSessionProvider, cleanupService);
     app.use('/api', apiRoutes);
 
     // Create HTTP server for WebSocket

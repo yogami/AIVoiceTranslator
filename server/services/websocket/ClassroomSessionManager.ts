@@ -58,13 +58,17 @@ export class ClassroomSessionManager {
     console.log(`🔍 DEBUG: Generated new classroom code: ${code} for sessionId: ${sessionId}`);
     
     // Create session with configurable expiration
+    const now = Date.now();
+    const expiresAt = now + config.session.classroomCodeExpiration;
+    console.log(`🔍 DEBUG: Setting expiration - now=${now}, expiration=${config.session.classroomCodeExpiration}ms, expiresAt=${expiresAt}`);
+    
     const session: ClassroomSession = {
       code,
       sessionId,
-      createdAt: Date.now(),
-      lastActivity: Date.now(),
+      createdAt: now,
+      lastActivity: now,
       teacherConnected: true,
-      expiresAt: Date.now() + config.session.classroomCodeExpiration
+      expiresAt: expiresAt
     };
     
     this.classroomSessions.set(code, session);
@@ -77,25 +81,37 @@ export class ClassroomSessionManager {
    * Validate classroom code
    */
   public isValidClassroomCode(code: string): boolean {
+    console.log(`[DEBUG] isValidClassroomCode called with: ${code}`);
+    
     // Check format
     if (!/^[A-Z0-9]{6}$/.test(code)) {
+      console.log(`[DEBUG] Classroom code ${code} has invalid format`);
+      logger.info(`DEBUG: Classroom code ${code} has invalid format`);
       return false;
     }
     
     const session = this.classroomSessions.get(code);
     if (!session) {
+      console.log(`[DEBUG] Classroom code ${code} not found in sessions`);
+      logger.info(`DEBUG: Classroom code ${code} not found in sessions`);
       return false;
     }
     
     // Check expiration
-    if (Date.now() > session.expiresAt) {
+    const now = Date.now();
+    console.log(`[DEBUG] Checking expiration for code ${code}: now=${now}, expiresAt=${session.expiresAt}, expired=${now > session.expiresAt}`);
+    logger.info(`DEBUG: Checking expiration for code ${code}: now=${now}, expiresAt=${session.expiresAt}, expired=${now > session.expiresAt}`);
+    
+    if (now > session.expiresAt) {
       this.classroomSessions.delete(code);
+      console.log(`[DEBUG] Classroom code ${code} expired and removed`);
       logger.info(`Classroom code ${code} expired and removed`);
       return false;
     }
     
     // Update last activity
     session.lastActivity = Date.now();
+    console.log(`[DEBUG] Classroom code ${code} is valid`);
     return true;
   }
 

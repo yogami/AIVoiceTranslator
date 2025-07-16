@@ -57,13 +57,14 @@ export async function setupVite(app: express.Express): Promise<void> {
             continue;
           }
           
-          // Special handling for analytics route - serve diagnostics.html
-          if (name === 'diagnostics') {
-            app.get('/analytics', async (req, res, next) => {
+          // Special handling for analytics route - serve analytics.html with auth
+          if (name === 'analytics') {
+            const { analyticsPageAuth } = await import('./middleware/analytics-security.js');
+            app.get('/analytics', analyticsPageAuth, async (req, res, next) => {
               try {
                 const html = await fsPromises.readFile(filePath, 'utf-8');
                 const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
-                logger.info(`[VITE DEV] Serving transformed /analytics from ${filePath} (diagnostics.html)`);
+                logger.info(`[VITE DEV] Serving transformed /analytics from ${filePath} (analytics.html)`);
                 res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
               } catch (e: any) {
                 logger.error(`[VITE DEV] Error transforming HTML for /analytics: ${e.message}`);
@@ -143,18 +144,26 @@ export function serveStatic(app: express.Express): void {
     '/teacher': 'teacher.html',
     '/teacher-login.html': 'teacher-login.html',
     '/student': 'student.html',
-    '/diagnostics.html': 'diagnostics.html',
-    '/analytics': 'diagnostics.html'  // Analytics route serves diagnostics.html
+    '/analytics': 'analytics.html'  // Analytics route serves analytics.html
   };
 
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
     const filePath = path.join(clientDistPath, fileName);
     // Use synchronous file check for simplicity in this part of the code, or adapt to async if preferred.
     if (fsSync.existsSync(filePath)) { 
-      app.get(routePath, (req, res) => {
-        logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path}`);
-        res.sendFile(filePath);
-      });
+      if (routePath === '/analytics') {
+        // Add authentication to analytics route in production
+        const { analyticsPageAuth } = require('./middleware/analytics-security.js');
+        app.get(routePath, analyticsPageAuth, (req, res) => {
+          logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path} (with auth)`);
+          res.sendFile(filePath);
+        });
+      } else {
+        app.get(routePath, (req, res) => {
+          logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path}`);
+          res.sendFile(filePath);
+        });
+      }
       if (fileName === 'index.html' && routePath === '/') {
         app.get('/index.html', (req, res) => {
             logger.info(`[PROD STATIC] Serving ${filePath} for /index.html (explicit)`);

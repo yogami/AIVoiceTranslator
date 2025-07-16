@@ -34,6 +34,9 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
 
+  /* Global setup to ensure test environment */
+  globalSetup: './global-setup.ts',
+
   /* Configure projects for major browsers */
   projects: [
     {
@@ -63,10 +66,13 @@ export default defineConfig({
     stderr: 'pipe',
     timeout: 120 * 1000, // 2 minutes
     env: {
+      ...process.env,
       NODE_ENV: 'test',
       E2E_TEST_MODE: 'true',
-      VITE_API_URL: 'http://127.0.0.1:5001',
-      VITE_WS_URL: 'ws://127.0.0.1:5001',
+      // DATABASE_URL will be loaded from .env.test file
+      LOG_LEVEL: 'info',
+      PORT: '5001',
+      ANALYTICS_PASSWORD: '' // Clear analytics password for test mode
     },
   },
 });
