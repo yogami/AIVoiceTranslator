@@ -108,7 +108,7 @@ railway variables set VITE_WS_URL=wss://aivoicetranslator-abcd1234.railway.app
 - **Production**: `https://aivoicetranslator.railway.app`
 - **Teacher Interface**: `https://aivoicetranslator.railway.app/teacher`
 - **Student Interface**: `https://aivoicetranslator.railway.app/student`
-- **Analytics**: `https://aivoicetranslator.railway.app/diagnostics.html`
+- **Analytics**: `https://aivoicetranslator.railway.app/analytics`
 
 ## 🎉 **Benefits Summary**
 

@@ -66,10 +66,18 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     
     // If registering as student, validate classroom code and handle registration
     if (message.role === 'student') {
+      // Get classroom code from message or connection manager
+      const classroomCode = message.classroomCode || context.connectionManager.getClassroomCode(context.ws);
+      
+      logger.info(`DEBUG: Student registration - classroomCode from message: ${message.classroomCode}, from connection: ${context.connectionManager.getClassroomCode(context.ws)}, final: ${classroomCode}`);
+      
       // Only validate classroom code if one is provided
-      if (message.classroomCode) {
-        if (!context.webSocketServer._classroomSessionManager.isValidClassroomCode(message.classroomCode)) {
-          logger.warn(`Student attempted to register with invalid classroom code: ${message.classroomCode}`);
+      if (classroomCode) {
+        console.log(`[DEBUG] Validating classroom code: ${classroomCode}`);
+        logger.info(`DEBUG: Validating classroom code: ${classroomCode}`);
+        if (!context.webSocketServer._classroomSessionManager.isValidClassroomCode(classroomCode)) {
+          console.log(`[DEBUG] Student registration FAILED - invalid classroom code: ${classroomCode}`);
+          logger.warn(`Student attempted to register with invalid classroom code: ${classroomCode}`);
           const errorResponse = {
             type: 'error',
             message: 'Classroom session expired or invalid. Please ask teacher for new link.',
@@ -84,6 +92,9 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           }
           return;
         }
+        console.log(`[DEBUG] Student registration SUCCESS - valid classroom code: ${classroomCode}`);
+      } else {
+        console.log(`[DEBUG] No classroom code provided, skipping validation`);
       }
       // Note: In production, classroom code should always be provided,
       // but in tests it might be omitted, so we continue without validation

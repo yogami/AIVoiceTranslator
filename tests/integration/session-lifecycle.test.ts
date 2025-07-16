@@ -169,13 +169,13 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should NOT clean up sessions still in grace period', async () => {
-      // Create a session where students left only 3 minutes ago
+      // Create a session where students left only 3 seconds ago (scaled from 3 minutes)
       const sessionId = `students-left-3min-${testId}`;
       await createTestSession({
         sessionId,
         studentsCount: 1,
-        startTime: new Date(Date.now() - 20 * 60 * 1000),
-        lastActivityAt: new Date(Date.now() - 3 * 60 * 1000), // 3 minutes ago
+        startTime: new Date(Date.now() - 20 * 1000), // 20 seconds ago (scaled from 20 minutes)
+        lastActivityAt: new Date(Date.now() - 3 * 1000), // 3 seconds ago (scaled from 3 minutes)
         isActive: true
       });
 

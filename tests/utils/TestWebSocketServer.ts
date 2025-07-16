@@ -5,25 +5,17 @@
 import * as http from 'http';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { IStorage } from '../../server/storage.interface';
-import { DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { SessionCleanupService } from '../../server/services/SessionCleanupService';
 import { MockTranslationOrchestrator } from './MockTranslationOrchestrator';
 import { MessageDispatcher } from '../../server/services/websocket/MessageHandler';
 
 export class TestWebSocketServer extends WebSocketServer {
-  // Constructor that matches the parent class with optional diagnostics service
+  // Constructor that matches the parent class
   constructor(
     server: http.Server, 
-    storage: IStorage, 
-    diagnosticsService?: DiagnosticsService
+    storage: IStorage
   ) {
     super(server, storage);
-    
-    // Set diagnostics service if provided
-    if (diagnosticsService) {
-      // Access the protected properties via any casting
-      const ws = this as any;
-      ws.diagnosticsService = diagnosticsService;
-    }
   }
 
   // Reset server state to make tests idempotent

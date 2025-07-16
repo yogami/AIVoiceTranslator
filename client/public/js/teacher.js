@@ -18,17 +18,16 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     
     if (isTestMode) {
         console.log('[DEBUG] teacher.js: Test mode detected, bypassing authentication');
-        
-        // Check for custom teacher ID in URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const customTeacherId = urlParams.get('teacherId') || 'test-teacher-id';
+        // Use teacher ID from URL parameter or default for tests
+        const teacherId = urlParams.get('teacherId') || 'test-teacher-id';
+        const teacherUsername = urlParams.get('teacherUsername') || 'test-teacher';
         
         // Set mock authentication data for tests
         localStorage.setItem('teacherToken', 'test-token-' + Date.now());
         localStorage.setItem('teacherUser', JSON.stringify({
-            id: customTeacherId,
-            username: `test-teacher-${customTeacherId}`,
-            email: `test-${customTeacherId}@example.com`
+            id: teacherId,
+            username: teacherUsername,
+            email: `${teacherUsername}@example.com`
         }));
         return;
     }

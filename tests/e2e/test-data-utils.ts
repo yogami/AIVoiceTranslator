@@ -1,9 +1,5 @@
-import dotenv from 'dotenv';
-import path from 'path';
-
-// Explicitly load .env.test to ensure we're using the test database
-const envTestPath = path.resolve(process.cwd(), '.env.test');
-dotenv.config({ path: envTestPath, override: true });
+// Import environment setup FIRST, before any other imports
+import './setup-env';
 
 import { db } from '../../server/db';
 import { sessions, translations, transcripts, type InsertSession, type InsertTranslation, users } from '../../shared/schema';
@@ -13,14 +9,16 @@ import { sql } from 'drizzle-orm';
  * Clears session, translation, and transcript data from the test database, and resets sequences.
  */
 export async function clearDiagnosticData() {
-  // Delete in order: transcripts -> translations -> sessions
+  // Delete in order: transcripts -> translations -> sessions -> users
   await db.delete(transcripts).execute();
   await db.delete(translations).execute();
   await db.delete(sessions).execute();
+  await db.delete(users).execute();
   // Reset sequences for predictable IDs (ignore if sequence doesn't exist)
   try { await db.execute(sql`ALTER SEQUENCE sessions_id_seq RESTART WITH 1;`); } catch {}
   try { await db.execute(sql`ALTER SEQUENCE translations_id_seq RESTART WITH 1;`); } catch {}
   try { await db.execute(sql`ALTER SEQUENCE transcripts_id_seq RESTART WITH 1;`); } catch {}
+  try { await db.execute(sql`ALTER SEQUENCE users_id_seq RESTART WITH 1;`); } catch {}
 }
 
 /**

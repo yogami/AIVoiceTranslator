@@ -15,7 +15,7 @@
 - **Export**: `storage = new MemStorage()` - this is what the app uses
 
 ### 2. Database Connection (`server/db.ts`)
-- Sets up PostgreSQL connection using Drizzle ORM + Neon
+- Sets up PostgreSQL connection using Drizzle ORM with multi-provider support (Aiven/Supabase/Railway)
 - Exports `db` (database client) and `pool` (connection pool)
 - Only needed if you switch to DatabaseStorage
 
@@ -114,7 +114,7 @@ await storage.getLanguages(); // Works immediately
 ### Production Database Setup (TODO)
 
 *   **TODO:** When setting up a dedicated production database:
-    1.  Create the production database instance (e.g., on Neon).
+    1.  Create the production database instance (Railway for production, Supabase for dev/CI/CD, Aiven for local/test).
     2.  Configure its `DATABASE_URL` securely in your production environment.
     3.  Deploy your application code, including the `migrations/` directory and `db-migration-scripts/migrate.ts`.
     4.  In your production deployment process, execute the command to apply migrations:

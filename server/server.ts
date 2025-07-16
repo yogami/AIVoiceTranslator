@@ -13,7 +13,6 @@ import { config, validateConfig } from './config'; // Assuming config is importe
 import { createApiRoutes, apiErrorHandler } from './routes'; // Adjusted import
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
-import { DiagnosticsService } from './services/DiagnosticsService';
 import { WebSocketServer } from './services/WebSocketServer';
 import { SessionCleanupService } from './services/SessionCleanupService';
 import fs from 'fs'; // Added fs import
@@ -98,7 +97,6 @@ export async function startServer(app: express.Express): Promise<Server> {
   logger.info('[INIT] Using database storage.');
 
   const httpServer = createServer(app);
-  const diagnosticsService = new DiagnosticsService(storage, null);
   const wss = new WebSocketServer(httpServer, storage);
   
   // Initialize session cleanup service
@@ -116,22 +114,24 @@ export async function startServer(app: express.Express): Promise<Server> {
     logger.info('SIGINT received, shutting down gracefully...');
     cleanupService.stop();
   });
-  
-  diagnosticsService.setActiveSessionProvider(wss);
 
-  const apiRoutes = createApiRoutes(storage, diagnosticsService, wss, cleanupService);
+  const apiRoutes = createApiRoutes(storage, wss, cleanupService);
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 
   // Frontend serving: Vite for dev, static for prod
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV === 'development') {
     logger.info('[INIT] Development mode: Setting up Vite middleware.');
     // setupVite is imported from ./vite
     await setupVite(app); // Removed httpServer argument
-  } else {
+  } else if (process.env.NODE_ENV === 'production') {
     logger.info('[INIT] Production mode: Setting up static file serving.');
     // serveStatic is imported from ./vite
     serveStatic(app); // This function should configure serving from your build output (e.g., 'dist')
+  } else {
+    logger.info('[INIT] Test mode: Setting up static file serving for E2E tests.');
+    // Use static file serving for tests to avoid Vite HMR issues
+    serveStatic(app);
                      // and handle SPA fallbacks to index.html for client-side routing.
   }
   

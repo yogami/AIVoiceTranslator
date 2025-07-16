@@ -47,6 +47,44 @@ interface AppConfig {
 }
 
 /**
+ * Test timing scaling factor
+ * This mathematically scales down all timing values during E2E tests to save time
+ * while maintaining proportional relationships between different timeouts.
+ * Integration tests should use normal production timeouts for realistic behavior.
+ */
+const getTestScalingFactor = (): number => {
+  if (process.env.NODE_ENV === 'test') {
+    // Only apply scaling for E2E tests, not integration tests
+    if (process.env.E2E_TEST_MODE === 'true') {
+      const customScale = process.env.TEST_TIMING_SCALE;
+      console.log(`🔧 DEBUG: E2E test mode - TEST_TIMING_SCALE env var: ${customScale}`);
+      if (customScale) {
+        const parsed = parseFloat(customScale);
+        if (!isNaN(parsed) && parsed > 0 && parsed <= 1) {
+          return parsed;
+        }
+      }
+      // Default E2E test scaling: 1/100th of production timing (100x faster)
+      return 1/100;
+    }
+    // Integration tests use normal production timeouts
+    console.log(`🔧 DEBUG: Integration test mode - using production timeouts`);
+    return 1;
+  }
+  return 1; // No scaling for non-test environments
+};
+
+/**
+ * Scales timing values for test environment
+ */
+const scaleForTest = (productionValue: number): number => {
+  const scalingFactor = getTestScalingFactor();
+  const scaled = Math.round(productionValue * scalingFactor);
+  // Ensure minimum timing values for test stability
+  return Math.max(scaled, 200); // At least 200ms
+};
+
+/**
  * Application configuration object
  */
 export const config: AppConfig = {
@@ -90,8 +128,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_VERY_SHORT_THRESHOLD_MS must be a valid number');
         return parsed;
       }
-      // Default: 5 seconds
-      return 5000;
+      // Default: 5 seconds, scaled for tests
+      return scaleForTest(5000);
     })(),
     
     // SessionCleanupService timeouts (in milliseconds)
@@ -102,8 +140,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_STALE_TIMEOUT_MS must be a valid number');
         return parsed;
       }
-      // Default: 90 minutes
-      return 90 * 60 * 1000;
+      // Default: 90 minutes, scaled for tests
+      return scaleForTest(90 * 60 * 1000);
     })(),
     
     allStudentsLeftTimeout: (() => {
@@ -113,8 +151,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS must be a valid number');
         return parsed;
       }
-      // Default: 10 minutes
-      return 10 * 60 * 1000;
+      // Default: 10 minutes, scaled for tests
+      return scaleForTest(10 * 60 * 1000);
     })(),
     
     emptyTeacherTimeout: (() => {
@@ -124,8 +162,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_EMPTY_TEACHER_TIMEOUT_MS must be a valid number');
         return parsed;
       }
-      // Default: 15 minutes
-      return 15 * 60 * 1000;
+      // Default: 15 minutes, scaled for tests
+      return scaleForTest(15 * 60 * 1000);
     })(),
     
     cleanupInterval: (() => {
@@ -135,8 +173,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_CLEANUP_INTERVAL_MS must be a valid number');
         return parsed;
       }
-      // Default: 2 minutes
-      return 2 * 60 * 1000;
+      // Default: 2 minutes, scaled for tests
+      return scaleForTest(2 * 60 * 1000);
     })(),
     
     classroomCodeExpiration: (() => {
@@ -146,8 +184,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('CLASSROOM_CODE_EXPIRATION_MS must be a valid number');
         return parsed;
       }
-      // Default: 2 hours
-      return 2 * 60 * 60 * 1000;
+      // Default: 2 hours, scaled for tests
+      return scaleForTest(2 * 60 * 60 * 1000);
     })(),
     
     classroomCodeCleanupInterval: (() => {
@@ -157,8 +195,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('CLASSROOM_CODE_CLEANUP_INTERVAL_MS must be a valid number');
         return parsed;
       }
-      // Default: 15 minutes
-      return 15 * 60 * 1000;
+      // Default: 15 minutes, scaled for tests
+      return scaleForTest(15 * 60 * 1000);
     })(),
     
     healthCheckInterval: (() => {
@@ -168,8 +206,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('HEALTH_CHECK_INTERVAL_MS must be a valid number');
         return parsed;
       }
-      // Default: 30 seconds
-      return 30000;
+      // Default: 30 seconds, scaled for tests
+      return scaleForTest(30000);
     })(),
     
     teacherReconnectionGracePeriod: (() => {
@@ -179,8 +217,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('TEACHER_RECONNECTION_GRACE_PERIOD_MS must be a valid number');
         return parsed;
       }
-      // Default: 5 minutes
-      return 5 * 60 * 1000;
+      // Default: 5 minutes, scaled for tests
+      return scaleForTest(5 * 60 * 1000);
     })(),
     
     minAudioDataLength: (() => {
@@ -212,8 +250,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('SESSION_EXPIRED_MESSAGE_DELAY_MS must be a valid number');
         return parsed;
       }
-      // Default: 1 second
-      return 1000;
+      // Default: 1 second, scaled for tests
+      return scaleForTest(1000);
     })(),
     
     invalidClassroomMessageDelay: (() => {
@@ -223,8 +261,8 @@ export const config: AppConfig = {
         if (isNaN(parsed)) throw new Error('INVALID_CLASSROOM_MESSAGE_DELAY_MS must be a valid number');
         return parsed;
       }
-      // Default: 100ms for both production and test (just enough to send message)
-      return 100;
+      // Default: 100ms, with minimum 100ms for test stability
+      return Math.max(scaleForTest(100), 100);
     })(),
     
     logTextPreviewLength: (() => {
@@ -291,3 +329,19 @@ export function getConfigValue<T>(path: string, fallback: T): T {
 
 // Remove the entire PATHS object as it seems unused
 // export const PATHS = { ... };
+
+/**
+ * Debug function to show scaled timing values in test environment
+ */
+export function debugTimingScaling(): void {
+  if (process.env.NODE_ENV === 'test') {
+    const scalingFactor = getTestScalingFactor();
+    console.log(`🔧 Test Timing Scaling Factor: ${scalingFactor} (${Math.round(1/scalingFactor)}x faster)`);
+    console.log('🔧 Scaled Timing Values:');
+    console.log(`  - Classroom Code Expiration: ${config.session.classroomCodeExpiration}ms (${config.session.classroomCodeExpiration/1000}s)`);
+    console.log(`  - Teacher Reconnection Grace: ${config.session.teacherReconnectionGracePeriod}ms (${config.session.teacherReconnectionGracePeriod/1000}s)`);
+    console.log(`  - All Students Left Timeout: ${config.session.allStudentsLeftTimeout}ms (${config.session.allStudentsLeftTimeout/1000}s)`);
+    console.log(`  - Session Cleanup Interval: ${config.session.cleanupInterval}ms (${config.session.cleanupInterval/1000}s)`);
+    console.log(`  - Stale Session Timeout: ${config.session.staleSessionTimeout}ms (${config.session.staleSessionTimeout/1000}s)`);
+  }
+}

@@ -1,9 +1,8 @@
 import { defineConfig, loadEnv, type ViteDevServer } from "vite";
 import reactPlugin from "@vitejs/plugin-react"; // Renamed to avoid conflict
-import shadcnThemePlugin from "@replit/vite-plugin-shadcn-theme-json"; // Renamed to avoid conflict
 import path from "path";
-import runtimeErrorOverlayPlugin from "@replit/vite-plugin-runtime-error-modal"; // Renamed to avoid conflict
 import fs from 'fs/promises';
+import { existsSync, readFileSync } from 'fs';
 import { type AddressInfo } from 'net';
 import { fileURLToPath } from 'url';
 
@@ -30,21 +29,50 @@ export default defineConfig(async ({ mode, command }) => {
   // Load env files based on mode (development, production) and .env.local, .env
   // Vite automatically loads .env files. This explicit loadEnv is for use within this config file itself.
   const env = loadEnv(mode, projectRoot, '');
+  
+  // Check if we're in test mode based on NODE_ENV (not Vite mode)
+  const isTestMode = process.env.NODE_ENV === 'test';
+  
+  // Load .env.test if in test mode
+  if (isTestMode) {
+    const testEnvPath = path.resolve(projectRoot, '.env.test');
+    if (existsSync(testEnvPath)) {
+      const testEnvContent = readFileSync(testEnvPath, 'utf-8');
+      const testEnvVars = testEnvContent.split('\n').filter(line => line && !line.startsWith('#'));
+      testEnvVars.forEach(line => {
+        const [key, value] = line.split('=');
+        if (key && value) {
+          env[key] = value;
+        }
+      });
+    }
+  }
 
   // Ensure critical environment variables are available for the Vite config itself
   // These are used by the `define` block to inject into client-side code.
   // For Railway deployment, provide defaults during build if not set
-  const apiUrl = env.VITE_API_URL || (mode === 'production' ? 'https://placeholder.railway.app' : 'http://localhost:5000');
-  const wsUrl = env.VITE_WS_URL || (mode === 'production' ? 'wss://placeholder.railway.app' : 'ws://localhost:5000');
+  const port = env.PORT || process.env.PORT || '5000';
+  const host = env.HOST || process.env.HOST || '127.0.0.1';
   
-  if (!env.VITE_API_URL && mode === 'production') {
+  // Environment-specific API and WebSocket URLs
+  const apiUrl = env.VITE_API_URL || process.env.VITE_API_URL || 
+    (mode === 'production' ? 'https://placeholder.railway.app' : `http://${host}:${port}`);
+  const wsUrl = env.VITE_WS_URL || process.env.VITE_WS_URL || 
+    (mode === 'production' ? 'wss://placeholder.railway.app' : `ws://${host}:${port}`);
+  
+  if (!env.VITE_API_URL && !process.env.VITE_API_URL && mode === 'production') {
     console.warn('[vite.config.ts] WARNING: VITE_API_URL not set, using placeholder. Update after Railway deployment.');
   }
-  if (!env.VITE_WS_URL && mode === 'production') {
+  if (!env.VITE_WS_URL && !process.env.VITE_WS_URL && mode === 'production') {
     console.warn('[vite.config.ts] WARNING: VITE_WS_URL not set, using placeholder. Update after Railway deployment.');
   }
 
+  console.log('[vite.config.ts] Environment: env.NODE_ENV =', env.NODE_ENV);
+  console.log('[vite.config.ts] Environment: process.env.NODE_ENV =', process.env.NODE_ENV);
+  console.log('[vite.config.ts] Environment: env.PORT =', env.PORT);
+  console.log('[vite.config.ts] Environment: process.env.PORT =', process.env.PORT);
   console.log('[vite.config.ts] Mode:', mode, 'Command:', command);
+  console.log('[vite.config.ts] Port:', port, 'Host:', host);
   console.log('[vite.config.ts] For define block - VITE_API_URL:', apiUrl);
   console.log('[vite.config.ts] For define block - VITE_WS_URL:', wsUrl);
 
@@ -64,10 +92,6 @@ export default defineConfig(async ({ mode, command }) => {
   return {
     plugins: [
       reactPlugin(), // Use renamed import
-      ...(process.env.REPL_ID ? [
-        runtimeErrorOverlayPlugin(), // Use renamed import
-        shadcnThemePlugin(), // Use renamed import
-      ] : []),
       // Conditionally add cartographerPlugin if it was successfully loaded
       ...(cartographerPlugin ? [cartographerPlugin] : []),
       // Custom plugin to write the port to a file (only in dev server mode)
@@ -80,7 +104,7 @@ export default defineConfig(async ({ mode, command }) => {
               const port = (address as AddressInfo).port;
               const portFilePath = path.resolve(projectRoot, '.vite_dev_server_port');
               try {
-                await fs.writeFile(portFilePath, port.toString());
+                await fs.writeFile(portFilePath, port.toString(), 'utf8');
                 console.log(`[vite-plugin-write-port] Vite dev server is listening on port ${port}. Port written to ${portFilePath}`);
               } catch (err) {
                 console.error(`[vite-plugin-write-port] Error writing port file: ${err}`);
@@ -126,7 +150,7 @@ export default defineConfig(async ({ mode, command }) => {
           teacher: path.resolve(clientRoot, 'teacher.html'),
           'teacher-login': path.resolve(clientRoot, 'teacher-login.html'),
           student: path.resolve(clientRoot, 'public/student.html'), // Corrected path
-          diagnostics: path.resolve(clientRoot, 'public/diagnostics.html'), // Corrected path
+          analytics: path.resolve(clientRoot, 'analytics.html'), // Add analytics page
         },
       },
     },

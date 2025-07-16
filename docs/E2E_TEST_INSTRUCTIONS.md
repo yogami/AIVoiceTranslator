@@ -2,7 +2,7 @@
 
 ## How to Run End-to-End (E2E) Tests
 
-The E2E tests are configured to automatically start the test server and run comprehensive diagnostics dashboard tests.
+The E2E tests are configured to automatically start the test server and run comprehensive analytics dashboard tests.
 
 ### Prerequisites
 
@@ -30,9 +30,9 @@ The Playwright configuration is set up to automatically start the test server on
 npm run test:e2e
 ```
 
-#### 2. Run Specific E2E Test File (e.g., diagnostics)
+#### 2. Run Specific E2E Test File (e.g., analytics)
 ```bash
-npm run test:e2e -- tests/e2e/diagnostics.spec.ts
+npm run test:e2e -- tests/e2e/analytics.spec.ts
 ```
 
 #### 3. Run E2E Tests with UI Mode (Interactive)
@@ -45,9 +45,9 @@ npm run test:e2e:ui
 npm run test:e2e:debug
 ```
 
-#### 5. Run Only Diagnostics Tests
+#### 5. Run Only Analytics Tests
 ```bash
-npm run test:e2e -- --grep "Diagnostics Dashboard"
+npm run test:e2e -- --grep "Analytics Page"
 ```
 
 ### Test Server Configuration
@@ -58,9 +58,9 @@ The E2E tests use a dedicated test server configuration:
 - **Database**: Uses `.env.test` configuration
 - **Auto-start**: Playwright automatically starts/stops the server
 
-### Diagnostics Dashboard E2E Tests
+### Analytics Dashboard E2E Tests
 
-The comprehensive diagnostics test suite (`tests/e2e/diagnostics.spec.ts`) includes:
+The comprehensive analytics test suite (`tests/e2e/analytics.spec.ts`) includes:
 
 1. **SCENARIO 1**: No connections - All metrics should be zero
 2. **SCENARIO 2**: Teacher loads but NO students join (Critical bug test)
@@ -102,7 +102,7 @@ If tests fail to start:
    ```
    Then in another terminal:
    ```bash
-   npx playwright test --config=test-config/playwright.config.ts tests/e2e/diagnostics.spec.ts
+   npx playwright test --config=test-config/playwright.config.ts tests/e2e/analytics.spec.ts
    ```
 
 3. **Reset test database**:

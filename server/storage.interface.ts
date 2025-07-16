@@ -90,8 +90,24 @@ export interface IStorage {
     languagePairs: { sourceLanguage: string; targetLanguage: string; count: number }[];
   }>;
   
-  // Diagnostics methods
-  getSessionMetrics(timeRange?: { startDate: Date; endDate: Date } | { preset: string }): Promise<StorageSessionMetrics>;
-  getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date } | { preset: string }): Promise<StorageTranslationMetrics>;
-  getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date } | { preset: string }): Promise<StorageLanguagePairUsageData[]>;
+  // Additional analytics methods for metrics
+  getSessionMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalSessions: number;
+    averageSessionDuration: number;
+    activeSessions: number;
+    sessionsLast24Hours: number;
+  }>;
+  
+  getTranslationMetrics(timeRange?: { startDate: Date; endDate: Date }): Promise<{
+    totalTranslations: number;
+    averageLatency: number;
+    recentTranslations: number;
+  }>;
+  
+  getLanguagePairUsage(timeRange?: { startDate: Date; endDate: Date }): Promise<Array<{
+    sourceLanguage: string;
+    targetLanguage: string;
+    count: number;
+    averageLatency: number;
+  }>>;
 }

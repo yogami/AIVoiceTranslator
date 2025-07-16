@@ -10,7 +10,7 @@ import express from 'express';
 import { createApiRoutes } from '../../server/routes';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
-import { DiagnosticsService } from '../../server/services/DiagnosticsService';
+import { SessionCleanupService } from '../../server/services/SessionCleanupService';
 
 /**
  * Start a test server for E2E tests
@@ -27,21 +27,14 @@ export async function startTestServer(port = 5001) {
   // Set up storage
   const storage = new DatabaseStorage();
   
-  // Set up DiagnosticsService (initially without activeSessionProvider)
-  const diagnosticsService = new DiagnosticsService(storage, null);
-  
   // Set up WebSocket server
   const wsService = new WebSocketServer(server, storage);
   
   // Set up session cleanup service for testing
-  const { SessionCleanupService } = await import('../../server/services/SessionCleanupService');
   const cleanupService = new SessionCleanupService();
   
-  // Set the WebSocketServer as the active session provider for diagnostics
-  diagnosticsService.setActiveSessionProvider(wsService);
-  
   // Set up API routes  
-  app.use('/api', createApiRoutes(storage, diagnosticsService, wsService, cleanupService));
+  app.use('/api', createApiRoutes(storage, wsService, cleanupService));
   
   // Start server
   return new Promise<void>((resolve) => {

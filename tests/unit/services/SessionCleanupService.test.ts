@@ -43,8 +43,18 @@ vi.mock('../../../server/config', () => ({
 describe('SessionCleanupService', () => {
   let cleanupService: SessionCleanupService;
   let mockDb: any;
+  let originalNodeEnv: string | undefined;
+  let originalE2ETestMode: string | undefined;
 
   beforeEach(() => {
+    // Store original environment variables
+    originalNodeEnv = process.env.NODE_ENV;
+    originalE2ETestMode = process.env.E2E_TEST_MODE;
+    
+    // Set environment to allow unit tests to run (not test mode, not E2E mode)
+    process.env.NODE_ENV = 'development';
+    delete process.env.E2E_TEST_MODE;
+    
     mockDb = db as any;
     cleanupService = new SessionCleanupService();
     vi.clearAllMocks();
@@ -65,6 +75,14 @@ describe('SessionCleanupService', () => {
 
   afterEach(() => {
     cleanupService.stop();
+    
+    // Restore original environment variables
+    if (originalNodeEnv !== undefined) {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+    if (originalE2ETestMode !== undefined) {
+      process.env.E2E_TEST_MODE = originalE2ETestMode;
+    }
   });
 
   describe('Service Lifecycle', () => {

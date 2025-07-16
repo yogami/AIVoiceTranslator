@@ -211,11 +211,22 @@
                     }
                     break;
                 case 'error':
-                    // Only show error if user has tried to connect (not on page load)
-                    if (appState.isConnected) {
-                        console.error('Received error from server:', data.message);
+                    // Handle error messages properly, especially for invalid classroom codes
+                    console.error('Received error from server:', data.message);
+                    
+                    // Show error message regardless of connection state for critical errors
+                    if (data.code === 'INVALID_CLASSROOM' || data.message?.includes('invalid') || data.message?.includes('expired')) {
                         if (domElements.translationDisplay) {
-                            domElements.translationDisplay.innerHTML = `<div style=\"color: red;\">Error: ${data.message}</div>`;
+                            domElements.translationDisplay.innerHTML = `<div style="color: red; text-align: center; padding: 20px;">
+                                <h3>❌ Error</h3>
+                                <p>${data.message}</p>
+                            </div>`;
+                        }
+                        if (domElements.connectButton) domElements.connectButton.disabled = true;
+                    } else if (appState.isConnected) {
+                        // For other errors, only show if user has tried to connect
+                        if (domElements.translationDisplay) {
+                            domElements.translationDisplay.innerHTML = `<div style="color: red;">Error: ${data.message}</div>`;
                         }
                     } else {
                         // If not connected, show a friendly message or ignore

@@ -13,7 +13,7 @@ import request from 'supertest';
 import express from 'express';
 import { createApiRoutes } from '../../../server/routes';
 import { setupIsolatedTest, cleanupIsolatedTest } from '../../utils/test-database-isolation';
-import { DiagnosticsService } from '../../../server/services/DiagnosticsService';
+import { SessionCleanupService } from '../../../server/services/SessionCleanupService';
 import logger from '../../../server/logger';
 import jwt from 'jsonwebtoken';
 import { DatabaseStorage } from '../../../server/database-storage';
@@ -21,14 +21,15 @@ import { DatabaseStorage } from '../../../server/database-storage';
 describe('Authentication Integration Tests', () => {
   let app: express.Application;
   let storage: DatabaseStorage;
+  let cleanupService: SessionCleanupService;
   const testId = 'auth-integration-test';
 
   beforeEach(async () => {
     // Create isolated test storage
     storage = await setupIsolatedTest(testId);
     
-    // Create mock services
-    const diagnosticsService = new DiagnosticsService(storage, null);
+    // Create cleanup service
+    cleanupService = new SessionCleanupService();
     const mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(0),
       getActiveSessions: vi.fn().mockReturnValue([]),
@@ -42,7 +43,7 @@ describe('Authentication Integration Tests', () => {
     app.use(express.json());
     
     // Create API routes with test storage and mock services (no cleanup service needed for auth tests)
-    const apiRoutes = createApiRoutes(storage, diagnosticsService, mockActiveSessionProvider);
+    const apiRoutes = createApiRoutes(storage, mockActiveSessionProvider, cleanupService);
     app.use('/api', apiRoutes);
     
     // Silence logs during tests

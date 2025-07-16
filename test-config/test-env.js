@@ -5,7 +5,11 @@
  * especially in CI/CD pipelines where we want predictable behavior.
  */
 
-require('dotenv').config({ path: '.env.test' });
+// Clear any existing DATABASE_URL before loading test environment
+delete process.env.DATABASE_URL;
+
+// Load ONLY the .env.test file, don't load .env first
+require('dotenv').config({ path: '.env.test', override: true });
 
 // Set NODE_ENV to 'test' for tests (override any existing value)
 process.env.NODE_ENV = 'test';
