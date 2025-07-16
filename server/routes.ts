@@ -277,7 +277,7 @@ export const createApiRoutes = (
     const activeSessions = await storage.getAllActiveSessions();
     const recentActivity = await storage.getRecentSessionActivity(100, 24);
     
-    // Simple analytics based on common questions
+    // Calculate comprehensive statistics
     const stats = {
       activeSessions: activeSessions.length,
       recentSessions: recentActivity.length,
@@ -290,12 +290,57 @@ export const createApiRoutes = (
         recentActivity.reduce((acc: number, activity: any) => acc + (activity.duration || 0), 0) / recentActivity.length : 0
     };
 
+    // Analyze the question and provide intelligent responses
+    const questionLower = question.toLowerCase();
+    let answer = '';
+
+    if (questionLower.includes('active') && questionLower.includes('session')) {
+      answer = `There are currently ${stats.activeSessions} active sessions running.`;
+    } else if (questionLower.includes('today') || questionLower.includes('day')) {
+      answer = `Today there have been ${stats.sessionsToday} sessions.`;
+    } else if (questionLower.includes('recent') || questionLower.includes('last')) {
+      answer = `In the last 24 hours, there have been ${stats.recentSessions} sessions.`;
+    } else if (questionLower.includes('average') || questionLower.includes('duration')) {
+      const avgMinutes = Math.round(stats.averageSessionDuration / 60);
+      answer = `The average session duration is ${avgMinutes} minutes.`;
+    } else if (questionLower.includes('total') || questionLower.includes('how many')) {
+      answer = `Session overview: ${stats.activeSessions} active sessions, ${stats.recentSessions} recent sessions, ${stats.sessionsToday} today.`;
+    } else if (questionLower.includes('status') || questionLower.includes('overview')) {
+      answer = `System Overview:\n- Active Sessions: ${stats.activeSessions}\n- Recent Sessions (24h): ${stats.recentSessions}\n- Sessions Today: ${stats.sessionsToday}\n- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes`;
+    } else {
+      // Default response for unrecognized questions
+      answer = `Based on your question "${question}", here's what I found:\n\n📊 Current System Status:\n- Active Sessions: ${stats.activeSessions}\n- Recent Sessions (24h): ${stats.recentSessions}\n- Sessions Today: ${stats.sessionsToday}\n- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes\n\nTry asking about "active sessions", "today's sessions", or "average duration" for more specific information.`;
+    }
+
     // Return structured response for analytics
-    res.json({
-      answer: `Here are your session statistics: ${JSON.stringify(stats, null, 2)}`,
+    console.log('🔍 DEBUG: About to return analytics response with success field');
+    const response = {
+      success: true,
+      answer: answer,
       data: stats,
       question
-    });
+    };
+    console.log('🔍 DEBUG: Response object:', JSON.stringify(response, null, 2));
+    res.json(response);
+  });
+
+  /**
+   * Simple test endpoint for debugging
+   */
+  const testAnalyticsQuery = asyncHandler(async (req: Request, res: Response) => {
+    const { question } = req.body;
+    
+    console.log('🔍 DEBUG: Test analytics endpoint hit with question:', question);
+    
+    const response = {
+      success: true,
+      answer: "Test response with success field",
+      data: { test: true },
+      question
+    };
+    
+    console.log('🔍 DEBUG: Test response:', JSON.stringify(response, null, 2));
+    res.json(response);
   });
 
   // ============================================================================
@@ -344,6 +389,7 @@ export const createApiRoutes = (
   // Analytics routes
   router.post('/analytics/query', handleAnalyticsQuery);
   router.post('/analytics/ask', handleAnalyticsQuery); // Alias for client compatibility
+  router.post('/analytics/test', testAnalyticsQuery); // Test endpoint
 
   // Test routes
   router.get('/test', testEndpoint);

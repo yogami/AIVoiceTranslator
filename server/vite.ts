@@ -4,6 +4,7 @@ import path from 'path';
 import fsPromises from 'fs/promises'; // For async operations in setupVite
 import fsSync from 'fs'; // For sync operations like existsSync in serveStatic
 import logger from './logger';
+import { analyticsPageAuth } from './middleware/analytics-security.js';
 
 let vite: ViteDevServer | null = null;
 
@@ -153,7 +154,6 @@ export function serveStatic(app: express.Express): void {
     if (fsSync.existsSync(filePath)) { 
       if (routePath === '/analytics') {
         // Add authentication to analytics route in production
-        const { analyticsPageAuth } = require('./middleware/analytics-security.js');
         app.get(routePath, analyticsPageAuth, (req, res) => {
           logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path} (with auth)`);
           res.sendFile(filePath);
