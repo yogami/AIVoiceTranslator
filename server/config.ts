@@ -25,6 +25,7 @@ interface AppConfig {
     veryShortSessionThreshold: number;
     // SessionCleanupService timeouts (in milliseconds)  
     staleSessionTimeout: number;
+    staleSessionTimeoutUnscaled: number; // For display purposes in quality reasons
     allStudentsLeftTimeout: number;
     emptyTeacherTimeout: number;
     cleanupInterval: number;
@@ -142,6 +143,17 @@ export const config: AppConfig = {
       }
       // Default: 90 minutes, scaled for tests
       return scaleForTest(90 * 60 * 1000);
+    })(),
+    
+    staleSessionTimeoutUnscaled: (() => {
+      const envValue = process.env.SESSION_STALE_TIMEOUT_MS;
+      if (envValue) {
+        const parsed = parseInt(envValue, 10);
+        if (isNaN(parsed)) throw new Error('SESSION_STALE_TIMEOUT_MS must be a valid number');
+        return parsed;
+      }
+      // Default: 90 minutes, unscaled for display in quality reasons
+      return 90 * 60 * 1000;
     })(),
     
     allStudentsLeftTimeout: (() => {
