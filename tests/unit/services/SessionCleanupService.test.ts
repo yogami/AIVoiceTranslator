@@ -33,6 +33,7 @@ vi.mock('../../../server/config', () => ({
   config: {
     session: {
       staleSessionTimeout: 90 * 60 * 1000, // 90 minutes
+      staleSessionTimeoutUnscaled: 90 * 60 * 1000, // 90 minutes for display
       emptyTeacherTimeout: 15 * 60 * 1000, // 15 minutes  
       allStudentsLeftTimeout: 10 * 60 * 1000, // 10 minutes
       cleanupInterval: 2 * 60 * 1000, // 2 minutes

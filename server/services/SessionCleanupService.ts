@@ -63,11 +63,11 @@ export class SessionCleanupService {
       // Scenario 1: Sessions with no students that have been waiting too long
       await this.cleanupEmptyTeacherSessions(now);
       
-      // Scenario 2: Sessions where all students left (grace period for recent disconnections) - more specific
-      await this.cleanupAbandonedSessions(now);
-      
-      // Scenario 3: General inactivity cleanup (30+ minutes) - broader fallback
+      // Scenario 2: General inactivity cleanup (90+ minutes) - broader fallback, higher priority
       await this.cleanupInactiveSessions(now);
+      
+      // Scenario 3: Sessions where all students left (grace period for recent disconnections) - more specific
+      await this.cleanupAbandonedSessions(now);
       
     } catch (error) {
       logger.error('Error during session cleanup:', error);
@@ -214,7 +214,7 @@ export class SessionCleanupService {
           isActive: false,
           endTime: new Date(),
           quality: 'no_activity',
-          qualityReason: `Session inactive for ${config.session.staleSessionTimeout / 60000} minutes`
+          qualityReason: `Session inactive for ${config.session.staleSessionTimeoutUnscaled / 60000} minutes`
         })
         .where(
           and(
