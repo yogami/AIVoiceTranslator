@@ -445,16 +445,26 @@
                 });
 
                 const data = await response.json();
-                if (data.success) {
-                    // Parse the response to extract numbers (simplified approach)
-                    // In a real app, you'd have dedicated endpoints for this
-                    document.getElementById('totalSessions').textContent = 'Loading...';
-                    document.getElementById('todaySessions').textContent = 'Loading...';
-                    document.getElementById('totalStudents').textContent = 'Loading...';
-                    document.getElementById('avgDuration').textContent = 'Loading...';
+                if (data.success && data.data) {
+                    // Use the actual data from the API response
+                    document.getElementById('totalSessions').textContent = data.data.recentSessions || '0';
+                    document.getElementById('todaySessions').textContent = data.data.sessionsToday || '0';
+                    document.getElementById('totalStudents').textContent = data.data.uniqueStudents || '0';
+                    document.getElementById('avgDuration').textContent = Math.round(data.data.averageSessionDuration / 60) + ' min';
+                } else {
+                    // Fallback if API call fails
+                    document.getElementById('totalSessions').textContent = 'Error';
+                    document.getElementById('todaySessions').textContent = 'Error';
+                    document.getElementById('totalStudents').textContent = 'Error';
+                    document.getElementById('avgDuration').textContent = 'Error';
                 }
             } catch (error) {
                 console.log('Could not load quick stats');
+                // Show error state
+                document.getElementById('totalSessions').textContent = 'Error';
+                document.getElementById('todaySessions').textContent = 'Error';
+                document.getElementById('totalStudents').textContent = 'Error';
+                document.getElementById('avgDuration').textContent = 'Error';
             }
         }
 
