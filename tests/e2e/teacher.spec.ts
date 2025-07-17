@@ -9,12 +9,13 @@
  * - Teacher-student interaction flows
  */
 import { test, expect, Page, BrowserContext } from '@playwright/test';
+import { getTeacherURL, getStudentURL } from './helpers/test-config';
 
 test.describe('Teacher Interface - Comprehensive Test Suite', () => {
   let page: Page;
 
   test.beforeEach(async ({ browser, browserName }) => {
-    // Create a new context with permiss        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);ons (only for Chromium)
+    // Create a new context with permissions (only for Chromium)
     const contextOptions: any = {};
     if (browserName === 'chromium') {
       contextOptions.permissions = ['microphone'];
@@ -123,7 +124,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
     });
     
     // Navigate to teacher page with E2E test flag
-    await page.goto('http://127.0.0.1:5001/teacher?e2e=true'); 
+    await page.goto(getTeacherURL('e2e=true')); 
     await page.waitForLoadState('domcontentloaded');
   });
 
@@ -316,7 +317,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       });
       
       // Navigate to teacher page with e2e parameter
-      await page.goto('http://127.0.0.1:5001/teacher?e2e=true');
+      await page.goto(getTeacherURL('e2e=true'));
       await page.waitForLoadState('domcontentloaded');
       
       // Wait for WebSocket connection and authentication bypass
@@ -423,7 +424,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       // SpeechRecognition itself is unavailable.
     });
     
-    await newPage.goto('http://127.0.0.1:5001/teacher?e2e=true'); 
+    await newPage.goto(getTeacherURL('e2e=true')); 
     await newPage.waitForLoadState('domcontentloaded');
 
     // Wait for the record button to be visible and then click it
@@ -526,7 +527,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       });
       
       // Navigate to teacher page
-      await errorPage.goto('http://127.0.0.1:5001/teacher?e2e=true');
+      await errorPage.goto(getTeacherURL('e2e=true'));
       await errorPage.waitForLoadState('domcontentloaded');
       
       // Wait for WebSocket connection
@@ -563,7 +564,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         expect(classroomCode).toBeTruthy(); // Ensure classroomCode is not null or empty
         
         // Student navigates to their page with the classroom code
-        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+        await studentPage.goto(getStudentURL(classroomCode || ''));
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects a language (e.g., Spanish)
@@ -597,7 +598,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
         
-        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+        await studentPage.goto(getStudentURL(classroomCode || ''));
         await studentPage.waitForLoadState('domcontentloaded');
         
         // Student selects initial language (e.g., Spanish)
@@ -633,7 +634,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
         
-        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+        await studentPage.goto(getStudentURL(classroomCode || ''));
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects language and connects
@@ -680,7 +681,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       await page.waitForTimeout(100);
       
       try {
-        await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+        await studentPage.goto(getStudentURL(classroomCode));
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects Spanish

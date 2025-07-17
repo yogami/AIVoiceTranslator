@@ -2,7 +2,7 @@
  * Session Expiration Scenarios// Helper function to simulate teacher login
 // Helper function to simulate student joining session
 async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ success: boolean, errorMessage?: string }> {
-  await page.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+  await page.goto(getStudentURL(classroomCode));
   await page.waitForLoadState('networkidle');
   
   // Check for error message
@@ -16,7 +16,7 @@ async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ 
   
   return { success: true };
 }imulateTeacherLogin(page: any, teacherName: string): Promise<{ teacherId: string, token: string }> {
-  await page.goto('http://127.0.0.1:5001/teacher?e2e=true');
+  await page.goto(getTeacherURL('e2e=true'));
   await page.waitForLoadState('networkidle');
   
   // The teacher page should load directly without separate login
@@ -41,11 +41,12 @@ async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ 
  */
 
 import { test, expect } from '@playwright/test';
+import { getTeacherURL, getStudentURL, getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 
 // Helper function to navigate to analytics page
 async function navigateToAnalytics(page: any) {
-  await page.goto('http://127.0.0.1:5001/analytics');
+  await page.goto(getAnalyticsURL());
   await page.waitForLoadState('networkidle');
   await expect(page.locator('h1')).toContainText('Analytics');
 }
@@ -94,7 +95,7 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
 
 // Helper function to get classroom code from teacher page
 async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
-  await page.goto('http://127.0.0.1:5001/teacher?e2e=true');
+  await page.goto(getTeacherURL('e2e=true'));
   await page.waitForLoadState('networkidle');
   
   await page.waitForSelector('#classroom-code-display', { timeout: 10000 });
@@ -122,7 +123,7 @@ async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ 
 
 // Helper function to check if teacher page shows active session
 async function checkTeacherSessionActive(page: any): Promise<boolean> {
-  await page.goto('http://127.0.0.1:5001/teacher?e2e=true');
+  await page.goto(getTeacherURL('e2e=true'));
   await page.waitForLoadState('networkidle');
   
   // Check for active session indicators

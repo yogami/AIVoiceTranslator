@@ -28,7 +28,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://127.0.0.1:5001', // BaseURL is set, but using full URLs in goto() for reliability
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || '5001'}`,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
@@ -59,7 +59,7 @@ export default defineConfig({
   /* Configure the test server */
   webServer: {
     command: 'npm run dev:test',
-    url: 'http://127.0.0.1:5001',
+    url: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || '5001'}`,
     reuseExistingServer: !process.env.CI, // Reuse in local dev, fresh in CI
     cwd: process.cwd(), // Use current working directory
     stdout: 'pipe',
@@ -71,7 +71,8 @@ export default defineConfig({
       E2E_TEST_MODE: 'true',
       // DATABASE_URL will be loaded from .env.test file
       LOG_LEVEL: 'info',
-      PORT: '5001',
+      PORT: process.env.PORT || '5001',
+      HOST: process.env.HOST || '127.0.0.1',
       ANALYTICS_PASSWORD: '' // Clear analytics password for test mode
     },
   },
@@ -83,6 +84,6 @@ if (!baseURL) {
   if (process.env.CI) {
     throw new Error('PLAYWRIGHT_BASE_URL environment variable must be set for Playwright tests.');
   } else {
-    process.env.PLAYWRIGHT_BASE_URL = 'http://localhost:5001';
+    process.env.PLAYWRIGHT_BASE_URL = `http://${process.env.HOST || 'localhost'}:${process.env.PORT || '5001'}`;
   }
 }

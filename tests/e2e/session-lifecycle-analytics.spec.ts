@@ -1,5 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 import { ensureTestDatabaseSchema } from './test-setup';
 
@@ -28,7 +29,7 @@ async function askAnalyticsQuestion(page: any, question: string): Promise<string
 
 // Helper function to navigate to analytics page and wait for load
 async function navigateToAnalytics(page: any): Promise<void> {
-  await page.goto('http://127.0.0.1:5001/analytics');
+  await page.goto(getAnalyticsURL());
   await page.waitForSelector('h1', { timeout: 10000 });
   await page.waitForSelector('#questionInput', { timeout: 5000 });
 }

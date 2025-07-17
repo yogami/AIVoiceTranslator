@@ -1,5 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 
 /**
@@ -25,7 +26,7 @@ test.describe('Analytics Page', () => {
 
   test('should load analytics page and display interface elements', async ({ page }) => {
     // Navigate to analytics page
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Wait for the page to be fully loaded by checking for the main heading
     await page.waitForSelector('h1', { timeout: 10000 });
@@ -56,7 +57,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should handle natural language queries', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Test a simple query
     await page.fill('#questionInput', 'How many total sessions are there?');
@@ -76,7 +77,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should use suggestion buttons', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Click on a suggestion button
     await page.click('.suggestion-btn:has-text("👥 Avg Students")');
@@ -97,7 +98,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should handle chart generation queries', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Ask for a chart
     await page.fill('#questionInput', 'Show me a chart of sessions per day this week');
@@ -121,7 +122,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should verify session lifecycle data through analytics', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Query for session lifecycle information
     await page.fill('#questionInput', 'Tell me about session status and lifecycle information');
@@ -153,7 +154,7 @@ test.describe('Analytics Page', () => {
       }
     });
     
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Wait for page to be fully loaded
     await page.waitForLoadState('networkidle');
@@ -217,7 +218,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should handle keyboard input (Enter key)', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Type a query and press Enter
     await page.fill('#questionInput', 'What is the total number of translations?');
@@ -232,7 +233,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should verify analytics can answer session lifecycle questions', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Test various session lifecycle queries that would previously use diagnostics page
     const queries = [
@@ -256,7 +257,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should verify session cleanup functionality through analytics', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Ask about session cleanup - this replaces the old diagnostics page functionality
     await page.fill('#questionInput', 'What sessions need cleanup and how many were cleaned up recently?');
@@ -273,7 +274,7 @@ test.describe('Analytics Page', () => {
   });
 
   test('should handle multiple consecutive queries like a chat', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Simulate a conversation about session data
     const conversation = [
