@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { clientConfig } from '../config/client-config.js';
 
 export interface UseAudioRecordingOptions {
   language: string;
@@ -122,7 +123,7 @@ export function useAudioRecording(options: UseAudioRecordingOptions): UseAudioRe
           } catch (e) {
             console.error('Failed to restart with new language:', e);
           }
-        }, 100);
+        }, clientConfig.audio.speechRecognitionRestartDelay);
       }
     }
   }, [language, isRecording]);

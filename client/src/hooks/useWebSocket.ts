@@ -5,6 +5,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { clientConfig } from '../config/client-config.js';
 
 interface UseWebSocketOptions {
   onOpen?: () => void;
@@ -51,11 +52,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
         setIsConnected(false);
         options.onClose?.();
         
-        // Attempt to reconnect after 3 seconds
+        // Attempt to reconnect after configured delay
         reconnectTimeoutRef.current = setTimeout(() => {
           console.log('Attempting to reconnect...');
           connect();
-        }, 3000);
+        }, clientConfig.websocket.reconnectDelay);
       };
 
       wsRef.current.onerror = (error) => {
