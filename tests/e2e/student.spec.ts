@@ -1,4 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
+import { getStudentURL, getTeacherURL } from './helpers/test-config.js';
+import { testConfig } from './helpers/test-timeouts.js';
 
 test.describe('Student Interface - Basic Scenarios', () => {
   let page: Page;
@@ -85,7 +87,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
     // Wait for the error message in the translation display
     const translationDisplay = page.locator('#translation-display');
-    await expect(translationDisplay).toContainText('Error: Classroom session expired or invalid. Please ask teacher for new link.', { timeout: 10000 });
+    await expect(translationDisplay).toContainText('Error: Classroom session expired or invalid. Please ask teacher for new link.', { timeout: testConfig.ui.teacherRegistrationTimeout });
 
     // Verify connection status updates to disconnected
     const connectionStatus = page.locator('#connection-status');
@@ -109,11 +111,11 @@ test.describe('Student Interface - Basic Scenarios', () => {
       // 1. Teacher Setup
       teacherPage = await browser.newPage();
       await teacherPage.goto('http://127.0.0.1:5001/teacher?e2e=true'); // Use correct port for test environment
-      await expect(teacherPage.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(teacherPage.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       const classroomCodeElement = teacherPage.locator('#classroom-code-display');
-      await expect(classroomCodeElement).toBeVisible({ timeout: 10000 });
+      await expect(classroomCodeElement).toBeVisible({ timeout: testConfig.ui.teacherRegistrationTimeout });
       
-      await expect(classroomCodeElement).not.toBeEmpty({ timeout: 5000 }); 
+      await expect(classroomCodeElement).not.toBeEmpty({ timeout: testConfig.ui.recordButtonTimeout }); 
       const classroomCode = await classroomCodeElement.innerText();
       expect(classroomCode).toMatch(/^[A-Z0-9]{6}$/);
 
@@ -130,7 +132,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
       // 3. Student Connects
       await studentConnectButton.click();
-      await expect(studentPage.locator('#connection-status span')).toContainText('Connected', { timeout: 10000 });
+      await expect(studentPage.locator('#connection-status span')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
       await expect(studentConnectButton).toHaveText('Disconnect');
 
       // 4. Mock Translation on Student Page

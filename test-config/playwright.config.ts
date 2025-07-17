@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { testConfig } from '../tests/e2e/helpers/test-timeouts.js';
 
 // TODO: [Technical Debt - E2E Test Infrastructure]
 // Resolve webServer startup issues to enable automated E2E tests for CI/CD.
@@ -64,7 +65,7 @@ export default defineConfig({
     cwd: process.cwd(), // Use current working directory
     stdout: 'pipe',
     stderr: 'pipe',
-    timeout: 120 * 1000, // 2 minutes
+    timeout: testConfig.playwright.serverStartupTimeout, // Configurable server startup timeout
     env: {
       ...process.env,
       NODE_ENV: 'test',

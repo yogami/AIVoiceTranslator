@@ -8,8 +8,9 @@
  * - Classroom code generation
  * - Teacher-student interaction flows
  */
-import { test, expect, Page, BrowserContext } from '@playwright/test';
-import { getTeacherURL, getStudentURL } from './helpers/test-config';
+import { test, expect, Browser, Page, BrowserContext } from '@playwright/test';
+import { getTeacherURL, getStudentURL } from './helpers/test-config.js';
+import { testConfig } from './helpers/test-timeouts.js';
 
 test.describe('Teacher Interface - Comprehensive Test Suite', () => {
   let page: Page;
@@ -61,7 +62,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
               if (this.ondataavailable) {
                 this.ondataavailable({ data: mockBlob });
               }
-            }, 150);
+            }, testConfig.mock.audioDataDelay);
           }
         }
         
@@ -168,12 +169,12 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
   test('should establish WebSocket connection automatically', async () => {
     // Wait for auto-connection status message
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
     });
 
     test('should display classroom code and QR code', async () => {
       // Wait for WebSocket connection and registration
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Check classroom code is displayed
       const classroomCode = page.locator('#classroom-code-display');
@@ -202,7 +203,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
   test.describe('Language Selection', () => {
   test('should handle language selection', async () => {
     // Wait for connection first, as language change might trigger re-registration
-    await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+    await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
     
     // Change language
     await page.selectOption('#teacherLanguage', 'es-ES'); // Spanish (Spain)
@@ -210,12 +211,12 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
     expect(selectedValue).toBe('es-ES');
     
     // The application should ideally re-register with the new language.
-    await page.waitForTimeout(1000); 
+    await page.waitForTimeout(testConfig.wait.standardWait); 
   });
 
     test('should handle language changes during recording', async () => {
       // Wait for WebSocket connection
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Change language
       const languageSelect = page.locator('#teacherLanguage');
@@ -237,7 +238,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       });
       
       // Wait a bit for the registration to be sent
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(testConfig.wait.shortWait);
       
       // Start recording to verify language is used
       const recordButton = page.locator('#recordButton');
@@ -252,7 +253,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
   test.describe('Audio Recording and Transcription', () => {
   test('should handle recording controls', async () => {
     // Wait for WebSocket connection to be established first
-    await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+    await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
 
     // Check initial state of the record button
     const recordButton = page.locator('#recordButton');
@@ -274,7 +275,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
     test('should display transcriptions from speech recognition', async () => {
       // Wait for WebSocket connection
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Start recording
       const recordButton = page.locator('#recordButton');
@@ -285,7 +286,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
       
       // Wait for transcription to appear (mock speech recognition sends it after 500ms)
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(testConfig.wait.standardWait);
       
       // Check that transcription is displayed
       const transcriptionDisplay = page.locator('#transcription');
@@ -321,14 +322,14 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       await page.waitForLoadState('domcontentloaded');
       
       // Wait for WebSocket connection and authentication bypass
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Start recording
       const recordButton = page.locator('#recordButton');
       await recordButton.click();
       
       // Wait for transcription to be sent (mock sends after 500ms)
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(testConfig.wait.adjustableWait);
       
       // Get WebSocket messages
       const messages = await page.evaluate(() => (window as any).__wsMessages || []);
@@ -350,7 +351,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
     test('should send audio data through WebSocket', async () => {
       // Wait for WebSocket connection
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Intercept WebSocket messages
       const wsMessages: any[] = [];
@@ -371,14 +372,14 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       // Reload to apply WebSocket interception
       await page.reload();
       await page.waitForLoadState('domcontentloaded');
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Start recording
       const recordButton = page.locator('#recordButton');
       await recordButton.click();
       
       // Wait for audio to be sent (MediaRecorder sends data after 150ms in our mock)
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(testConfig.wait.shortWait);
       
       // Get WebSocket messages
       const messages = await page.evaluate(() => (window as any).__wsMessages || []);
@@ -429,11 +430,11 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
     // Wait for the record button to be visible and then click it
     const recordButton = newPage.locator('#recordButton');
-    await expect(recordButton).toBeVisible({ timeout: 5000 });
+    await expect(recordButton).toBeVisible({ timeout: testConfig.ui.recordButtonTimeout });
     await recordButton.click();
     
     // Assert that the status message indicates speech recognition is not available
-    await expect(newPage.locator('#status')).toContainText('Speech recognition not available', { timeout: 3000 });
+    await expect(newPage.locator('#status')).toContainText('Speech recognition not available', { timeout: testConfig.ui.speechRecognitionUnavailableTimeout });
     
     // Record button should remain enabled as recording couldn't start
     await expect(recordButton).toBeEnabled();
@@ -531,14 +532,14 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       await errorPage.waitForLoadState('domcontentloaded');
       
       // Wait for WebSocket connection
-      await expect(errorPage.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(errorPage.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
       // Try to start recording
       const recordButton = errorPage.locator('#recordButton');
       await recordButton.click();
       
       // Wait for error to be processed
-      await errorPage.waitForTimeout(500);
+      await errorPage.waitForTimeout(testConfig.wait.shortWait);
       
       // Check error is displayed
       await expect(errorPage.locator('#status')).toContainText('Speech recognition error: network');
@@ -557,7 +558,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       
       try {
         // Wait for teacher to be ready
-        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
         const classroomCodeElement = page.locator('#classroom-code-display');
         await expect(classroomCodeElement).toBeVisible();
         const classroomCode = await classroomCodeElement.textContent();
@@ -574,7 +575,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.click('#connect-btn');
         
         // Verify student connected status on student page
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: 10000 });
+        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
         
         // Verify teacher is still ready (status might change if student connection triggers UI update)
         await expect(page.locator('#recordButton')).toBeEnabled();
@@ -593,7 +594,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       const studentPage = await studentContext.newPage();
       
       try {
-        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
         const classroomCodeElement = page.locator('#classroom-code-display');
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
@@ -605,18 +606,18 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.selectOption('#language-dropdown', 'es-ES');
         // Student clicks connect
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: 10000 });
+        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
         
         // Student changes language (e.g., to German)
         await studentPage.selectOption('#language-dropdown', 'de-DE');
         // Add a short wait if the language change triggers async operations like re-registering
-        await studentPage.waitForTimeout(1000); // Adjust as needed
+        await studentPage.waitForTimeout(testConfig.wait.standardWait); // Adjust as needed
         
         // Verify student language change was processed and status remains connected or updates appropriately
         const selectedLang = await studentPage.locator('#language-dropdown').inputValue();
         expect(selectedLang).toBe('de-DE');
         // Re-check connection status if language change might affect it
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: 5000 });
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.recordButtonTimeout });
 
       } finally {
         await studentPage.close();
@@ -629,7 +630,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       const studentPage = await studentContext.newPage();
       
       try {
-        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+        await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
         const classroomCodeElement = page.locator('#classroom-code-display');
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
@@ -640,7 +641,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // Student selects language and connects
         await studentPage.selectOption('#language-dropdown', 'fr-FR'); // French for this test
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: 10000 });
+        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
         
         // Simulate reconnection by reloading
         await studentPage.reload();
@@ -651,7 +652,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.click('#connect-btn'); // Re-click connect
 
         // Verify student reconnected
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: 10000 });
+        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
         
         await expect(page.locator('#status')).toContainText('Registered as teacher');
       } finally {
@@ -662,7 +663,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
     test('should transmit teacher\'s speech to student as translated text and enable audio playback', async ({ browser }) => {
       // 1. Teacher Setup
-      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: 10000 });
+      await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       const classroomCodeElement = page.locator('#classroom-code-display');
       await expect(classroomCodeElement).toBeVisible();
       const classroomCode = await classroomCodeElement.textContent();
@@ -678,7 +679,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       const studentPage = await studentContext.newPage();
       
       // Small delay to ensure teacher session is stable before student connects
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(testConfig.wait.shortWait);
       
       try {
         await studentPage.goto(getStudentURL(classroomCode));
@@ -691,7 +692,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
         // Student connects
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status span')).toContainText('Connected', { timeout: 10000 });
+        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
         await expect(studentPage.locator('#translation-display')).toContainText('Waiting for teacher to start speaking...');
 
         // 3. Teacher Action
@@ -701,7 +702,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
         const teacherTranscription = 'Hello, this is a test transcription';
         // Wait for teacher's UI to show the mock transcription
-        await expect(page.locator('#transcription')).toContainText(teacherTranscription, { timeout: 3000 });
+        await expect(page.locator('#transcription')).toContainText(teacherTranscription, { timeout: testConfig.ui.speechRecognitionUnavailableTimeout });
 
         // 4. Student Verification
         const studentTranslationDisplay = studentPage.locator('#translation-display');
@@ -711,8 +712,8 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         
         // Students receive translated text, not original. Check for Spanish translation
         // The translation could vary slightly, so check for key parts
-        await expect(studentTranslationDisplay).toContainText('Hola', { timeout: 10000 }); 
-        await expect(studentTranslationDisplay).toContainText('transcripción de prueba', { timeout: 10000 }); 
+        await expect(studentTranslationDisplay).toContainText('Hola', { timeout: testConfig.ui.teacherRegistrationTimeout }); 
+        await expect(studentTranslationDisplay).toContainText('transcripción de prueba', { timeout: testConfig.ui.teacherRegistrationTimeout }); 
 
         // Stop recording
         await recordButton.click(); 
@@ -720,7 +721,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
         // Check if Play Audio button is enabled (assuming server sends TTS audio)
         const playButton = studentPage.locator('#play-button');
-        await expect(playButton).toBeEnabled({ timeout: 5000 });
+        await expect(playButton).toBeEnabled({ timeout: testConfig.ui.recordButtonTimeout });
 
       } finally {
         // Cleanup

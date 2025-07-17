@@ -5,6 +5,8 @@
  * between the client and server.
  */
 
+import { clientConfig } from '../config/client-config.js';
+
 export type UserRole = 'teacher' | 'student';
 
 export interface WebSocketMessage {
@@ -51,8 +53,8 @@ export class WebSocketService {
   private ws: WebSocket | null = null;
   private messageHandlers: Map<string, MessageHandler[]> = new Map();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 3000;
+  private maxReconnectAttempts = clientConfig.websocket.maxReconnectAttempts;
+  private reconnectDelay = clientConfig.websocket.reconnectDelay;
   private isIntentionallyClosed = false;
 
   constructor(
