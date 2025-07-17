@@ -95,7 +95,7 @@ describe('Translation Flow Component Tests', () => {
     // Start HTTP server
     await new Promise<void>((resolve) => {
       httpServer.listen(TEST_PORT, () => {
-        actualPort = (httpServer.address() as any)?.port || 5000;
+        actualPort = (httpServer.address() as any)?.port || parseInt(process.env.PORT || '5000');
         console.log(`Test server started on port ${actualPort}`);
         resolve();
       });

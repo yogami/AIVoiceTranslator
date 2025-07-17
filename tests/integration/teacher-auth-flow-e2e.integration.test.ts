@@ -213,11 +213,11 @@ describe('Teacher Authentication Flow E2E Tests', () => {
       const classCode = session!.classCode;
 
       // Simulate teacher page generating student URL
-      const baseUrl = 'http://localhost:5000'; // In real app, this would be from environment
+      const baseUrl = `http://${process.env.HOST || 'localhost'}:${process.env.PORT || '5000'}`;
       const studentUrl = `${baseUrl}/student?code=${classCode}`;
 
       // Verify student URL format
-      expect(studentUrl).toMatch(/^http:\/\/localhost:5000\/student\?code=[A-Z0-9]{6}$/);
+      expect(studentUrl).toMatch(/^http:\/\/(localhost|127\.0\.0\.1):[\d]+\/student\?code=[A-Z0-9]{6}$/);
       expect(studentUrl).toContain(classCode!);
 
       // This URL should be immediately available for QR code generation and display
@@ -267,7 +267,7 @@ describe('Teacher Authentication Flow E2E Tests', () => {
       expect(reconnectedSession!.teacherId).toBe(teacherId);
 
       // Student URL should remain the same
-      const baseUrl = 'http://localhost:5000';
+      const baseUrl = `http://${process.env.HOST || 'localhost'}:${process.env.PORT || '5000'}`;
       const studentUrl = `${baseUrl}/student?code=${originalClassCode}`;
       console.log('Persistent student URL after reconnection:', studentUrl);
     });
@@ -324,7 +324,7 @@ describe('Teacher Authentication Flow E2E Tests', () => {
 
       // Step 6: Teacher page can immediately display classroom info
       const classCode = session!.classCode;
-      const baseUrl = 'http://localhost:5000';
+      const baseUrl = `http://${process.env.HOST || 'localhost'}:${process.env.PORT || '5000'}`
       const studentUrl = `${baseUrl}/student?code=${classCode}`;
 
       // This data is immediately available for the teacher page UI

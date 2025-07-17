@@ -1,5 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 
 /**
@@ -20,7 +21,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
   });
 
   test('should validate session creation through analytics', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Wait for page to load
     await page.waitForSelector('h1', { timeout: 10000 });
@@ -44,7 +45,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
   });
 
   test('should verify session cleanup through analytics', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Wait for page to load
     await page.waitForSelector('#questionInput', { timeout: 5000 });
@@ -64,7 +65,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
   });
 
   test('should handle session lifecycle conversation through analytics', async ({ page }) => {
-    await page.goto('http://127.0.0.1:5001/analytics');
+    await page.goto(getAnalyticsURL());
     
     // Wait for page to load
     await page.waitForSelector('#questionInput', { timeout: 5000 });
