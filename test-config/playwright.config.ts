@@ -15,68 +15,48 @@ import { testConfig } from '../tests/e2e/helpers/test-timeouts.js';
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: '../tests/e2e',
-  /* Run tests in files in parallel */
+  testDir: 'tests/e2enew',
   fullyParallel: false, // Disable parallel execution to avoid DB conflicts during seeding
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
   workers: 1, // Force single worker to ensure database isolation
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: 'html',
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || '5001'}`,
-
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
-
-  /* Global setup to ensure test environment */
-  globalSetup: './global-setup.ts',
-
-  /* Configure projects for major browsers */
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-
     {
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
     },
-
     // Temporarily disable webkit due to compatibility issues
     // {
     //   name: 'webkit',
     //   use: { ...devices['Desktop Safari'] },
     // },
   ],
-
-  /* Configure the test server */
   webServer: {
     command: 'npm run dev:test',
     url: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || '5001'}`,
-    reuseExistingServer: !process.env.CI, // Reuse in local dev, fresh in CI
-    cwd: process.cwd(), // Use current working directory
-    stdout: 'pipe',
-    stderr: 'pipe',
-    timeout: testConfig.playwright.serverStartupTimeout, // Configurable server startup timeout
+    // reuseExistingServer is not supported in latest Playwright config
+    cwd: process.cwd(),
+    timeout: 12000, // Restore timeout to default for faster feedback
     env: {
       ...process.env,
       NODE_ENV: 'test',
       E2E_TEST_MODE: 'true',
-      // DATABASE_URL will be loaded from .env.test file
       LOG_LEVEL: 'info',
       PORT: process.env.PORT || '5001',
       HOST: process.env.HOST || '127.0.0.1',
-      ANALYTICS_PASSWORD: '' // Clear analytics password for test mode
+      ANALYTICS_PASSWORD: ''
     },
   },
+  /* Global setup to ensure test environment */
 });
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL;

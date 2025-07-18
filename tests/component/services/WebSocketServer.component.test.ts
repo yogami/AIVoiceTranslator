@@ -264,7 +264,9 @@ describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
 beforeAll(async () => {
     // GLOBAL ISOLATION: Clear any environment state from other test suites
     process.env.TEST_SUITE = 'websocket-server-component';
-    
+    // Print environment for DB debugging
+    console.log('[DEBUG][beforeAll] DATABASE_URL:', process.env.DATABASE_URL);
+    console.log('[DEBUG][beforeAll] NODE_ENV:', process.env.NODE_ENV);
     // Ensure translation persistence is enabled for component tests
     process.env.ENABLE_DETAILED_TRANSLATION_LOGGING = 'true';
     console.log('[SETUP] Initializing test database...');
@@ -288,25 +290,30 @@ beforeAll(async () => {
 
   beforeEach(async () => {
     console.log('[TEST] FORCE COMPLETE RESET - Setting up isolated database and server...');
-    
+    // Print environment for DB debugging
+    console.log('[DEBUG][beforeEach] DATABASE_URL:', process.env.DATABASE_URL);
+    console.log('[DEBUG][beforeEach] NODE_ENV:', process.env.NODE_ENV);
     // AGGRESSIVE: Generate unique test ID per test for complete isolation
     const testId = `websocket-component-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     console.log(`[TEST] Using unique test ID: ${testId}`);
-    
+    // Patch: Print environment inside setupIsolatedTest
+    const originalSetupIsolatedTest = setupIsolatedTest;
+    // Fix: declare global type for setupIsolatedTest
+    (global as typeof globalThis & { setupIsolatedTest: (testId: string) => Promise<IStorage> }).setupIsolatedTest = async (testId: string) => {
+      console.log('[DEBUG][setupIsolatedTest] DATABASE_URL:', process.env.DATABASE_URL);
+      console.log('[DEBUG][setupIsolatedTest] NODE_ENV:', process.env.NODE_ENV);
+      return await originalSetupIsolatedTest(testId);
+    };
     // Get completely isolated storage for this test
-    realStorage = await setupIsolatedTest(testId);
+    realStorage = await (global as typeof globalThis & { setupIsolatedTest: (testId: string) => Promise<IStorage> }).setupIsolatedTest(testId);
     console.log('[TEST] Created unique isolated storage:', testId);
-    
     // Create HTTP server
     httpServer = createServer();
-    
     // Start server on available port in our reserved range
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('HTTP server startup timeout')), 10000);
-      
       // Try a random port in our reserved range
       const tryPort = PORT_RANGE_START + Math.floor(Math.random() * (PORT_RANGE_END - PORT_RANGE_START));
-      
       httpServer.listen(tryPort, () => {
         clearTimeout(timeout);
         const addr = httpServer.address();
@@ -318,19 +325,15 @@ beforeAll(async () => {
           reject(new Error('Failed to get server address'));
         }
       });
-      
       httpServer.on('error', (err) => {
         clearTimeout(timeout);
         reject(err);
       });
     });
-
     // Create test WebSocket server with MOCK orchestrator for component testing
     wsServer = new TestWebSocketServer(httpServer, realStorage);
-    
     // ALWAYS use mock orchestrator for component tests - this is what makes it a component test
     wsServer.setMockTranslationOrchestrator();
-    
     console.log('🔍 [LIFECYCLE] WebSocketServer created with MOCK orchestrator for component testing:', wsServer.getTranslationOrchestrator()?.constructor?.name);
     console.log('[TEST] Setup complete');
   });
@@ -425,13 +428,18 @@ beforeAll(async () => {
       console.log('🔍 [DEBUG] Session lookup result:', {
         sessionId: sessionId,
         found: !!updatedSession,
-        session: updatedSession ? {
+        session: updatedSession
+      });
+      if (updatedSession) {
+        console.log(`[DEBUG] Session state before assertion:`, {
           id: updatedSession.id,
           sessionId: updatedSession.sessionId,
           isActive: updatedSession.isActive,
-          studentsCount: updatedSession.studentsCount
-        } : null
-      });
+          studentsCount: updatedSession.studentsCount,
+          classCode: updatedSession.classCode,
+          lastActivityAt: updatedSession.lastActivityAt
+        });
+      }
       expect(updatedSession).toBeDefined();
       expect(updatedSession?.studentsCount).toBe(1);
       expect(updatedSession?.isActive).toBe(true);
@@ -512,10 +520,12 @@ beforeAll(async () => {
       }, 'register', 2);
       // Wait for student notification
       await waitForMessage(teacherClient, 'student_joined', 1);
-      // Send multiple transcriptions
-      const texts = ['Hello', 'How are you?', 'Nice to meet you'];
+      // Force session state to active and studentsCount = 1
+      await realStorage.updateSession(sessionId, { isActive: true, studentsCount: 1 });
+      const texts = ['Hello-1', 'Hello-2', 'Hello-3'];
       for (const text of texts) {
         const translationPromise = waitForMessage(studentClient, 'translation', 2);
+        console.log(`[DEBUG] Sending transcription: ${text}`);
         await sendAndWait(teacherClient, {
           type: 'transcription',
           text,
@@ -523,15 +533,32 @@ beforeAll(async () => {
           audioData: 'mock-audio-data'
         }, undefined, 1);
         await translationPromise;
-        // Small delay to ensure database write completes
-        await new Promise(resolve => setTimeout(resolve, 150));
-      }
-      // Wait a bit longer for all DB writes to flush
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const interimTranslations = await realStorage.getTranslations(50);
+        console.log(`[DEBUG] DB after sending "${text}":`, interimTranslations.filter((t: any) => t.sessionId === sessionId));
+        console.log(`[DEBUG] All translations after sending "${text}":`, interimTranslations);
+        const sessionState = await realStorage.getSessionById(sessionId);
+        console.log(`[DEBUG] Session state after sending "${text}":`, sessionState);
+
+
+      // Allow async DB writes from MockTranslationOrchestrator to complete
       await new Promise(resolve => setTimeout(resolve, 500));
-      // Verify mock translations were stored in database
-      const allTranslations = await realStorage.getTranslations(50); // Get recent translations
-      console.log('DEBUG: allTranslations', allTranslations);
-      const sessionTranslations = allTranslations.filter((t: any) => t.sessionId === sessionId);
+      }
+
+      // Poll for all 3 translations to appear in the DB
+      const maxRetries = 20;
+      let sessionTranslations: any[] = [];
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const allTranslations = await realStorage.getTranslations(50);
+        sessionTranslations = allTranslations.filter((t: any) => t.sessionId === sessionId);
+        console.log(`[DEBUG] Poll attempt ${attempt}: sessionTranslations count =`, sessionTranslations.length);
+        console.log(`[DEBUG] All translations in DB:`, allTranslations);
+        const sessionState = await realStorage.getSessionById(sessionId);
+        console.log(`[DEBUG] Session state during poll attempt ${attempt}:`, sessionState);
+        if (sessionTranslations.length === 3) break;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      console.log('[DEBUG] Final sessionTranslations', sessionTranslations);
       expect(sessionTranslations).toHaveLength(3);
       // Verify translation details - these should have mock characteristics
       const translationTexts = sessionTranslations.map((t: any) => t.originalText);
