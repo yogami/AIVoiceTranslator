@@ -367,12 +367,20 @@ describe('Teacher Authentication Flow E2E Tests', () => {
           password: 'password123'
         });
 
+      // Ensure login succeeded and user object exists
+      expect(session1LoginResponse.status).toBe(200);
+      expect(session1LoginResponse.body.user).toBeTruthy();
+
       const session2LoginResponse = await request(app)
         .post('/api/auth/login')
         .send({
           username: `analytics.demo.teacher.${testId}`,
           password: 'password123'
         });
+
+      // Ensure login succeeded and user object exists
+      expect(session2LoginResponse.status).toBe(200);
+      expect(session2LoginResponse.body.user).toBeTruthy();
 
       // Same teacherId across all logins
       expect(session1LoginResponse.body.user.id).toBe(session2LoginResponse.body.user.id);

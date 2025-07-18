@@ -37,22 +37,20 @@ if (isValidDatabaseUrl) {
   const isSupabase = databaseUrl.includes('supabase.co') || databaseUrl.includes('supabase.com');
   const isTestEnvironment = process.env.NODE_ENV === 'test';
   
-  // Supabase-specific optimizations for connection stability
+  // Force max connections to 1 for all environments to avoid pool exhaustion in tests
   const connectionConfig: any = {
-    max: isAivenFree || isTestEnvironment ? 1 : (isSupabase ? 5 : 10),  // Reduced connections for Supabase
-    connect_timeout: isSupabase ? 30 : 10, // Longer timeout for Supabase
-    idle_timeout: isAivenFree || isTestEnvironment ? 5 : (isSupabase ? 30 : 20),
-    max_lifetime: isAivenFree || isTestEnvironment ? 60 * 5 : (isSupabase ? 60 * 10 : 60 * 30),
-    // Supabase-specific settings
+    max: 1,
+    connect_timeout: isSupabase ? 30 : 10,
+    idle_timeout: 5,
+    max_lifetime: 60 * 5,
     ...(isSupabase && {
       retry: true,
       retry_delay: 1000,
       max_retries: 3,
       keepalive: true,
-      keepalive_idle: 30000, // 30 seconds
+      keepalive_idle: 30000,
     })
   };
-  
   pool = postgres(databaseUrl, connectionConfig);
   db = pgDrizzle(pool, { schema });
 } else {
