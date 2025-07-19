@@ -41,6 +41,7 @@
     "express-session": "^1.18.1",
     "isomorphic-dompurify": "^2.26.0",
     "jsonwebtoken": "^9.0.2",
+    "openai": "^5.10.1",
     "pg": "^8.16.0",
     "postgres": "^3.4.7",
     "react": "^18.3.1",
