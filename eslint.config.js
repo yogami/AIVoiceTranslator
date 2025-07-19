@@ -1,3 +1,5 @@
+import tseslint from "@typescript-eslint/eslint-plugin";
+
 // ESLint v9+ flat config for your project
 export default [
   {
@@ -14,7 +16,7 @@ export default [
       }
     },
     plugins: {
-      "@typescript-eslint": require("@typescript-eslint/eslint-plugin")
+      "@typescript-eslint": tseslint
     },
     files: ["**/*.{js,ts,tsx,jsx}"],
     ignores: ["node_modules/**", "dist/**"],
