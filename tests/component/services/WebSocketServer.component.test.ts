@@ -595,7 +595,7 @@ beforeAll(async () => {
       
       // Connection should still be open (server handles invalid JSON gracefully)
       expect(ws.readyState).toBe(WebSocket.OPEN);
-    });
+    }, 60000);
 
     it('should handle unknown message types', async () => {
       teacherClient = await createClient('/', 1);

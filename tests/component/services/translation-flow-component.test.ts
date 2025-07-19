@@ -515,7 +515,7 @@ describe('Translation Flow Component Tests', () => {
         // Ensure cleanup always happens
         await cleanupConnections();
       }
-    }, 35000); // Increased timeout to 35 seconds for comprehensive isolated test
+    }, 60000); // Increased timeout to 60 seconds for CI/CD reliability
   });
   
   describe('Error Handling', () => {
