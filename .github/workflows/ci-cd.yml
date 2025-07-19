@@ -30,7 +30,7 @@ jobs:
         run: npm ci
         
       - name: Run ESLint
-        run: npm run lint || echo "No linting configured, skipping"
+        run: npm run lint
         
       - name: Security audit
         run: npm audit --audit-level moderate
@@ -52,7 +52,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run unit tests
-        run: npx vitest run --config test-config/vitest/vitest.unit.config.mjs
+        run: npm run test:unit
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run component tests
-        run: npx vitest run --config test-config/vitest/vitest.component.config.mjs
+        run: npm run test:component
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -130,7 +130,7 @@ jobs:
       - name: Build application
         run: npm run build || echo "No build script configured"
       - name: Run integration tests
-        run: npx vitest run --config test-config/vitest/vitest.integration.config.mjs
+        run: npm run test:integration
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
