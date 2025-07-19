@@ -27,7 +27,8 @@
     "test": "NODE_ENV=test npx dotenv-cli -f .env.test --override -- vitest --config=test-config/vitest/vitest.unified.config.mjs",
     "test:unit": "NODE_ENV=test TEST_MODE=unit TEST_ISOLATION=false npx dotenv-cli -f .env.test --override -- vitest run tests/unit --config=test-config/vitest/vitest.unified.config.mjs",
     "test:component": "NODE_ENV=test TEST_MODE=component TEST_ISOLATION=true npx dotenv-cli -f .env.test --override -- vitest run tests/component --config=test-config/vitest/vitest.unified.config.mjs",
-    "test:integration": "NODE_ENV=test TEST_MODE=integration TEST_ISOLATION=true npx dotenv-cli -f .env.test --override -- vitest run tests/integration --config test-config/vitest/vitest.unified.config.mjs"
+    "test:integration": "NODE_ENV=test TEST_MODE=integration TEST_ISOLATION=true npx dotenv-cli -f .env.test --override -- vitest run tests/integration --config test-config/vitest/vitest.unified.config.mjs",
+    "lint": "eslint . --ext .js,.ts,.tsx,.jsx"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
