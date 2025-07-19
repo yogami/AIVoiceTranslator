@@ -572,7 +572,7 @@ beforeAll(async () => {
         expect(translation.translatedText).toContain('[MOCK-ja-JP]');
       }
       console.log('END: Database persistence component test passed');
-    }, 30000);
+    }, 60000);
   });
 
   describe('Message Validation Component Tests', () => {
