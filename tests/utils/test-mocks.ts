@@ -201,14 +201,14 @@ export function mockOpenAIService() {
   return {
     translateSpeech: vi.fn().mockImplementation(async (audioBuffer, sourceLanguage, targetLanguage) => {
       return {
-        originalText: "This is a mock transcription",
+        originalText: 'This is a mock transcription',
         translatedText: `Translated to ${targetLanguage}`,
         audioBuffer
       };
     }),
     
     transcribeSpeech: vi.fn().mockImplementation(async (audioBuffer, languageHint) => {
-      return "This is a mock transcription";
+      return 'This is a mock transcription';
     })
   };
 }

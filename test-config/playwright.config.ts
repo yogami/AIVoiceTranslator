@@ -1,5 +1,5 @@
-import { defineConfig, devices } from '@playwright/test';
-import { testConfig } from '../tests/e2e/helpers/test-timeouts.js';
+import { defineConfig, devices } from "@playwright/test";
+import { testConfig } from "../tests/e2e/helpers/test-timeouts.js";
 
 // TODO: [Technical Debt - E2E Test Infrastructure]
 // Resolve webServer startup issues to enable automated E2E tests for CI/CD.
@@ -15,24 +15,24 @@ import { testConfig } from '../tests/e2e/helpers/test-timeouts.js';
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: 'tests/e2enew',
+  testDir: "tests/e2enew",
   fullyParallel: false, // Disable parallel execution to avoid DB conflicts during seeding
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Force single worker to ensure database isolation
-  reporter: 'html',
+  reporter: "html",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || '5001'}`,
-    trace: 'on-first-retry',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
+    trace: "on-first-retry",
   },
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
     {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
     },
     // Temporarily disable webkit due to compatibility issues
     // {
@@ -41,19 +41,19 @@ export default defineConfig({
     // },
   ],
   webServer: {
-    command: 'npm run dev:test',
-    url: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || '127.0.0.1'}:${process.env.PORT || '5001'}`,
+    command: "npm run dev:test",
+    url: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
     // reuseExistingServer is not supported in latest Playwright config
     cwd: process.cwd(),
     timeout: 12000, // Restore timeout to default for faster feedback
     env: {
       ...process.env,
-      NODE_ENV: 'test',
-      E2E_TEST_MODE: 'true',
-      LOG_LEVEL: 'info',
-      PORT: process.env.PORT || '5001',
-      HOST: process.env.HOST || '127.0.0.1',
-      ANALYTICS_PASSWORD: ''
+      NODE_ENV: "test",
+      E2E_TEST_MODE: "true",
+      LOG_LEVEL: "info",
+      PORT: process.env.PORT || "5001",
+      HOST: process.env.HOST || "127.0.0.1",
+      ANALYTICS_PASSWORD: ""
     },
   },
   /* Global setup to ensure test environment */
@@ -63,8 +63,8 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL;
 if (!baseURL) {
   // Provide a fallback for local/dev, but throw in CI
   if (process.env.CI) {
-    throw new Error('PLAYWRIGHT_BASE_URL environment variable must be set for Playwright tests.');
+    throw new Error("PLAYWRIGHT_BASE_URL environment variable must be set for Playwright tests.");
   } else {
-    process.env.PLAYWRIGHT_BASE_URL = `http://${process.env.HOST || 'localhost'}:${process.env.PORT || '5001'}`;
+    process.env.PLAYWRIGHT_BASE_URL = `http://${process.env.HOST || "localhost"}:${process.env.PORT || "5001"}`;
   }
 }

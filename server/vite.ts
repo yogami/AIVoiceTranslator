@@ -130,7 +130,7 @@ export function serveStatic(app: express.Express): void {
     app.get('*', (req, res, next) => {
       if (req.method === 'GET' && !req.path.startsWith('/api/')) {
         logger.warn(`[PROD STATIC] Attempted to serve ${req.path} but dist folder is missing.`);
-        res.status(503).send("Static assets are not available. The application may not have been built correctly.");
+        res.status(503).send('Static assets are not available. The application may not have been built correctly.');
       } else {
         next();
       }
@@ -175,7 +175,7 @@ export function serveStatic(app: express.Express): void {
     }
   });
   
-  logger.info(`[PROD STATIC] Static serving configured for assets and specific HTML files.`);
+  logger.info('[PROD STATIC] Static serving configured for assets and specific HTML files.');
 }
 
 export function getViteInstance(): ViteDevServer | null {

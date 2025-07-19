@@ -428,7 +428,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 uiUpdater.setRecordButtonToRecording();
                 uiUpdater.updateStatus('Recording... Speak naturally');
             } catch (e) {
-                console.error("Error starting recording:", e);
+                console.error('Error starting recording:', e);
                 uiUpdater.updateStatus('Error starting recording.');
                 appState.isRecording = false; // Reset state
             }

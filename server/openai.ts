@@ -56,7 +56,7 @@ export async function getOpenAIEmbeddings(input: string): Promise<any> {
   // Use the correct embeddings endpoint
   const response = await openai.embeddings.create({ 
     input: input,
-    model: "text-embedding-ada-002"
+    model: 'text-embedding-ada-002'
   });
   
   // Return the embedding data directly from the embeddings API response
@@ -68,7 +68,7 @@ export async function getOpenAIChat(messages: OpenAI.Chat.Completions.ChatComple
   // This implementation uses openai.chat.completions.create to match the actual SDK and test mock structure.
   const response = await openai.chat.completions.create({ 
     messages: messages,
-    model: "gpt-3.5-turbo" // Example chat model, adjust if necessary or ensure tests mock appropriately
+    model: 'gpt-3.5-turbo' // Example chat model, adjust if necessary or ensure tests mock appropriately
   });
   return response.choices[0]?.message?.content ?? null;
 }

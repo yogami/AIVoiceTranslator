@@ -19,11 +19,11 @@ describe('Edge Case Integration Tests', () => {
 
   it('should handle special characters and emojis', async () => {
     // Test with unicode, special chars, emojis
-    const specialText = "Hello! 🎉 Special chars: áéíóú ñç €£¥ 中文 日本語 العربية";
+    const specialText = 'Hello! 🎉 Special chars: áéíóú ñç €£¥ 中文 日本語 العربية';
     
     const result = {
       originalText: specialText,
-      translatedText: "¡Hola! 🎉 Caracteres especiales: áéíóú ñç €£¥ 中文 日本語 العربية",
+      translatedText: '¡Hola! 🎉 Caracteres especiales: áéíóú ñç €£¥ 中文 日本語 العربية',
       containsEmojis: /[\u{1F000}-\u{1F6FF}]|[\u{1F900}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/u.test(specialText)
     };
     

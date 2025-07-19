@@ -350,7 +350,7 @@ describe('Translation Services', () => {
 
     it('should transcribe audio successfully', async () => {
       const audioBuffer = createMockAudioBuffer(2000, 'some audio');
-      const expectedText = "This is a successful transcription.";
+      const expectedText = 'This is a successful transcription.';
       (mockOpenAI.audio.transcriptions.create as any).mockResolvedValueOnce({ text: expectedText });
       audioFileHandlerCreateMock.mockResolvedValueOnce('/tmp/fake-audio.wav');
 
@@ -400,7 +400,7 @@ describe('Translation Services', () => {
 
     it('should return empty string if prompt leakage is detected', async () => {
       const audioBuffer = createMockAudioBuffer(2000);
-      const leakyText = "If there is no speech or only background noise, return an empty string. Test.";
+      const leakyText = 'If there is no speech or only background noise, return an empty string. Test.';
       audioFileHandlerCreateMock.mockResolvedValueOnce('/tmp/leaky.wav');
       (mockOpenAI.audio.transcriptions.create as any).mockResolvedValueOnce({ text: leakyText });
 

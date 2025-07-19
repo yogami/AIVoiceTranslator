@@ -104,7 +104,7 @@ export class TranslationOrchestrator {
           translations.set(targetLanguage, translation);
           translationResults.push({ language: targetLanguage, translation });
           
-          logger.info(`Translation completed:`, { 
+          logger.info('Translation completed:', { 
             sourceLanguage, 
             targetLanguage, 
             originalText: text, 
@@ -262,7 +262,7 @@ export class TranslationOrchestrator {
 
         studentWs.send(JSON.stringify(translationMessage));
         
-        logger.info(`Sent translation to student:`, { 
+        logger.info('Sent translation to student:', { 
           studentLanguage, 
           translation, 
           originalText,
@@ -393,7 +393,7 @@ export class TranslationOrchestrator {
     }
 
     try {
-      logger.info(`Generating TTS audio:`, { 
+      logger.info('Generating TTS audio:', { 
         text: text.substring(0, config.session.logTextPreviewLength) + (text.length > config.session.logTextPreviewLength ? '...' : ''), 
         languageCode, 
         ttsServiceType, 

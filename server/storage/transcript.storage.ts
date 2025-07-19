@@ -1,7 +1,7 @@
-import { type Transcript, type InsertTranscript, transcripts } from "../../shared/schema";
-import { db } from "../db";
-import { eq, and, desc } from "drizzle-orm";
-import { StorageError, StorageErrorCode } from "../storage.error"; // Corrected import
+import { type Transcript, type InsertTranscript, transcripts } from '../../shared/schema';
+import { db } from '../db';
+import { eq, and, desc } from 'drizzle-orm';
+import { StorageError, StorageErrorCode } from '../storage.error'; // Corrected import
 
 const DEFAULT_TRANSCRIPT_QUERY_LIMIT = 100;
 

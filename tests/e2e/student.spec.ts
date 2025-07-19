@@ -139,7 +139,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
       const mockTranslationPayload = {
         type: 'translation',
         originalText: 'Hello from teacher (mocked)',
-        translatedText: "Bonjour de l'enseignant (moqué)",
+        translatedText: 'Bonjour de l\'enseignant (moqué)',
         sourceLanguage: 'en-US', // Language of originalText
         targetLanguage: 'fr-FR', // Language of translatedText (student should be listening for this)
         ttsServiceType: 'openai', // Or whatever is expected

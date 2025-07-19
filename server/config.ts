@@ -69,7 +69,7 @@ const getTestScalingFactor = (): number => {
       return 1/100;
     }
     // Integration tests use normal production timeouts
-    console.log(`🔧 DEBUG: Integration test mode - using production timeouts`);
+    console.log('🔧 DEBUG: Integration test mode - using production timeouts');
     return 1;
   }
   return 1; // No scaling for non-test environments

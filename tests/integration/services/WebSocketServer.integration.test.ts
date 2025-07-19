@@ -73,7 +73,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       const timeout = setTimeout(() => {
         clearInterval(interval);
         console.error(`[INTEGRATION] waitForMessage: Timeout for type: ${type || 'any'} on client #${idx}`);
-        console.error(`[INTEGRATION] waitForMessage: Messages received:`, wsClient.messages);
+        console.error('[INTEGRATION] waitForMessage: Messages received:', wsClient.messages);
         reject(new Error(`Message timeout after ${TEST_CONFIG.MESSAGE_TIMEOUT}ms for type: ${type || 'any'}`));
       }, TEST_CONFIG.MESSAGE_TIMEOUT);
       const interval = setInterval(() => {

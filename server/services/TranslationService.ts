@@ -82,10 +82,10 @@ const LANGUAGE_MAP: Record<string, string> = {
 
 // Suspicious phrases that indicate prompt leakage
 const SUSPICIOUS_PHRASES = [
-  "If there is no speech or only background noise, return an empty string",
-  "This is classroom speech from a teacher",
-  "Transcribe any audible speech accurately",
-  "return an empty string"
+  'If there is no speech or only background noise, return an empty string',
+  'This is classroom speech from a teacher',
+  'Transcribe any audible speech accurately',
+  'return an empty string'
 ];
 
 /**
@@ -580,7 +580,7 @@ export async function translateSpeech(
     console.log(`Using TTS service '${ttsServiceType}' (string format)`);
   } else {
     ttsServiceOptions = ttsServiceType || {};
-    console.log(`Using TTS service options:`, ttsServiceOptions);
+    console.log('Using TTS service options:', ttsServiceOptions);
   }
   
   return speechTranslationService.translateSpeech(

@@ -35,7 +35,7 @@ export async function initTestDatabase() {
     // Wait for any previous cleanup to complete
     const existingState = testDatabaseState.get(stateKey);
     if (existingState?.cleanupPromise) {
-      console.log(`[DB Setup] Waiting for previous cleanup to complete...`);
+      console.log('[DB Setup] Waiting for previous cleanup to complete...');
       await existingState.cleanupPromise;
     }
     
@@ -218,7 +218,7 @@ export async function closeDatabaseConnection() {
       try {
         await clearAllTablesWithRetry(1);
       } catch (error) {
-        console.warn(`[DB Setup] Warning: Failed to clear tables during cleanup:`, error);
+        console.warn('[DB Setup] Warning: Failed to clear tables during cleanup:', error);
       }
       
       // Note: We don't actually close the pool as it's shared across test suites

@@ -4,12 +4,12 @@ import {
   type Transcript,
   sessions,      // Actual schema from shared/schema
   transcripts    // Actual schema from shared/schema
-} from "../../shared/schema"; // Correct: Import schemas directly
-import { db, sql as dbSql } from "../db"; // Import db instance and sql from ../db
+} from '../../shared/schema'; // Correct: Import schemas directly
+import { db, sql as dbSql } from '../db'; // Import db instance and sql from ../db
 // Import Drizzle operators directly from drizzle-orm
-import { eq, and, or, desc, count as drizzleCount, gt, gte, SQL } from "drizzle-orm"; 
-import { StorageError, StorageErrorCode } from "../storage.error";
-import logger from "../logger"; // Add logger import
+import { eq, and, or, desc, count as drizzleCount, gt, gte, SQL } from 'drizzle-orm'; 
+import { StorageError, StorageErrorCode } from '../storage.error';
+import logger from '../logger'; // Add logger import
 
 export const DEFAULT_SESSION_QUERY_LIMIT = 10;
 
@@ -388,11 +388,11 @@ export class DbSessionStorage implements ISessionStorage {
       const transcriptCountsSubquery = db
         .select({
           sq_sessionId: transcripts.sessionId, // Aliased to avoid conflicts and for clarity
-          num_transcripts: drizzleCount(transcripts.id).as("num_transcripts"), // Aggregate aliased by key
+          num_transcripts: drizzleCount(transcripts.id).as('num_transcripts'), // Aggregate aliased by key
         })
         .from(transcripts)
         .groupBy(transcripts.sessionId) // Group by the original column
-        .as("transcript_counts"); // Alias for the subquery itself
+        .as('transcript_counts'); // Alias for the subquery itself
 
       const recentSessionsData = await db
         .select({
@@ -456,7 +456,7 @@ export class DbSessionStorage implements ISessionStorage {
         };
       });
     } catch (error: any) {
-      console.error("[DbSessionStorage.getRecentSessionActivity] Error:", error);
+      console.error('[DbSessionStorage.getRecentSessionActivity] Error:', error);
       throw new StorageError(
         `Failed to get recent session activity: ${error.message}`,
         StorageErrorCode.STORAGE_ERROR,
@@ -534,7 +534,7 @@ export class DbSessionStorage implements ISessionStorage {
   async findActiveSessionByTeacherId(teacherId: string): Promise<Session | null> {
     try {
       if (!teacherId) {
-        logger.info(`[DbSessionStorage] No teacherId provided to findActiveSessionByTeacherId`);
+        logger.info('[DbSessionStorage] No teacherId provided to findActiveSessionByTeacherId');
         return null;
       }
       
@@ -636,7 +636,7 @@ export class DbSessionStorage implements ISessionStorage {
         .returning();
       
       if (result[0]) {
-        logger.info(`[DbSessionStorage] Successfully reactivated session:`, {
+        logger.info('[DbSessionStorage] Successfully reactivated session:', {
           sessionId: result[0].sessionId,
           teacherId: result[0].teacherId,
           isActive: result[0].isActive

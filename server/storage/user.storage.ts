@@ -1,6 +1,6 @@
-import { type User, type InsertUser, users } from "../../shared/schema";
-import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { type User, type InsertUser, users } from '../../shared/schema';
+import { db } from '../db';
+import { eq } from 'drizzle-orm';
 import { StorageError, StorageErrorCode } from '../storage.error';
 
 export interface IUserStorage {
@@ -23,7 +23,7 @@ export abstract class BaseUserStorage implements IUserStorage {
 
   protected validateUserInput(user: InsertUser): void {
     if (!user.username || !user.password) {
-      throw new StorageError("Username and password are required", StorageErrorCode.VALIDATION_ERROR);
+      throw new StorageError('Username and password are required', StorageErrorCode.VALIDATION_ERROR);
     }
     // Add other validation rules as needed
   }
@@ -37,13 +37,13 @@ export abstract class BaseUserStorage implements IUserStorage {
       }
       const newUser = await this._createUser(user);
       if (!newUser) {
-        throw new StorageError("Failed to create user", StorageErrorCode.CREATE_FAILED);
+        throw new StorageError('Failed to create user', StorageErrorCode.CREATE_FAILED);
       }
       return newUser;
     } catch (error: any) {
       if (error instanceof StorageError) throw error;
       // Ensure a generic error is thrown if it's not already a StorageError
-      throw new StorageError("Error creating user.", StorageErrorCode.STORAGE_ERROR, error.message);
+      throw new StorageError('Error creating user.', StorageErrorCode.STORAGE_ERROR, error.message);
     }
   }
 
@@ -96,12 +96,12 @@ export class MemUserStorage extends BaseUserStorage {
 export class DbUserStorage extends BaseUserStorage {
   protected async _createUser(user: InsertUser): Promise<User> {
     if (!user.username || !user.password) {
-      throw new StorageError("Username and password are required for DB user creation", StorageErrorCode.VALIDATION_ERROR);
+      throw new StorageError('Username and password are required for DB user creation', StorageErrorCode.VALIDATION_ERROR);
     }
     try {
       const result = await db.insert(users).values(user).returning();
       if (!result || result.length === 0) {
-            throw new StorageError("Failed to create user in DB, no data returned.", StorageErrorCode.CREATE_FAILED);
+            throw new StorageError('Failed to create user in DB, no data returned.', StorageErrorCode.CREATE_FAILED);
       }
       return result[0];
     } catch (error: any) {
@@ -109,7 +109,7 @@ export class DbUserStorage extends BaseUserStorage {
         if (error.code === '23505') { // PostgreSQL unique violation error code
              throw new StorageError(`User with username \'${user.username}\' already exists in DB.`, StorageErrorCode.DUPLICATE_ENTRY, error);
         }
-        throw new StorageError("Error creating user in DB.", StorageErrorCode.STORAGE_ERROR, error);
+        throw new StorageError('Error creating user in DB.', StorageErrorCode.STORAGE_ERROR, error);
     }
   }
 

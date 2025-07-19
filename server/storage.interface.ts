@@ -4,7 +4,7 @@ import {
   type Translation, type InsertTranslation,
   type Transcript, type InsertTranscript,
   type Session, type InsertSession,
-} from "../shared/schema";
+} from '../shared/schema';
 
 export interface StorageTranslationMetrics {
   totalTranslations: number;

@@ -76,7 +76,7 @@ describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
       const timeout = setTimeout(() => {
         clearInterval(interval);
         console.error(`[TEST] waitForMessage: Timeout for type: ${type || 'any'} on client #${idx}`);
-        console.error(`[TEST] waitForMessage: Messages received:`, wsClient.messages);
+        console.error('[TEST] waitForMessage: Messages received:', wsClient.messages);
         reject(new Error(`Message timeout after ${TEST_CONFIG.MESSAGE_TIMEOUT}ms for type: ${type || 'any'}`));
       }, TEST_CONFIG.MESSAGE_TIMEOUT);
       const interval = setInterval(() => {
@@ -226,7 +226,7 @@ describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
       const translations = await realStorage.getTranslations(10); // Get some translations to see DB connectivity
       console.log(`🔍 [SESSION-WAIT] FINAL ATTEMPT: Found ${translations.length} translations in database (DB connectivity test)`);
     } catch (debugError) {
-      console.error(`🔍 [SESSION-WAIT] Could not get debug info:`, debugError);
+      console.error('🔍 [SESSION-WAIT] Could not get debug info:', debugError);
     }
     
     throw new Error(`Session ${sessionId} not found in database after ${maxRetries} attempts (${context})`);
@@ -431,7 +431,7 @@ beforeAll(async () => {
         session: updatedSession
       });
       if (updatedSession) {
-        console.log(`[DEBUG] Session state before assertion:`, {
+        console.log('[DEBUG] Session state before assertion:', {
           id: updatedSession.id,
           sessionId: updatedSession.sessionId,
           isActive: updatedSession.isActive,
@@ -552,7 +552,7 @@ beforeAll(async () => {
         const allTranslations = await realStorage.getTranslations(50);
         sessionTranslations = allTranslations.filter((t: any) => t.sessionId === sessionId);
         console.log(`[DEBUG] Poll attempt ${attempt}: sessionTranslations count =`, sessionTranslations.length);
-        console.log(`[DEBUG] All translations in DB:`, allTranslations);
+        console.log('[DEBUG] All translations in DB:', allTranslations);
         const sessionState = await realStorage.getSessionById(sessionId);
         console.log(`[DEBUG] Session state during poll attempt ${attempt}:`, sessionState);
         if (sessionTranslations.length === 3) break;

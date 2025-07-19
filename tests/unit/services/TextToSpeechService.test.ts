@@ -78,7 +78,7 @@ vi.mock('util', async (importOriginal) => {
         return vi.fn().mockResolvedValue(undefined); 
       } catch (e) {
         // If actualUtil.promisify throws (e.g., fnToPromisify is not a function it can handle)
-        console.error(`Error trying to use actualUtil.promisify for '${funcName || 'unknown'}':`, e, `. Falling back to generic mock.`);
+        console.error(`Error trying to use actualUtil.promisify for '${funcName || 'unknown'}':`, e, '. Falling back to generic mock.');
         return vi.fn().mockResolvedValue(undefined);
       }
     }),
@@ -312,7 +312,7 @@ describe('Text-to-Speech Services', () => {
 
     beforeEach(() => {
       // Ensure class is loaded if not already by top-level beforeEach
-      if (!BrowserSpeechSynthesisServiceClass) throw new Error("BrowserSpeechSynthesisServiceClass not loaded");
+      if (!BrowserSpeechSynthesisServiceClass) throw new Error('BrowserSpeechSynthesisServiceClass not loaded');
       service = new BrowserSpeechSynthesisServiceClass();
     });
 
@@ -363,7 +363,7 @@ describe('Text-to-Speech Services', () => {
     let service: SilentTextToSpeechService;
 
     beforeEach(() => {
-      if (!SilentTextToSpeechServiceClass) throw new Error("SilentTextToSpeechServiceClass not loaded");
+      if (!SilentTextToSpeechServiceClass) throw new Error('SilentTextToSpeechServiceClass not loaded');
       service = new SilentTextToSpeechServiceClass();
     });
 
@@ -449,7 +449,7 @@ describe('Text-to-Speech Services', () => {
          }
       }
 
-      if (!TextToSpeechFactoryClass) throw new Error("TextToSpeechFactoryClass not loaded");
+      if (!TextToSpeechFactoryClass) throw new Error('TextToSpeechFactoryClass not loaded');
       factory = TextToSpeechFactoryClass.getInstance();
     });
 
@@ -540,7 +540,7 @@ describe('Text-to-Speech Services', () => {
 
       beforeEach(async () => {
         if (!OpenAITextToSpeechServiceClass || !openaiInstance) {
-          throw new Error("Parent scope variables (OpenAITextToSpeechServiceClass or openaiInstance) not set for ensureCacheDirectoryExists tests.");
+          throw new Error('Parent scope variables (OpenAITextToSpeechServiceClass or openaiInstance) not set for ensureCacheDirectoryExists tests.');
         }
         service = new OpenAITextToSpeechServiceClass(openaiInstance); // Constructor calls actual ensureCacheDirectoryExists
         resetPromisifiedFsMocks(); // Reset fs mocks AFTER constructor
@@ -623,7 +623,7 @@ describe('Text-to-Speech Services', () => {
         resetPromisifiedFsMocks();
         // Ensure OpenAITextToSpeechServiceClass and openaiInstance are initialized before creating service
         if (!OpenAITextToSpeechServiceClass || !openaiInstance) {
-          throw new Error("Required classes not initialized for getCachedAudio tests");
+          throw new Error('Required classes not initialized for getCachedAudio tests');
         }
         service = new OpenAITextToSpeechServiceClass(openaiInstance);
       });
@@ -675,7 +675,7 @@ describe('Text-to-Speech Services', () => {
       beforeEach(() => {
         resetPromisifiedFsMocks();
         if (!OpenAITextToSpeechServiceClass || !openaiInstance) {
-          throw new Error("Required classes not initialized for cacheAudio tests");
+          throw new Error('Required classes not initialized for cacheAudio tests');
         }
         service = new OpenAITextToSpeechServiceClass(openaiInstance);
         mockPromisifiedWriteFile.mockResolvedValue(undefined); 
@@ -695,7 +695,7 @@ describe('Text-to-Speech Services', () => {
         expect(mockPromisifiedWriteFile).toHaveBeenCalledWith(expectedCachePath, audioBuffer);
         expect(consoleErrorSpy).toHaveBeenCalled();
         // Updated the expected string to match the actual output
-        expect(consoleErrorSpy).toHaveBeenCalledWith("Error caching audio:", expect.any(Error));
+        expect(consoleErrorSpy).toHaveBeenCalledWith('Error caching audio:', expect.any(Error));
 
         consoleErrorSpy.mockRestore();
       });

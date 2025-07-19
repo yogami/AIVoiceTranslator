@@ -617,7 +617,7 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
         }
         
         // Step 2: Use analytics to check if the code exists in database
-        const analyticsQuery = `Show me all classroom codes that exist in the database. List all active sessions.`;
+        const analyticsQuery = 'Show me all classroom codes that exist in the database. List all active sessions.';
         const analyticsResponse = await askAnalyticsQuestion(page, analyticsQuery);
         
         console.log(`Analytics response for ${invalidCode}: ${analyticsResponse}`);
@@ -713,7 +713,7 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
       
       const finalJoinResult = await simulateStudentJoinWithInvalidCode(finalStudentPage, classroomCode);
       
-      console.log(`Final join result:`, {
+      console.log('Final join result:', {
         success: finalJoinResult.success,
         errorMessage: finalJoinResult.errorMessage,
         connectionClosed: finalJoinResult.connectionClosed
