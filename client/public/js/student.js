@@ -170,7 +170,7 @@
                     languageCode: appState.selectedLanguage,
                     classroomCode: classroomCode 
                 };
-                // console.log('Sending student registration:', message);
+                // console.log("Sending student registration:", message);
                 appState.ws.send(JSON.stringify(message));
                 // Optional: send a ping shortly after registration
                 setTimeout(() => {
@@ -189,14 +189,14 @@
                     if (data.status === 'error' || data.error || data.message) {
                         // Show nothing if the user is already connected (should not happen), else show friendly message
                         if (domElements.translationDisplay) {
-                            domElements.translationDisplay.innerHTML = `<div style='color: orange;'>Waiting for teacher to start the session. Please try again in a moment.</div>`;
+                            domElements.translationDisplay.innerHTML = '<div style="color: orange;">Waiting for teacher to start the session. Please try again in a moment.</div>';
                         }
                         uiUpdater.updateConnectionStatus(false);
                         appState.isConnected = false;
                     } else {
                         // Successful join: clear any error message and show default waiting message
                         if (domElements.translationDisplay) {
-                            domElements.translationDisplay.innerHTML = `<div style='color: #333;'>Waiting for teacher to start speaking...</div>`;
+                            domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                         }
                     }
                     break;
@@ -217,7 +217,7 @@
                     // Show error message regardless of connection state for critical errors
                     if (data.code === 'INVALID_CLASSROOM' || data.message?.includes('invalid') || data.message?.includes('expired')) {
                         if (domElements.translationDisplay) {
-                            domElements.translationDisplay.innerHTML = `<div style="color: red; text-align: center; padding: 20px;">
+                            domElements.translationDisplay.innerHTML = `<div style=\"color: red; text-align: center; padding: 20px;\">
                                 <h3>❌ Error</h3>
                                 <p>${data.message}</p>
                             </div>`;
@@ -226,18 +226,18 @@
                     } else if (appState.isConnected) {
                         // For other errors, only show if user has tried to connect
                         if (domElements.translationDisplay) {
-                            domElements.translationDisplay.innerHTML = `<div style="color: red;">Error: ${data.message}</div>`;
+                            domElements.translationDisplay.innerHTML = `<div style=\"color: red;\">Error: ${data.message}</div>`;
                         }
                     } else {
                         // If not connected, show a friendly message or ignore
                         if (domElements.translationDisplay) {
-                            domElements.translationDisplay.innerHTML = `<div style='color: orange;'>Waiting for teacher to start the session. Please try again in a moment.</div>`;
+                            domElements.translationDisplay.innerHTML = '<div style="color: orange;">Waiting for teacher to start the session. Please try again in a moment.</div>';
                         }
                     }
                     break;
                 default:
                     if (data.type !== 'ping' && data.type !== 'pong') {
-                        console.log('Student received unknown message type:', data.type, data);
+                    console.log('Student received unknown message type:', data.type, data);
                     }
                     break;
             }

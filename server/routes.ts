@@ -347,7 +347,7 @@ export const createApiRoutes = (
     
     const response = {
       success: true,
-      answer: "Test response with success field",
+      answer: 'Test response with success field',
       data: { test: true },
       question
     };

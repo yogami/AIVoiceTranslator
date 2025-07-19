@@ -1,9 +1,9 @@
-import 'dotenv/config'; // To load .env files (ensure .env or .env.test is loaded based on context)
-import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import postgres from 'postgres';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import "dotenv/config"; // To load .env files (ensure .env or .env.test is loaded based on context)
+import { drizzle } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import postgres from "postgres";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Helper to get __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -12,13 +12,13 @@ const __dirname = path.dirname(__filename);
 const runMigrations = async () => {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    throw new Error('DATABASE_URL environment variable must be set.');
+    throw new Error("DATABASE_URL environment variable must be set.");
   }
 
   // Mask credentials for logging
-  const urlParts = dbUrl.split('@');
-  const safeLogUrl = urlParts.length > 1 ? `${urlParts[0].substring(0, urlParts[0].lastIndexOf(':') + 1)}[PASSWORD_REDACTED]@${urlParts[1]}` : dbUrl;
-  console.log('🟠 Connecting to database for migration...');
+  const urlParts = dbUrl.split("@");
+  const safeLogUrl = urlParts.length > 1 ? `${urlParts[0].substring(0, urlParts[0].lastIndexOf(":") + 1)}[PASSWORD_REDACTED]@${urlParts[1]}` : dbUrl;
+  console.log("🟠 Connecting to database for migration...");
   console.log(`   DB URL: ${safeLogUrl}`);
 
 
@@ -31,27 +31,27 @@ const runMigrations = async () => {
     migrationClient = postgres(dbUrl, { max: 1 });
     const db = drizzle(migrationClient);
 
-    const migrationsFolder = path.resolve(__dirname, '../migrations');
+    const migrationsFolder = path.resolve(__dirname, "../migrations");
     console.log(`🟠 Looking for migrations in: ${migrationsFolder}`);
     
     await migrate(db, { migrationsFolder });
 
-    console.log('🟢 Migrations applied successfully!');
+    console.log("🟢 Migrations applied successfully!");
   } catch (error) {
-    console.error('🔴 Error applying migrations:', error);
+    console.error("🔴 Error applying migrations:", error);
     
     // Check if the error is about tables already existing
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.includes('already exists') || errorMessage.includes('42P07')) {
-      console.warn('⚠️ Some tables already exist - this might be OK if database was previously initialized');
-      console.log('🔵 Database appears to have existing schema. Continuing...');
+    if (errorMessage.includes("already exists") || errorMessage.includes("42P07")) {
+      console.warn("⚠️ Some tables already exist - this might be OK if database was previously initialized");
+      console.log("🔵 Database appears to have existing schema. Continuing...");
     } else {
       process.exit(1);
     }
   } finally {
     if (migrationClient) {
       await migrationClient.end();
-      console.log('🔵 Database connection closed.');
+      console.log("🔵 Database connection closed.");
     }
   }
 };

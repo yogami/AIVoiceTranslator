@@ -215,8 +215,8 @@ describe('DatabaseStorage Metrics', () => {
         averageLatency: 0,
         recentTranslations: 0,
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_main_no_range");
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_recent");
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_main_no_range');
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_recent');
     });
 
     it('should return zero for recentTranslations if that specific query returns empty, even with other metrics', async () => {
@@ -245,9 +245,9 @@ describe('DatabaseStorage Metrics', () => {
         averageLatency: 150,
         recentTranslations: 5, 
       });
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_main_with_range");
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_main_with_range');
       expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate }); // Args for main query
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("translation_metrics_recent");
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('translation_metrics_recent');
       // Args for recent query (oneHourAgo is calculated internally, not passed from timeRange)
       // The second execute call will have undefined or the internally calculated param for recent query
       // For simplicity, we can check it was called. If specific arg checking is needed for oneHourAgo, it's more complex.
@@ -269,7 +269,7 @@ describe('DatabaseStorage Metrics', () => {
       __testHooks.mockDbExecute.mockResolvedValueOnce([]); // language_pair_usage_query_no_range
       const metrics = await storage.getLanguagePairUsage();
       expect(metrics).toEqual([]);
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("language_pair_usage_query_no_range");
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_usage_query_no_range');
     });
 
     it('should return language pair metrics correctly with a time range', async () => {
@@ -286,7 +286,7 @@ describe('DatabaseStorage Metrics', () => {
         { sourceLanguage: 'en', targetLanguage: 'es', count: 2, averageLatency: 100 },
         { sourceLanguage: 'en', targetLanguage: 'fr', count: 1, averageLatency: 150 },
       ]);
-      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("language_pair_usage_query_with_range");
+      expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_usage_query_with_range');
       expect(__testHooks.mockDbExecute.mock.calls[0][0]).toEqual({ startDate, endDate });
     });
 
@@ -306,7 +306,7 @@ describe('DatabaseStorage Metrics', () => {
         { sourceLanguage: 'unknown', targetLanguage: 'unknown', count: 2, averageLatency: 200 },
         { sourceLanguage: 'de', targetLanguage: 'it', count: 0, averageLatency: 0 }, 
       ]);
-       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith("language_pair_usage_query_no_range");
+       expect(__testHooks.mockDbPrepare).toHaveBeenCalledWith('language_pair_usage_query_no_range');
        // For a query without a time range, the execute call might receive undefined or no argument for the timeRange part.
        expect(__testHooks.mockDbExecute.mock.calls[0][0]).toBeUndefined();
     });

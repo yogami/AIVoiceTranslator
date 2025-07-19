@@ -413,14 +413,14 @@ describe('API Routes', () => {
       const response = await request(app)
         .get('/api/join/ABC')
         .expect(400);
-      expect(response.body).toEqual({ error: "Invalid classroom code format" });
+      expect(response.body).toEqual({ error: 'Invalid classroom code format' });
     });
 
     it('should return 400 for invalid class code format (invalid characters)', async () => {
       const response = await request(app)
         .get('/api/join/ABC!23')
         .expect(400);
-      expect(response.body).toEqual({ error: "Invalid classroom code format" });
+      expect(response.body).toEqual({ error: 'Invalid classroom code format' });
     });
   });
 

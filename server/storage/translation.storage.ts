@@ -1,7 +1,7 @@
-import { type Translation, type InsertTranslation, translations } from "../../shared/schema";
-import { db } from "../db";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
-import { StorageError, StorageErrorCode } from "../storage.error";
+import { type Translation, type InsertTranslation, translations } from '../../shared/schema';
+import { db } from '../db';
+import { eq, desc, and, gte, lte } from 'drizzle-orm';
+import { StorageError, StorageErrorCode } from '../storage.error';
 
 const DEFAULT_TRANSLATION_QUERY_LIMIT = 10;
 

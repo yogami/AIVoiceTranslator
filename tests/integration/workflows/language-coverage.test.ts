@@ -12,7 +12,7 @@ describe('Language Coverage Integration Tests', () => {
       { code: 'zh-CN', name: 'Chinese' }
     ];
 
-    const testText = "Hello, how are you today?";
+    const testText = 'Hello, how are you today?';
     const translationResults = [];
 
     // Test translation from English to each target language
@@ -46,7 +46,7 @@ describe('Language Coverage Integration Tests', () => {
       isRTL: true,
       hasRTLText: /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F]/.test(lang.text),
       translationSupported: true,
-      originalText: "Hello world",
+      originalText: 'Hello world',
       translatedText: lang.text
     }));
 

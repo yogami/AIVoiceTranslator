@@ -1,5 +1,4 @@
-import React from 'react';
-import { Router, Route, Switch } from 'wouter';
+import { Router, Route } from 'wouter';
 import Home from './components/Home';
 import Teacher from './components/Teacher';
 import Student from './components/Student';
@@ -7,11 +6,9 @@ import Student from './components/Student';
 function App() {
   return (
     <Router>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/teacher" component={Teacher} />
-        <Route path="/student" component={Student} />
-      </Switch>
+      <Route path="/">{() => <Home />}</Route>
+      <Route path="/teacher">{() => <Teacher />}</Route>
+      <Route path="/student">{() => <Student />}</Route>
     </Router>
   );
 }

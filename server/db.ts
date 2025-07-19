@@ -8,7 +8,7 @@
  * - Production: Railway
  */
 
-import * as schema from "../shared/schema";
+import * as schema from '../shared/schema';
 import postgres from 'postgres';
 import { drizzle as pgDrizzle } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm/sql';

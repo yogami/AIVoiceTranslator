@@ -1,9 +1,9 @@
 #!/usr/bin/env npx tsx
 
-import { Client } from 'pg';
-import dotenv from 'dotenv';
+import { Client } from "pg";
+import dotenv from "dotenv";
 
-dotenv.config({ path: '.env.test' });
+dotenv.config({ path: ".env.test" });
 
 async function addTeacherIdColumn() {
     const client = new Client({
@@ -13,7 +13,7 @@ async function addTeacherIdColumn() {
 
     try {
         await client.connect();
-        console.log('Connected to test database successfully');
+        console.log("Connected to test database successfully");
 
         // Check if teacher_id column already exists
         const checkResult = await client.query(`
@@ -24,7 +24,7 @@ async function addTeacherIdColumn() {
         `);
 
         if (checkResult.rows.length > 0) {
-            console.log('✅ teacher_id column already exists');
+            console.log("✅ teacher_id column already exists");
             return;
         }
 
@@ -34,7 +34,7 @@ async function addTeacherIdColumn() {
             ADD COLUMN teacher_id VARCHAR(255)
         `);
         
-        console.log('✅ Added teacher_id column to sessions table');
+        console.log("✅ Added teacher_id column to sessions table");
 
         // Verify the column was added
         const verifyResult = await client.query(`
@@ -45,13 +45,13 @@ async function addTeacherIdColumn() {
         `);
 
         if (verifyResult.rows.length > 0) {
-            console.log('✅ teacher_id column verified:', verifyResult.rows[0]);
+            console.log("✅ teacher_id column verified:", verifyResult.rows[0]);
         } else {
-            console.error('❌ teacher_id column not found after creation');
+            console.error("❌ teacher_id column not found after creation");
         }
 
     } catch (error) {
-        console.error('Migration error:', error);
+        console.error("Migration error:", error);
         process.exit(1);
     } finally {
         await client.end();
@@ -61,11 +61,11 @@ async function addTeacherIdColumn() {
 if (require.main === module) {
     addTeacherIdColumn()
         .then(() => {
-            console.log('Migration completed successfully');
+            console.log("Migration completed successfully");
             process.exit(0);
         })
         .catch((error) => {
-            console.error('Migration failed:', error);
+            console.error("Migration failed:", error);
             process.exit(1);
         });
 }

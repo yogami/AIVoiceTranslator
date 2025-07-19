@@ -352,7 +352,7 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       
       // Step 5: Verify expired sessions are removed from memory
       const cleanupResponse = await askAnalyticsQuestion(page, 
-        `How many sessions are now active in memory after cleanup? Should be 0`
+        'How many sessions are now active in memory after cleanup? Should be 0'
       );
       expect(cleanupResponse).toContain('0');
       

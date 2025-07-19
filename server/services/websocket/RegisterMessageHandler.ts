@@ -55,7 +55,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     // Update all settings if provided (proper merge)
     if (message.settings) {
       Object.assign(settings, message.settings);
-      logger.info(`Client settings updated:`, message.settings);
+      logger.info('Client settings updated:', message.settings);
     }
     
     // Store updated settings
@@ -94,7 +94,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
         }
         console.log(`[DEBUG] Student registration SUCCESS - valid classroom code: ${classroomCode}`);
       } else {
-        console.log(`[DEBUG] No classroom code provided, skipping validation`);
+        console.log('[DEBUG] No classroom code provided, skipping validation');
       }
       // Note: In production, classroom code should always be provided,
       // but in tests it might be omitted, so we continue without validation
@@ -165,7 +165,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           }
         }
         
-        logger.info(`[TEACHER_RECONNECT] Found existing session:`, existingSession ? {
+        logger.info('[TEACHER_RECONNECT] Found existing session:', existingSession ? {
           sessionId: existingSession.sessionId,
           teacherId: existingSession.teacherId,
           isActive: existingSession.isActive,
@@ -205,7 +205,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             logger.info(`[TEACHER_RECONNECT] Restored classroom code ${existingSession.classCode} for reconnected teacher session ${sessionId}`);
           }
         } else if (existingSession && existingSession.sessionId === sessionId) {
-          logger.info(`[TEACHER_RECONNECT] Teacher connected to same session as existing - no action needed`);
+          logger.info('[TEACHER_RECONNECT] Teacher connected to same session as existing - no action needed');
         } else {
           logger.info(`[TEACHER_RECONNECT] No existing session found for teacherId: ${message.teacherId}, proceeding with new session: ${sessionId}`);
         }
@@ -599,7 +599,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
               teachersNotified++;
               logger.info(`[DEBUG] Successfully sent 'student_joined' to teacher for student: ${studentName} in session ${studentSessionId}`);
             } catch (error) {
-              logger.error(`[DEBUG] Failed to send 'student_joined' message to teacher:`, { error });
+              logger.error('[DEBUG] Failed to send \'student_joined\' message to teacher:', { error });
             }
           }
         }

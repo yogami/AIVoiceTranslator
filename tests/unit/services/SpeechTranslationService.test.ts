@@ -68,7 +68,7 @@ describe('SpeechTranslationService', () => {
 
   it('should use preTranscribedText if provided and not call transcription service', async () => {
     const audioBuffer = createMockAudioBuffer(100);
-    const preTranscribed = "This text is already transcribed.";
+    const preTranscribed = 'This text is already transcribed.';
     
     const result = await service.translateSpeech(audioBuffer, 'en-US', 'es-ES', preTranscribed);
 
@@ -137,7 +137,7 @@ describe('SpeechTranslationService', () => {
   });
 
   it('should return original text and attempt TTS on original if translation fails', async () => {
-    const originalTranscription = "Successfully transcribed text";
+    const originalTranscription = 'Successfully transcribed text';
     mockTranscriptionService.transcribe.mockResolvedValueOnce(originalTranscription);
     mockTranslationService.translate.mockRejectedValueOnce(new Error('Translation service is down'));
 
@@ -162,8 +162,8 @@ describe('SpeechTranslationService', () => {
   });
 
   it('should return translated text with original audio if TTS fails', async () => {
-    const originalTranscription = "Some transcribed text";
-    const successfullyTranslatedText = "Texto traducido";
+    const originalTranscription = 'Some transcribed text';
+    const successfullyTranslatedText = 'Texto traducido';
     mockTranscriptionService.transcribe.mockResolvedValueOnce(originalTranscription);
     mockTranslationService.translate.mockResolvedValueOnce(successfullyTranslatedText);
 
@@ -173,7 +173,7 @@ describe('SpeechTranslationService', () => {
     vi.spyOn(ttsFactory, 'getService').mockReturnValue(ttsServiceInstance);
     const synthesizeSpy = vi.spyOn(ttsServiceInstance, 'synthesizeSpeech');
 
-    const audioBuffer = createMockAudioBuffer(100, "original_audio_for_tts_failure_test");
+    const audioBuffer = createMockAudioBuffer(100, 'original_audio_for_tts_failure_test');
     const result = await service.translateSpeech(audioBuffer, 'en-US', 'es-ES');
 
     expect(result.originalText).toBe(originalTranscription);

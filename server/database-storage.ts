@@ -214,7 +214,7 @@ export class DatabaseStorage implements IStorage {
     sessionsLast24Hours: number;
   }> {
     logger.debug('DatabaseStorage.getSessionMetrics called', { timeRange });
-    const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
+    const totalSessionsQueryName = timeRange ? 'total_sessions_query_with_time_range' : 'total_sessions_query_without_time_range';
     
     const totalSessionsResult = await drizzleDB
       .select({ totalSessions: count() })
@@ -226,7 +226,7 @@ export class DatabaseStorage implements IStorage {
     
     let averageSessionDurationValue = 0;
     if (totalSessionsCount > 0) {
-      const durationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
+      const durationQueryName = timeRange ? 'sum_duration_query_with_time_range' : 'sum_duration_query_without_time_range';
       const durationResult = await drizzleDB
         .select({
           totalDuration: sql<string>`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
@@ -248,7 +248,7 @@ export class DatabaseStorage implements IStorage {
       .select({ count: count() })
       .from(sessions)
       .where(eq(sessions.isActive, true))
-      .prepare("active_sessions_query")
+      .prepare('active_sessions_query')
       .execute();
     const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
     
@@ -258,7 +258,7 @@ export class DatabaseStorage implements IStorage {
       .select({ count: count() })
       .from(sessions)
       .where(gte(sessions.startTime, twentyFourHoursAgo))
-      .prepare("sessions_last_24_hours_query")
+      .prepare('sessions_last_24_hours_query')
       .execute();
     const sessionsLast24HoursCount = Number(sessionsLast24HoursResult[0]?.count) || 0;
     
@@ -277,7 +277,7 @@ export class DatabaseStorage implements IStorage {
     recentTranslations: number;
   }> {
     logger.debug('DatabaseStorage.getTranslationMetrics called', { timeRange });
-    const mainQueryName = timeRange ? "translation_metrics_main_with_range" : "translation_metrics_main_no_range";
+    const mainQueryName = timeRange ? 'translation_metrics_main_with_range' : 'translation_metrics_main_no_range';
     let query = drizzleDB
       .select({
         total_translations: count(translations.id),
@@ -294,7 +294,7 @@ export class DatabaseStorage implements IStorage {
       totalTranslationsValue = Number(mainMetricsResult[0].total_translations) || 0;
       averageLatencyValue = Math.round(Number(mainMetricsResult[0].avg_latency)) || 0;
     }
-    const recentTranslationsQueryName = "translation_metrics_recent";
+    const recentTranslationsQueryName = 'translation_metrics_recent';
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     
     const recentTranslationsResult = await drizzleDB
@@ -318,7 +318,7 @@ export class DatabaseStorage implements IStorage {
     averageLatency: number;
   }>> {
     logger.debug('DatabaseStorage.getLanguagePairUsage called', { timeRange });
-    const queryName = timeRange ? "language_pair_usage_query_with_range" : "language_pair_usage_query_no_range";
+    const queryName = timeRange ? 'language_pair_usage_query_with_range' : 'language_pair_usage_query_no_range';
     let queryBuilder = drizzleDB
       .select({
         source_language: translations.sourceLanguage,
@@ -338,8 +338,8 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
     return results.map((row: any) => ({
-      sourceLanguage: row.source_language ?? "unknown",
-      targetLanguage: row.target_language ?? "unknown",
+      sourceLanguage: row.source_language ?? 'unknown',
+      targetLanguage: row.target_language ?? 'unknown',
       count: Number(row.pair_count) || 0,
       averageLatency: Math.round(Number(row.avg_latency)) || 0,
     }));

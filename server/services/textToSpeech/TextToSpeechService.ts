@@ -421,7 +421,7 @@ export class OpenAITextToSpeechService implements ITextToSpeechService {
         model: DEFAULT_TTS_MODEL,
         input: input,
         voice: voice as any,
-        response_format: TTS_RESPONSE_FORMAT as "mp3",
+        response_format: TTS_RESPONSE_FORMAT as 'mp3',
         speed: speed,
       };
       

@@ -50,7 +50,7 @@ export async function startServer(app: express.Express): Promise<Server> {
   // Add a console log to see all incoming request paths at a high level
   app.use((req, res, next) => {
     logger.info({
-        message: `GENERAL LOGGER: Request received`,
+        message: 'GENERAL LOGGER: Request received',
         method: req.method,
         path: req.path,
         originalUrl: req.originalUrl,
@@ -63,9 +63,9 @@ export async function startServer(app: express.Express): Promise<Server> {
 
   // Check for OpenAI API key
   if (!process.env.OPENAI_API_KEY) {
-    logger.warn("OpenAI API key not found. TTS and other AI features may not work.");
+    logger.warn('OpenAI API key not found. TTS and other AI features may not work.');
   } else {
-    logger.info("OpenAI API key found and client configured.");
+    logger.info('OpenAI API key found and client configured.');
   }
   
   // Apply CORS middleware (Open/Closed Principle - extending functionality without modifying existing code)
@@ -168,7 +168,7 @@ export async function startServer(app: express.Express): Promise<Server> {
     process.exit(1);
   }
   if (!host) {
-    logger.error(`[CRITICAL] HOST not set. Server cannot start.`);
+    logger.error('[CRITICAL] HOST not set. Server cannot start.');
     process.exit(1);
   }
 
