@@ -509,6 +509,11 @@ describe('Translation Flow Component Tests', () => {
         expect(frenchTranslation?.text).toBeDefined();
         expect(germanTranslation?.text).toBeDefined();
         
+        // Extra logging for CI/CD diagnosis
+        console.log(`[Test ${testSessionId}] teacherMessages:`, teacherMessages);
+        console.log(`[Test ${testSessionId}] spanishMessages:`, spanishMessages);
+        console.log(`[Test ${testSessionId}] frenchMessages:`, frenchMessages);
+        console.log(`[Test ${testSessionId}] germanMessages:`, germanMessages);
         console.log(`[Test ${testSessionId}] All assertions passed successfully`);
         
       } finally {
