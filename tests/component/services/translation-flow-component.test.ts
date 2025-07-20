@@ -471,24 +471,37 @@ describe('Translation Flow Component Tests', () => {
           sessionId: testSessionId
         }));
         
+        // Diagnostic logging before waiting for translations
+        console.log(`[Test ${testSessionId}] Diagnostic: Spanish messages before wait:`, JSON.stringify(spanishMessages));
+        console.log(`[Test ${testSessionId}] Diagnostic: French messages before wait:`, JSON.stringify(frenchMessages));
+        console.log(`[Test ${testSessionId}] Diagnostic: German messages before wait:`, JSON.stringify(germanMessages));
+        console.log(`[Test ${testSessionId}] Diagnostic: Timestamp before wait:`, Date.now());
+
         // Wait for all translations with proper timeout and error handling
         const translationPromises = [
           waitForMessage(spanishMessages, 'translation', 30000).catch(err => {
             console.error(`[${testSessionId}] Spanish translation timeout:`, spanishMessages.map(m => m.type));
+            console.error(`[Test ${testSessionId}] Spanish messages at timeout:`, JSON.stringify(spanishMessages));
             throw err;
           }),
           waitForMessage(frenchMessages, 'translation', 30000).catch(err => {
             console.error(`[${testSessionId}] French translation timeout:`, frenchMessages.map(m => m.type));
+            console.error(`[Test ${testSessionId}] French messages at timeout:`, JSON.stringify(frenchMessages));
             throw err;
           }),
           waitForMessage(germanMessages, 'translation', 30000).catch(err => {
             console.error(`[${testSessionId}] German translation timeout:`, germanMessages.map(m => m.type));
+            console.error(`[Test ${testSessionId}] German messages at timeout:`, JSON.stringify(germanMessages));
             throw err;
           })
         ];
-        
+
         await Promise.all(translationPromises);
         console.log(`[Test ${testSessionId}] All translations received successfully`);
+        console.log(`[Test ${testSessionId}] Diagnostic: Timestamp after wait:`, Date.now());
+        console.log(`[Test ${testSessionId}] Diagnostic: Spanish messages after wait:`, JSON.stringify(spanishMessages));
+        console.log(`[Test ${testSessionId}] Diagnostic: French messages after wait:`, JSON.stringify(frenchMessages));
+        console.log(`[Test ${testSessionId}] Diagnostic: German messages after wait:`, JSON.stringify(germanMessages));
         
         // Verify translations
         const spanishTranslation = spanishMessages.find(m => m.type === 'translation');
