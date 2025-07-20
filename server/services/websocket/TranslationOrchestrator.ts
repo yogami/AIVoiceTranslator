@@ -8,7 +8,6 @@
 import logger from '../../logger';
 import { config } from '../../config';
 import { speechTranslationService } from '../TranslationService';
-import { textToSpeechService, ttsFactory } from '../textToSpeech/TextToSpeechService';
 import type { WebSocketClient } from './ConnectionManager';
 import type { 
   TranslationMessageToClient,
@@ -35,7 +34,6 @@ export interface LatencyTracking {
 
 export interface TranslationResult {
   translations: Map<string, string>;
-  translationResults: { language: string; translation: string }[];
   latencyInfo: {
     preparation: number;
     translation: number;
@@ -49,13 +47,12 @@ export interface SendTranslationOptions {
   originalText: string;
   sourceLanguage: string;
   translations: Map<string, string>;
-  translationResults: { language: string; translation: string }[];
   startTime: number;
   latencyTracking: LatencyTracking;
   getClientSettings: (ws: WebSocketClient) => ClientSettings | undefined;
   getLanguage: (ws: WebSocketClient) => string | undefined;
   getSessionId?: (ws: WebSocketClient) => string | undefined; // Add session ID getter
-  storage?: any; // IStorage interface for detailed logging
+  // storage?: any; // Removed unused property to fix lint error
 }
 export class TranslationOrchestrator {
   private storage: any; // IStorage - using any to avoid circular dependency
@@ -81,7 +78,7 @@ export class TranslationOrchestrator {
     latencyTracking.components.preparation = preparationEndTime - startTime;
 
     const translations = new Map<string, string>();
-    const translationResults: { language: string; translation: string }[] = [];
+    // translationResults is not used elsewhere, so remove to fix lint warning
 
     // Start translation timing
     const translationStartTime = Date.now();
@@ -97,7 +94,6 @@ export class TranslationOrchestrator {
         );
         const translation = result.translatedText;
         translations.set(targetLanguage, translation);
-        translationResults.push({ language: targetLanguage, translation });
         logger.info('Translation completed:', {
           sourceLanguage,
           targetLanguage,
@@ -109,7 +105,6 @@ export class TranslationOrchestrator {
         logger.error(`Translation failed for ${targetLanguage}:`, { error });
         // Use original text as fallback
         translations.set(targetLanguage, text);
-        translationResults.push({ language: targetLanguage, translation: text });
         return { targetLanguage, translation: text };
       }
     });
@@ -127,7 +122,6 @@ export class TranslationOrchestrator {
 
     return {
       translations,
-      translationResults,
       latencyInfo: latencyTracking.components
     };
   }
@@ -141,56 +135,32 @@ export class TranslationOrchestrator {
       originalText,
       sourceLanguage,
       translations,
-      translationResults,
       startTime,
       latencyTracking,
       getClientSettings,
       getLanguage,
-      getSessionId,
-      storage
+      getSessionId
     } = options;
+    const storage = this.storage;
 
     logger.info('WebSocketServer: sendTranslationsToStudents started');
 
     // Start TTS timing
     const ttsStartTime = Date.now();
 
-    // Send translations to each student in their language
-    // Await all translation sends to ensure delivery before cleanup
-    const translationPromises = studentConnections.map(async (studentWs: any) => {
+    // Track delivery status for each student
+    const deliveryResults: { studentWs: WebSocketClient; studentLanguage: string; delivered: boolean; error?: unknown; }[] = [];
+
+    // Helper to send translation with retry (arrow function preserves 'this' context)
+    const sendWithRetry = async (studentWs: WebSocketClient, studentLanguage: string, attempt: number = 1): Promise<boolean> => {
       try {
-        const studentLanguage = getLanguage(studentWs);
         const clientSettings = getClientSettings(studentWs) || {};
-
-        if (!studentLanguage) {
-          logger.warn('Student has no language set, skipping translation', {
-            sessionId: getSessionId ? getSessionId(studentWs) : 'unknown'
-          });
-          return;
-        }
-
-        // Validate that we have a proper language code (not empty string or invalid)
-        if (typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
-          logger.warn('Student has invalid language code, skipping translation', {
-            studentLanguage,
-            sessionId: getSessionId ? getSessionId(studentWs) : 'unknown'
-          });
-          return;
-        }
-
         const translation = translations.get(studentLanguage) || originalText;
-
-        // Use client-preferred TTS service type
         const ttsServiceType = clientSettings.ttsServiceType || 'openai';
-
-        // Check if client wants to use browser speech synthesis
         const useClientSpeech = clientSettings.useClientSpeech === true;
-
         let audioData = '';
         let speechParams: { type: 'browser-speech'; text: string; languageCode: string; autoPlay: boolean; } | undefined;
-
         if (useClientSpeech) {
-          // Send speech synthesis parameters for client-side TTS
           speechParams = {
             type: 'browser-speech',
             text: translation,
@@ -198,7 +168,6 @@ export class TranslationOrchestrator {
             autoPlay: true
           };
         } else {
-          // Generate server-side TTS audio
           try {
             const audioBuffer = await this.generateTTSAudio(
               translation,
@@ -211,17 +180,12 @@ export class TranslationOrchestrator {
             audioData = '';
           }
         }
-
-        // Record TTS time (approximate, since we're doing this per student)
         const ttsEndTime = Date.now();
         if (latencyTracking.components.tts === 0) {
           latencyTracking.components.tts = ttsEndTime - ttsStartTime;
         }
-
-        // Calculate total latency
         const serverCompleteTime = Date.now();
         const totalLatency = serverCompleteTime - startTime;
-
         const translationMessage: TranslationMessageToClient = {
           type: 'translation',
           text: translation,
@@ -238,7 +202,6 @@ export class TranslationOrchestrator {
           useClientSpeech: useClientSpeech,
           ...(speechParams && { speechParams })
         };
-
         studentWs.send(JSON.stringify(translationMessage));
         logger.info('Sent translation to student:', {
           studentLanguage,
@@ -247,98 +210,119 @@ export class TranslationOrchestrator {
           ttsServiceType,
           useClientSpeech,
           totalLatency,
-          hasAudio: audioData.length > 0
+          hasAudio: audioData.length > 0,
+          attempt
         });
+        return true;
+      } catch (error) {
+        logger.error('Error sending translation to student:', { error, studentLanguage, attempt });
+        if (attempt < 3) {
+          logger.warn(`Retrying translation delivery for ${studentLanguage}, attempt ${attempt + 1}`);
+          return await sendWithRetry(studentWs, studentLanguage, attempt + 1);
+        }
+        return false;
+      }
+    };
 
-        // Persist translation for diagnostics and product usage, if enabled
-        if (storage) {
-          const enableDetailedTranslationLogging = process.env.ENABLE_DETAILED_TRANSLATION_LOGGING === 'true';
-
-          if (enableDetailedTranslationLogging) {
-            const classroomSessionId = getSessionId?.(studentWs);
-            const translationLatency = latencyTracking.components?.translation || 0;
-
-            logger.info('WebSocketServer: About to persist translation', {
-              classroomSessionId,
-              translatedText: translation,
-              translationLatency,
-              originalText,
-              sourceLanguage,
-              targetLanguage: studentLanguage
-            });
-
-            if (classroomSessionId) {
-              // Validate that we have valid language data before storing
-              if (!sourceLanguage || typeof sourceLanguage !== 'string' || sourceLanguage.trim().length === 0) {
-                logger.error('Invalid sourceLanguage, skipping translation storage', {
-                  sourceLanguage,
-                  classroomSessionId
-                });
-                return;
-              }
-
-              if (!studentLanguage || typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
-                logger.error('Invalid targetLanguage (studentLanguage), skipping translation storage', {
-                  studentLanguage,
-                  classroomSessionId
-                });
-                return;
-              }
-
-              logger.info('WebSocketServer: Attempting to call storage.addTranslation (detailed logging enabled)');
-              try {
-                const translationData = {
-                  sessionId: classroomSessionId,
-                  sourceLanguage: sourceLanguage,
-                  targetLanguage: studentLanguage,
-                  originalText: originalText,
-                  translatedText: translation,
-                  latency: translationLatency,
-                };
-
-                console.log('TranslationOrchestrator: About to call storage.addTranslation with data:', translationData);
-
-                await storage.addTranslation(translationData);
-
-                logger.info('WebSocketServer: storage.addTranslation finished successfully', { sessionId: classroomSessionId });
-                console.log('TranslationOrchestrator: storage.addTranslation completed successfully');
-              } catch (storageError) {
-                logger.error('WebSocketServer: CRITICAL - Error calling storage.addTranslation. Database insertion failed!', {
-                  error: storageError,
-                  sessionId: classroomSessionId,
-                  errorMessage: storageError instanceof Error ? storageError.message : 'Unknown error',
-                  errorStack: storageError instanceof Error ? storageError.stack : undefined
-                });
-
-                // For test environments, also log to console to make failures more visible
-                console.error('CRITICAL DATABASE ERROR in addTranslation:', {
-                  error: storageError,
-                  message: storageError instanceof Error ? storageError.message : 'Unknown error',
-                  stack: storageError instanceof Error ? storageError.stack : undefined,
-                  sessionId: classroomSessionId
-                });
-
-                // In test environments, we might want to propagate this error further
-                // For now, we'll continue to catch it to avoid breaking translation flow
-                // but make it extremely visible in logs
-                logger.error('=== TRANSLATION STORAGE FAILED ===');
-                logger.error('This database error should be investigated:', storageError);
-                logger.error('=== END STORAGE ERROR ===');
-              }
-            } else {
-              logger.warn('WebSocketServer: Detailed translation logging enabled, but classroomSessionId not available, skipping storage.addTranslation', { hasSessionId: !!classroomSessionId });
+    // Send translations to each student, with delivery tracking and retry
+    const translationPromises = studentConnections.map(async (studentWs: WebSocketClient) => {
+      const studentLanguage = getLanguage(studentWs);
+      if (!studentLanguage || typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
+        logger.warn('Student has no valid language set, skipping translation', {
+          sessionId: getSessionId ? getSessionId(studentWs) : 'unknown',
+          studentLanguage
+        });
+        deliveryResults.push({ studentWs, studentLanguage: studentLanguage || '', delivered: false, error: 'Invalid language' });
+        return;
+      }
+      const delivered = await sendWithRetry(studentWs, studentLanguage, 1);
+      deliveryResults.push({ studentWs, studentLanguage, delivered });
+      // Persist translation for diagnostics and product usage, if enabled
+      if (delivered && storage) {
+        const enableDetailedTranslationLogging = process.env.ENABLE_DETAILED_TRANSLATION_LOGGING === 'true';
+        if (enableDetailedTranslationLogging) {
+          const classroomSessionId = getSessionId?.(studentWs);
+          const translationLatency = latencyTracking.components?.translation || 0;
+          logger.info('WebSocketServer: About to persist translation', {
+            classroomSessionId,
+            translatedText: translations.get(studentLanguage) || originalText,
+            translationLatency,
+            originalText,
+            sourceLanguage,
+            targetLanguage: studentLanguage
+          });
+          if (classroomSessionId) {
+            if (!sourceLanguage || typeof sourceLanguage !== 'string' || sourceLanguage.trim().length === 0) {
+              logger.error('Invalid sourceLanguage, skipping translation storage', {
+                sourceLanguage,
+                classroomSessionId
+              });
+              return;
+            }
+            if (!studentLanguage || typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
+              logger.error('Invalid targetLanguage (studentLanguage), skipping translation storage', {
+                studentLanguage,
+                classroomSessionId
+              });
+              return;
+            }
+            logger.info('WebSocketServer: Attempting to call storage.addTranslation (detailed logging enabled)');
+            try {
+              const translationData = {
+                sessionId: classroomSessionId,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: studentLanguage,
+                originalText: originalText,
+                translatedText: translations.get(studentLanguage) || originalText,
+                latency: translationLatency,
+              };
+              console.log('TranslationOrchestrator: About to call storage.addTranslation with data:', translationData);
+              await storage.addTranslation(translationData);
+              logger.info('WebSocketServer: storage.addTranslation finished successfully', { sessionId: classroomSessionId });
+              console.log('TranslationOrchestrator: storage.addTranslation completed successfully');
+            } catch (storageError) {
+              logger.error('WebSocketServer: CRITICAL - Error calling storage.addTranslation. Database insertion failed!', {
+                error: storageError,
+                sessionId: classroomSessionId,
+                errorMessage: storageError instanceof Error ? storageError.message : 'Unknown error',
+                errorStack: storageError instanceof Error ? storageError.stack : undefined
+              });
+              console.error('CRITICAL DATABASE ERROR in addTranslation:', {
+                error: storageError,
+                message: storageError instanceof Error ? storageError.message : 'Unknown error',
+                stack: storageError instanceof Error ? storageError.stack : undefined,
+                sessionId: classroomSessionId
+              });
+              logger.error('=== TRANSLATION STORAGE FAILED ===');
+              logger.error('This database error should be investigated:', storageError);
+              logger.error('=== END STORAGE ERROR ===');
             }
           } else {
-            logger.info('WebSocketServer: Detailed translation logging is disabled via environment variable ENABLE_DETAILED_TRANSLATION_LOGGING, skipping storage.addTranslation');
+            logger.warn('WebSocketServer: Detailed translation logging enabled, but classroomSessionId not available, skipping storage.addTranslation', { hasSessionId: !!classroomSessionId });
           }
+        } else {
+          logger.info('WebSocketServer: Detailed translation logging is disabled via environment variable ENABLE_DETAILED_TRANSLATION_LOGGING, skipping storage.addTranslation');
         }
-      } catch (error) {
-        logger.error('Error sending translation to student:', { error });
+      }
+      if (!delivered) {
+        logger.error('CRITICAL: Translation delivery failed for student after 3 attempts', {
+          studentLanguage,
+          sessionId: getSessionId ? getSessionId(studentWs) : 'unknown'
+        });
       }
     });
 
     logger.info('WebSocketServer: Awaiting all translation deliveries before session cleanup');
     await Promise.all(translationPromises);
+    // Log summary of delivery results for teacher dashboard visibility
+    const failedDeliveries = deliveryResults.filter(r => !r.delivered);
+    if (failedDeliveries.length > 0) {
+      logger.error('Summary: Some students did not receive translations after retries', {
+        failedStudents: failedDeliveries.map(r => ({ studentLanguage: r.studentLanguage, error: r.error }))
+      });
+    } else {
+      logger.info('Summary: All students received translations successfully');
+    }
     logger.info('WebSocketServer: sendTranslationsToStudents finished (all translations sent, safe for cleanup)');
   }
 
