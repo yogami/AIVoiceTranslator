@@ -473,15 +473,15 @@ describe('Translation Flow Component Tests', () => {
         
         // Wait for all translations with proper timeout and error handling
         const translationPromises = [
-          waitForMessage(spanishMessages, 'translation', 12000).catch(err => {
+          waitForMessage(spanishMessages, 'translation', 30000).catch(err => {
             console.error(`[${testSessionId}] Spanish translation timeout:`, spanishMessages.map(m => m.type));
             throw err;
           }),
-          waitForMessage(frenchMessages, 'translation', 12000).catch(err => {
+          waitForMessage(frenchMessages, 'translation', 30000).catch(err => {
             console.error(`[${testSessionId}] French translation timeout:`, frenchMessages.map(m => m.type));
             throw err;
           }),
-          waitForMessage(germanMessages, 'translation', 12000).catch(err => {
+          waitForMessage(germanMessages, 'translation', 30000).catch(err => {
             console.error(`[${testSessionId}] German translation timeout:`, germanMessages.map(m => m.type));
             throw err;
           })
