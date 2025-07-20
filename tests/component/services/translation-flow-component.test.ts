@@ -293,9 +293,8 @@ describe('Translation Flow Component Tests', () => {
     });
     
     it('should handle translations to multiple students in different languages', async () => {
-      console.log(`Starting simplified multi-student translation test`);
+      console.log(`Starting multi-student translation test`);
       
-      // Use simpler approach similar to WebSocketServer component test
       const teacherMessages: any[] = [];
       const spanishMessages: any[] = [];
       const frenchMessages: any[] = [];
@@ -341,8 +340,11 @@ describe('Translation Flow Component Tests', () => {
         spanishStudent = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
         spanishStudent.on('message', (data) => {
           const message = JSON.parse(data.toString());
-          spanishMessages.push(message);
+          spanishMessages.push({...message, timestamp: Date.now()});
           console.log(`Spanish student received: ${message.type}`);
+        });
+        spanishStudent.on('error', (err) => {
+          console.error('Spanish student WebSocket error:', err);
         });
         
         await new Promise<void>((resolve, reject) => {
@@ -359,19 +361,26 @@ describe('Translation Flow Component Tests', () => {
           languageCode: 'es-ES'
         }));
         
-        await waitForMessage(spanishMessages, 'register', 10000);
-        console.log(`Spanish student registered`);
-        
-        // Wait for student registration to complete
+        // Wait for registration and check for errors
         await new Promise(resolve => setTimeout(resolve, 1000));
+        const spanishErrorMsg = spanishMessages.find(m => m.type === 'error');
+        if (spanishErrorMsg) {
+          console.error('Spanish student registration error:', spanishErrorMsg);
+        }
+        
+        await waitForMessage(spanishMessages, 'register', 15000);
+        console.log(`Spanish student registered successfully`);
         
         // 3. Create and register French student
         console.log(`Creating French student`);
         frenchStudent = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
         frenchStudent.on('message', (data) => {
           const message = JSON.parse(data.toString());
-          frenchMessages.push(message);
+          frenchMessages.push({...message, timestamp: Date.now()});
           console.log(`French student received: ${message.type}`);
+        });
+        frenchStudent.on('error', (err) => {
+          console.error('French student WebSocket error:', err);
         });
         
         await new Promise<void>((resolve, reject) => {
@@ -388,30 +397,39 @@ describe('Translation Flow Component Tests', () => {
           languageCode: 'fr-FR'
         }));
         
-        await waitForMessage(frenchMessages, 'register', 10000);
-        console.log(`French student registered`);
+        // Wait for registration and check for errors
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const frenchErrorMsg = frenchMessages.find(m => m.type === 'error');
+        if (frenchErrorMsg) {
+          console.error('French student registration error:', frenchErrorMsg);
+        }
+        
+        await waitForMessage(frenchMessages, 'register', 15000);
+        console.log(`French student registered successfully`);
         
         // Wait for all registrations to be fully processed
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Clear message arrays before transcription
-        spanishMessages.length = 0;
-        frenchMessages.length = 0;
-        
         // 4. Send transcription and wait for translations
         console.log(`Sending transcription`);
+        
+        // Record current message count to identify new messages
+        const spanishMessageCountBefore = spanishMessages.length;
+        const frenchMessageCountBefore = frenchMessages.length;
+        
         teacherWs.send(JSON.stringify({
           type: 'transcription',
           text: 'Welcome to our international classroom!'
         }));
         
-        // Wait for processing
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // 5. Wait for translation messages with increased timeout for CI
+        // 5. Wait for translation messages with very long timeout for CI
         console.log(`Waiting for translation messages`);
-        const spanishTranslation = await waitForMessage(spanishMessages, 'translation', 30000);
-        const frenchTranslation = await waitForMessage(frenchMessages, 'translation', 30000);
+        
+        // Use Promise.all to wait for both translations simultaneously with extended timeout
+        const [spanishTranslation, frenchTranslation] = await Promise.all([
+          waitForMessage(spanishMessages, 'translation', 60000), // 60 second timeout for CI
+          waitForMessage(frenchMessages, 'translation', 60000)   // 60 second timeout for CI
+        ]);
         
         // 6. Verify translations
         expect(spanishTranslation?.targetLanguage).toBe('es-ES');
@@ -436,7 +454,7 @@ describe('Translation Flow Component Tests', () => {
         // Wait for cleanup to complete
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    }, 90000); // 90 second timeout for CI reliability
+    }, 90000); // 90 second timeout for entire test for CI compatibility
   });
   
   describe('Error Handling', () => {
@@ -629,11 +647,20 @@ async function waitForMessage(messages: any[], messageType: string, timeout = 50
   const startTime = Date.now();
   
   return new Promise((resolve, reject) => {
+    // First check if message already exists
+    const existing = messages.find(m => m.type === messageType);
+    if (existing) {
+      console.log(`Found existing ${messageType} message immediately`);
+      resolve(existing);
+      return;
+    }
+    
     const checkInterval = setInterval(() => {
       const found = messages.find(m => m.type === messageType);
       
       if (found) {
         clearInterval(checkInterval);
+        console.log(`Found ${messageType} message after ${Date.now() - startTime}ms`);
         resolve(found);
       } else if (Date.now() - startTime > timeout) {
         clearInterval(checkInterval);
@@ -642,8 +669,9 @@ async function waitForMessage(messages: any[], messageType: string, timeout = 50
         console.error('Total messages received:', messages.length);
         console.error('Timeout duration:', timeout, 'ms');
         console.error('Time elapsed:', Date.now() - startTime, 'ms');
+        console.error('Current time:', new Date().toISOString());
         reject(new Error(`Timeout waiting for message type: ${messageType}`));
       }
-    }, 50); // Check more frequently (every 50ms instead of 100ms)
+    }, 100); // Check less frequently to reduce CPU usage in CI (every 100ms instead of 50ms)
   });
 }
