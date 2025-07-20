@@ -504,6 +504,10 @@ describe('Translation Flow Component Tests', () => {
         expect(frenchTranslation?.originalText).toBe('Welcome to our international classroom!');
         expect(germanTranslation?.originalText).toBe('Welcome to our international classroom!');
         
+          // RED PHASE: Explicitly fail if any translation is missing
+          if (!spanishTranslation || !frenchTranslation || !germanTranslation) {
+            throw new Error(`Missing translation(s): Spanish=${!!spanishTranslation}, French=${!!frenchTranslation}, German=${!!germanTranslation}\nMessages: Spanish=${JSON.stringify(spanishMessages)}, French=${JSON.stringify(frenchMessages)}, German=${JSON.stringify(germanMessages)}`);
+          }
         // Each should have translated text
         expect(spanishTranslation?.text).toBeDefined();
         expect(frenchTranslation?.text).toBeDefined();

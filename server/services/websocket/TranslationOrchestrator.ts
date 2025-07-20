@@ -155,9 +155,9 @@ export class TranslationOrchestrator {
   }
 
   /**
-   * Send translations to all student connections
+   * Send translations to all student connections, returns a Promise that resolves when all sends are complete
    */
-  sendTranslationsToStudents(options: SendTranslationOptions): void {
+  async sendTranslationsToStudents(options: SendTranslationOptions): Promise<void> {
     const {
       studentConnections,
       originalText,
@@ -178,7 +178,8 @@ export class TranslationOrchestrator {
     const ttsStartTime = Date.now();
 
     // Send translations to each student in their language
-    studentConnections.forEach(async (studentWs) => {
+    // Await all translation sends to ensure delivery before cleanup
+    await Promise.all(studentConnections.map(async (studentWs) => {
       try {
         const studentLanguage = getLanguage(studentWs);
         const clientSettings = getClientSettings(studentWs) || {};
@@ -359,9 +360,9 @@ export class TranslationOrchestrator {
       } catch (error) {
         logger.error('Error sending translation to student:', { error });
       }
-    });
+    }));
 
-    logger.info('WebSocketServer: sendTranslationsToStudents finished');
+    logger.info('WebSocketServer: sendTranslationsToStudents finished (all translations sent)');
   }
 
   /**
