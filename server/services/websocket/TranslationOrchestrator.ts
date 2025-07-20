@@ -69,12 +69,11 @@ export class TranslationOrchestrator {
    */
   async translateToMultipleLanguages(request: TranslationRequest): Promise<TranslationResult> {
     const { text, sourceLanguage, targetLanguages, startTime, latencyTracking } = request;
-    
-    logger.info('Translating to multiple languages:', { 
-      text, 
-      sourceLanguage, 
+    logger.info('Translating to multiple languages:', {
+      text,
+      sourceLanguage,
       targetLanguages,
-      targetLanguageCount: targetLanguages.length 
+      targetLanguageCount: targetLanguages.length
     });
 
     // Record preparation time
@@ -87,71 +86,50 @@ export class TranslationOrchestrator {
     // Start translation timing
     const translationStartTime = Date.now();
 
-    try {
-      // Perform all translations in parallel
-      const translationPromises = targetLanguages.map(async (targetLanguage) => {
-        try {
-          const result = await speechTranslationService.translateSpeech(
-            Buffer.from(''), // Empty buffer since we have text
-            sourceLanguage,
-            targetLanguage,
-            text, // Use the provided text directly
-            { ttsServiceType: 'openai' } // Always use OpenAI TTS for best quality
-          );
-          
-          const translation = result.translatedText;
-          
-          translations.set(targetLanguage, translation);
-          translationResults.push({ language: targetLanguage, translation });
-          
-          logger.info('Translation completed:', { 
-            sourceLanguage, 
-            targetLanguage, 
-            originalText: text, 
-            translatedText: translation 
-          });
-          
-          return { targetLanguage, translation };
-        } catch (error) {
-          logger.error(`Translation failed for ${targetLanguage}:`, { error });
-          // Use original text as fallback
-          translations.set(targetLanguage, text);
-          translationResults.push({ language: targetLanguage, translation: text });
-          return { targetLanguage, translation: text };
-        }
-      });
+    const translationPromises = targetLanguages.map(async (targetLanguage) => {
+      try {
+        const result = await speechTranslationService.translateSpeech(
+          Buffer.from(''), // Empty buffer since we have text
+          sourceLanguage,
+          targetLanguage,
+          text, // Use the provided text directly
+          { ttsServiceType: 'openai' } // Always use OpenAI TTS for best quality
+        );
+        const translation = result.translatedText;
+        translations.set(targetLanguage, translation);
+        translationResults.push({ language: targetLanguage, translation });
+        logger.info('Translation completed:', {
+          sourceLanguage,
+          targetLanguage,
+          originalText: text,
+          translatedText: translation
+        });
+        return { targetLanguage, translation };
+      } catch (error) {
+        logger.error(`Translation failed for ${targetLanguage}:`, { error });
+        // Use original text as fallback
+        translations.set(targetLanguage, text);
+        translationResults.push({ language: targetLanguage, translation: text });
+        return { targetLanguage, translation: text };
+      }
+    });
 
-      await Promise.all(translationPromises);
+    await Promise.all(translationPromises);
 
-      // Record translation time
-      const translationEndTime = Date.now();
-      latencyTracking.components.translation = translationEndTime - translationStartTime;
+    // Record translation time
+    const translationEndTime = Date.now();
+    latencyTracking.components.translation = translationEndTime - translationStartTime;
 
-      logger.info('All translations completed:', { 
-        translationCount: translations.size,
-        translationTime: latencyTracking.components.translation 
-      });
+    logger.info('All translations completed:', {
+      translationCount: translations.size,
+      translationTime: latencyTracking.components.translation
+    });
 
-      return {
-        translations,
-        translationResults,
-        latencyInfo: latencyTracking.components
-      };
-    } catch (error) {
-      logger.error('Error in translateToMultipleLanguages:', { error });
-      
-      // Return fallback results
-      targetLanguages.forEach(lang => {
-        translations.set(lang, text);
-        translationResults.push({ language: lang, translation: text });
-      });
-
-      return {
-        translations,
-        translationResults,
-        latencyInfo: latencyTracking.components
-      };
-    }
+    return {
+      translations,
+      translationResults,
+      latencyInfo: latencyTracking.components
+    };
   }
 
   /**
@@ -179,11 +157,11 @@ export class TranslationOrchestrator {
 
     // Send translations to each student in their language
     // Await all translation sends to ensure delivery before cleanup
-    await Promise.all(studentConnections.map(async (studentWs) => {
+    const translationPromises = studentConnections.map(async (studentWs: any) => {
       try {
         const studentLanguage = getLanguage(studentWs);
         const clientSettings = getClientSettings(studentWs) || {};
-        
+
         if (!studentLanguage) {
           logger.warn('Student has no language set, skipping translation', {
             sessionId: getSessionId ? getSessionId(studentWs) : 'unknown'
@@ -201,16 +179,16 @@ export class TranslationOrchestrator {
         }
 
         const translation = translations.get(studentLanguage) || originalText;
-        
+
         // Use client-preferred TTS service type
         const ttsServiceType = clientSettings.ttsServiceType || 'openai';
-        
+
         // Check if client wants to use browser speech synthesis
         const useClientSpeech = clientSettings.useClientSpeech === true;
-        
+
         let audioData = '';
         let speechParams: { type: 'browser-speech'; text: string; languageCode: string; autoPlay: boolean; } | undefined;
-        
+
         if (useClientSpeech) {
           // Send speech synthesis parameters for client-side TTS
           speechParams = {
@@ -233,7 +211,7 @@ export class TranslationOrchestrator {
             audioData = '';
           }
         }
-        
+
         // Record TTS time (approximate, since we're doing this per student)
         const ttsEndTime = Date.now();
         if (latencyTracking.components.tts === 0) {
@@ -262,10 +240,9 @@ export class TranslationOrchestrator {
         };
 
         studentWs.send(JSON.stringify(translationMessage));
-        
-        logger.info('Sent translation to student:', { 
-          studentLanguage, 
-          translation, 
+        logger.info('Sent translation to student:', {
+          studentLanguage,
+          translation,
           originalText,
           ttsServiceType,
           useClientSpeech,
@@ -299,7 +276,7 @@ export class TranslationOrchestrator {
                 });
                 return;
               }
-              
+
               if (!studentLanguage || typeof studentLanguage !== 'string' || studentLanguage.trim().length === 0) {
                 logger.error('Invalid targetLanguage (studentLanguage), skipping translation storage', {
                   studentLanguage,
@@ -307,49 +284,47 @@ export class TranslationOrchestrator {
                 });
                 return;
               }
-              
+
               logger.info('WebSocketServer: Attempting to call storage.addTranslation (detailed logging enabled)');
-              (async () => {
-                try {
-                  const translationData = {
-                    sessionId: classroomSessionId,
-                    sourceLanguage: sourceLanguage,
-                    targetLanguage: studentLanguage,
-                    originalText: originalText,
-                    translatedText: translation,
-                    latency: translationLatency,
-                  };
-                  
-                  console.log('TranslationOrchestrator: About to call storage.addTranslation with data:', translationData);
-                  
-                  await storage.addTranslation(translationData);
-                  
-                  logger.info('WebSocketServer: storage.addTranslation finished successfully', { sessionId: classroomSessionId });
-                  console.log('TranslationOrchestrator: storage.addTranslation completed successfully');
-                } catch (storageError) {
-                  logger.error('WebSocketServer: CRITICAL - Error calling storage.addTranslation. Database insertion failed!', { 
-                    error: storageError, 
-                    sessionId: classroomSessionId,
-                    errorMessage: storageError instanceof Error ? storageError.message : 'Unknown error',
-                    errorStack: storageError instanceof Error ? storageError.stack : undefined
-                  });
-                  
-                  // For test environments, also log to console to make failures more visible
-                  console.error('CRITICAL DATABASE ERROR in addTranslation:', {
-                    error: storageError,
-                    message: storageError instanceof Error ? storageError.message : 'Unknown error',
-                    stack: storageError instanceof Error ? storageError.stack : undefined,
-                    sessionId: classroomSessionId
-                  });
-                  
-                  // In test environments, we might want to propagate this error further
-                  // For now, we'll continue to catch it to avoid breaking translation flow
-                  // but make it extremely visible in logs
-                  logger.error('=== TRANSLATION STORAGE FAILED ===');
-                  logger.error('This database error should be investigated:', storageError);
-                  logger.error('=== END STORAGE ERROR ===');
-                }
-              })();
+              try {
+                const translationData = {
+                  sessionId: classroomSessionId,
+                  sourceLanguage: sourceLanguage,
+                  targetLanguage: studentLanguage,
+                  originalText: originalText,
+                  translatedText: translation,
+                  latency: translationLatency,
+                };
+
+                console.log('TranslationOrchestrator: About to call storage.addTranslation with data:', translationData);
+
+                await storage.addTranslation(translationData);
+
+                logger.info('WebSocketServer: storage.addTranslation finished successfully', { sessionId: classroomSessionId });
+                console.log('TranslationOrchestrator: storage.addTranslation completed successfully');
+              } catch (storageError) {
+                logger.error('WebSocketServer: CRITICAL - Error calling storage.addTranslation. Database insertion failed!', {
+                  error: storageError,
+                  sessionId: classroomSessionId,
+                  errorMessage: storageError instanceof Error ? storageError.message : 'Unknown error',
+                  errorStack: storageError instanceof Error ? storageError.stack : undefined
+                });
+
+                // For test environments, also log to console to make failures more visible
+                console.error('CRITICAL DATABASE ERROR in addTranslation:', {
+                  error: storageError,
+                  message: storageError instanceof Error ? storageError.message : 'Unknown error',
+                  stack: storageError instanceof Error ? storageError.stack : undefined,
+                  sessionId: classroomSessionId
+                });
+
+                // In test environments, we might want to propagate this error further
+                // For now, we'll continue to catch it to avoid breaking translation flow
+                // but make it extremely visible in logs
+                logger.error('=== TRANSLATION STORAGE FAILED ===');
+                logger.error('This database error should be investigated:', storageError);
+                logger.error('=== END STORAGE ERROR ===');
+              }
             } else {
               logger.warn('WebSocketServer: Detailed translation logging enabled, but classroomSessionId not available, skipping storage.addTranslation', { hasSessionId: !!classroomSessionId });
             }
@@ -360,9 +335,11 @@ export class TranslationOrchestrator {
       } catch (error) {
         logger.error('Error sending translation to student:', { error });
       }
-    }));
+    });
 
-    logger.info('WebSocketServer: sendTranslationsToStudents finished (all translations sent)');
+    logger.info('WebSocketServer: Awaiting all translation deliveries before session cleanup');
+    await Promise.all(translationPromises);
+    logger.info('WebSocketServer: sendTranslationsToStudents finished (all translations sent, safe for cleanup)');
   }
 
   /**
