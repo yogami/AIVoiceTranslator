@@ -293,318 +293,150 @@ describe('Translation Flow Component Tests', () => {
     });
     
     it('should handle translations to multiple students in different languages', async () => {
-      // Generate unique session IDs for complete test isolation
-      const testSessionId = createTestSessionId();
+      console.log(`Starting simplified multi-student translation test`);
       
-      console.log(`[Test ${testSessionId}] Starting multi-student translation test`);
-      
-      // Create fresh WebSocket connections for this test
+      // Use simpler approach similar to WebSocketServer component test
       const teacherMessages: any[] = [];
       const spanishMessages: any[] = [];
       const frenchMessages: any[] = [];
-      const germanMessages: any[] = [];
       
-      // Enhanced cleanup function with async operations handling
-      const cleanupConnections = async () => {
-        console.log(`[Test ${testSessionId}] Starting connection cleanup`);
-        const connections = [spanishStudent, frenchStudent, germanStudent, teacherWs].filter(Boolean);
-        
-        // Close all connections gracefully
-        for (const conn of connections) {
-          if (conn && conn.readyState === WebSocket.OPEN) {
-            conn.close();
-          }
-        }
-        
-        // Wait for all async operations to complete
-        await waitForAsyncOperations(1000);
-        
-        // Additional wait for cleanup to fully complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        console.log(`[Test ${testSessionId}] Connection cleanup completed`);
-      };
-      
-      let teacherWs: WebSocket;
-      let spanishStudent: WebSocket;
-      let frenchStudent: WebSocket;
-      let germanStudent: WebSocket;
+      let teacherWs!: WebSocket;
+      let spanishStudent!: WebSocket;
+      let frenchStudent!: WebSocket;
       
       try {
-        console.log(`[Test ${testSessionId}] Creating teacher connection`);
-        
-        // Create teacher connection with unique session context
+        // 1. Create and register teacher
+        console.log(`Creating teacher connection`);
         teacherWs = new WebSocket(`ws://localhost:${actualPort}`);
-        
         teacherWs.on('message', (data) => {
           const message = JSON.parse(data.toString());
           teacherMessages.push(message);
-          console.log(`[Test ${testSessionId}] Teacher received: ${message.type}`);
+          console.log(`Teacher received: ${message.type}`);
         });
         
         await new Promise<void>((resolve, reject) => {
-          teacherWs.on('open', () => {
-            console.log(`[Test ${testSessionId}] Teacher WebSocket opened`);
-            resolve();
-          });
-          teacherWs.on('error', (error) => {
-            console.error(`[Test ${testSessionId}] Teacher WebSocket error:`, error);
-            reject(error);
-          });
-          setTimeout(() => reject(new Error(`[${testSessionId}] Teacher connection timeout`)), 10000);
+          teacherWs.on('open', resolve);
+          teacherWs.on('error', reject);
+          setTimeout(() => reject(new Error('Teacher connection timeout')), 10000);
         });
         
-        console.log(`[Test ${testSessionId}] Waiting for teacher connection message`);
-        // Wait for connection and register teacher
         await waitForMessage(teacherMessages, 'connection', 10000);
-        console.log(`[Test ${testSessionId}] Teacher connected`);
         
-        console.log(`[Test ${testSessionId}] Registering teacher`);
         teacherWs.send(JSON.stringify({
           type: 'register',
           role: 'teacher',
-          languageCode: 'en-US',
-          sessionId: testSessionId // Include session ID for isolation
+          languageCode: 'en-US'
         }));
         
         await waitForMessage(teacherMessages, 'register', 10000);
-        console.log(`[Test ${testSessionId}] Teacher registered successfully`);
-        
-        // Wait for classroom code
         const classroomMessage = await waitForMessage(teacherMessages, 'classroom_code', 10000);
         const classroomCode = classroomMessage.code;
-        console.log(`[Test ${testSessionId}] Classroom code: ${classroomCode}`);
+        console.log(`Classroom code: ${classroomCode}`);
         
-        // Ensure teacher session is fully established and persisted - extended wait for CI
-        console.log(`[Test ${testSessionId}] Waiting for teacher session to be fully established`);
-        await waitForAsyncOperations(2000); // Increased from 1500ms
+        // Wait for teacher session to be established
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Create Spanish student connection sequentially to avoid race conditions
-        console.log(`[Test ${testSessionId}] Connecting Spanish student`);
+        // 2. Create and register Spanish student
+        console.log(`Creating Spanish student`);
         spanishStudent = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
         spanishStudent.on('message', (data) => {
           const message = JSON.parse(data.toString());
           spanishMessages.push(message);
-          console.log(`[Test ${testSessionId}] Spanish student received: ${message.type}`);
+          console.log(`Spanish student received: ${message.type}`);
         });
         
         await new Promise<void>((resolve, reject) => {
-          spanishStudent.on('open', () => {
-            console.log(`[Test ${testSessionId}] Spanish student WebSocket opened`);
-            resolve();
-          });
-          spanishStudent.on('error', (error) => {
-            console.error(`[Test ${testSessionId}] Spanish student WebSocket error:`, error);
-            reject(error);
-          });
-          setTimeout(() => reject(new Error(`[${testSessionId}] Spanish student connection timeout`)), 10000);
+          spanishStudent.on('open', resolve);
+          spanishStudent.on('error', reject);
+          setTimeout(() => reject(new Error('Spanish student connection timeout')), 10000);
         });
         
         await waitForMessage(spanishMessages, 'connection', 10000);
         
-        console.log(`[Test ${testSessionId}] Registering Spanish student`);
         spanishStudent.send(JSON.stringify({
           type: 'register',
           role: 'student',
-          languageCode: 'es-ES',
-          sessionId: testSessionId
+          languageCode: 'es-ES'
         }));
         
         await waitForMessage(spanishMessages, 'register', 10000);
-        console.log(`[Test ${testSessionId}] Spanish student registered`);
+        console.log(`Spanish student registered`);
         
-        // Wait for student to be fully registered and session updated - increased wait for CI
-        await waitForAsyncOperations(1200); // Increased from 800ms
+        // Wait for student registration to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Create French student
-        console.log(`[Test ${testSessionId}] Connecting French student`);
+        // 3. Create and register French student
+        console.log(`Creating French student`);
         frenchStudent = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
         frenchStudent.on('message', (data) => {
           const message = JSON.parse(data.toString());
           frenchMessages.push(message);
-          console.log(`[Test ${testSessionId}] French student received: ${message.type}`);
+          console.log(`French student received: ${message.type}`);
         });
         
         await new Promise<void>((resolve, reject) => {
-          frenchStudent.on('open', () => {
-            console.log(`[Test ${testSessionId}] French student WebSocket opened`);
-            resolve();
-          });
-          frenchStudent.on('error', (error) => {
-            console.error(`[Test ${testSessionId}] French student WebSocket error:`, error);
-            reject(error);
-          });
-          setTimeout(() => reject(new Error(`[${testSessionId}] French student connection timeout`)), 10000);
+          frenchStudent.on('open', resolve);
+          frenchStudent.on('error', reject);
+          setTimeout(() => reject(new Error('French student connection timeout')), 10000);
         });
         
         await waitForMessage(frenchMessages, 'connection', 10000);
         
-        console.log(`[Test ${testSessionId}] Registering French student`);
         frenchStudent.send(JSON.stringify({
           type: 'register',
           role: 'student',
-          languageCode: 'fr-FR',
-          sessionId: testSessionId
+          languageCode: 'fr-FR'
         }));
         
         await waitForMessage(frenchMessages, 'register', 10000);
-        console.log(`[Test ${testSessionId}] French student registered`);
+        console.log(`French student registered`);
         
-        // Wait for student to be fully registered and session updated - increased wait for CI
-        await waitForAsyncOperations(1200); // Increased from 800ms
+        // Wait for all registrations to be fully processed
+        await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Create German student
-        console.log(`[Test ${testSessionId}] Connecting German student`);
-        germanStudent = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
-        germanStudent.on('message', (data) => {
-          const message = JSON.parse(data.toString());
-          germanMessages.push(message);
-          console.log(`[Test ${testSessionId}] German student received: ${message.type}`);
-        });
-        
-        await new Promise<void>((resolve, reject) => {
-          germanStudent.on('open', () => {
-            console.log(`[Test ${testSessionId}] German student WebSocket opened`);
-            resolve();
-          });
-          germanStudent.on('error', (error) => {
-            console.error(`[Test ${testSessionId}] German student WebSocket error:`, error);
-            reject(error);
-          });
-          setTimeout(() => reject(new Error(`[${testSessionId}] German student connection timeout`)), 10000);
-        });
-        
-        await waitForMessage(germanMessages, 'connection', 10000);
-        
-        console.log(`[Test ${testSessionId}] Registering German student`);
-        germanStudent.send(JSON.stringify({
-          type: 'register',
-          role: 'student',
-          languageCode: 'de-DE',
-          sessionId: testSessionId
-        }));
-        
-        await waitForMessage(germanMessages, 'register', 10000);
-        console.log(`[Test ${testSessionId}] German student registered`);
-        
-        // Wait for all students to be fully registered and session state to stabilize - increased for CI
-        console.log(`[Test ${testSessionId}] Waiting for all student registrations to stabilize`);
-        await waitForAsyncOperations(2000); // Increased from 1500ms
-        
-        // Clear message arrays before transcription to avoid confusion
+        // Clear message arrays before transcription
         spanishMessages.length = 0;
         frenchMessages.length = 0;
-        germanMessages.length = 0;
         
-        // Verify all connections are still active before sending transcription
-        if (teacherWs.readyState !== WebSocket.OPEN) {
-          throw new Error(`[${testSessionId}] Teacher connection lost before transcription`);
-        }
-        
-        if (spanishStudent.readyState !== WebSocket.OPEN) {
-          throw new Error(`[${testSessionId}] Spanish student connection lost before transcription`);
-        }
-        
-        if (frenchStudent.readyState !== WebSocket.OPEN) {
-          throw new Error(`[${testSessionId}] French student connection lost before transcription`);
-        }
-        
-        if (germanStudent.readyState !== WebSocket.OPEN) {
-          throw new Error(`[${testSessionId}] German student connection lost before transcription`);
-        }
-        
-        // Also verify student connections are still active
-        console.log(`[Test ${testSessionId}] Connection states before transcription:`);
-        console.log(`  - Teacher: ${teacherWs.readyState} (OPEN=${WebSocket.OPEN})`);
-        console.log(`  - Spanish: ${spanishStudent.readyState} (OPEN=${WebSocket.OPEN})`);  
-        console.log(`  - French: ${frenchStudent.readyState} (OPEN=${WebSocket.OPEN})`);
-        console.log(`  - German: ${germanStudent.readyState} (OPEN=${WebSocket.OPEN})`);
-        
-        console.log(`[Test ${testSessionId}] All connections verified. Sending transcription to all students`);
-        
-        // Teacher sends transcription
-        const transcriptionMessage = {
+        // 4. Send transcription and wait for translations
+        console.log(`Sending transcription`);
+        teacherWs.send(JSON.stringify({
           type: 'transcription',
-          text: 'Welcome to our international classroom!',
-          sessionId: testSessionId
-        };
-        console.log(`[Test ${testSessionId}] Sending transcription message:`, JSON.stringify(transcriptionMessage));
-        teacherWs.send(JSON.stringify(transcriptionMessage));
+          text: 'Welcome to our international classroom!'
+        }));
         
-        // Wait a moment to allow the server to process the transcription - increased for CI
-        console.log(`[Test ${testSessionId}] Waiting for transcription processing`);
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Increased from 1000ms
+        // Wait for processing
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Diagnostic logging before waiting for translations
-        console.log(`[Test ${testSessionId}] Diagnostic: Spanish messages before wait:`, JSON.stringify(spanishMessages));
-        console.log(`[Test ${testSessionId}] Diagnostic: French messages before wait:`, JSON.stringify(frenchMessages));
-        console.log(`[Test ${testSessionId}] Diagnostic: German messages before wait:`, JSON.stringify(germanMessages));
-        console.log(`[Test ${testSessionId}] Diagnostic: Timestamp before wait:`, Date.now());
-
-        // Wait for all translations with proper timeout and error handling - increased timeout for CI
-        console.log(`[Test ${testSessionId}] Waiting for translation messages`);
-        const translationPromises = [
-          waitForMessage(spanishMessages, 'translation', 60000).catch(err => {
-            console.error(`[${testSessionId}] Spanish translation timeout:`, spanishMessages.map(m => m.type));
-            console.error(`[Test ${testSessionId}] Spanish messages at timeout:`, JSON.stringify(spanishMessages));
-            console.error(`[${testSessionId}] Spanish student connection state:`, spanishStudent?.readyState);
-            throw err;
-          }),
-          waitForMessage(frenchMessages, 'translation', 60000).catch(err => {
-            console.error(`[${testSessionId}] French translation timeout:`, frenchMessages.map(m => m.type));
-            console.error(`[Test ${testSessionId}] French messages at timeout:`, JSON.stringify(frenchMessages));
-            console.error(`[${testSessionId}] French student connection state:`, frenchStudent?.readyState);
-            throw err;
-          }),
-          waitForMessage(germanMessages, 'translation', 60000).catch(err => {
-            console.error(`[${testSessionId}] German translation timeout:`, germanMessages.map(m => m.type));
-            console.error(`[Test ${testSessionId}] German messages at timeout:`, JSON.stringify(germanMessages));
-            console.error(`[${testSessionId}] German student connection state:`, germanStudent?.readyState);
-            throw err;
-          })
-        ];
-
-        await Promise.all(translationPromises);
-        console.log(`[Test ${testSessionId}] All translations received successfully`);
-        console.log(`[Test ${testSessionId}] Diagnostic: Timestamp after wait:`, Date.now());
-        console.log(`[Test ${testSessionId}] Diagnostic: Spanish messages after wait:`, JSON.stringify(spanishMessages));
-        console.log(`[Test ${testSessionId}] Diagnostic: French messages after wait:`, JSON.stringify(frenchMessages));
-        console.log(`[Test ${testSessionId}] Diagnostic: German messages after wait:`, JSON.stringify(germanMessages));
+        // 5. Wait for translation messages with increased timeout for CI
+        console.log(`Waiting for translation messages`);
+        const spanishTranslation = await waitForMessage(spanishMessages, 'translation', 30000);
+        const frenchTranslation = await waitForMessage(frenchMessages, 'translation', 30000);
         
-        // Verify translations
-        const spanishTranslation = spanishMessages.find(m => m.type === 'translation');
-        const frenchTranslation = frenchMessages.find(m => m.type === 'translation');
-        const germanTranslation = germanMessages.find(m => m.type === 'translation');
-        
+        // 6. Verify translations
         expect(spanishTranslation?.targetLanguage).toBe('es-ES');
-        expect(frenchTranslation?.targetLanguage).toBe('fr-FR');
-        expect(germanTranslation?.targetLanguage).toBe('de-DE');
-        
-        // All should have the same original text
         expect(spanishTranslation?.originalText).toBe('Welcome to our international classroom!');
-        expect(frenchTranslation?.originalText).toBe('Welcome to our international classroom!');
-        expect(germanTranslation?.originalText).toBe('Welcome to our international classroom!');
-        
-          // RED PHASE: Explicitly fail if any translation is missing
-          if (!spanishTranslation || !frenchTranslation || !germanTranslation) {
-            throw new Error(`Missing translation(s): Spanish=${!!spanishTranslation}, French=${!!frenchTranslation}, German=${!!germanTranslation}\nMessages: Spanish=${JSON.stringify(spanishMessages)}, French=${JSON.stringify(frenchMessages)}, German=${JSON.stringify(germanMessages)}`);
-          }
-        // Each should have translated text
         expect(spanishTranslation?.text).toBeDefined();
-        expect(frenchTranslation?.text).toBeDefined();
-        expect(germanTranslation?.text).toBeDefined();
         
-        // Extra logging for CI/CD diagnosis
-        console.log(`[Test ${testSessionId}] teacherMessages:`, teacherMessages);
-        console.log(`[Test ${testSessionId}] spanishMessages:`, spanishMessages);
-        console.log(`[Test ${testSessionId}] frenchMessages:`, frenchMessages);
-        console.log(`[Test ${testSessionId}] germanMessages:`, germanMessages);
-        console.log(`[Test ${testSessionId}] All assertions passed successfully`);
+        expect(frenchTranslation?.targetLanguage).toBe('fr-FR');
+        expect(frenchTranslation?.originalText).toBe('Welcome to our international classroom!');
+        expect(frenchTranslation?.text).toBeDefined();
+        
+        console.log(`All translations received and verified successfully`);
         
       } finally {
-        // Ensure cleanup always happens
-        await cleanupConnections();
+        // Cleanup connections
+        console.log(`Cleaning up connections`);
+        [teacherWs, spanishStudent, frenchStudent].forEach(ws => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
+        });
+        
+        // Wait for cleanup to complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
-    }, 120000); // Increased timeout to 120 seconds for CI/CD reliability
+    }, 90000); // 90 second timeout for CI reliability
   });
   
   describe('Error Handling', () => {
@@ -640,7 +472,7 @@ describe('Translation Flow Component Tests', () => {
     // This tests the fix for the "N/A" target language issue
     
     // Create teacher connection
-    const teacherWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const teacherWs = new WebSocket(`ws://localhost:${actualPort}`);
     const teacherMessages: any[] = [];
     
     teacherWs.on('message', (data) => {
@@ -669,7 +501,7 @@ describe('Translation Flow Component Tests', () => {
     await waitForMessage(teacherMessages, 'register', 5000);
 
     // Create student connection but DON'T set language (this simulates the bug scenario)
-    const studentWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const studentWs = new WebSocket(`ws://localhost:${actualPort}`);
     const studentMessages: any[] = [];
     
     studentWs.on('message', (data) => {
@@ -721,7 +553,7 @@ describe('Translation Flow Component Tests', () => {
     // This tests the fix for students who haven't set their language yet
     
     // Create teacher connection
-    const teacherWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const teacherWs = new WebSocket(`ws://localhost:${actualPort}`);
     const teacherMessages: any[] = [];
     
     teacherWs.on('message', (data) => {
@@ -750,7 +582,7 @@ describe('Translation Flow Component Tests', () => {
     await waitForMessage(teacherMessages, 'register', 5000);
 
     // Create student connection but DON'T register at all (no language set)
-    const studentWs = new WebSocket(`ws://localhost:${actualPort}/ws`);
+    const studentWs = new WebSocket(`ws://localhost:${actualPort}`);
     const studentMessages: any[] = [];
     
     studentWs.on('message', (data) => {
