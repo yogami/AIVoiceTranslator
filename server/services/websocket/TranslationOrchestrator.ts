@@ -34,6 +34,7 @@ export interface LatencyTracking {
 
 export interface TranslationResult {
   translations: Map<string, string>;
+  translationResults: { language: string; translation: string }[];
   latencyInfo: {
     preparation: number;
     translation: number;
@@ -47,6 +48,7 @@ export interface SendTranslationOptions {
   originalText: string;
   sourceLanguage: string;
   translations: Map<string, string>;
+  translationResults: { language: string; translation: string }[];
   startTime: number;
   latencyTracking: LatencyTracking;
   getClientSettings: (ws: WebSocketClient) => ClientSettings | undefined;
@@ -78,7 +80,7 @@ export class TranslationOrchestrator {
     latencyTracking.components.preparation = preparationEndTime - startTime;
 
     const translations = new Map<string, string>();
-    // translationResults is not used elsewhere, so remove to fix lint warning
+    const translationResults: { language: string; translation: string }[] = [];
 
     // Start translation timing
     const translationStartTime = Date.now();
@@ -94,6 +96,7 @@ export class TranslationOrchestrator {
         );
         const translation = result.translatedText;
         translations.set(targetLanguage, translation);
+        translationResults.push({ language: targetLanguage, translation });
         logger.info('Translation completed:', {
           sourceLanguage,
           targetLanguage,
@@ -105,6 +108,7 @@ export class TranslationOrchestrator {
         logger.error(`Translation failed for ${targetLanguage}:`, { error });
         // Use original text as fallback
         translations.set(targetLanguage, text);
+        translationResults.push({ language: targetLanguage, translation: text });
         return { targetLanguage, translation: text };
       }
     });
@@ -122,6 +126,7 @@ export class TranslationOrchestrator {
 
     return {
       translations,
+      translationResults,
       latencyInfo: latencyTracking.components
     };
   }
