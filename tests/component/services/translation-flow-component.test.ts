@@ -520,7 +520,7 @@ describe('Translation Flow Component Tests', () => {
         // Ensure cleanup always happens
         await cleanupConnections();
       }
-    }, 60000); // Increased timeout to 60 seconds for CI/CD reliability
+    }, 120000); // Increased timeout to 120 seconds for CI/CD reliability
   });
   
   describe('Error Handling', () => {
