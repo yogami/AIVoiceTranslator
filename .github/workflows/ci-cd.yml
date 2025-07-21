@@ -78,6 +78,20 @@ jobs:
         run: npm ci
       - name: Run component tests
         run: npm run test:component
+        env:
+          NODE_ENV: test
+          TEST_TIMING_SCALE: 0.01
+          LOG_LEVEL: info
+          ENABLE_DETAILED_TRANSLATION_LOGGING: true
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SESSION_SECRET: test-session-secret
+          TTS_SERVICE_TYPE: openai
+          PORT: 5001
+          HOST: 127.0.0.1
+          VITE_API_URL: http://127.0.0.1:5001
+          VITE_WS_URL: ws://127.0.0.1:5001
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
