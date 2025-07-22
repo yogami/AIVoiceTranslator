@@ -1,5 +1,10 @@
 node_modules
-dist
+dist/
+!dist/Dockerfile
+.env
+node_modules
+dist/
+!dist/Dockerfile
 .env
 .env.production
 .env.local
