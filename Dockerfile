@@ -7,7 +7,6 @@ RUN npm ci --only=production
 
 COPY dist/ ./dist/
 COPY client/ ./client/
-# Add any other folders/files needed for runtime
 
 ENV NODE_ENV=production
 
