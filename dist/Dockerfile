@@ -2,7 +2,7 @@
 # Dockerfile for Railway deployment (Node.js/TypeScript)
 FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /dist
 
 COPY package*.json ./
 RUN npm ci --only=production
