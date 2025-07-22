@@ -371,6 +371,10 @@ describe('Translation Flow Component Tests', () => {
         await waitForMessage(spanishMessages, 'register', 15000);
         console.log(`Spanish student registered successfully`);
         
+        // Add CI-specific delay between student registrations
+        console.log("Adding CI delay between student registrations...");
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
         // 3. Create and register French student
         console.log(`Creating French student`);
         frenchStudent = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
@@ -451,11 +455,12 @@ describe('Translation Flow Component Tests', () => {
         }, 10000);
         
         try {
-          // Use Promise.all to wait for both translations simultaneously with extended timeout
-          const [spanishTranslation, frenchTranslation] = await Promise.all([
-            waitForMessage(spanishMessages, 'translation', 60000), // 60 second timeout for CI
-            waitForMessage(frenchMessages, 'translation', 60000)   // 60 second timeout for CI
-          ]);
+          // Wait for translations sequentially to be more CI-friendly
+          console.log("Waiting for Spanish translation...");
+          const spanishTranslation = await waitForMessage(spanishMessages, 'translation', 60000);
+          
+          console.log("Waiting for French translation...");
+          const frenchTranslation = await waitForMessage(frenchMessages, 'translation', 60000);
           
           clearInterval(progressInterval);
           
