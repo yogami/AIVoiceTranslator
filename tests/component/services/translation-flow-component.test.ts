@@ -338,7 +338,7 @@ describe('Translation Flow Component Tests', () => {
       });
     }
           role: 'teacher',
-          languageCode: 'en-US'
+          languageCode: 'en-US',
         }));
         
         await waitForMessage(teacherMessages, 'register', 15000);
