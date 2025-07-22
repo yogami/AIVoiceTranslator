@@ -4,7 +4,6 @@
  * Manages classroom codes, session validation, and cleanup.
  * Handles the generation and lifecycle of classroom sessions.
  */
-import { webcrypto } from 'node:crypto';
 import logger from '../../logger';
 import { config } from '../../config';
 
@@ -47,16 +46,12 @@ export class ClassroomSessionManager {
     // Generate new 6-character code
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code: string;
-    // Ensure uniqueness with crypto-strong randomness
+    
+    // Ensure uniqueness
     do {
-      // Use webcrypto.getRandomValues for true randomness instead of Math.random
-      const randomBytes = new Uint8Array(6);
-      webcrypto.getRandomValues(randomBytes);
-      
       code = '';
       for (let i = 0; i < 6; i++) {
-        // Use crypto random values with proper modulo
-        code += chars.charAt(randomBytes[i] % chars.length);
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
     } while (this.classroomSessions.has(code));
     
