@@ -12,4 +12,4 @@ COPY . .
 ENV NODE_ENV=production
 # Railway injects DATABASE_URL and OPENAI_API_KEY automatically
 
-CMD ["node", "server.js"]
+CMD ["node", "index.js"]
