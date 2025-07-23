@@ -127,6 +127,7 @@ export function serveStatic(app: express.Express): void {
   const htmlEntries: { [key: string]: string } = {
     '/': 'index.html',
     '/teacher': 'teacher.html',
+    '/teacher-login': 'teacher-login.html',
     '/teacher-login.html': 'teacher-login.html',
     '/student': 'student.html',  // Keep student page accessible via unique URLs from teachers
     '/analytics': 'analytics.html'  // Keep analytics for internal use
