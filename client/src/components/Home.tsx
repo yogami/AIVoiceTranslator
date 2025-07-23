@@ -15,11 +15,6 @@ const Home: React.FC = () => {
           <Link href="/teacher" className="btn">Enter Teacher Interface</Link>
         </div>
       </div>
-      
-      {/* Diagnostics Link */}
-      <div style={{ textAlign: 'center', marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
-        <Link href="/diagnostics" className="metrics-link">📊 View Application Diagnostics</Link>
-      </div>
     </div>
   );
 };
