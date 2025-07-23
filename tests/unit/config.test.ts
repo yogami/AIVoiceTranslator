@@ -90,7 +90,7 @@ describe('Config Module (server/config.ts)', () => {
       await import('../../server/config');
       throw new Error('Should have thrown'); // Fail test if import doesn't throw
     } catch (e: any) {
-      expect(e.message).toBe('PORT environment variable must be set.');
+      expect(e.message).toBe('PORT environment variable must be set in development.');
     }
   });
 
@@ -100,7 +100,7 @@ describe('Config Module (server/config.ts)', () => {
       await import('../../server/config');
       throw new Error('Should have thrown');
     } catch (e: any) {
-      expect(e.message).toBe('HOST environment variable must be set.');
+      expect(e.message).toBe('HOST environment variable must be set in development.');
     }
   });
 

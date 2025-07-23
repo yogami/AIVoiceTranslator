@@ -184,10 +184,15 @@ export async function startServer(app: express.Express): Promise<Server> {
   });
 }
 
-// Main entry point - start the server if this file is run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+/**
+ * Direct execution logic for test environments only.
+ * In production, index.ts should be the only entry point that calls startServer().
+ * This prevents duplicate server instances in Railway deployment while preserving
+ * test functionality if server.ts needs to be run directly during development/testing.
+ */
+if (import.meta.url === `file://${process.argv[1]}` && process.env.NODE_ENV === 'test') {
   const appInstance = express();
-  logger.info('[DIRECT_RUN] server.ts is being run directly. Initializing and starting server...');
+  logger.info('[DIRECT_RUN] server.ts is being run directly in test environment. Initializing and starting server...');
   // Environment variables should already be loaded by the npm script
   startServer(appInstance).catch(error => {
     logger.error('[DIRECT_RUN] Failed to start server from direct run:', error);
