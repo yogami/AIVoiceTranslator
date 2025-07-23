@@ -575,7 +575,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.click('#connect-btn');
         
         // Verify student connected status on student page
-        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
         
         // Verify teacher is still ready (status might change if student connection triggers UI update)
         await expect(page.locator('#recordButton')).toBeEnabled();
@@ -606,7 +606,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.selectOption('#language-dropdown', 'es-ES');
         // Student clicks connect
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
         
         // Student changes language (e.g., to German)
         await studentPage.selectOption('#language-dropdown', 'de-DE');
@@ -641,7 +641,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // Student selects language and connects
         await studentPage.selectOption('#language-dropdown', 'fr-FR'); // French for this test
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
         
         // Simulate reconnection by reloading
         await studentPage.reload();
@@ -652,7 +652,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.click('#connect-btn'); // Re-click connect
 
         // Verify student reconnected
-        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
         
         await expect(page.locator('#status')).toContainText('Registered as teacher');
       } finally {
@@ -692,7 +692,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
 
         // Student connects
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status.*Connected.*timeout: testConfig.ui.connectionStatusTimeout });
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
         await expect(studentPage.locator('#translation-display')).toContainText('Waiting for teacher to start speaking...');
 
         // 3. Teacher Action

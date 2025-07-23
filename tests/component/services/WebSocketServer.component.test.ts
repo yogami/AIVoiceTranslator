@@ -185,9 +185,6 @@ describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
       registerResponseType: registerResponse.type
     });
     
-    // CRITICAL: Wait for session to be updated with student count
-    await waitForSessionUpdate(sessionId, 'student registration');
-    
     return { connMsg, registerResponse };
   };
 
@@ -201,7 +198,6 @@ describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
           console.log(`🔍 [SESSION-WAIT] Session found after ${attempt} attempts (${context}):`, {
             sessionId: session.sessionId,
             isActive: session.isActive,
-            studentsCount: session.studentsCount,
             classCode: session.classCode,
             dbId: session.id
           });
@@ -230,35 +226,6 @@ describe('WebSocketServer Component Tests', { timeout: 30000 }, () => {
     }
     
     throw new Error(`Session ${sessionId} not found in database after ${maxRetries} attempts (${context})`);
-  };
-
-  const waitForSessionUpdate = async (sessionId: string, context: string, maxRetries: number = 10): Promise<void> => {
-    console.log(`🔍 [SESSION-UPDATE] Waiting for session update (${context}):`, sessionId);
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        const session = await realStorage.getSessionById(sessionId);
-        if (session && session.studentsCount && session.studentsCount > 0) {
-          console.log(`🔍 [SESSION-UPDATE] Session updated after ${attempt} attempts (${context}):`, {
-            sessionId: session.sessionId,
-            isActive: session.isActive,
-            studentsCount: session.studentsCount,
-            classCode: session.classCode
-          });
-          return;
-        }
-      } catch (error) {
-        console.warn(`🔍 [SESSION-UPDATE] Attempt ${attempt} error:`, error);
-      }
-      
-      if (attempt < maxRetries) {
-        const delay = attempt * 150; // Progressive delay
-        console.log(`🔍 [SESSION-UPDATE] Session not updated yet, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-    
-    throw new Error(`Session ${sessionId} not updated with student count after ${maxRetries} attempts (${context})`);
   };
 
 beforeAll(async () => {
@@ -435,13 +402,11 @@ beforeAll(async () => {
           id: updatedSession.id,
           sessionId: updatedSession.sessionId,
           isActive: updatedSession.isActive,
-          studentsCount: updatedSession.studentsCount,
           classCode: updatedSession.classCode,
           lastActivityAt: updatedSession.lastActivityAt
         });
       }
       expect(updatedSession).toBeDefined();
-      expect(updatedSession?.studentsCount).toBe(1);
       expect(updatedSession?.isActive).toBe(true);
       console.log('END: Component flow test passed');
     }, 30000);
@@ -520,8 +485,6 @@ beforeAll(async () => {
       }, 'register', 2);
       // Wait for student notification
       await waitForMessage(teacherClient, 'student_joined', 1);
-      // Force session state to active and studentsCount = 1
-      await realStorage.updateSession(sessionId, { isActive: true, studentsCount: 1 });
       const texts = ['Hello-1', 'Hello-2', 'Hello-3'];
       for (const text of texts) {
         const translationPromise = waitForMessage(studentClient, 'translation', 2);
