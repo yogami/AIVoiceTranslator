@@ -15,14 +15,14 @@ import { testConfig } from "../tests/e2e/helpers/test-timeouts.js";
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: "tests/e2enew",
+  testDir: "../tests/e2e",
   fullyParallel: false, // Disable parallel execution to avoid DB conflicts during seeding
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Force single worker to ensure database isolation
   reporter: "html",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5000"}`,
     trace: "on-first-retry",
   },
   projects: [
@@ -40,18 +40,20 @@ export default defineConfig({
     //   use: { ...devices['Desktop Safari'] },
     // },
   ],
+  /* Run your local dev server before starting the tests */
   webServer: {
-    command: "npm run dev:test",
-    url: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
-    // reuseExistingServer is not supported in latest Playwright config
-    cwd: process.cwd(),
-    timeout: 12000, // Restore timeout to default for faster feedback
+    command: "cd /Users/yamijala/gitprojects/AIVoiceTranslator && npm run start:test-env",
+    url: "http://127.0.0.1:5000",
+    reuseExistingServer: true,
+    timeout: 120 * 1000,
+    stderr: "pipe",
+    stdout: "pipe",
     env: {
       ...process.env,
       NODE_ENV: "test",
       E2E_TEST_MODE: "true",
       LOG_LEVEL: "info",
-      PORT: process.env.PORT || "5001",
+      PORT: process.env.PORT || "5000",
       HOST: process.env.HOST || "127.0.0.1",
       ANALYTICS_PASSWORD: ""
     },
@@ -65,6 +67,6 @@ if (!baseURL) {
   if (process.env.CI) {
     throw new Error("PLAYWRIGHT_BASE_URL environment variable must be set for Playwright tests.");
   } else {
-    process.env.PLAYWRIGHT_BASE_URL = `http://${process.env.HOST || "localhost"}:${process.env.PORT || "5001"}`;
+    process.env.PLAYWRIGHT_BASE_URL = `http://${process.env.HOST || "localhost"}:${process.env.PORT || "5000"}`;
   }
 }

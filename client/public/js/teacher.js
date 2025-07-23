@@ -82,8 +82,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         classroomCodeDisplay: null,
         studentUrlDisplay: null,
         qrCodeContainer: null,
-        studentCountDisplay: null, // For future use
-        studentsListDisplay: null, // For future use
+        // studentCountDisplay: null, // For future use - commented out as not implemented
+        // studentsListDisplay: null, // For future use - commented out as not implemented
     };
 
     const uiUpdater = {
@@ -487,8 +487,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         domElements.classroomCodeDisplay = document.getElementById('classroom-code-display');
         domElements.studentUrlDisplay = document.getElementById('studentUrl');
         domElements.qrCodeContainer = document.getElementById('qr-code');
-        domElements.studentCountDisplay = document.getElementById('studentCount');
-        domElements.studentsListDisplay = document.getElementById('studentsList');
+        // domElements.studentCountDisplay = document.getElementById('studentCount');
+        // domElements.studentsListDisplay = document.getElementById('studentsList');
 
         if (domElements.languageSelect) {
             appState.selectedLanguage = domElements.languageSelect.value;
