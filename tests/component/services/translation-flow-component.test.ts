@@ -292,53 +292,39 @@ describe('Translation Flow Component Tests', () => {
       studentClient.close();
     });
     
-    const isCI = process.env.CI === "true";
-    if (!isCI) {
-      it('should handle translations to multiple students in different languages', async () => {
-        console.log(`Starting multi-student translation test`);
+    it('should handle translations to multiple students in different languages', async () => {
+      console.log(`Starting multi-student translation test`);
+      
+      const teacherMessages: any[] = [];
+      const spanishMessages: any[] = [];
+      const frenchMessages: any[] = [];
+      
+      let teacherWs!: WebSocket;
+      let spanishStudent!: WebSocket;
+      let frenchStudent!: WebSocket;
+      
+      try {
+        // 1. Create and register teacher with longer initial delay
+        console.log(`Creating teacher connection`);
+        teacherWs = new WebSocket(`ws://localhost:${actualPort}`);
+        teacherWs.on('message', (data) => {
+          const message = JSON.parse(data.toString());
+          teacherMessages.push(message);
+          console.log(`Teacher received: ${message.type}`);
+        });
         
-        const teacherMessages: any[] = [];
-        const spanishMessages: any[] = [];
-        const frenchMessages: any[] = [];
+        await new Promise<void>((resolve, reject) => {
+          teacherWs.on('open', resolve);
+          teacherWs.on('error', reject);
+          setTimeout(() => reject(new Error('Teacher connection timeout')), 15000);
+        });
         
-        let teacherWs!: WebSocket;
-        let spanishStudent!: WebSocket;
-        let frenchStudent!: WebSocket;
+        await waitForMessage(teacherMessages, 'connection', 15000);
         
-        try {
-          // 1. Create and register teacher with longer initial delay
-          console.log(`Creating teacher connection`);
-          teacherWs = new WebSocket(`ws://localhost:${actualPort}`);
-          teacherWs.on('message', (data) => {
-            const message = JSON.parse(data.toString());
-            teacherMessages.push(message);
-            console.log(`Teacher received: ${message.type}`);
-          });
-          
-          await new Promise<void>((resolve, reject) => {
-            teacherWs.on('open', resolve);
-            teacherWs.on('error', reject);
-            setTimeout(() => reject(new Error('Teacher connection timeout')), 15000);
-          });
-          
-          await waitForMessage(teacherMessages, 'connection', 15000);
-          
-          teacherWs.send(JSON.stringify({
-            type: 'register',
-            // ...existing code...
-          }));
-          // ...existing code...
-        } catch (err) {
-          // ...existing code...
-        }
-      });
-    } else {
-      it.skip('should handle translations to multiple students in different languages', async () => {
-        // Skipped in CI due to flakiness
-      });
-    }
+        teacherWs.send(JSON.stringify({
+          type: 'register',
           role: 'teacher',
-          languageCode: 'en-US',
+          languageCode: 'en-US'
         }));
         
         await waitForMessage(teacherMessages, 'register', 15000);
@@ -384,10 +370,6 @@ describe('Translation Flow Component Tests', () => {
         
         await waitForMessage(spanishMessages, 'register', 15000);
         console.log(`Spanish student registered successfully`);
-        
-        // Add CI-specific delay between student registrations
-        console.log("Adding CI delay between student registrations...");
-        await new Promise(resolve => setTimeout(resolve, 3000));
         
         // 3. Create and register French student
         console.log(`Creating French student`);
@@ -469,12 +451,11 @@ describe('Translation Flow Component Tests', () => {
         }, 10000);
         
         try {
-          // Wait for translations sequentially to be more CI-friendly
-          console.log("Waiting for Spanish translation...");
-          const spanishTranslation = await waitForMessage(spanishMessages, 'translation', 60000);
-          
-          console.log("Waiting for French translation...");
-          const frenchTranslation = await waitForMessage(frenchMessages, 'translation', 60000);
+          // Use Promise.all to wait for both translations simultaneously with extended timeout
+          const [spanishTranslation, frenchTranslation] = await Promise.all([
+            waitForMessage(spanishMessages, 'translation', 60000), // 60 second timeout for CI
+            waitForMessage(frenchMessages, 'translation', 60000)   // 60 second timeout for CI
+          ]);
           
           clearInterval(progressInterval);
           
