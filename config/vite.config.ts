@@ -30,6 +30,12 @@ export default defineConfig(async ({ mode, command }) => {
   // Vite automatically loads .env files. This explicit loadEnv is for use within this config file itself.
   const env = loadEnv(mode, projectRoot, '');
   
+  // Debug: Log what environment variables are available during build
+  console.log('[vite.config.ts] DEBUG: env.VITE_API_URL =', env.VITE_API_URL);
+  console.log('[vite.config.ts] DEBUG: process.env.VITE_API_URL =', process.env.VITE_API_URL);
+  console.log('[vite.config.ts] DEBUG: env.VITE_WS_URL =', env.VITE_WS_URL);
+  console.log('[vite.config.ts] DEBUG: process.env.VITE_WS_URL =', process.env.VITE_WS_URL);
+  
   // Check if we're in test mode based on NODE_ENV (not Vite mode)
   const isTestMode = process.env.NODE_ENV === 'test';
   
