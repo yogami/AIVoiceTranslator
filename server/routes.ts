@@ -234,10 +234,16 @@ export const createApiRoutes = (
         dbStatus = 'disconnected';
     }
 
-    // Check WebSocket server status
+    // Get session counts and check WebSocket server status
     let webSocketStatus = 'unknown';
+    let activeSessions = 0;
+    let activeTeachers = 0;
+    let activeStudents = 0;
+    
     try {
-      const wsConnections = activeSessionProvider.getActiveSessionsCount();
+      activeSessions = activeSessionProvider.getActiveSessionsCount();
+      activeTeachers = activeSessionProvider.getActiveTeacherCount();
+      activeStudents = activeSessionProvider.getActiveStudentCount();
       webSocketStatus = 'active';
     } catch (e) {
       webSocketStatus = 'error';
@@ -250,9 +256,9 @@ export const createApiRoutes = (
       database: dbStatus,
       webSocket: webSocketStatus,
       environment: process.env.NODE_ENV || 'development',
-      activeSessions: activeSessionProvider.getActiveSessionsCount(), // Corrected method name
-      activeTeachers: activeSessionProvider.getActiveTeacherCount(), // Added available metric
-      activeStudents: activeSessionProvider.getActiveStudentCount() // Added available metric
+      activeSessions,
+      activeTeachers,
+      activeStudents
     });
   });
 
