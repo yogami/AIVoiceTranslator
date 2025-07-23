@@ -94,14 +94,28 @@ export const config: AppConfig = {
   },
   server: {
     port: (() => {
-      // Railway automatically provides PORT, but we need to handle cases where it's not set
+      /**
+       * Railway Deployment PORT Configuration
+       * 
+       * Railway automatically assigns and provides a PORT environment variable for deployed services.
+       * However, during deployment troubleshooting, we discovered that Railway wasn't providing PORT
+       * in some cases, causing EADDRINUSE errors when the app tried to bind to undefined/default ports.
+       * 
+       * This configuration implements Railway-specific logic:
+       * - In production: PORT is optional with fallback to 3000 (Railway should auto-provide)
+       * - In development: PORT is required and must be explicitly set in .env
+       * 
+       * The fallback ensures Railway deployments don't fail if PORT isn't auto-provided,
+       * while maintaining strict validation for local development environments.
+       */
       const portEnv = process.env.PORT;
       if (!portEnv) {
         if (process.env.NODE_ENV === 'production') {
-          // In production without PORT, Railway should provide this, but fallback to 3000
+          // Railway should provide PORT automatically, but fallback prevents deployment failures
           console.warn('PORT environment variable not provided by Railway, using fallback port 3000');
           return 3000;
         } else {
+          // Development requires explicit PORT configuration
           throw new Error('PORT environment variable must be set in development.');
         }
       }
@@ -112,13 +126,27 @@ export const config: AppConfig = {
       return parsedPort;
     })(),
     host: (() => {
-      // In production (Railway), HOST is optional and defaults to 0.0.0.0
-      // In development, HOST is required
+      /**
+       * Railway Deployment HOST Configuration
+       * 
+       * Railway requires applications to bind to '0.0.0.0' (all network interfaces) to receive
+       * external traffic through their proxy system. Unlike local development where we bind to
+       * specific interfaces like '127.0.0.1', Railway needs the app to listen on all interfaces.
+       * 
+       * This configuration implements environment-specific binding:
+       * - In production: HOST defaults to '0.0.0.0' for Railway's proxy system compatibility
+       * - In development: HOST is required and should be explicitly set (usually '127.0.0.1')
+       * 
+       * The automatic '0.0.0.0' binding in production ensures Railway can route traffic to the
+       * containerized application without requiring manual HOST configuration in Railway dashboard.
+       */
       const host = process.env.HOST;
       if (!host) {
         if (process.env.NODE_ENV === 'production') {
-          return '0.0.0.0'; // Default for Railway/production
+          // Railway requires binding to all interfaces for external traffic routing
+          return '0.0.0.0';
         } else {
+          // Development requires explicit HOST specification for security and clarity
           throw new Error('HOST environment variable must be set in development.');
         }
       }
