@@ -94,9 +94,21 @@ export const config: AppConfig = {
   },
   server: {
     port: (() => {
-      if (!process.env.PORT) throw new Error('PORT environment variable must be set.');
-      const parsedPort = parseInt(process.env.PORT, 10);
-      if (isNaN(parsedPort)) throw new Error('PORT environment variable must be a valid number.');
+      // Railway automatically provides PORT, but we need to handle cases where it's not set
+      const portEnv = process.env.PORT;
+      if (!portEnv) {
+        if (process.env.NODE_ENV === 'production') {
+          // In production without PORT, Railway should provide this, but fallback to 3000
+          console.warn('PORT environment variable not provided by Railway, using fallback port 3000');
+          return 3000;
+        } else {
+          throw new Error('PORT environment variable must be set in development.');
+        }
+      }
+      const parsedPort = parseInt(portEnv, 10);
+      if (isNaN(parsedPort)) {
+        throw new Error('PORT environment variable must be a valid number.');
+      }
       return parsedPort;
     })(),
     host: (() => {
