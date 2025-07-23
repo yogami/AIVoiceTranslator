@@ -58,22 +58,6 @@ export async function setupVite(app: express.Express): Promise<void> {
             continue;
           }
           
-          // Special handling for analytics route - serve analytics.html with auth
-          if (name === 'analytics') {
-            const { analyticsPageAuth } = await import('./middleware/analytics-security.js');
-            app.get('/analytics', analyticsPageAuth, async (req, res, next) => {
-              try {
-                const html = await fsPromises.readFile(filePath, 'utf-8');
-                const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
-                logger.info(`[VITE DEV] Serving transformed /analytics from ${filePath} (analytics.html)`);
-                res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
-              } catch (e: any) {
-                logger.error(`[VITE DEV] Error transforming HTML for /analytics: ${e.message}`);
-                return next(e);
-              }
-            });
-          }
-          
           if (name === 'main' && urlPath === '/') {
             app.get('/index.html', async (req, res, next) => {
               try {
@@ -144,8 +128,8 @@ export function serveStatic(app: express.Express): void {
     '/': 'index.html',
     '/teacher': 'teacher.html',
     '/teacher-login.html': 'teacher-login.html',
-    '/student': 'student.html',
-    '/analytics': 'analytics.html'  // Analytics route serves analytics.html
+    '/student': 'student.html',  // Keep student page accessible via unique URLs from teachers
+    '/analytics': 'analytics.html'  // Keep analytics for internal use
   };
 
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
