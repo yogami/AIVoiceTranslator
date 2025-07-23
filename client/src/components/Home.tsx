@@ -14,23 +14,6 @@ const Home: React.FC = () => {
           <p>Start a teaching session and have your speech translated for students in real-time.</p>
           <Link href="/teacher" className="btn">Enter Teacher Interface</Link>
         </div>
-        
-        <div className="card">
-          <h2>Student Interface</h2>
-          <p>Join a teacher's session and receive translations in your preferred language.</p>
-          <Link href="/student" className="btn">Enter Student Interface</Link>
-        </div>
-      </div>
-      
-      {/* QR Code Section */}
-      <div style={{ marginTop: '40px', textAlign: 'center', padding: '20px', border: '1px solid #eee', borderRadius: '8px', backgroundColor: '#f9f9f9' }}>
-        <h2 style={{ color: '#2563eb', marginBottom: '15px' }}>Mobile Access</h2>
-        <p style={{ marginBottom: '20px' }}>Scan this QR code with your phone to access the student interface on your mobile device:</p>
-        <div>
-          <img src="/student-interface-qr.png" alt="QR Code for Student Interface" style={{ maxWidth: '200px', height: 'auto', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '15px' }} />
-        </div>
-        <p style={{ fontSize: '15px', color: '#666' }}>Scan to use the student interface on your mobile device</p>
-        <a href="/public/simple-student.html" className="btn" style={{ marginTop: '10px', backgroundColor: '#2563eb' }}>Or Open Student Interface Here</a>
       </div>
       
       {/* Diagnostics Link */}
