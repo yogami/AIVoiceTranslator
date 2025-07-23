@@ -234,11 +234,21 @@ export const createApiRoutes = (
         dbStatus = 'disconnected';
     }
 
+    // Check WebSocket server status
+    let webSocketStatus = 'unknown';
+    try {
+      const wsConnections = activeSessionProvider.getActiveSessionsCount();
+      webSocketStatus = 'active';
+    } catch (e) {
+      webSocketStatus = 'error';
+    }
+
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       version: API_VERSION,
       database: dbStatus,
+      webSocket: webSocketStatus,
       environment: process.env.NODE_ENV || 'development',
       activeSessions: activeSessionProvider.getActiveSessionsCount(), // Corrected method name
       activeTeachers: activeSessionProvider.getActiveTeacherCount(), // Added available metric
