@@ -13,6 +13,11 @@ import { IStorage } from './storage.interface.js';
 import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
 import { SessionCleanupService } from './services/SessionCleanupService.js';
 import authRoutes from './routes/auth';
+import { 
+  analyticsRateLimit, 
+  analyticsSecurityMiddleware, 
+  analyticsPageAuth 
+} from './middleware/analytics-security.js';
 
 // Constants
 const API_VERSION = '1.0.0';
@@ -399,10 +404,25 @@ export const createApiRoutes = (
   // Classroom routes
   router.get('/join/:classCode', joinClassroom);
 
-  // Analytics routes
-  router.post('/analytics/query', handleAnalyticsQuery);
-  router.post('/analytics/ask', handleAnalyticsQuery); // Alias for client compatibility
-  router.post('/analytics/test', testAnalyticsQuery); // Test endpoint
+  // Analytics routes - SECURED with authentication and validation
+  router.post('/analytics/query', 
+    analyticsRateLimit, 
+    analyticsSecurityMiddleware, 
+    analyticsPageAuth, 
+    handleAnalyticsQuery
+  );
+  router.post('/analytics/ask', 
+    analyticsRateLimit, 
+    analyticsSecurityMiddleware, 
+    analyticsPageAuth, 
+    handleAnalyticsQuery
+  ); // Alias for client compatibility
+  router.post('/analytics/test', 
+    analyticsRateLimit, 
+    analyticsSecurityMiddleware, 
+    analyticsPageAuth, 
+    testAnalyticsQuery
+  ); // Test endpoint
 
   // Test routes
   router.get('/test', testEndpoint);
