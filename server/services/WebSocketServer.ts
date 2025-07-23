@@ -200,8 +200,19 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   private setupEventHandlers(): void {
     // Handle new connections
     this.wss.on('connection', (ws: WebSocket, request) => {
+      logger.info('WebSocket connection attempt received', { 
+        url: request.url, 
+        headers: request.headers,
+        origin: request.headers.origin,
+        userAgent: request.headers['user-agent']
+      });
       // Cast WebSocket to our custom WebSocketClient type
       this.handleConnection(ws as unknown as WebSocketClient, request);
+    });
+    
+    // Log WebSocket server errors
+    this.wss.on('error', (error) => {
+      logger.error('WebSocket Server error:', { error });
     });
     
     // Note: Heartbeat is now handled by ConnectionHealthManager
