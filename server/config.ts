@@ -100,8 +100,17 @@ export const config: AppConfig = {
       return parsedPort;
     })(),
     host: (() => {
-      if (!process.env.HOST) throw new Error('HOST environment variable must be set.');
-      return process.env.HOST;
+      // In production (Railway), HOST is optional and defaults to 0.0.0.0
+      // In development, HOST is required
+      const host = process.env.HOST;
+      if (!host) {
+        if (process.env.NODE_ENV === 'production') {
+          return '0.0.0.0'; // Default for Railway/production
+        } else {
+          throw new Error('HOST environment variable must be set in development.');
+        }
+      }
+      return host;
     })(),
   },
   app: {
