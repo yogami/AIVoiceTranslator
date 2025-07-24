@@ -21,11 +21,17 @@ RUN npm run build:server
 # Verify build outputs exist
 RUN ls -la dist/ && ls -la dist/client/
 
+# Verify essential production directories exist
+RUN ls -la db-migration-scripts/ && ls -la migrations/ && ls -la config/ && ls -la shared/
+
 # Clean up dev dependencies and install only production dependencies
 RUN npm prune --production && npm cache clean --force
 
-# Remove development files to reduce image size (keep essential directories for production)
-RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/ temp/ scripts/
+# Remove ONLY development-specific directories (be explicit about what to keep)
+RUN rm -rf server/ client/ docs/ tests/ test-config/ test-scripts/ test-results/ playwright-report/ .git/ temp/ scripts/ cypress/
+
+# Verify essential production files still exist after cleanup
+RUN ls -la db-migration-scripts/migrate.ts && ls -la migrations/ && ls -la config/ && ls -la shared/ && ls -la dist/
 
 # Set production environment
 ENV NODE_ENV=production
