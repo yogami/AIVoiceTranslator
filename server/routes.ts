@@ -299,10 +299,10 @@ export const createApiRoutes = (
       }
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: 'gpt-4o-mini',
         messages: [
           {
-            role: "system",
+            role: 'system',
             content: `You are an AI assistant helping analyze AI Voice Translator system analytics. 
 
 Available data fields:
@@ -317,7 +317,7 @@ Available data fields:
 Answer the user's question clearly and directly based on this data. Be concise and helpful.`
           },
           {
-            role: "user", 
+            role: 'user', 
             content: question
           }
         ],
