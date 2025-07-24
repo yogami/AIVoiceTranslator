@@ -131,6 +131,21 @@ export class DatabaseStorage implements IStorage {
     return this.sessionStorage.getSessionById(sessionId);
   }
 
+  async getTotalStudentSlots(): Promise<number> {
+    try {
+      const result = await drizzleDB
+        .select({
+          totalStudents: sql`SUM(COALESCE(students_count, 0))`
+        })
+        .from(sessions);
+      
+      return Number(result[0]?.totalStudents) || 0;
+    } catch (error) {
+      logger.error('Failed to get total student slots:', error);
+      return 0;
+    }
+  }
+
   async createSession(sessionData: InsertSession): Promise<Session> {
     return this.sessionStorage.createSession(sessionData);
   }
