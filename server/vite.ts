@@ -141,13 +141,27 @@ export function serveStatic(app: express.Express): void {
       }
     });
 
-    // SPA routes - serve index.html for all client-side routes
-    const spaRoutes = ['/', '/teacher', '/student', '/diagnostics', '/teacher-login'];
-    spaRoutes.forEach(route => {
-      app.get(route, (req, res) => {
-        logger.info(`[PROD STATIC] Serving ${indexHtmlPath} for ${req.path} (SPA route)`);
-        res.sendFile(indexHtmlPath);
-      });
+    // Serve specific HTML files for their routes
+    const htmlRoutes = {
+      '/': 'index.html',
+      '/teacher': 'teacher.html',
+      '/teacher-login': 'teacher-login.html'
+    };
+
+    Object.entries(htmlRoutes).forEach(([route, htmlFile]) => {
+      const htmlPath = path.join(clientDistPath, htmlFile);
+      if (fsSync.existsSync(htmlPath)) {
+        app.get(route, (req, res) => {
+          logger.info(`[PROD STATIC] Serving ${htmlPath} for ${req.path}`);
+          res.sendFile(htmlPath);
+        });
+      } else {
+        logger.warn(`[PROD STATIC] HTML file not found: ${htmlPath}. Route ${route} will fall back to index.html`);
+        app.get(route, (req, res) => {
+          logger.info(`[PROD STATIC] Serving ${indexHtmlPath} for ${req.path} (fallback)`);
+          res.sendFile(indexHtmlPath);
+        });
+      }
     });
 
     // Explicit index.html route
