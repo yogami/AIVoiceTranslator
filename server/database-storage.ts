@@ -1,11 +1,14 @@
 import {
-  type User, users, insertUserSchema,
+  type User, users, insertUserSchema, // eslint-disable-line @typescript-eslint/no-unused-vars  
   type Session, sessions, type InsertSession,
   type Translation, translations, type InsertTranslation,
-  type Language, languages, type InsertLanguage, // Added languages table object
-  type Transcript, transcripts as transcriptsTable, type InsertTranscript // Added transcripts table object and aliased to avoid conflict
+  type Language, languages, type InsertLanguage, // eslint-disable-line @typescript-eslint/no-unused-vars
+  type Transcript, // eslint-disable-line @typescript-eslint/no-unused-vars
+  transcripts as transcriptsTable, // eslint-disable-line @typescript-eslint/no-unused-vars
+  type InsertTranscript // eslint-disable-line @typescript-eslint/no-unused-vars
 } from '../shared/schema';
 import { z } from 'zod';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { StorageError, StorageErrorCode } from './storage.error';
 import { IStorage } from './storage.interface';
 import logger from './logger';
@@ -129,21 +132,6 @@ export class DatabaseStorage implements IStorage {
   
   async getSessionById(sessionId: string): Promise<Session | undefined> {
     return this.sessionStorage.getSessionById(sessionId);
-  }
-
-  async getTotalStudentSlots(): Promise<number> {
-    try {
-      const result = await drizzleDB
-        .select({
-          totalStudents: sql`SUM(COALESCE(students_count, 0))`
-        })
-        .from(sessions);
-      
-      return Number(result[0]?.totalStudents) || 0;
-    } catch (error) {
-      logger.error('Failed to get total student slots:', error);
-      return 0;
-    }
   }
 
   async createSession(sessionData: InsertSession): Promise<Session> {

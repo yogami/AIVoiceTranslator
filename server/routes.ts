@@ -5,14 +5,8 @@
  * - Single Responsibility: Each handler has one clear purpose
  * - DRY: Shared logic is extracted into reusable functions
  * - Explicit Error Handling: Consistent error responses
- * - Input Validation: All inputs are validated before processing    // Return structured response for analytics
-    const response = {
-      success: true,
-      answer,
-      data: stats,
-      question
-    };
-    res.json(response);n Code: Self-documenting function names and clear structure
+ * - Input Validation: All inputs are validated before processing
+ * - Clean Code: Self-documenting function names and clear structure
  */
 import { Router, Request, Response, NextFunction } from 'express';
 import { sql } from 'drizzle-orm';
@@ -23,6 +17,7 @@ import { IStorage } from './storage.interface.js';
 import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
 import { SessionCleanupService } from './services/SessionCleanupService.js';
 import authRoutes from './routes/auth';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { 
   analyticsRateLimit, 
   analyticsSecurityMiddleware, 
@@ -93,7 +88,8 @@ function parseLimit(limitParam: any, defaultLimit: number = 10): number {
 // Create router instance via a function to allow dependency injection
 export const createApiRoutes = (
   storage: IStorage,
-  activeSessionProvider: IActiveSessionProvider, // Or WebSocketServer if direct interaction is needed
+  activeSessionProvider: IActiveSessionProvider, // Or WebSocketServer if direct interaction is needed  
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   sessionCleanupService?: SessionCleanupService // Add optional cleanup service for admin endpoints
 ): Router => {
   const router = Router();
@@ -442,6 +438,164 @@ Answer the user's question clearly and directly based on this data. Be concise a
     res.json(response);
   });
 
+  /**
+   * Get currently active sessions
+   */
+  const getActiveSessionsNow = asyncHandler(async (req: Request, res: Response) => {
+    const activeSessionsResult = await db.select({
+      count: sql<number>`COUNT(*)`,
+      sessionIds: sql<string[]>`ARRAY_AGG(session_id)`,
+      teacherIds: sql<string[]>`ARRAY_AGG(teacher_id::text)`,
+      classCodes: sql<string[]>`ARRAY_AGG(class_code)`
+    }).from(sessions).where(sql`is_active = true`);
+
+    const result = activeSessionsResult[0];
+    const sqlQuery = `SELECT COUNT(*) as count, ARRAY_AGG(session_id) as session_ids, 
+                      ARRAY_AGG(teacher_id::text) as teacher_ids, ARRAY_AGG(class_code) as class_codes 
+                      FROM sessions WHERE is_active = true`;
+
+    res.json({
+      success: true,
+      data: {
+        activeSessionsCount: Number(result.count || 0),
+        sessionIds: result.sessionIds || [],
+        teacherIds: result.teacherIds || [],
+        classCodes: result.classCodes || []
+      },
+      sql: sqlQuery,
+      description: "Shows currently active teaching sessions"
+    });
+  });
+
+  /**
+   * Get sessions from this week
+   */
+  const getSessionsThisWeek = asyncHandler(async (req: Request, res: Response) => {
+    const weeklySessionsResult = await db.select({
+      count: sql<number>`COUNT(*)`,
+      todayCount: sql<number>`COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END)`,
+      last7Days: sql<number>`COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END)`,
+      thisWeekSessions: sql<any>`ARRAY_AGG(
+        JSON_BUILD_OBJECT(
+          'sessionId', session_id,
+          'teacherId', teacher_id,
+          'classCode', class_code,
+          'startTime', start_time,
+          'studentsCount', students_count,
+          'totalTranslations', total_translations
+        ) ORDER BY start_time DESC
+      ) FILTER (WHERE start_time >= CURRENT_DATE - INTERVAL '7 days')`
+    }).from(sessions);
+
+    const result = weeklySessionsResult[0];
+    const sqlQuery = `SELECT COUNT(*) as total_sessions,
+                      COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END) as today_sessions,
+                      COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as week_sessions
+                      FROM sessions`;
+
+    res.json({
+      success: true,
+      data: {
+        totalSessions: Number(result.count || 0),
+        sessionsToday: Number(result.todayCount || 0),
+        sessionsThisWeek: Number(result.last7Days || 0),
+        weeklySessionDetails: result.thisWeekSessions || []
+      },
+      sql: sqlQuery,
+      description: "Sessions created in the last 7 days vs today vs all time"
+    });
+  });
+
+  /**
+   * Get average translations per session
+   */
+  const getTranslationsPerSession = asyncHandler(async (req: Request, res: Response) => {
+    const translationStatsResult = await db.select({
+      avgTranslations: sql<number>`AVG(COALESCE(total_translations, 0))`,
+      totalTranslations: sql<number>`SUM(COALESCE(total_translations, 0))`,
+      sessionsWithTranslations: sql<number>`COUNT(CASE WHEN total_translations > 0 THEN 1 END)`,
+      topSessions: sql<any>`ARRAY_AGG(
+        JSON_BUILD_OBJECT(
+          'sessionId', session_id,
+          'classCode', class_code,
+          'translations', total_translations,
+          'students', students_count,
+          'startTime', start_time
+        ) ORDER BY total_translations DESC
+      ) FILTER (WHERE total_translations > 0)`
+    }).from(sessions);
+
+    const result = translationStatsResult[0];
+    const sqlQuery = `SELECT AVG(COALESCE(total_translations, 0)) as avg_translations,
+                      SUM(COALESCE(total_translations, 0)) as total_translations,
+                      COUNT(CASE WHEN total_translations > 0 THEN 1 END) as active_sessions
+                      FROM sessions`;
+
+    res.json({
+      success: true,
+      data: {
+        averageTranslationsPerSession: Math.round(Number(result.avgTranslations || 0) * 10) / 10,
+        totalTranslationsAllTime: Number(result.totalTranslations || 0),
+        sessionsWithActivity: Number(result.sessionsWithTranslations || 0),
+        topActiveSessions: (result.topSessions || []).slice(0, 5)
+      },
+      sql: sqlQuery,
+      description: "Translation activity across all sessions - shows actual usage"
+    });
+  });
+
+  /**
+   * Get peak usage hours based on session start times
+   */
+  const getPeakUsageHours = asyncHandler(async (req: Request, res: Response) => {
+    const peakHoursResult = await db.select({
+      hourlyDistribution: sql<any>`ARRAY_AGG(
+        JSON_BUILD_OBJECT(
+          'hour', EXTRACT(HOUR FROM start_time),
+          'count', COUNT(*)
+        )
+      )`
+    }).from(sessions)
+      .groupBy(sql`EXTRACT(HOUR FROM start_time)`)
+      .orderBy(sql`COUNT(*) DESC`);
+
+    // Get connection events from today (if we had a connections table, but we can approximate with sessions)
+    const todayActivityResult = await db.select({
+      connectionsToday: sql<number>`COUNT(*)`,
+      peakHour: sql<number>`EXTRACT(HOUR FROM start_time)`,
+      todaySessions: sql<any>`ARRAY_AGG(
+        JSON_BUILD_OBJECT(
+          'hour', EXTRACT(HOUR FROM start_time),
+          'classCode', class_code,
+          'students', students_count
+        ) ORDER BY start_time DESC
+      )`
+    }).from(sessions)
+      .where(sql`DATE(start_time) = CURRENT_DATE`)
+      .groupBy(sql`EXTRACT(HOUR FROM start_time)`)
+      .orderBy(sql`COUNT(*) DESC`)
+      .limit(1);
+
+    const hourlyData = peakHoursResult[0];
+    const todayData = todayActivityResult[0];
+    const sqlQuery = `SELECT EXTRACT(HOUR FROM start_time) as hour, COUNT(*) as sessions
+                      FROM sessions 
+                      GROUP BY EXTRACT(HOUR FROM start_time) 
+                      ORDER BY COUNT(*) DESC`;
+
+    res.json({
+      success: true,
+      data: {
+        peakHour: Number(todayData?.peakHour || 0),
+        connectionsToday: Number(todayData?.connectionsToday || 0),
+        hourlyDistribution: hourlyData?.hourlyDistribution || [],
+        todayActivity: todayData?.todaySessions || []
+      },
+      sql: sqlQuery,
+      description: "Shows when teachers are most active (peak hours for starting sessions)"
+    });
+  });
+
   // ============================================================================
   // Test Routes
   // ============================================================================
@@ -490,6 +644,12 @@ Answer the user's question clearly and directly based on this data. Be concise a
   router.post('/analytics/ask', handleAnalyticsQuery); // Alias for client compatibility
   router.post('/analytics/test', testAnalyticsQuery); // Test endpoint
   router.get('/debug/database', debugDatabase); // Debug endpoint
+  
+  // New meaningful analytics endpoints
+  router.get('/analytics/active-sessions', getActiveSessionsNow);
+  router.get('/analytics/sessions-this-week', getSessionsThisWeek);
+  router.get('/analytics/translations-per-session', getTranslationsPerSession);
+  router.get('/analytics/peak-hours', getPeakUsageHours);
 
   // Test routes
   router.get('/test', testEndpoint);
@@ -504,7 +664,7 @@ Answer the user's question clearly and directly based on this data. Be concise a
 /**
  * Global error handler for API routes
  */
-export const apiErrorHandler = (error: any, req: Request, res: Response, next: NextFunction) => {
+export const apiErrorHandler = (error: any, req: Request, res: Response, _next: NextFunction) => {
   console.error('API Error:', error);
   console.log(`API Error Handler - req.path: "${req.path}"`); // Log req.path
 

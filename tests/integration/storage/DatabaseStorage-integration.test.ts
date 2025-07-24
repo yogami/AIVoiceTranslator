@@ -8,6 +8,7 @@
 import { describe, it, test, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { DatabaseStorage } from '../../../server/database-storage'; 
 import { type IStorage } from '../../../server/storage.interface';
+import { TestDatabaseManager } from '../../utils/TestDatabaseManager';
 import { 
   type InsertSession, 
   type Session, 
@@ -59,8 +60,9 @@ describe('DatabaseStorage Integration Tests', () => {
   // Global beforeEach to ensure test isolation
   beforeEach(async () => {
     try {
-      // Use the comprehensive reset method to ensure clean state
-      await (storage as DatabaseStorage).reset();
+      // Use TestDatabaseManager for proper database reset
+      const testDbManager = new TestDatabaseManager();
+      await testDbManager.resetDatabase();
       // Re-initialize default languages
       await (storage as DatabaseStorage).initializeDefaultLanguages();
       console.log('[DEBUG] DatabaseStorage reset and re-initialization completed');

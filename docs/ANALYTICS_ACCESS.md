@@ -173,7 +173,7 @@ DATABASE_URL=${{ secrets.CI_DATABASE_URL }}
 |-----------|-------------|
 | **Environment Detection** | Reads `NODE_ENV` variable |
 | **Database URL** | Uses `DATABASE_URL` from appropriate `.env` file |
-| **Driver Selection** | Auto-detects Aiven/Railway from URL |
+| **Driver Selection** | Auto-detects Aiven/Supabase/Railway from URL |
 | **Connection Pooling** | Adjusts pool size based on environment |
 | **Analytics Data** | Always queries from connected database |
 
