@@ -127,7 +127,10 @@ export function serveStatic(app: express.Express): void {
   const htmlEntries: { [key: string]: string } = {
     '/': 'index.html',
     '/teacher': 'teacher.html',
-    '/teacher-login.html': 'teacher-login.html'
+    '/student': 'student.html',
+    '/analytics': 'analytics.html',
+    '/diagnostics': 'diagnostics.html',
+    '/teacher-login': 'teacher-login.html'
   };
 
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
