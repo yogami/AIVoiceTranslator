@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+// Make this a module by adding an export
+export {};
+
 declare global {
   interface Window {
     VITE_API_URL?: string;
