@@ -67,3 +67,6 @@ try {
 
 window.RUNTIME_CONFIG_LOADED = true;
 console.log('[runtime-config.ts] Script end. window.VITE_API_URL:', window.VITE_API_URL, 'window.VITE_WS_URL:', window.VITE_WS_URL);
+
+// Export to make this a module
+export {};
