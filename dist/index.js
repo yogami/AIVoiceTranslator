@@ -73,14 +73,31 @@ var init_config = __esm({
       },
       server: {
         port: (() => {
-          if (!process.env.PORT) throw new Error("PORT environment variable must be set.");
-          const parsedPort = parseInt(process.env.PORT, 10);
-          if (isNaN(parsedPort)) throw new Error("PORT environment variable must be a valid number.");
+          const portEnv = process.env.PORT;
+          if (!portEnv) {
+            if (process.env.NODE_ENV === "production") {
+              console.warn("PORT environment variable not provided by Railway, using fallback port 3000");
+              return 3e3;
+            } else {
+              throw new Error("PORT environment variable must be set in development.");
+            }
+          }
+          const parsedPort = parseInt(portEnv, 10);
+          if (isNaN(parsedPort)) {
+            throw new Error("PORT environment variable must be a valid number.");
+          }
           return parsedPort;
         })(),
         host: (() => {
-          if (!process.env.HOST) throw new Error("HOST environment variable must be set.");
-          return process.env.HOST;
+          const host = process.env.HOST;
+          if (!host) {
+            if (process.env.NODE_ENV === "production") {
+              return "0.0.0.0";
+            } else {
+              throw new Error("HOST environment variable must be set in development.");
+            }
+          }
+          return host;
         })()
       },
       app: {
@@ -410,20 +427,12 @@ var init_db = __esm({
         throw new Error("DATABASE_URL is required but not provided");
       }
       const isAivenFree = databaseUrl.includes("aivencloud.com");
-      const isSupabase = databaseUrl.includes("supabase.co") || databaseUrl.includes("supabase.com");
       const isTestEnvironment = process.env.NODE_ENV === "test";
       const connectionConfig = {
         max: 1,
-        connect_timeout: isSupabase ? 30 : 10,
+        connect_timeout: 10,
         idle_timeout: 5,
-        max_lifetime: 60 * 5,
-        ...isSupabase && {
-          retry: true,
-          retry_delay: 1e3,
-          max_retries: 3,
-          keepalive: true,
-          keepalive_idle: 3e4
-        }
+        max_lifetime: 60 * 5
       };
       pool = postgres(databaseUrl, connectionConfig);
       db = pgDrizzle(pool, { schema: schema_exports });
@@ -783,243 +792,6 @@ var init_SessionCleanupService = __esm({
   }
 });
 
-// server/middleware/analytics-security.ts
-var analytics_security_exports = {};
-__export(analytics_security_exports, {
-  analyticsPageAuth: () => analyticsPageAuth,
-  analyticsRateLimit: () => analyticsRateLimit,
-  analyticsSecurityMiddleware: () => analyticsSecurityMiddleware,
-  restrictToInternalIPs: () => restrictToInternalIPs
-});
-import rateLimit from "express-rate-limit";
-import DOMPurify from "isomorphic-dompurify";
-var analyticsRateLimit, analyticsPageAuth, INJECTION_PATTERNS, SUSPICIOUS_KEYWORDS, ANALYTICS_KEYWORDS, analyticsSecurityMiddleware, restrictToInternalIPs;
-var init_analytics_security = __esm({
-  "server/middleware/analytics-security.ts"() {
-    "use strict";
-    analyticsRateLimit = rateLimit({
-      windowMs: 15 * 60 * 1e3,
-      // 15 minutes
-      max: 50,
-      // 50 requests per window per IP
-      message: {
-        success: false,
-        error: "Too many analytics requests. Please try again later.",
-        retryAfter: "15 minutes"
-      },
-      standardHeaders: true,
-      legacyHeaders: false
-    });
-    analyticsPageAuth = (req, res, next) => {
-      const analyticsPassword = process.env.ANALYTICS_PASSWORD;
-      if (!analyticsPassword) {
-        console.warn("\u26A0\uFE0F  ANALYTICS_PASSWORD not set - analytics page is accessible without authentication");
-        return next();
-      }
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Basic ")) {
-        res.status(401);
-        res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-        return res.json({
-          error: "Authentication required for analytics access",
-          hint: 'Use username: "admin" and the ANALYTICS_PASSWORD'
-        });
-      }
-      try {
-        const base64Credentials = authHeader.split(" ")[1];
-        const credentials = Buffer.from(base64Credentials, "base64").toString("ascii");
-        const [username, password] = credentials.split(":");
-        if (username === "admin" && password === analyticsPassword) {
-          return next();
-        } else {
-          res.status(401);
-          res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-          return res.json({ error: "Invalid credentials" });
-        }
-      } catch (error) {
-        res.status(401);
-        res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-        return res.json({ error: "Invalid authentication format" });
-      }
-    };
-    INJECTION_PATTERNS = [
-      // Role manipulation
-      /ignore\s+(?:all\s+)?previous\s+instructions/i,
-      /forget\s+(?:all\s+)?previous\s+instructions/i,
-      /you\s+are\s+now\s+(?:a\s+)?(?:helpful\s+)?assistant/i,
-      /act\s+as\s+(?:a\s+)?(?:helpful\s+)?assistant/i,
-      /pretend\s+to\s+be/i,
-      /roleplay\s+as/i,
-      // System instruction overrides
-      /system\s+prompt/i,
-      /override\s+instructions/i,
-      /change\s+your\s+role/i,
-      /new\s+instructions/i,
-      // Command execution attempts
-      /execute\s+(?:shell\s+)?command/i,
-      /run\s+(?:shell\s+)?command/i,
-      /(?:rm\s+-rf|sudo|chmod|mkdir|touch|cat\s+\/etc)/i,
-      /(?:import\s+os|subprocess|eval\(|exec\()/i,
-      // Code injection patterns
-      /(?:SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*(?:FROM|INTO|TABLE)/i,
-      /<script.*?>.*?<\/script>/i,
-      /javascript:/i,
-      /on(?:click|load|error|focus)=/i,
-      // Administrative privilege attempts
-      /(?:admin|administrator|root|sudo)\s+(?:access|privileges|rights)/i,
-      /elevate\s+(?:privileges|permissions)/i,
-      /bypass\s+security/i,
-      // Data exfiltration attempts
-      /show\s+me\s+(?:all\s+)?(?:users|passwords|secrets|keys)/i,
-      /list\s+(?:all\s+)?(?:files|directories|users)/i,
-      /dump\s+(?:database|table|data)/i,
-      // Additional suspicious patterns
-      /\$\{.*?\}/,
-      // Template injection
-      /\{\{.*?\}\}/,
-      // Template injection
-      /eval\s*\(/i,
-      /Function\s*\(/i
-    ];
-    SUSPICIOUS_KEYWORDS = [
-      "hack",
-      "exploit",
-      "vulnerability",
-      "backdoor",
-      "malware",
-      "virus",
-      "crack",
-      "breach",
-      "penetrate",
-      "infiltrate",
-      "compromise",
-      "exploit",
-      "payload",
-      "shellcode",
-      "rootkit",
-      "trojan",
-      "keylogger",
-      "spyware"
-    ];
-    ANALYTICS_KEYWORDS = [
-      "session",
-      "sessions",
-      "student",
-      "students",
-      "teacher",
-      "teachers",
-      "translation",
-      "translations",
-      "language",
-      "languages",
-      "analytics",
-      "data",
-      "statistics",
-      "stats",
-      "count",
-      "total",
-      "average",
-      "trend",
-      "trends",
-      "daily",
-      "weekly",
-      "monthly",
-      "activity",
-      "engagement",
-      "performance",
-      "usage",
-      "chart",
-      "graph",
-      "visualization",
-      "report"
-    ];
-    analyticsSecurityMiddleware = (req, res, next) => {
-      try {
-        const { question } = req.body;
-        if (!question || typeof question !== "string") {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid input",
-            details: "Question is required and must be a string"
-          });
-        }
-        if (question.length < 10) {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid analytics query",
-            details: "Query too short"
-          });
-        }
-        if (question.length > 1e3) {
-          return res.status(400).json({
-            success: false,
-            error: "Invalid analytics query",
-            details: "Query too long"
-          });
-        }
-        const sanitizedQuestion = DOMPurify.sanitize(question.trim());
-        for (const pattern of INJECTION_PATTERNS) {
-          if (pattern.test(sanitizedQuestion)) {
-            console.warn(`\u{1F6AB} Blocked potential injection attempt: ${sanitizedQuestion.substring(0, 100)}...`);
-            return res.status(403).json({
-              success: false,
-              error: "Security violation detected",
-              details: "Query contains suspicious patterns"
-            });
-          }
-        }
-        const lowerQuestion = sanitizedQuestion.toLowerCase();
-        for (const keyword of SUSPICIOUS_KEYWORDS) {
-          if (lowerQuestion.includes(keyword)) {
-            console.warn(`\u{1F6AB} Blocked query with suspicious keyword "${keyword}": ${sanitizedQuestion.substring(0, 100)}...`);
-            return res.status(403).json({
-              success: false,
-              error: "Security violation detected",
-              details: "Query contains suspicious content"
-            });
-          }
-        }
-        const hasAnalyticsKeyword = ANALYTICS_KEYWORDS.some(
-          (keyword) => lowerQuestion.includes(keyword)
-        );
-        if (!hasAnalyticsKeyword) {
-          console.warn(`\u26A0\uFE0F  Non-analytics query blocked: ${sanitizedQuestion.substring(0, 100)}...`);
-          return res.status(400).json({
-            success: false,
-            error: "Invalid analytics query",
-            details: "Query does not appear to be analytics-related"
-          });
-        }
-        req.body.question = sanitizedQuestion;
-        console.log(`\u2705 Analytics query validated: ${sanitizedQuestion.substring(0, 100)}...`);
-        next();
-      } catch (error) {
-        console.error("Security middleware error:", error);
-        return res.status(500).json({
-          success: false,
-          error: "Security validation failed",
-          details: "Internal security error"
-        });
-      }
-    };
-    restrictToInternalIPs = (req, res, next) => {
-      const allowedIPs = process.env.ANALYTICS_ALLOWED_IPS?.split(",") || [];
-      if (allowedIPs.length === 0) {
-        return next();
-      }
-      const clientIP = req.ip || req.connection.remoteAddress || req.headers["x-forwarded-for"];
-      if (allowedIPs.includes(clientIP)) {
-        return next();
-      } else {
-        console.warn(`\u{1F6AB} Blocked analytics access from unauthorized IP: ${clientIP}`);
-        return res.status(403).json({
-          error: "Access denied: IP not authorized for analytics"
-        });
-      }
-    };
-  }
-});
-
 // server/index.ts
 init_config();
 import path6 from "path";
@@ -1033,7 +805,11 @@ import { createServer } from "http";
 import path5 from "path";
 
 // server/routes.ts
+init_schema();
+init_db();
 import { Router as Router2 } from "express";
+import { sql as sql2 } from "drizzle-orm";
+import OpenAI from "openai";
 
 // server/routes/auth.ts
 init_db();
@@ -1125,6 +901,15 @@ var auth_default = router;
 // server/routes.ts
 var API_VERSION = "1.0.0";
 var CLASSROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
+var openai;
+try {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-for-initialization-only"
+  });
+} catch (error) {
+  console.error("Error initializing OpenAI client for analytics:", error);
+  openai = new OpenAI({ apiKey: "sk-placeholder-for-initialization-only" });
+}
 var ApiError = class extends Error {
   constructor(statusCode, message, details) {
     super(message);
@@ -1251,74 +1036,84 @@ var createApiRoutes = (storage, activeSessionProvider, sessionCleanupService) =>
     }
     res.redirect(`/student?code=${classCode}`);
   });
+  async function processNaturalLanguageQuery(question, stats) {
+    try {
+      if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "sk-placeholder-for-initialization-only") {
+        return `I understand you're asking about "${question}". Based on the current data: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, ${stats.sessionsToday} sessions today, and ${stats.uniqueStudents} total student connections.`;
+      }
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI assistant helping analyze AI Voice Translator system analytics. 
+
+Available data fields:
+- activeSessions: ${stats.activeSessions} (currently running sessions)
+- totalSessions: ${stats.totalSessions} (all sessions ever created)
+- sessionsToday: ${stats.sessionsToday} (sessions started today)
+- uniqueStudents: ${stats.uniqueStudents} (total student connections across all sessions)
+- currentlyActiveStudents: ${stats.currentlyActiveStudents} (students in currently active sessions)
+- averageSessionDuration: ${Math.round(stats.averageSessionDuration / 60)} minutes
+- completedSessions: ${stats.completedSessions} (sessions that have ended)
+
+Answer the user's question clearly and directly based on this data. Be concise and helpful.`
+          },
+          {
+            role: "user",
+            content: question
+          }
+        ],
+        max_tokens: 150,
+        temperature: 0.1
+      });
+      return completion.choices[0]?.message?.content || `Based on the current data: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, and ${stats.uniqueStudents} total student connections.`;
+    } catch (error) {
+      console.error("Error processing natural language query with OpenAI:", error);
+      return `I understand you're asking: "${question}". Current stats: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, ${stats.sessionsToday} sessions today, ${stats.uniqueStudents} total students, and ${Math.round(stats.averageSessionDuration / 60)} minutes average duration.`;
+    }
+  }
   const handleAnalyticsQuery = asyncHandler(async (req, res) => {
     const { question } = req.body;
     if (!question || typeof question !== "string") {
       throw new ApiError(400, "Question is required and must be a string");
     }
-    const activeSessions = await storage.getAllActiveSessions();
-    const recentActivity = await storage.getRecentSessionActivity(100, 24);
-    const uniqueStudents = /* @__PURE__ */ new Set();
-    activeSessions.forEach((session) => {
-      if (session.students && Array.isArray(session.students)) {
-        session.students.forEach((student) => {
-          if (student.id) uniqueStudents.add(student.id);
-        });
-      }
-    });
+    const sessionStats = await db.select({
+      totalSessions: sql2`COUNT(*)`,
+      activeSessions: sql2`COUNT(CASE WHEN ${sessions.isActive} = true THEN 1 END)`,
+      sessionsToday: sql2`COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END)`,
+      recentSessions24h: sql2`COUNT(CASE WHEN start_time >= NOW() - INTERVAL '24 hours' THEN 1 END)`
+    }).from(sessions);
+    const studentStats = await db.select({
+      totalStudentConnections: sql2`SUM(COALESCE(students_count, 0))`,
+      avgStudentsPerSession: sql2`AVG(COALESCE(students_count, 0))`,
+      maxStudentsInSession: sql2`MAX(students_count)`,
+      currentlyActiveStudents: sql2`SUM(CASE WHEN is_active = true THEN COALESCE(students_count, 0) ELSE 0 END)`
+    }).from(sessions);
+    const durationStats = await db.select({
+      avgDurationSeconds: sql2`AVG(EXTRACT(EPOCH FROM (end_time - start_time)))`,
+      completedSessions: sql2`COUNT(*)`
+    }).from(sessions).where(sql2`end_time IS NOT NULL AND start_time IS NOT NULL`);
+    const sessionData = sessionStats[0] || {};
+    const studentData = studentStats[0] || {};
+    const durationData = durationStats[0] || {};
     const stats = {
-      activeSessions: activeSessions.length,
-      recentSessions: recentActivity.length,
-      sessionsToday: recentActivity.filter((activity) => {
-        const today = /* @__PURE__ */ new Date();
-        const activityDate = new Date(activity.createdAt);
-        return activityDate.toDateString() === today.toDateString();
-      }).length,
-      averageSessionDuration: recentActivity.length > 0 ? recentActivity.reduce((acc, activity) => acc + (activity.duration || 0), 0) / recentActivity.length : 0,
-      uniqueStudents: uniqueStudents.size
+      activeSessions: Number(sessionData.activeSessions || 0),
+      totalSessions: Number(sessionData.totalSessions || 0),
+      recentSessions: Number(sessionData.recentSessions24h || 0),
+      sessionsToday: Number(sessionData.sessionsToday || 0),
+      uniqueStudents: Number(studentData.totalStudentConnections || 0),
+      currentlyActiveStudents: Number(studentData.currentlyActiveStudents || 0),
+      averageSessionDuration: Number(durationData.avgDurationSeconds || 0),
+      completedSessions: Number(durationData.completedSessions || 0)
     };
-    const questionLower = question.toLowerCase();
-    let answer = "";
-    if (questionLower.includes("active") && questionLower.includes("session")) {
-      answer = `There are currently ${stats.activeSessions} active sessions running.`;
-    } else if (questionLower.includes("student")) {
-      answer = `There are currently ${stats.uniqueStudents} unique students active in the system.`;
-    } else if (questionLower.includes("today") || questionLower.includes("day")) {
-      answer = `Today there have been ${stats.sessionsToday} sessions.`;
-    } else if (questionLower.includes("recent") || questionLower.includes("last")) {
-      answer = `In the last 24 hours, there have been ${stats.recentSessions} sessions.`;
-    } else if (questionLower.includes("average") || questionLower.includes("duration")) {
-      const avgMinutes = Math.round(stats.averageSessionDuration / 60);
-      answer = `The average session duration is ${avgMinutes} minutes.`;
-    } else if (questionLower.includes("total") || questionLower.includes("how many")) {
-      answer = `Session overview: ${stats.activeSessions} active sessions, ${stats.recentSessions} recent sessions, ${stats.sessionsToday} today.`;
-    } else if (questionLower.includes("status") || questionLower.includes("overview")) {
-      answer = `System Overview:
-- Active Sessions: ${stats.activeSessions}
-- Recent Sessions (24h): ${stats.recentSessions}
-- Sessions Today: ${stats.sessionsToday}
-- Active Students: ${stats.uniqueStudents}
-- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes`;
-    } else {
-      answer = `Based on your question "${question}", here's what I found:
-
-\u{1F4CA} Current System Status:
-- Active Sessions: ${stats.activeSessions}
-- Recent Sessions (24h): ${stats.recentSessions}
-- Sessions Today: ${stats.sessionsToday}
-- Active Students: ${stats.uniqueStudents}
-- Average Duration: ${Math.round(stats.averageSessionDuration / 60)} minutes
-
-Try asking about "active sessions", "today's sessions", "students", or "average duration" for more specific information.`;
-    }
-    console.log("\u{1F50D} DEBUG: About to return analytics response with success field");
+    const answer = await processNaturalLanguageQuery(question, stats);
     const response = {
       success: true,
       answer,
       data: stats,
       question
     };
-    console.log("\u{1F50D} DEBUG: Response object:", JSON.stringify(response, null, 2));
     res.json(response);
   });
   const testAnalyticsQuery = asyncHandler(async (req, res) => {
@@ -1330,7 +1125,24 @@ Try asking about "active sessions", "today's sessions", "students", or "average 
       data: { test: true },
       question
     };
-    console.log("\u{1F50D} DEBUG: Test response:", JSON.stringify(response, null, 2));
+    res.json(response);
+  });
+  const debugDatabase = asyncHandler(async (req, res) => {
+    console.log("\u{1F50D} DEBUG: Database debug endpoint hit");
+    const allSessions = await db.select().from(sessions);
+    const activeSessions = await db.select({
+      count: sql2`COUNT(*)`
+    }).from(sessions).where(sql2`is_active = true`);
+    const totalStudents = await db.select({
+      total: sql2`SUM(students_count)`
+    }).from(sessions);
+    const response = {
+      success: true,
+      allSessions,
+      activeSessions: activeSessions[0],
+      totalStudents: totalStudents[0],
+      message: "Database debug info"
+    };
     res.json(response);
   });
   const testEndpoint = (req, res) => {
@@ -1353,6 +1165,7 @@ Try asking about "active sessions", "today's sessions", "students", or "average 
   router2.post("/analytics/query", handleAnalyticsQuery);
   router2.post("/analytics/ask", handleAnalyticsQuery);
   router2.post("/analytics/test", testAnalyticsQuery);
+  router2.get("/debug/database", debugDatabase);
   router2.get("/test", testEndpoint);
   return router2;
 };
@@ -1389,7 +1202,7 @@ var apiErrorHandler = (error, req, res, next) => {
 init_schema();
 init_logger();
 init_db();
-import { avg, count, desc as desc4, eq as eq7, gte as gte3, lte as lte2, and as and4, sql as sql2, isNotNull } from "drizzle-orm";
+import { avg, count, desc as desc4, eq as eq7, gte as gte3, lte as lte2, and as and4, sql as sql3, isNotNull } from "drizzle-orm";
 
 // server/storage/user.storage.ts
 init_schema();
@@ -2046,6 +1859,17 @@ var DatabaseStorage = class {
   async getSessionById(sessionId) {
     return this.sessionStorage.getSessionById(sessionId);
   }
+  async getTotalStudentSlots() {
+    try {
+      const result = await db.select({
+        totalStudents: sql3`SUM(COALESCE(students_count, 0))`
+      }).from(sessions);
+      return Number(result[0]?.totalStudents) || 0;
+    } catch (error) {
+      logger_default.error("Failed to get total student slots:", error);
+      return 0;
+    }
+  }
   async createSession(sessionData) {
     return this.sessionStorage.createSession(sessionData);
   }
@@ -2108,7 +1932,7 @@ var DatabaseStorage = class {
     if (totalSessionsCount > 0) {
       const durationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
       const durationResult = await db.select({
-        totalDuration: sql2`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
+        totalDuration: sql3`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
         countSessions: count(sessions.id)
       }).from(sessions).where(
         timeRange ? and4(gte3(sessions.startTime, timeRange.startDate), lte2(sessions.startTime, timeRange.endDate), isNotNull(sessions.endTime)) : isNotNull(sessions.endTime)
@@ -2500,10 +2324,10 @@ init_config();
 // server/services/TranslationService.ts
 import fs3 from "fs";
 import path3 from "path";
-import OpenAI2 from "openai";
+import OpenAI3 from "openai";
 
 // server/services/textToSpeech/TextToSpeechService.ts
-import OpenAI from "openai";
+import OpenAI2 from "openai";
 import fs from "fs";
 import path from "path";
 import { promisify } from "util";
@@ -2622,8 +2446,8 @@ var SilentTextToSpeechService = class {
   }
 };
 var OpenAITextToSpeechService = class {
-  constructor(openai2) {
-    this.openai = openai2;
+  constructor(openai3) {
+    this.openai = openai3;
     this.ensureCacheDirectoryExists();
   }
   /**
@@ -2880,8 +2704,8 @@ var TextToSpeechFactory = class _TextToSpeechFactory {
         ttsLogger.warn("[TTS Factory] OPENAI_API_KEY is missing. Falling back to silent TTS.");
         return this.services.get("silent");
       }
-      const openai2 = new OpenAI({ apiKey });
-      return new OpenAITextToSpeechService(openai2);
+      const openai3 = new OpenAI2({ apiKey });
+      return new OpenAITextToSpeechService(openai3);
     }
     const service = this.services.get(serviceType.toLowerCase());
     if (!service) {
@@ -3185,8 +3009,8 @@ var SUSPICIOUS_PHRASES = [
   "return an empty string"
 ];
 var OpenAITranscriptionService = class {
-  constructor(openai2, audioHandler2 = new AudioFileHandler()) {
-    this.openai = openai2;
+  constructor(openai3, audioHandler2 = new AudioFileHandler()) {
+    this.openai = openai3;
     this.audioHandler = audioHandler2;
   }
   /**
@@ -3235,9 +3059,9 @@ var OpenAITranscriptionService = class {
   }
 };
 var OpenAITranslationService = class {
-  constructor(openai2) {
+  constructor(openai3) {
     this.maxRetries = 3;
-    this.openai = openai2;
+    this.openai = openai3;
   }
   /**
    * Get the full language name from a language code
@@ -3440,7 +3264,7 @@ var SpeechTranslationService = class {
     };
   }
 };
-var openai;
+var openai2;
 try {
   if (!process.env.OPENAI_API_KEY) {
     console.warn("OpenAI API key status: Missing");
@@ -3448,17 +3272,17 @@ try {
   } else {
     console.log("OpenAI API key status: Present");
   }
-  openai = new OpenAI2({
+  openai2 = new OpenAI3({
     apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-for-initialization-only"
   });
   console.log("OpenAI client initialized successfully");
 } catch (error) {
   console.error("Error initializing OpenAI client:", error);
-  openai = new OpenAI2({ apiKey: "sk-placeholder-for-initialization-only" });
+  openai2 = new OpenAI3({ apiKey: "sk-placeholder-for-initialization-only" });
 }
 var audioHandler = new AudioFileHandler();
-var transcriptionService = new OpenAITranscriptionService(openai, audioHandler);
-var translationService = new OpenAITranslationService(openai);
+var transcriptionService = new OpenAITranscriptionService(openai2, audioHandler);
+var translationService = new OpenAITranslationService(openai2);
 var speechTranslationService = new SpeechTranslationService(
   transcriptionService,
   translationService,
@@ -5872,7 +5696,16 @@ var WebSocketServer = class _WebSocketServer {
    */
   setupEventHandlers() {
     this.wss.on("connection", (ws, request) => {
+      logger_default.info("WebSocket connection attempt received", {
+        url: request.url,
+        headers: request.headers,
+        origin: request.headers.origin,
+        userAgent: request.headers["user-agent"]
+      });
       this.handleConnection(ws, request);
+    });
+    this.wss.on("error", (error) => {
+      logger_default.error("WebSocket Server error:", { error });
     });
   }
   /**
@@ -6275,12 +6108,67 @@ import fs4 from "fs";
 
 // server/vite.ts
 init_logger();
-init_analytics_security();
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path4 from "path";
 import fsPromises from "fs/promises";
 import fsSync from "fs";
+
+// server/middleware/analytics-security.ts
+import rateLimit from "express-rate-limit";
+import DOMPurify from "isomorphic-dompurify";
+var analyticsRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 50,
+  // 50 requests per window per IP
+  message: {
+    success: false,
+    error: "Too many analytics requests. Please try again later.",
+    retryAfter: "15 minutes"
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+var analyticsPageAuth = (req, res, next) => {
+  const analyticsPassword = process.env.ANALYTICS_PASSWORD;
+  if (!analyticsPassword || analyticsPassword.trim() === "") {
+    console.error("\u{1F6A8} ANALYTICS_PASSWORD not set or empty - blocking analytics access");
+    res.status(401);
+    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+    return res.json({
+      error: "Analytics access requires authentication. ANALYTICS_PASSWORD must be configured.",
+      hint: 'Set ANALYTICS_PASSWORD environment variable and use username: "admin"'
+    });
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Basic ")) {
+    res.status(401);
+    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+    return res.json({
+      error: "Authentication required for analytics access",
+      hint: 'Use username: "admin" and the ANALYTICS_PASSWORD'
+    });
+  }
+  try {
+    const base64Credentials = authHeader.split(" ")[1];
+    const credentials = Buffer.from(base64Credentials, "base64").toString("ascii");
+    const [username, password] = credentials.split(":");
+    if (username === "admin" && password === analyticsPassword) {
+      return next();
+    } else {
+      res.status(401);
+      res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+      return res.json({ error: "Invalid credentials" });
+    }
+  } catch (error) {
+    res.status(401);
+    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+    return res.json({ error: "Invalid authentication format" });
+  }
+};
+
+// server/vite.ts
 var vite = null;
 async function setupVite(app) {
   const viteConfigPath = path4.resolve(process.cwd(), "config", "vite.config.ts");
@@ -6323,20 +6211,6 @@ async function setupVite(app) {
           } else {
             logger_default.warn(`[VITE DEV] Skipping HTML route for entry '${name}' due to unclear path mapping from ${filePath}`);
             continue;
-          }
-          if (name === "analytics") {
-            const { analyticsPageAuth: analyticsPageAuth2 } = await Promise.resolve().then(() => (init_analytics_security(), analytics_security_exports));
-            app.get("/analytics", analyticsPageAuth2, async (req, res, next) => {
-              try {
-                const html = await fsPromises.readFile(filePath, "utf-8");
-                const transformedHtml = await vite.transformIndexHtml(req.originalUrl, html);
-                logger_default.info(`[VITE DEV] Serving transformed /analytics from ${filePath} (analytics.html)`);
-                res.status(200).set({ "Content-Type": "text/html" }).end(transformedHtml);
-              } catch (e) {
-                logger_default.error(`[VITE DEV] Error transforming HTML for /analytics: ${e.message}`);
-                return next(e);
-              }
-            });
           }
           if (name === "main" && urlPath === "/") {
             app.get("/index.html", async (req, res, next) => {
@@ -6400,10 +6274,7 @@ function serveStatic(app) {
   const htmlEntries = {
     "/": "index.html",
     "/teacher": "teacher.html",
-    "/teacher-login.html": "teacher-login.html",
-    "/student": "student.html",
-    "/analytics": "analytics.html"
-    // Analytics route serves analytics.html
+    "/teacher-login.html": "teacher-login.html"
   };
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
     const filePath = path4.join(clientDistPath, fileName);
@@ -6552,9 +6423,9 @@ async function startServer(app) {
     });
   });
 }
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === `file://${process.argv[1]}` && process.env.NODE_ENV === "test") {
   const appInstance = express2();
-  logger_default.info("[DIRECT_RUN] server.ts is being run directly. Initializing and starting server...");
+  logger_default.info("[DIRECT_RUN] server.ts is being run directly in test environment. Initializing and starting server...");
   startServer(appInstance).catch((error) => {
     logger_default.error("[DIRECT_RUN] Failed to start server from direct run:", error);
     process.exit(1);

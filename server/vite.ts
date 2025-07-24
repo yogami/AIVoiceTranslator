@@ -73,21 +73,6 @@ export async function setupVite(app: express.Express): Promise<void> {
           }
 
           app.get(urlPath, async (req, res, next) => {
-            // Apply authentication for analytics page in development mode too
-            if (urlPath === '/analytics') {
-              return analyticsPageAuth(req, res, async () => {
-                try {
-                  const html = await fsPromises.readFile(filePath, 'utf-8');
-                  const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
-                  logger.info(`[VITE DEV] Serving authenticated transformed ${urlPath} from ${filePath} for originalUrl ${req.originalUrl}`);
-                  res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
-                } catch (e: any) {
-                  logger.error(`[VITE DEV] Error transforming HTML for ${req.originalUrl} (path ${urlPath}): ${e.message}`);
-                  return next(e);
-                }
-              });
-            }
-            
             try {
               const html = await fsPromises.readFile(filePath, 'utf-8');
               const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
@@ -142,10 +127,7 @@ export function serveStatic(app: express.Express): void {
   const htmlEntries: { [key: string]: string } = {
     '/': 'index.html',
     '/teacher': 'teacher.html',
-    '/teacher-login': 'teacher-login.html',
-    '/teacher-login.html': 'teacher-login.html',
-    '/student': 'student.html',  // Keep student page accessible via unique URLs from teachers
-    '/analytics': 'analytics.html'  // Keep analytics for internal use
+    '/teacher-login.html': 'teacher-login.html'
   };
 
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {

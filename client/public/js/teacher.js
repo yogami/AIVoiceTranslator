@@ -82,8 +82,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         classroomCodeDisplay: null,
         studentUrlDisplay: null,
         qrCodeContainer: null,
-        // studentCountDisplay: null, // For future use - commented out as not implemented
-        // studentsListDisplay: null, // For future use - commented out as not implemented
+        studentCountDisplay: null, // For future use
+        studentsListDisplay: null, // For future use
     };
 
     const uiUpdater = {
@@ -177,11 +177,17 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             }; // Use arrow function or .bind for correct 'this'
             appState.ws.onclose = (event) => {
                 console.log('[DEBUG] teacher.js: WebSocket onclose event fired. Was clean:', event.wasClean, 'Code:', event.code, 'Reason:', event.reason);
-                uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
-                // Reconnect logic might need adjustment based on why it closed.
-                // Avoid immediate aggressive reconnection if it was a config error.
-                if (viteWsUrlFromWindow) { // Only attempt reconnect if the URL was initially valid
-                    setTimeout(() => this.connect(), 5000); // Increased timeout
+                
+                // Only reconnect for unexpected disconnections, not for duplicate sessions
+                // Code 1000 = normal closure, Code 1001 = going away, Code 1006 = abnormal closure
+                const shouldReconnect = !event.wasClean && event.code !== 1000 && event.code !== 1001;
+                
+                if (shouldReconnect && viteWsUrlFromWindow) {
+                    uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                    setTimeout(() => this.connect(), 5000);
+                } else {
+                    uiUpdater.updateStatus('Disconnected from server');
+                    console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
                 }
             };
             appState.ws.onerror = (error) => {
@@ -487,8 +493,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         domElements.classroomCodeDisplay = document.getElementById('classroom-code-display');
         domElements.studentUrlDisplay = document.getElementById('studentUrl');
         domElements.qrCodeContainer = document.getElementById('qr-code');
-        // domElements.studentCountDisplay = document.getElementById('studentCount');
-        // domElements.studentsListDisplay = document.getElementById('studentsList');
+        domElements.studentCountDisplay = document.getElementById('studentCount');
+        domElements.studentsListDisplay = document.getElementById('studentsList');
 
         if (domElements.languageSelect) {
             appState.selectedLanguage = domElements.languageSelect.value;
