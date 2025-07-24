@@ -22,6 +22,7 @@ import {
   type Translation
 } from '../../../shared/schema';
 import { initTestDatabase, closeDatabaseConnection } from '../../setup/db-setup';
+import { TestDatabaseManager } from '../../utils/TestDatabaseManager';
 import { db } from '../../../server/db';
 import { users, languages, translations, transcripts, sessions } from '../../../shared/schema';
 
