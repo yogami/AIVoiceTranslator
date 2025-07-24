@@ -1,33 +1,206 @@
 # AIVoiceTranslator Testing Guide
 
-## 🚀 Quick Start - Test Commands
+## 🚀 Quick Test Commands
 
-### Simple Commands (What You Need to Know)
+### Essential Test Commands
 
 ```bash
-# Run all unit tests (fast - ~20 seconds)
-STORAGE_TYPE=memory npm run test:unit
+# Unit Tests - Fast, comprehensive testing (300+ tests)
+npm run test:unit
 
-# Run all integration tests (slower - ~40 seconds)
-STORAGE_TYPE=memory npm run test:integration
+# Integration Tests - Database and WebSocket integration
+npm run test:integration
 
-# Run E2E tests (requires server NOT running)
-npm run test:e2e
+# E2E Tests - Full browser automation (STOP dev server first!)
+npx kill-port 5000 && npm run test:e2e
 
-# Run specific test file
-npx vitest tests/unit/storage.test.ts
+# All Tests - Complete test suite
+npm run test
 
-# Run tests in watch mode
-npx vitest --watch
+# Watch Mode - Auto-rerun tests on changes
+npm run test:watch
 ```
 
-### Why STORAGE_TYPE=memory?
-The app supports both memory and database storage. Tests should use memory storage to avoid database dependencies. Always prefix test commands with `STORAGE_TYPE=memory`.
+### ⚠️ Important: E2E Test Requirements
+
+**E2E tests will FAIL if the dev server is running!** They start their own test server.
+
+```bash
+# ALWAYS stop dev server before E2E tests:
+npx kill-port 5000
+# THEN run E2E tests:
+npm run test:e2e
+```
 
 ## 📊 Current Test Status
 
-| Test Type | Passing | Failed | Skipped | Time | Notes |
-|-----------|---------|--------|---------|------|-------|
+| Test Type | Count | Status | Time | Coverage |
+|-----------|-------|--------|------|----------|
+| **Unit Tests** | 241 passing | ✅ | ~20s | Core logic, services, utilities |
+| **Integration Tests** | 60 passing | ✅ | ~40s | Database, WebSocket, API endpoints |
+| **E2E Tests** | 36 passing | ✅ | ~2min | Full user workflows, UI automation |
+| **Total** | **337 tests** | ✅ | ~3min | Complete application coverage |
+
+## 🧪 Test Architecture
+
+### Unit Tests (`tests/unit/`)
+- **Service Logic**: Translation, TTS, session management
+- **Database Storage**: All storage operations with mocked database
+- **WebSocket Handlers**: Message processing and connection management
+- **Utilities**: Configuration, logging, error handling
+- **Mock Strategy**: External dependencies mocked for isolation
+
+### Integration Tests (`tests/integration/`)
+- **Real Database**: PostgreSQL integration with test database
+- **WebSocket Communication**: Full message flow testing
+- **Service Integration**: End-to-end service coordination
+- **API Endpoints**: HTTP API testing with real requests
+- **Database Setup**: Automatic test data creation and cleanup
+
+### E2E Tests (`tests/e2e/`)
+- **Browser Automation**: Playwright-based UI testing
+- **User Workflows**: Teacher and student complete journeys
+- **Analytics Dashboard**: Dashboard functionality and navigation
+- **WebSocket Integration**: Real-time communication testing
+- **Cross-browser**: Chrome, Firefox, Safari compatibility
+
+## 🔧 Advanced Testing
+
+### Running Specific Tests
+
+```bash
+# Single test file
+npx vitest tests/unit/storage.test.ts
+
+# Test pattern matching
+npx vitest --grep "WebSocket"
+
+# Specific E2E test
+npx playwright test tests/e2e/teacher.spec.ts
+
+# E2E with browser UI (visual debugging)
+npx playwright test --ui
+
+# E2E headed mode (see browser)
+npx playwright test --headed
+```
+
+### Test Configuration
+
+```bash
+# Different test environments
+NODE_ENV=test npm run test:unit     # Test environment
+CI=true npm run test                # CI environment
+
+# Database testing
+npm run test:integration            # Uses .env.test database
+npm run db:migrations:apply:test    # Setup test database
+npm run db:audit:test              # Verify test database
+```
+
+### Debugging Tests
+
+```bash
+# Vitest UI mode for debugging
+npx vitest --ui
+
+# Debug specific test with Node.js debugger
+npx vitest --inspect-brk tests/unit/specific.test.ts
+
+# Playwright debug mode
+npx playwright test --debug
+
+# Generate test reports
+npm run test:coverage              # Coverage report
+npx playwright show-report        # E2E test report
+```
+
+## 🛠️ Troubleshooting Common Issues
+
+### 1. E2E Tests Fail: "Error: listen EADDRINUSE"
+- **Cause**: Dev server is running on port 5000
+- **Fix**: `npx kill-port 5000` then run E2E tests
+
+### 2. Integration Tests Timeout
+- **Cause**: Database connection issues or test database not set up
+- **Fix**: 
+  ```bash
+  npm run db:audit:test              # Check test database
+  npm run db:migrations:apply:test   # Apply migrations if needed
+  ```
+
+### 3. WebSocket Tests Fail
+- **Cause**: Port conflicts or connection issues
+- **Fix**: Ensure no other services on test ports (5001, 5002, etc.)
+
+### 4. Unit Tests with Database Errors
+- **Cause**: Trying to use real database in unit tests
+- **Fix**: Ensure proper mocking in test setup
+
+### 5. Tests Hang or Run Forever
+- **Cause**: Improper cleanup or async operations not awaited
+- **Fix**: Check test isolation and cleanup in `afterEach` blocks
+
+## 📋 Test Development Guidelines
+
+### Writing Unit Tests
+- **Mock external dependencies** (database, APIs, file system)
+- **Test single units** of functionality in isolation
+- **Use descriptive test names** that explain the scenario
+- **Follow AAA pattern**: Arrange, Act, Assert
+
+### Writing Integration Tests
+- **Use real database** connections with test data
+- **Test service coordination** and data flow
+- **Clean up test data** after each test
+- **Test error scenarios** and edge cases
+
+### Writing E2E Tests
+- **Test complete user journeys** from start to finish
+- **Use page objects** for better maintainability
+- **Include wait strategies** for dynamic content
+- **Test across different browsers** when possible
+
+### Test Data Management
+- **Use factories** for creating test data
+- **Isolate test data** between tests
+- **Clean up after tests** to prevent interference
+- **Use realistic test data** that mirrors production
+
+## 🔍 Test Quality Metrics
+
+### Coverage Goals
+- **Unit Tests**: >90% line coverage for core business logic
+- **Integration Tests**: All API endpoints and database operations
+- **E2E Tests**: All critical user workflows and UI components
+
+### Performance Benchmarks
+- **Unit Tests**: <30 seconds total execution time
+- **Integration Tests**: <60 seconds total execution time  
+- **E2E Tests**: <3 minutes total execution time
+
+### Reliability Standards
+- **Flaky Test Rate**: <1% (tests should pass consistently)
+- **Test Maintenance**: Regular updates with code changes
+- **CI/CD Integration**: All tests must pass before deployment
+
+## 📚 Additional Resources
+
+- **[E2E Test Instructions](E2E_TEST_INSTRUCTIONS.md)** - Detailed E2E testing guide
+- **[Database Architecture](DATABASE_ARCHITECTURE.md)** - Database testing considerations
+- **[WebSocket Architecture](websocket-architecture.md)** - WebSocket testing patterns
+- **[CI/CD Setup](CI_CD_SETUP_SUMMARY.md)** - Automated testing in CI/CD
+
+## 🤝 Contributing to Tests
+
+When adding new features:
+1. **Write unit tests** for new business logic
+2. **Add integration tests** for new database operations or API endpoints
+3. **Create E2E tests** for new user-facing features
+4. **Update existing tests** when changing existing functionality
+5. **Ensure all tests pass** before submitting pull requests
+
+**Test-Driven Development (TDD) is encouraged** - write tests first, then implement features to make them pass.
 | Unit | 241 ✅ | 0 | 0 | ~20s | 4 non-critical fs errors |
 | Integration | 60 ✅ | 1 ❌ | 12 | ~40s | 1 fail = DatabaseStorage (expected) |
 | E2E | 36 ✅ | 0 | 0 | ~2m | Must stop dev server first |
