@@ -72,17 +72,32 @@ export async function setupVite(app: express.Express): Promise<void> {
             });
           }
 
-          app.get(urlPath, async (req, res, next) => {
-            try {
-              const html = await fsPromises.readFile(filePath, 'utf-8');
-              const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
-              logger.info(`[VITE DEV] Serving transformed ${urlPath} from ${filePath} for originalUrl ${req.originalUrl}`);
-              res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
-            } catch (e: any) {
-              logger.error(`[VITE DEV] Error transforming HTML for ${req.originalUrl} (path ${urlPath}): ${e.message}`);
-              return next(e);
-            }
-          });
+          // Apply authentication to analytics route in development
+          if (urlPath === '/analytics') {
+            app.get(urlPath, analyticsPageAuth, async (req, res, next) => {
+              try {
+                const html = await fsPromises.readFile(filePath, 'utf-8');
+                const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
+                logger.info(`[VITE DEV] Serving transformed ${urlPath} from ${filePath} for originalUrl ${req.originalUrl} (with auth)`);
+                res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
+              } catch (e: any) {
+                logger.error(`[VITE DEV] Error transforming HTML for ${req.originalUrl} (path ${urlPath}): ${e.message}`);
+                return next(e);
+              }
+            });
+          } else {
+            app.get(urlPath, async (req, res, next) => {
+              try {
+                const html = await fsPromises.readFile(filePath, 'utf-8');
+                const transformedHtml = await vite!.transformIndexHtml(req.originalUrl, html);
+                logger.info(`[VITE DEV] Serving transformed ${urlPath} from ${filePath} for originalUrl ${req.originalUrl}`);
+                res.status(200).set({ 'Content-Type': 'text/html' }).end(transformedHtml);
+              } catch (e: any) {
+                logger.error(`[VITE DEV] Error transforming HTML for ${req.originalUrl} (path ${urlPath}): ${e.message}`);
+                return next(e);
+              }
+            });
+          }
           logger.info(`[VITE DEV] Configured HTML route: ${urlPath} -> ${filePath}`);
         }
       } else {
