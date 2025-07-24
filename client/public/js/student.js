@@ -132,18 +132,18 @@
             }
             const wsUrl = window.VITE_WS_URL;
             
-            console.log('Connecting to WebSocket:', wsUrl, 'Lang:', appState.selectedLanguage);
+            // console.log('Connecting to WebSocket:', wsUrl, 'Lang:', appState.selectedLanguage);
             appState.ws = new WebSocket(wsUrl);
 
             appState.ws.onopen = () => {
-                console.log('WebSocket connected to server.');
+                // console.log('WebSocket connected to server.');
                 uiUpdater.updateConnectionStatus(true);
                 appState.isConnected = true;
                 this.register(classroomCode);
             };
             appState.ws.onmessage = (event) => this.handleMessage(event);
             appState.ws.onclose = () => {
-                console.log('WebSocket disconnected from server.');
+                // console.log('WebSocket disconnected from server.');
                 uiUpdater.updateConnectionStatus(false);
                 appState.isConnected = false;
                 // No automatic reconnect for student, relies on manual connect button.

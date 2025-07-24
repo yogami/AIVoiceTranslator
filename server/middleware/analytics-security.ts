@@ -30,15 +30,10 @@ export const analyticsPageAuth = (req: Request, res: Response, next: NextFunctio
   // Simple password protection for internal analytics page
   const analyticsPassword = process.env.ANALYTICS_PASSWORD;
   
-  // Always require authentication - no exceptions for development
-  if (!analyticsPassword || analyticsPassword.trim() === '') {
-    console.error('🚨 ANALYTICS_PASSWORD not set or empty - blocking analytics access');
-    res.status(401);
-    res.setHeader('WWW-Authenticate', 'Basic realm="Analytics"');
-    return res.json({
-      error: 'Analytics access requires authentication. ANALYTICS_PASSWORD must be configured.',
-      hint: 'Set ANALYTICS_PASSWORD environment variable and use username: "admin"'
-    });
+  // If no password is set, allow access (for development)
+  if (!analyticsPassword) {
+    console.warn('⚠️  ANALYTICS_PASSWORD not set - analytics page is accessible without authentication');
+    return next();
   }
   
   // Check for basic auth header

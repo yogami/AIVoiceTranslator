@@ -31,6 +31,7 @@ server/public
 *.tar.gz.env
 audio-cache/
 temp/
+.vite_dev_server_port
 
 # Test-related redundant files
 server-output.log

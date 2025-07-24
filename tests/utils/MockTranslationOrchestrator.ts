@@ -124,6 +124,7 @@ export class MockTranslationOrchestrator {
     this.recordCall('sendTranslationsToStudents');
     
     console.log('🎯 MockTranslationOrchestrator.sendTranslationsToStudents called with:', {
+      studentConnectionsCount: options.studentConnections?.length || 0,
       originalText: options.originalText?.substring(0, 50) || 'N/A',
       sourceLanguage: options.sourceLanguage,
       translationsCount: options.translations?.size || 0,

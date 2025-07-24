@@ -6,6 +6,7 @@
  */
 
 import { DatabaseStorage } from '../../server/database-storage';
+import { TestDatabaseManager } from './TestDatabaseManager';
 
 // Force the NODE_ENV to 'test' for all tests that use this utility
 // This is a safety measure to ensure database reset works properly
@@ -60,7 +61,8 @@ export async function cleanupTestData(storage: DatabaseStorage): Promise<void> {
   }
 
   try {
-    await storage.reset();
+    const testDbManager = new TestDatabaseManager();
+    await testDbManager.resetDatabase();
     console.log('Test data cleanup successful');
   } catch (error) {
     console.error('Error cleaning up test data:', error);

@@ -70,6 +70,7 @@ export function createMockTranslationService() {
     
     sendTranslationsToStudents: vi.fn().mockImplementation((options) => {
       console.log('🎯 Mock sendTranslationsToStudents called with:', {
+        studentConnectionsCount: options.studentConnections?.length || 0,
         originalText: options.originalText?.substring(0, 50) || 'N/A',
         sourceLanguage: options.sourceLanguage,
         translationsCount: options.translations?.size || 0

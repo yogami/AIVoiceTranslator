@@ -5,40 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Interface - AIVoiceTranslator</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
-    <script>
-      // Runtime configuration for both development and production
-      if (typeof window !== 'undefined') {
-        // Try to get from environment variables (will be replaced by Vite in production)
-        let apiUrl = '__VITE_API_URL__';
-        let wsUrl = '__VITE_WS_URL__';
-        
-        // Check if we're in development (placeholders not replaced)
-        if (apiUrl === '__VITE_API_URL__' || wsUrl === '__VITE_WS_URL__') {
-          // Development fallback - detect current host
-          const protocol = window.location.protocol;
-          const hostname = window.location.hostname;
-          const port = '5000'; // Server port
-          
-          if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            // Local development
-            apiUrl = `${protocol}//${hostname}:${port}`;
-            wsUrl = protocol === 'https:' ? `wss://${hostname}:${port}` : `ws://${hostname}:${port}`;
-          } else {
-            // Development on remote host (like Replit)
-            apiUrl = `${protocol}//${hostname}`;
-            wsUrl = protocol === 'https:' ? `wss://${hostname}` : `ws://${hostname}`;
-          }
-          console.log('[student.html] Using development URLs');
-        } else {
-          console.log('[student.html] Using production URLs');
-        }
-        
-        window.VITE_API_URL = apiUrl;
-        window.VITE_WS_URL = wsUrl;
-        console.log('[student.html] VITE_API_URL set to:', window.VITE_API_URL);
-        console.log('[student.html] VITE_WS_URL set to:', window.VITE_WS_URL);
-      }
-    </script>
+    <script type="module" src="/src/runtime-config.ts"></script> <!-- Added runtime-config -->
     <link rel="stylesheet" href="css/student.css">
 </head>
 <body>

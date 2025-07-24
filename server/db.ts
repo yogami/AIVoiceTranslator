@@ -1,17 +1,11 @@
 /**
- * Database Configuration Module
+ * Database Connection Module
  * 
- * Provides database connection and configuration with automatic provider detection.
- * Supports multiple PostgreSQL providers:
+ * Manages database connections and provides a configured Drizzle ORM instance.
+ * Supports PostgreSQL with different providers:
+ * - Local/Test: Aiven
+ * - Dev/CI/CD: Supabase
  * - Production: Railway
- * - Dev/CI/CD: Aiven
- * - Local/Test: Aiven or Railway
- * 
- * Features:
- * - Auto-detects provider from DATABASE_URL
- * - Provider-specific connection settings
- * - Database connectivity testing
- * - Drizzle ORM integration
  */
 
 import * as schema from '../shared/schema';
@@ -28,7 +22,7 @@ const isValidDatabaseUrl = process.env.DATABASE_URL &&
   (process.env.DATABASE_URL.startsWith('postgresql://') || process.env.DATABASE_URL.startsWith('postgres://'));
 
 if (isValidDatabaseUrl) {
-  // Standard Postgres (Aiven/Railway)
+  // Standard Postgres (Aiven/Supabase/Railway)
   console.log('🔍 DEBUG: All environment variables with DATABASE:', Object.keys(process.env).filter(k => k.includes('DATABASE')).map(k => `${k}=${process.env[k]}`));
   console.log('🔍 DEBUG: process.env.DATABASE_URL:', process.env.DATABASE_URL);
   console.log('🔍 DEBUG: process.env object has DATABASE_URL:', 'DATABASE_URL' in process.env);
@@ -40,14 +34,22 @@ if (isValidDatabaseUrl) {
   
   // Detect provider and environment for optimal connection settings
   const isAivenFree = databaseUrl.includes('aivencloud.com');
+  const isSupabase = databaseUrl.includes('supabase.co') || databaseUrl.includes('supabase.com');
   const isTestEnvironment = process.env.NODE_ENV === 'test';
   
   // Force max connections to 1 for all environments to avoid pool exhaustion in tests
   const connectionConfig: any = {
     max: 1,
-    connect_timeout: 10,
+    connect_timeout: isSupabase ? 30 : 10,
     idle_timeout: 5,
     max_lifetime: 60 * 5,
+    ...(isSupabase && {
+      retry: true,
+      retry_delay: 1000,
+      max_retries: 3,
+      keepalive: true,
+      keepalive_idle: 30000,
+    })
   };
   pool = postgres(databaseUrl, connectionConfig);
   db = pgDrizzle(pool, { schema });
@@ -143,7 +145,8 @@ export async function checkDatabaseHealth(): Promise<{
   
   const databaseUrl = process.env.DATABASE_URL || '';
   let provider = 'unknown';
-  if (databaseUrl.includes('aivencloud')) provider = 'aiven';
+  if (databaseUrl.includes('supabase')) provider = 'supabase';
+  else if (databaseUrl.includes('aivencloud')) provider = 'aiven';
   else if (databaseUrl.includes('railway')) provider = 'railway';
   
   try {

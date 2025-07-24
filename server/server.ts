@@ -9,8 +9,10 @@ import express from 'express';
 import { createServer, type Server } from 'http';
 import path from 'path';
 import logger from './logger';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { config, validateConfig } from './config'; // Assuming config is imported and validated
-import { createApiRoutes, apiErrorHandler } from './routes'; // Adjusted import
+import { createApiRoutes } from './routes/index.js'; // Updated to use modular routes
+import { apiErrorHandler } from './middleware/error-handler.middleware.js';
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
 import { WebSocketServer } from './services/WebSocketServer';

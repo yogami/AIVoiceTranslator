@@ -3,11 +3,13 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import express from 'express';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import logger from './logger';
 
 // Determine the root directory relative to server/index.ts
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(__filename);  
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const rootDir = path.resolve(__dirname, '..'); // Goes up one level from server/ to project root
 
 // Environment variables are loaded by the npm script (dotenv -e .env)

@@ -760,5 +760,4 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       console.log('[INTEGRATION] No previous session test passed - new session created');
     });
   });
-
 });

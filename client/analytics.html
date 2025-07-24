@@ -231,6 +231,18 @@
             border-bottom: none;
         }
 
+        .clickable-stat {
+            cursor: pointer;
+            padding: 12px 8px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .clickable-stat:hover {
+            background: #f8f9fa;
+            transform: translateX(2px);
+        }
+
         .stat-value {
             font-weight: bold;
             color: #007bff;
@@ -300,39 +312,6 @@
             color: #6c757d;
         }
 
-        .suggestions {
-            padding: 20px;
-            background: #f8f9fa;
-            border-top: 1px solid #e9ecef;
-        }
-
-        .suggestions h3 {
-            margin-bottom: 15px;
-            color: #495057;
-        }
-
-        .suggestion-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .suggestion-btn {
-            padding: 8px 15px;
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 14px;
-        }
-
-        .suggestion-btn:hover {
-            background: #007bff;
-            color: white;
-            border-color: #007bff;
-        }
-
         .metric {
             display: inline-block;
             background: #e3f2fd;
@@ -396,33 +375,21 @@
             <div class="sidebar">
                 <div class="quick-stats" id="quickStats">
                     <h3>📊 Quick Stats</h3>
-                    <div class="stat-item">
-                        <span>Total Sessions</span>
-                        <span class="stat-value" id="totalSessions">-</span>
+                    <div class="stat-item clickable-stat" onclick="showStatDetails('active-sessions')">
+                        <span>Active Sessions Now</span>
+                        <span class="stat-value" id="activeSessions">-</span>
                     </div>
-                    <div class="stat-item">
-                        <span>Active Today</span>
-                        <span class="stat-value" id="todaySessions">-</span>
+                    <div class="stat-item clickable-stat" onclick="showStatDetails('sessions-this-week')">
+                        <span>Sessions This Week</span>
+                        <span class="stat-value" id="weekSessions">-</span>
                     </div>
-                    <div class="stat-item">
-                        <span>Total Students</span>
-                        <span class="stat-value" id="totalStudents">-</span>
+                    <div class="stat-item clickable-stat" onclick="showStatDetails('translations-per-session')">
+                        <span>Avg Translations/Session</span>
+                        <span class="stat-value" id="avgTranslations">-</span>
                     </div>
-                    <div class="stat-item">
-                        <span>Avg Duration</span>
-                        <span class="stat-value" id="avgDuration">-</span>
-                    </div>
-                </div>
-
-                <div class="suggestions">
-                    <h3>💡 Quick Questions</h3>
-                    <div class="suggestion-buttons">
-                        <div class="suggestion-btn" onclick="fillQuestion('Show me a chart of sessions per day this week')">📊 Weekly Chart</div>
-                        <div class="suggestion-btn" onclick="fillQuestion('What is the average number of students per session?')">👥 Avg Students</div>
-                        <div class="suggestion-btn" onclick="fillQuestion('Create a pie chart of language pairs')">🥧 Language Chart</div>
-                        <div class="suggestion-btn" onclick="fillQuestion('How many sessions had no students?')">📭 Empty Sessions</div>
-                        <div class="suggestion-btn" onclick="fillQuestion('Show me a trend of daily translations')">📈 Translation Trend</div>
-                        <div class="suggestion-btn" onclick="fillQuestion('Which days of the week are most active?')">📅 Activity Days</div>
+                    <div class="stat-item clickable-stat" onclick="showStatDetails('peak-hours')">
+                        <span>Peak Usage Hour</span>
+                        <span class="stat-value" id="peakHour">-</span>
                     </div>
                 </div>
             </div>
@@ -438,33 +405,80 @@
 
         async function loadQuickStats() {
             try {
-                const response = await fetch('/api/analytics/ask', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question: 'Give me quick stats: total sessions, sessions today, total unique students, and average session duration' })
-                });
+                // Load active sessions
+                const activeResponse = await fetch('/api/analytics/active-sessions');
+                const activeData = await activeResponse.json();
+                
+                // Load sessions this week
+                const weekResponse = await fetch('/api/analytics/sessions-this-week');
+                const weekData = await weekResponse.json();
+                
+                // Load translations per session
+                const translationsResponse = await fetch('/api/analytics/translations-per-session');
+                const translationsData = await translationsResponse.json();
+                
+                // Load peak hours
+                const peakResponse = await fetch('/api/analytics/peak-hours');
+                const peakData = await peakResponse.json();
 
+                // Update the UI with meaningful data
+                if (activeData.success) {
+                    document.getElementById('activeSessions').textContent = activeData.data.activeSessionsCount;
+                }
+                
+                if (weekData.success) {
+                    document.getElementById('weekSessions').textContent = weekData.data.sessionsThisWeek;
+                }
+                
+                if (translationsData.success) {
+                    document.getElementById('avgTranslations').textContent = translationsData.data.averageTranslationsPerSession;
+                }
+                
+                if (peakData.success) {
+                    const hour = peakData.data.peakHour;
+                    const hourDisplay = hour === 0 ? '12 AM' : hour <= 12 ? `${hour} AM` : `${hour-12} PM`;
+                    document.getElementById('peakHour').textContent = hourDisplay;
+                }
+                
+            } catch (error) {
+                console.error('Could not load quick stats:', error);
+                // Show error state
+                document.getElementById('activeSessions').textContent = 'Error';
+                document.getElementById('weekSessions').textContent = 'Error';
+                document.getElementById('avgTranslations').textContent = 'Error';
+                document.getElementById('peakHour').textContent = 'Error';
+            }
+        }
+
+        async function showStatDetails(statType) {
+            try {
+                const response = await fetch(`/api/analytics/${statType}`);
                 const data = await response.json();
-                if (data.success && data.data) {
-                    // Use the actual data from the API response
-                    document.getElementById('totalSessions').textContent = data.data.recentSessions || '0';
-                    document.getElementById('todaySessions').textContent = data.data.sessionsToday || '0';
-                    document.getElementById('totalStudents').textContent = data.data.uniqueStudents || '0';
-                    document.getElementById('avgDuration').textContent = Math.round(data.data.averageSessionDuration / 60) + ' min';
-                } else {
-                    // Fallback if API call fails
-                    document.getElementById('totalSessions').textContent = 'Error';
-                    document.getElementById('todaySessions').textContent = 'Error';
-                    document.getElementById('totalStudents').textContent = 'Error';
-                    document.getElementById('avgDuration').textContent = 'Error';
+                
+                if (data.success) {
+                    // Show SQL query and detailed data in the main area
+                    const answerDiv = document.getElementById('answer');
+                    
+                    let detailsHtml = `
+                        <div class="ai-message">
+                            <div class="message-header">
+                                <span class="message-type">📊 ${data.description}</span>
+                            </div>
+                            <div class="message-content">
+                                <h4>SQL Query:</h4>
+                                <pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto;"><code>${data.sql}</code></pre>
+                                
+                                <h4>Results:</h4>
+                                <pre style="background: #f8f9fa; padding: 15px; border-radius: 8px; overflow-x: auto;"><code>${JSON.stringify(data.data, null, 2)}</code></pre>
+                            </div>
+                        </div>
+                    `;
+                    
+                    answerDiv.innerHTML = detailsHtml;
+                    answerDiv.scrollIntoView({ behavior: 'smooth' });
                 }
             } catch (error) {
-                console.log('Could not load quick stats');
-                // Show error state
-                document.getElementById('totalSessions').textContent = 'Error';
-                document.getElementById('todaySessions').textContent = 'Error';
-                document.getElementById('totalStudents').textContent = 'Error';
-                document.getElementById('avgDuration').textContent = 'Error';
+                console.error('Error fetching stat details:', error);
             }
         }
 

@@ -19,6 +19,6 @@ This folder contains database migration scripts for the AI Voice Translator appl
 
 ## Database Environments
 
-- **Development**: Aiven PostgreSQL
+- **Development**: Supabase PostgreSQL
 - **Testing**: Aiven PostgreSQL (isolated test environment)
 - **Production**: Railway PostgreSQL

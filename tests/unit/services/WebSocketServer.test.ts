@@ -35,6 +35,13 @@ vi.mock('../../../server/services/websocket/ConnectionManager', () => ({
       }),
       getConnections: vi.fn(() => connections),
       getConnectionCount: vi.fn(() => connections.size),
+      getStudentCount: vi.fn(() => {
+        let count = 0;
+        for (const conn of connections) {
+          if (roles.get(conn) === 'student') count++;
+        }
+        return count;
+      }),
       getTeacherCount: vi.fn(() => {
         let count = 0;
         for (const conn of connections) {
@@ -1701,7 +1708,25 @@ describe('WebSocketServer', () => {
       expect(webSocketServer.getActiveSessionsCount()).toBe(0); // Database session count (unchanged)
     });
 
+    it('should return active student count', async () => {
+      mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
 
+      await vi.waitFor(() => {
+        expect(mockWs.on).toHaveBeenCalled();
+      });
+
+      // Verify connection was added
+      expect(webSocketServer.getActiveSessionCount()).toBe(1);
+
+      // Use the WebSocketServer's handleMessage method directly to ensure proper context
+      await webSocketServer.handleMessage(mockWs, JSON.stringify({
+        type: 'register',
+        role: 'student',
+        languageCode: 'es-ES'
+      }));
+
+      expect(webSocketServer.getActiveStudentCount()).toBe(1);
+    });
 
     it('should return active teacher count', async () => {
       mockWss.emit('connection', mockWs, { url: '/ws', headers: { host: 'localhost:3000' } });
@@ -2362,7 +2387,17 @@ describe('WebSocketServer', () => {
       expect(mockSessionCountCacheService.getActiveSessionCount).toHaveBeenCalled();
     });
 
+    it('should return student count', () => {
+      const teacher = { ...mockWs, send: vi.fn(), on: vi.fn() };
+      const student1 = { ...mockWs, send: vi.fn(), on: vi.fn() };
+      const student2 = { ...mockWs, send: vi.fn(), on: vi.fn() };
+      
+      webSocketServer._addTestConnection(teacher, 'session-1', 'teacher');
+      webSocketServer._addTestConnection(student1, 'session-1', 'student');
+      webSocketServer._addTestConnection(student2, 'session-2', 'student');
 
+      expect(webSocketServer.getActiveStudentCount()).toBe(2);
+    });
 
     it('should return teacher count', () => {
       const teacher1 = { ...mockWs, send: vi.fn(), on: vi.fn() };
