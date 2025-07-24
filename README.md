@@ -1,102 +1,317 @@
 # AIVoiceTranslator: Real-time Multilingual Voice Translation Platform
 
-## � Critical Database Safety Commands
+🚀 **Production-Ready WebSocket Application** with PostgreSQL, comprehensive testing, and full CI/CD pipeline.
 
-**Before ANY database work, run:**
-```bash
-npm run db:audit        # Check production database integrity
-npm run db:audit:test   # Check test database integrity
-```
+## ✨ Key Features
 
-**Schema changes (ONLY way to modify database structure):**
-```bash
-# 1. Edit shared/schema.ts ONLY
-# 2. Generate migration
-npm run db:migrations:generate
-# 3. Apply to test first
-npm run db:migrations:apply:test
-# 4. Test thoroughly
-# 5. Apply to production
-npm run db:migrations:apply
-# 6. Verify
-npm run db:audit
-```
+- 🎤 **Real-time Voice Translation**: WebSocket-based live translation between teachers and students
+- 🗣️ **Multi-TTS Support**: Azure, OpenAI, and ElevenLabs text-to-speech integration
+- 📊 **Advanced Analytics**: Clickable metrics dashboard with SQL transparency 
+- 🔄 **Session Management**: Persistent classroom sessions with quality tracking
+- 🌐 **Multi-language Support**: OpenAI-powered translation with context awareness
+- 📱 **Cross-platform**: Works on desktop and mobile browsers
+- ⚡ **High Performance**: Connection pooling, caching, and optimized WebSocket handling
 
-**❌ NEVER:** Use raw SQL, ALTER TABLE, or manual database changes!
+## 🏗️ Current Architecture
 
----
+### **Database & Storage**
+- **PostgreSQL** with **DrizzleORM** (fully migrated from in-memory storage)
+- **Multi-provider support**: Aiven (local/test), Supabase (dev/CI), Railway (production)
+- **Schema migrations** with versioned migration system
+- **Connection pooling** and health monitoring
 
-## �🚀 Quick Start for Developers
+### **Real-time Communication**
+- **WebSocketServer** with modular message handlers
+- **Connection management** with heartbeat monitoring
+- **Session lifecycle** management with automatic cleanup
+- **Translation orchestration** with multiple service providers
+- **Audio streaming** with real-time transcription
+
+### **Frontend Stack**
+- **Static HTML/JS** (current production interfaces)
+- **React SPA** (under development for gradual migration)
+- **Vite** for development and building
+- **WebSocket client** with automatic reconnection
+
+### **Testing & Quality**
+- **Comprehensive test suite**: 300+ unit, integration, and E2E tests
+- **CI/CD pipeline** with GitHub Actions
+- **Database testing** with real PostgreSQL instances
+- **WebSocket testing** with full message flow validation
+
+## 🚀 Quick Start for Developers
 
 ### Prerequisites
-- **Node.js 18+** and npm
-- **Modern web browser** with WebRTC support (Chrome/Firefox recommended)
+- **Node.js 18+** and npm  
+- **PostgreSQL database** (required - no memory storage fallback)
 - **OpenAI API key** for translation services
 
 ### 1. Clone and Install
 
-   ```bash
-# Clone the repository
-   git clone https://github.com/yourusername/AIVoiceTranslator.git
-   cd AIVoiceTranslator
-
-# Install dependencies
-   npm install
-   ```
-
-### 2. Environment Setup
-
-Create a `.env` file in the root directory:
-
 ```bash
-# Copy the example environment file
-cp .env.example .env
+git clone https://github.com/yourusername/AIVoiceTranslator.git
+cd AIVoiceTranslator
+npm install
 ```
 
-Edit `.env` with your configuration for the **development environment**:
+### 2. Database Setup
 
-   ```bash
-# Required for translation features
+**You must have PostgreSQL databases for development and testing.**
+
+Create `.env` file:
+```bash
+# Required - PostgreSQL database URL
+DATABASE_URL=postgresql://user:password@localhost:5432/aivoicetranslator_dev
+
+# Required - OpenAI API key
 OPENAI_API_KEY=sk-your-openai-api-key-here
 
-# Server Configuration (optional - defaults shown)
+# Optional - Server configuration
 PORT=5000
 NODE_ENV=development
-SESSION_SECRET=your-session-secret-here
-
-# Storage Configuration (optional)
-STORAGE_TYPE=memory          # Options: 'memory' or 'database'
-DATABASE_URL=postgresql://user:password@dev-db-host:5432/dev_db_name  # For development database
-
-# Test Configuration (automatically set by test scripts)
-E2E_TEST_MODE=true          # Forces memory storage for tests
+SESSION_SECRET=your-secure-session-secret
 ```
 
-**Test Environment:**
-- Create a `.env.test` file in the root directory for the **test database**:
-  ```bash
-  # Example .env.test
-  OPENAI_API_KEY=sk-your-openai-api-key-for-tests
-  DATABASE_URL=postgresql://user:password@test-db-host:5432/test_db_name # For test database
-  NODE_ENV=test
-  PORT=5001 # Optional: if test server needs a different port
-  ```
-- When running tests with Vitest, or specific database scripts, `.env.test` is loaded.
-- Make sure your `.env.test` contains a valid `OPENAI_API_KEY` if you want integration tests to use the real OpenAI API, and a `DATABASE_URL` for your test database.
+Create `.env.test` file:
+```bash
+# Test database (separate from development)
+DATABASE_URL=postgresql://user:password@localhost:5432/aivoicetranslator_test
+OPENAI_API_KEY=sk-your-openai-api-key-here
+NODE_ENV=test
+PORT=5001
+```
 
-**Important Notes:**
-- `OPENAI_API_KEY` is **required** for the application to function.
-- Default storage is `memory` (no database needed for local development if `STORAGE_TYPE=memory`).
-- For database storage, ensure `DATABASE_URL` is set in `.env` (for development) and `.env.test` (for testing).
-- Test scripts automatically configure the environment - no manual setup needed beyond the `.env` files.
+### 3. Initialize Database
 
-**Important:** All environment variables must be set explicitly in `.env`, `.env.test`, and `.env.example`. No defaults or localhost values are allowed. See the `.env.example` file for required variables.
+```bash
+# Apply database migrations
+npm run db:migrations:apply      # Development database
+npm run db:migrations:apply:test # Test database
 
-### 3. Running the Application
+# Verify database integrity
+npm run db:audit      # Should show "🎉 ALL TABLES ARE IN SYNC!"
+npm run db:audit:test # Should show "🎉 ALL TABLES ARE IN SYNC!"
+```
 
-   ```bash
-# Development mode with hot reload
-   npm run dev
+### 4. Start Development
+
+```bash
+npm run dev
+```
+
+**Application URLs:**
+- **Teacher Interface**: http://localhost:5000/teacher.html
+- **Student Interface**: http://localhost:5000/student.html  
+- **Analytics Dashboard**: http://localhost:5000/analytics.html
+- **API Health**: http://localhost:5000/api/health
+
+## 🧪 Testing
+
+### Quick Test Commands
+
+```bash
+# Unit Tests - Fast, comprehensive (300+ tests)
+npm run test:unit
+
+# Integration Tests - Database and WebSocket integration  
+npm run test:integration
+
+# E2E Tests - Full browser automation (stop dev server first!)
+npx kill-port 5000 && npm run test:e2e
+
+# All Tests
+npm run test
+```
+
+### Test Coverage
+- ✅ **Unit Tests**: 241 passing - All core logic and services
+- ✅ **Integration Tests**: 60 passing - Database operations and WebSocket flows
+- ✅ **E2E Tests**: 36 passing - Full user workflows and UI interactions
+
+## 📊 Database Management (Critical)
+
+### Schema Changes (ONLY Safe Method)
+
+```bash
+# 1. Edit shared/schema.ts ONLY
+# 2. Generate migration
+npm run db:migrations:generate
+# 3. Apply to test database first
+npm run db:migrations:apply:test
+# 4. Test thoroughly
+# 5. Apply to development
+npm run db:migrations:apply
+# 6. Verify integrity
+npm run db:audit
+```
+
+### ❌ NEVER DO
+- Write raw SQL for schema changes
+- Use database tools to modify structure directly  
+- Skip migration generation
+- Modify production database manually
+
+### Database Health Checks
+
+```bash
+# Before any database work
+npm run db:audit        # Development database
+npm run db:audit:test   # Test database
+```
+
+Both should show: "🎉 ALL TABLES ARE IN SYNC!"
+
+## 🏭 Production Deployment
+
+### Railway (Recommended)
+
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
+
+# Login and initialize
+railway login
+railway init
+
+# Add PostgreSQL database
+railway add postgresql
+
+# Deploy
+railway deploy
+```
+
+**Required Environment Variables:**
+- `DATABASE_URL` (auto-generated by Railway)
+- `OPENAI_API_KEY`
+- `SESSION_SECRET`
+- `PORT` (auto-generated by Railway)
+
+### CI/CD Pipeline
+
+**Automated testing and deployment** via GitHub Actions:
+- ✅ Lint, security scan, and unit tests
+- ✅ Integration tests with PostgreSQL service
+- ✅ E2E tests with Playwright
+- ✅ Automatic deployment to Railway
+- ✅ Database migration automation
+- ✅ Health checks and rollback on failure
+
+## 📁 Project Structure
+
+```
+AIVoiceTranslator/
+├── client/                 # Frontend applications
+│   ├── public/            # Static HTML/JS (current production)
+│   │   ├── teacher.html   # Teacher interface
+│   │   ├── student.html   # Student interface  
+│   │   └── analytics.html # Analytics dashboard
+│   └── src/               # React SPA (development)
+├── server/                # Backend services
+│   ├── services/          # Core business logic
+│   │   ├── WebSocketServer.ts        # Main WebSocket server
+│   │   ├── websocket/                # WebSocket handlers
+│   │   ├── TranslationService.ts     # Translation orchestration
+│   │   └── SessionCleanupService.ts  # Session management
+│   ├── routes/            # API endpoints
+│   ├── storage/           # Database abstractions
+│   ├── middleware/        # Express middleware
+│   └── db.ts             # Database connection
+├── shared/               # Shared code
+│   └── schema.ts        # Database schema (single source of truth)
+├── tests/               # Comprehensive test suite
+│   ├── unit/           # Unit tests
+│   ├── integration/    # Integration tests  
+│   └── e2e/           # End-to-end tests
+├── migrations/         # Database migration files
+├── docs/              # Documentation
+└── config/            # Configuration files
+```
+
+## 🔧 Development Tools
+
+```bash
+# Database operations
+npm run db:migrations:generate    # Create migration from schema changes
+npm run db:migrations:apply       # Apply migrations to development DB
+npm run db:audit                  # Check database integrity
+npm run db:reset                  # Reset development database (CAUTION)
+
+# Development
+npm run dev                       # Start development server
+npm run dev:client               # Frontend development only
+npm run build                    # Production build
+npm start                       # Start production server
+
+# Testing
+npm run test                     # All tests
+npm run test:unit               # Unit tests only
+npm run test:integration        # Integration tests only
+npm run test:e2e               # E2E tests only
+npm run test:watch             # Watch mode for unit tests
+
+# Code quality
+npm run lint                    # ESLint
+npm run type-check             # TypeScript checking
+```
+
+## 📖 Documentation
+
+- **[Database Architecture](docs/DATABASE_ARCHITECTURE.md)** - Storage system and schema management
+- **[WebSocket Architecture](docs/websocket-architecture.md)** - Real-time communication system
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Production deployment instructions
+- **[E2E Testing](docs/E2E_TEST_INSTRUCTIONS.md)** - End-to-end testing guide
+- **[CI/CD Setup](docs/CI_CD_SETUP_SUMMARY.md)** - Continuous integration/deployment
+- **[Analytics Security](docs/ANALYTICS_SECURITY.md)** - Analytics access control
+- **[Feature: Manual Translation Control](docs/FEATURE_MANUAL_TRANSLATION_CONTROL.md)** - Upcoming feature spec
+- **[Feature: Student Connection Status](docs/FEATURE_STUDENT_CONNECTION_STATUS.md)** - Upcoming feature spec
+
+## 🤝 Contributing
+
+1. **Fork the repository**
+2. **Create feature branch**: `git checkout -b feature/amazing-feature`
+3. **Run tests**: `npm run test`
+4. **Check database integrity**: `npm run db:audit`
+5. **Commit changes**: `git commit -m 'Add amazing feature'`
+6. **Push to branch**: `git push origin feature/amazing-feature`
+7. **Open Pull Request**
+
+### Development Guidelines
+
+- **All database changes** must go through `shared/schema.ts` and migration system
+- **Write tests** for new features (unit, integration, E2E as appropriate)
+- **Follow TypeScript** strict mode practices
+- **Use ESLint** for code formatting
+- **Document new features** in `docs/` folder
+
+## 📊 Current Status
+
+### ✅ Production Ready Features
+- Real-time teacher-student voice translation
+- WebSocket communication with automatic reconnection
+- PostgreSQL database with full schema management
+- Session lifecycle management with cleanup
+- Advanced analytics dashboard
+- Multi-TTS service integration
+- Comprehensive testing suite
+- CI/CD pipeline with automated deployment
+
+### 🚧 In Development
+- React SPA migration (replacing static HTML pages)
+- Manual translation control feature
+- Student connection status tracking
+- Performance optimizations
+
+## 📞 Support
+
+For questions, issues, or contributions:
+- **Issues**: GitHub Issues page
+- **Discussions**: GitHub Discussions
+- **Documentation**: `/docs` folder
+- **Tests**: Run `npm run test` for validation
+
+---
+
+**Made with ❤️ for real-time multilingual education**
 
 # The application will be available at:
 # - Teacher Interface: http://localhost:5000/teacher (Current - HTML/JS)

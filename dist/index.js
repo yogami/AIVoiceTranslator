@@ -427,12 +427,20 @@ var init_db = __esm({
         throw new Error("DATABASE_URL is required but not provided");
       }
       const isAivenFree = databaseUrl.includes("aivencloud.com");
+      const isSupabase = databaseUrl.includes("supabase.co") || databaseUrl.includes("supabase.com");
       const isTestEnvironment = process.env.NODE_ENV === "test";
       const connectionConfig = {
         max: 1,
-        connect_timeout: 10,
+        connect_timeout: isSupabase ? 30 : 10,
         idle_timeout: 5,
-        max_lifetime: 60 * 5
+        max_lifetime: 60 * 5,
+        ...isSupabase && {
+          retry: true,
+          retry_delay: 1e3,
+          max_retries: 3,
+          keepalive: true,
+          keepalive_idle: 3e4
+        }
       };
       pool = postgres(databaseUrl, connectionConfig);
       db = pgDrizzle(pool, { schema: schema_exports });
@@ -448,7 +456,7 @@ var SessionCleanupService_exports = {};
 __export(SessionCleanupService_exports, {
   SessionCleanupService: () => SessionCleanupService
 });
-import { eq as eq8, and as and5, lt, gt as gt2 } from "drizzle-orm";
+import { eq, and, lt, gt } from "drizzle-orm";
 var SessionCleanupService;
 var init_SessionCleanupService = __esm({
   "server/services/SessionCleanupService.ts"() {
@@ -518,9 +526,9 @@ var init_SessionCleanupService = __esm({
         }
         const noStudentsThreshold = new Date(now - config.session.emptyTeacherTimeout);
         const emptySessions = await db.select().from(sessions).where(
-          and5(
-            eq8(sessions.isActive, true),
-            eq8(sessions.studentsCount, 0),
+          and(
+            eq(sessions.isActive, true),
+            eq(sessions.studentsCount, 0),
             // No students ever joined
             lt(sessions.startTime, noStudentsThreshold)
           )
@@ -536,9 +544,9 @@ var init_SessionCleanupService = __esm({
             quality: "no_students",
             qualityReason: `No students joined within ${config.session.emptyTeacherTimeout / 6e4} minutes`
           }).where(
-            and5(
-              eq8(sessions.isActive, true),
-              eq8(sessions.studentsCount, 0),
+            and(
+              eq(sessions.isActive, true),
+              eq(sessions.studentsCount, 0),
               lt(sessions.startTime, noStudentsThreshold)
             )
           );
@@ -555,13 +563,13 @@ var init_SessionCleanupService = __esm({
         const abandonedThreshold = new Date(now - config.session.allStudentsLeftTimeout);
         const staleThreshold = new Date(now - config.session.staleSessionTimeout);
         const abandonedSessions = await db.select().from(sessions).where(
-          and5(
-            eq8(sessions.isActive, true),
-            gt2(sessions.studentsCount, 0),
+          and(
+            eq(sessions.isActive, true),
+            gt(sessions.studentsCount, 0),
             // Had students at some point
             lt(sessions.lastActivityAt, abandonedThreshold),
             // Inactive for 5+ minutes
-            gt2(sessions.lastActivityAt, staleThreshold)
+            gt(sessions.lastActivityAt, staleThreshold)
             // But not inactive for 30+ minutes (handled by cleanupInactiveSessions)
           )
         );
@@ -576,11 +584,11 @@ var init_SessionCleanupService = __esm({
             quality: "no_activity",
             qualityReason: `All students disconnected, no activity for ${config.session.allStudentsLeftTimeout / 6e4} minutes`
           }).where(
-            and5(
-              eq8(sessions.isActive, true),
-              gt2(sessions.studentsCount, 0),
+            and(
+              eq(sessions.isActive, true),
+              gt(sessions.studentsCount, 0),
               lt(sessions.lastActivityAt, abandonedThreshold),
-              gt2(sessions.lastActivityAt, staleThreshold)
+              gt(sessions.lastActivityAt, staleThreshold)
             )
           );
           logger_default.info(`Cleaned up ${abandonedSessions.length} abandoned sessions`);
@@ -595,8 +603,8 @@ var init_SessionCleanupService = __esm({
         }
         const staleThreshold = new Date(now - config.session.staleSessionTimeout);
         const staleSessions = await db.select().from(sessions).where(
-          and5(
-            eq8(sessions.isActive, true),
+          and(
+            eq(sessions.isActive, true),
             lt(sessions.lastActivityAt, staleThreshold)
           )
         );
@@ -611,8 +619,8 @@ var init_SessionCleanupService = __esm({
             quality: "no_activity",
             qualityReason: `Session inactive for ${config.session.staleSessionTimeoutUnscaled / 6e4} minutes`
           }).where(
-            and5(
-              eq8(sessions.isActive, true),
+            and(
+              eq(sessions.isActive, true),
               lt(sessions.lastActivityAt, staleThreshold)
             )
           );
@@ -629,7 +637,7 @@ var init_SessionCleanupService = __esm({
         try {
           await db.update(sessions).set({
             lastActivityAt: /* @__PURE__ */ new Date()
-          }).where(eq8(sessions.sessionId, sessionId));
+          }).where(eq(sessions.sessionId, sessionId));
         } catch (error) {
           logger_default.error("Error updating session activity:", { sessionId, error });
         }
@@ -649,9 +657,9 @@ var init_SessionCleanupService = __esm({
             quality: "no_activity",
             qualityReason: reason
           }).where(
-            and5(
-              eq8(sessions.sessionId, sessionId),
-              eq8(sessions.isActive, true)
+            and(
+              eq(sessions.sessionId, sessionId),
+              eq(sessions.isActive, true)
             )
           );
           logger_default.info(`Ended session ${sessionId}: ${reason}`);
@@ -672,8 +680,8 @@ var init_SessionCleanupService = __esm({
             quality: "no_activity",
             qualityReason: `Session older than ${daysOld} days - archived`
           }).where(
-            and5(
-              eq8(sessions.isActive, false),
+            and(
+              eq(sessions.isActive, false),
               lt(sessions.startTime, oldThreshold)
             )
           );
@@ -692,9 +700,9 @@ var init_SessionCleanupService = __esm({
             lastActivityAt: /* @__PURE__ */ new Date(),
             qualityReason: "All students disconnected - grace period active"
           }).where(
-            and5(
-              eq8(sessions.sessionId, sessionId),
-              eq8(sessions.isActive, true)
+            and(
+              eq(sessions.sessionId, sessionId),
+              eq(sessions.isActive, true)
             )
           );
           logger_default.info(`Marked session ${sessionId} as all students left - grace period started`);
@@ -712,9 +720,9 @@ var init_SessionCleanupService = __esm({
             qualityReason: null
             // Clear the grace period marker
           }).where(
-            and5(
-              eq8(sessions.sessionId, sessionId),
-              eq8(sessions.isActive, true)
+            and(
+              eq(sessions.sessionId, sessionId),
+              eq(sessions.isActive, true)
             )
           );
           logger_default.info(`Students rejoined session ${sessionId} - grace period cancelled`);
@@ -732,11 +740,11 @@ var init_SessionCleanupService = __esm({
         }
         try {
           const recentSessions = await db.select().from(sessions).where(
-            and5(
-              eq8(sessions.isActive, true),
-              eq8(sessions.teacherLanguage, teacherLanguage),
+            and(
+              eq(sessions.isActive, true),
+              eq(sessions.teacherLanguage, teacherLanguage),
               // Only sessions that are recent enough (within teacher reconnection grace period)
-              gt2(sessions.lastActivityAt, new Date(Date.now() - config.session.teacherReconnectionGracePeriod))
+              gt(sessions.lastActivityAt, new Date(Date.now() - config.session.teacherReconnectionGracePeriod))
             )
           ).orderBy(sessions.lastActivityAt).limit(1);
           return recentSessions.length > 0 ? recentSessions[0] : null;
@@ -755,9 +763,9 @@ var init_SessionCleanupService = __esm({
         }
         try {
           const allTeacherSessions = await db.select().from(sessions).where(
-            and5(
-              eq8(sessions.isActive, true),
-              eq8(sessions.teacherLanguage, teacherLanguage)
+            and(
+              eq(sessions.isActive, true),
+              eq(sessions.teacherLanguage, teacherLanguage)
             )
           );
           const duplicateSessions = allTeacherSessions.filter((session) => session.sessionId !== currentSessionId);
@@ -769,7 +777,7 @@ var init_SessionCleanupService = __esm({
                 endTime: /* @__PURE__ */ new Date(),
                 quality: "no_activity",
                 qualityReason: "Duplicate session - teacher created new session"
-              }).where(eq8(sessions.sessionId, session.sessionId));
+              }).where(eq(sessions.sessionId, session.sessionId));
             }
             logger_default.info(`Ended ${duplicateSessions.length} duplicate teacher sessions`);
           }
@@ -804,22 +812,875 @@ import express2 from "express";
 import { createServer } from "http";
 import path5 from "path";
 
-// server/routes.ts
+// server/routes/index.ts
+init_SessionCleanupService();
+import { Router as Router8 } from "express";
+
+// server/routes/health.routes.ts
+import { Router } from "express";
+
+// server/middleware/error-handler.middleware.ts
+var ApiError = class extends Error {
+  constructor(statusCode, message, details) {
+    super(message);
+    this.statusCode = statusCode;
+    this.details = details;
+    this.name = "ApiError";
+  }
+};
+var asyncHandler = (fn) => (req, res, next) => {
+  try {
+    return Promise.resolve(fn(req, res, next)).catch(next);
+  } catch (error) {
+    next(error);
+  }
+};
+var apiErrorHandler = (error, req, res, _next) => {
+  console.error("API Error:", error);
+  if (error instanceof ApiError) {
+    return res.status(error.statusCode).json({
+      success: false,
+      error: error.message,
+      details: error.details,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  if (error.name === "ValidationError") {
+    return res.status(400).json({
+      success: false,
+      error: "Validation failed",
+      details: error.message,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  if (error.name === "StorageError") {
+    return res.status(500).json({
+      success: false,
+      error: "Database operation failed",
+      details: process.env.NODE_ENV === "development" ? error.message : "Internal server error",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  }
+  res.status(500).json({
+    success: false,
+    error: "Internal server error",
+    details: process.env.NODE_ENV === "development" ? error.message : void 0,
+    timestamp: (/* @__PURE__ */ new Date()).toISOString()
+  });
+};
+
+// server/routes/health.routes.ts
+var API_VERSION = "1.0.0";
+function createHealthRoutes(storage, activeSessionProvider) {
+  const router2 = Router();
+  const healthCheck = asyncHandler(async (req, res) => {
+    let dbStatus = "unknown";
+    try {
+      await storage.getLanguages();
+      dbStatus = "connected";
+    } catch (e) {
+      dbStatus = "disconnected";
+    }
+    res.json({
+      status: "ok",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      version: API_VERSION,
+      database: dbStatus,
+      environment: process.env.NODE_ENV || "development",
+      activeSessions: activeSessionProvider.getActiveSessionsCount(),
+      activeTeachers: activeSessionProvider.getActiveTeacherCount(),
+      activeStudents: activeSessionProvider.getActiveStudentCount()
+    });
+  });
+  const testEndpoint = (req, res) => {
+    res.json({
+      message: "API is working",
+      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+      version: API_VERSION
+    });
+  };
+  router2.get("/health", healthCheck);
+  router2.get("/test", testEndpoint);
+  return router2;
+}
+
+// server/routes/classroom.routes.ts
+import { Router as Router2 } from "express";
+
+// server/middleware/validation.middleware.ts
+function validateRequiredFields(body, fields) {
+  const missingFields = fields.filter((field) => body[field] === void 0 || body[field] === null);
+  if (missingFields.length > 0) {
+    throw new Error(`Missing required fields: ${missingFields.join(", ")}`);
+  }
+}
+function parseLimit(limitParam, defaultLimit = 10) {
+  if (!limitParam) return defaultLimit;
+  const limit = parseInt(limitParam, 10);
+  if (isNaN(limit) || limit < 1 || !Number.isInteger(parseFloat(limitParam))) {
+    throw new Error("Limit must be a positive integer");
+  }
+  return Math.min(limit, 100);
+}
+function validateClassroomCode(code) {
+  const CLASSROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
+  return CLASSROOM_CODE_PATTERN.test(code);
+}
+
+// server/routes/classroom.routes.ts
+function createClassroomRoutes() {
+  const router2 = Router2();
+  const joinClassroom = asyncHandler(async (req, res) => {
+    const { classCode } = req.params;
+    if (!validateClassroomCode(classCode)) {
+      throw new ApiError(400, "Invalid classroom code format");
+    }
+    res.redirect(`/student?code=${classCode}`);
+  });
+  router2.get("/join/:classCode", joinClassroom);
+  return router2;
+}
+
+// server/routes/analytics.routes.ts
+import { Router as Router3 } from "express";
+
+// server/services/AnalyticsService.ts
 init_schema();
 init_db();
-import { Router as Router2 } from "express";
-import { sql as sql2 } from "drizzle-orm";
 import OpenAI from "openai";
+import { sql as sql2 } from "drizzle-orm";
+var AnalyticsService = class {
+  constructor() {
+    try {
+      this.openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-for-initialization-only"
+      });
+    } catch (error) {
+      console.error("Error initializing OpenAI client for analytics:", error);
+      this.openai = new OpenAI({ apiKey: "sk-placeholder-for-initialization-only" });
+    }
+  }
+  /**
+   * Gather comprehensive analytics statistics from the database
+   */
+  async gatherAnalyticsStats() {
+    const sessionStats = await db.select({
+      totalSessions: sql2`COUNT(*)`,
+      activeSessions: sql2`COUNT(CASE WHEN ${sessions.isActive} = true THEN 1 END)`,
+      sessionsToday: sql2`COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END)`,
+      recentSessions24h: sql2`COUNT(CASE WHEN start_time >= NOW() - INTERVAL '24 hours' THEN 1 END)`
+    }).from(sessions);
+    const studentStats = await db.select({
+      totalStudentConnections: sql2`SUM(COALESCE(students_count, 0))`,
+      avgStudentsPerSession: sql2`AVG(COALESCE(students_count, 0))`,
+      maxStudentsInSession: sql2`MAX(students_count)`,
+      currentlyActiveStudents: sql2`SUM(CASE WHEN is_active = true THEN COALESCE(students_count, 0) ELSE 0 END)`
+    }).from(sessions);
+    const durationStats = await db.select({
+      avgDurationSeconds: sql2`AVG(EXTRACT(EPOCH FROM (end_time - start_time)))`,
+      completedSessions: sql2`COUNT(*)`
+    }).from(sessions).where(sql2`end_time IS NOT NULL AND start_time IS NOT NULL`);
+    const sessionData = sessionStats[0] || {};
+    const studentData = studentStats[0] || {};
+    const durationData = durationStats[0] || {};
+    return {
+      activeSessions: Number(sessionData.activeSessions || 0),
+      totalSessions: Number(sessionData.totalSessions || 0),
+      recentSessions: Number(sessionData.recentSessions24h || 0),
+      sessionsToday: Number(sessionData.sessionsToday || 0),
+      uniqueStudents: Number(studentData.totalStudentConnections || 0),
+      currentlyActiveStudents: Number(studentData.currentlyActiveStudents || 0),
+      averageSessionDuration: Number(durationData.avgDurationSeconds || 0),
+      completedSessions: Number(durationData.completedSessions || 0)
+    };
+  }
+  /**
+   * Process natural language queries using OpenAI with database schema awareness
+   */
+  async processNaturalLanguageQuery(question, stats) {
+    try {
+      if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "sk-placeholder-for-initialization-only") {
+        return `I understand you're asking about "${question}". Based on the current data: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, ${stats.sessionsToday} sessions today, and ${stats.uniqueStudents} total student connections.`;
+      }
+      const completion = await this.openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI assistant helping analyze AI Voice Translator system analytics. 
+
+Available data fields:
+- activeSessions: ${stats.activeSessions} (currently running sessions)
+- totalSessions: ${stats.totalSessions} (all sessions ever created)
+- sessionsToday: ${stats.sessionsToday} (sessions started today)
+- uniqueStudents: ${stats.uniqueStudents} (total student connections across all sessions)
+- currentlyActiveStudents: ${stats.currentlyActiveStudents} (students in currently active sessions)
+- averageSessionDuration: ${Math.round(stats.averageSessionDuration / 60)} minutes
+- completedSessions: ${stats.completedSessions} (sessions that have ended)
+
+Answer the user's question clearly and directly based on this data. Be concise and helpful.`
+          },
+          {
+            role: "user",
+            content: question
+          }
+        ],
+        max_tokens: 150,
+        temperature: 0.1
+      });
+      return completion.choices[0]?.message?.content || `Based on the current data: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, and ${stats.uniqueStudents} total student connections.`;
+    } catch (error) {
+      console.error("Error processing natural language query with OpenAI:", error);
+      return `I understand you're asking: "${question}". Current stats: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, ${stats.sessionsToday} sessions today, ${stats.uniqueStudents} total students, and ${Math.round(stats.averageSessionDuration / 60)} minutes average duration.`;
+    }
+  }
+  /**
+   * Get debug database information
+   */
+  async getDebugDatabaseInfo() {
+    const allSessions = await db.select().from(sessions);
+    const activeSessions = await db.select({
+      count: sql2`COUNT(*)`
+    }).from(sessions).where(sql2`is_active = true`);
+    const totalStudents = await db.select({
+      total: sql2`SUM(students_count)`
+    }).from(sessions);
+    return {
+      allSessions,
+      activeSessions: activeSessions[0],
+      totalStudents: totalStudents[0],
+      message: "Database debug info"
+    };
+  }
+};
+
+// server/middleware/analytics-security.ts
+import rateLimit from "express-rate-limit";
+import DOMPurify from "isomorphic-dompurify";
+var analyticsRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  max: 50,
+  // 50 requests per window per IP
+  message: {
+    success: false,
+    error: "Too many analytics requests. Please try again later.",
+    retryAfter: "15 minutes"
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+var analyticsPageAuth = (req, res, next) => {
+  const analyticsPassword = process.env.ANALYTICS_PASSWORD;
+  if (!analyticsPassword) {
+    console.warn("\u26A0\uFE0F  ANALYTICS_PASSWORD not set - analytics page is accessible without authentication");
+    return next();
+  }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Basic ")) {
+    res.status(401);
+    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+    return res.json({
+      error: "Authentication required for analytics access",
+      hint: 'Use username: "admin" and the ANALYTICS_PASSWORD'
+    });
+  }
+  try {
+    const base64Credentials = authHeader.split(" ")[1];
+    const credentials = Buffer.from(base64Credentials, "base64").toString("ascii");
+    const [username, password] = credentials.split(":");
+    if (username === "admin" && password === analyticsPassword) {
+      return next();
+    } else {
+      res.status(401);
+      res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+      return res.json({ error: "Invalid credentials" });
+    }
+  } catch (error) {
+    res.status(401);
+    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
+    return res.json({ error: "Invalid authentication format" });
+  }
+};
+var INJECTION_PATTERNS = [
+  // Role manipulation
+  /ignore\s+(?:all\s+)?previous\s+instructions/i,
+  /forget\s+(?:all\s+)?previous\s+instructions/i,
+  /you\s+are\s+now\s+(?:a\s+)?(?:helpful\s+)?assistant/i,
+  /act\s+as\s+(?:a\s+)?(?:helpful\s+)?assistant/i,
+  /pretend\s+to\s+be/i,
+  /roleplay\s+as/i,
+  // System instruction overrides
+  /system\s+prompt/i,
+  /override\s+instructions/i,
+  /change\s+your\s+role/i,
+  /new\s+instructions/i,
+  // Command execution attempts
+  /execute\s+(?:shell\s+)?command/i,
+  /run\s+(?:shell\s+)?command/i,
+  /(?:rm\s+-rf|sudo|chmod|mkdir|touch|cat\s+\/etc)/i,
+  /(?:import\s+os|subprocess|eval\(|exec\()/i,
+  // Code injection patterns
+  /(?:SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*(?:FROM|INTO|TABLE)/i,
+  /<script.*?>.*?<\/script>/i,
+  /javascript:/i,
+  /on(?:click|load|error|focus)=/i,
+  // Administrative privilege attempts
+  /(?:admin|administrator|root|sudo)\s+(?:access|privileges|rights)/i,
+  /elevate\s+(?:privileges|permissions)/i,
+  /bypass\s+security/i,
+  // Data exfiltration attempts
+  /show\s+me\s+(?:all\s+)?(?:users|passwords|secrets|keys)/i,
+  /list\s+(?:all\s+)?(?:files|directories|users)/i,
+  /dump\s+(?:database|table|data)/i,
+  // Additional suspicious patterns
+  /\$\{.*?\}/,
+  // Template injection
+  /\{\{.*?\}\}/,
+  // Template injection
+  /eval\s*\(/i,
+  /Function\s*\(/i
+];
+var SUSPICIOUS_KEYWORDS = [
+  "hack",
+  "exploit",
+  "vulnerability",
+  "backdoor",
+  "malware",
+  "virus",
+  "crack",
+  "breach",
+  "penetrate",
+  "infiltrate",
+  "compromise",
+  "exploit",
+  "payload",
+  "shellcode",
+  "rootkit",
+  "trojan",
+  "keylogger",
+  "spyware"
+];
+var ANALYTICS_KEYWORDS = [
+  "session",
+  "sessions",
+  "student",
+  "students",
+  "teacher",
+  "teachers",
+  "translation",
+  "translations",
+  "language",
+  "languages",
+  "analytics",
+  "data",
+  "statistics",
+  "stats",
+  "count",
+  "total",
+  "average",
+  "trend",
+  "trends",
+  "daily",
+  "weekly",
+  "monthly",
+  "activity",
+  "engagement",
+  "performance",
+  "usage",
+  "chart",
+  "graph",
+  "visualization",
+  "report"
+];
+var analyticsSecurityMiddleware = (req, res, next) => {
+  try {
+    const { question } = req.body;
+    if (!question || typeof question !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input",
+        details: "Question is required and must be a string"
+      });
+    }
+    if (question.length < 10) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid analytics query",
+        details: "Query too short"
+      });
+    }
+    if (question.length > 1e3) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid analytics query",
+        details: "Query too long"
+      });
+    }
+    const sanitizedQuestion = DOMPurify.sanitize(question.trim());
+    for (const pattern of INJECTION_PATTERNS) {
+      if (pattern.test(sanitizedQuestion)) {
+        console.warn(`\u{1F6AB} Blocked potential injection attempt: ${sanitizedQuestion.substring(0, 100)}...`);
+        return res.status(403).json({
+          success: false,
+          error: "Security violation detected",
+          details: "Query contains suspicious patterns"
+        });
+      }
+    }
+    const lowerQuestion = sanitizedQuestion.toLowerCase();
+    for (const keyword of SUSPICIOUS_KEYWORDS) {
+      if (lowerQuestion.includes(keyword)) {
+        console.warn(`\u{1F6AB} Blocked query with suspicious keyword "${keyword}": ${sanitizedQuestion.substring(0, 100)}...`);
+        return res.status(403).json({
+          success: false,
+          error: "Security violation detected",
+          details: "Query contains suspicious content"
+        });
+      }
+    }
+    const hasAnalyticsKeyword = ANALYTICS_KEYWORDS.some(
+      (keyword) => lowerQuestion.includes(keyword)
+    );
+    if (!hasAnalyticsKeyword) {
+      console.warn(`\u26A0\uFE0F  Non-analytics query blocked: ${sanitizedQuestion.substring(0, 100)}...`);
+      return res.status(400).json({
+        success: false,
+        error: "Invalid analytics query",
+        details: "Query does not appear to be analytics-related"
+      });
+    }
+    req.body.question = sanitizedQuestion;
+    console.log(`\u2705 Analytics query validated: ${sanitizedQuestion.substring(0, 100)}...`);
+    next();
+  } catch (error) {
+    console.error("Security middleware error:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Security validation failed",
+      details: "Internal security error"
+    });
+  }
+};
+
+// server/routes/analytics.routes.ts
+init_db();
+init_schema();
+import { sql as sql3 } from "drizzle-orm";
+function createAnalyticsRoutes() {
+  const router2 = Router3();
+  const analyticsService = new AnalyticsService();
+  const handleAnalyticsQuery = asyncHandler(async (req, res) => {
+    const { question } = req.body;
+    if (!question || typeof question !== "string") {
+      throw new ApiError(400, "Question is required and must be a string");
+    }
+    const stats = await analyticsService.gatherAnalyticsStats();
+    const answer = await analyticsService.processNaturalLanguageQuery(question, stats);
+    const response = {
+      success: true,
+      answer,
+      data: stats,
+      question
+    };
+    res.json(response);
+  });
+  const testAnalyticsQuery = asyncHandler(async (req, res) => {
+    const { question } = req.body;
+    console.log("\u{1F50D} DEBUG: Test analytics endpoint hit with question:", question);
+    const response = {
+      success: true,
+      answer: "Test response with success field",
+      data: { test: true },
+      question
+    };
+    res.json(response);
+  });
+  const debugDatabase = asyncHandler(async (req, res) => {
+    console.log("\u{1F50D} DEBUG: Database debug endpoint hit");
+    const debugInfo = await analyticsService.getDebugDatabaseInfo();
+    const response = {
+      success: true,
+      ...debugInfo
+    };
+    res.json(response);
+  });
+  router2.post(
+    "/analytics/query",
+    analyticsRateLimit,
+    analyticsSecurityMiddleware,
+    analyticsPageAuth,
+    handleAnalyticsQuery
+  );
+  router2.post(
+    "/analytics/ask",
+    analyticsRateLimit,
+    analyticsSecurityMiddleware,
+    analyticsPageAuth,
+    handleAnalyticsQuery
+  );
+  router2.post(
+    "/analytics/test",
+    analyticsRateLimit,
+    analyticsSecurityMiddleware,
+    analyticsPageAuth,
+    testAnalyticsQuery
+  );
+  router2.get("/debug/database", debugDatabase);
+  router2.get("/analytics/active-sessions", getActiveSessionsNow);
+  router2.get("/analytics/sessions-this-week", getSessionsThisWeek);
+  router2.get("/analytics/translations-per-session", getTranslationsPerSession);
+  router2.get("/analytics/peak-hours", getPeakUsageHours);
+  async function getActiveSessionsNow(req, res) {
+    try {
+      const activeSessionsResult = await db.select({
+        count: sql3`COUNT(*)`,
+        sessionIds: sql3`ARRAY_AGG(session_id)`,
+        teacherIds: sql3`ARRAY_AGG(teacher_id::text)`,
+        classCodes: sql3`ARRAY_AGG(class_code)`
+      }).from(sessions).where(sql3`is_active = true`);
+      const result = activeSessionsResult[0];
+      const sqlQuery = `SELECT COUNT(*) as count, ARRAY_AGG(session_id) as session_ids, 
+                        ARRAY_AGG(teacher_id::text) as teacher_ids, ARRAY_AGG(class_code) as class_codes 
+                        FROM sessions WHERE is_active = true`;
+      res.json({
+        success: true,
+        data: {
+          activeSessionsCount: Number(result.count || 0),
+          sessionIds: result.sessionIds || [],
+          teacherIds: result.teacherIds || [],
+          classCodes: result.classCodes || []
+        },
+        sql: sqlQuery,
+        description: "Shows currently active teaching sessions"
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get active sessions" });
+    }
+  }
+  async function getSessionsThisWeek(req, res) {
+    try {
+      const weeklySessionsResult = await db.select({
+        count: sql3`COUNT(*)`,
+        todayCount: sql3`COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END)`,
+        last7Days: sql3`COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END)`,
+        thisWeekSessions: sql3`ARRAY_AGG(
+          JSON_BUILD_OBJECT(
+            'sessionId', session_id,
+            'teacherId', teacher_id,
+            'classCode', class_code,
+            'startTime', start_time,
+            'studentsCount', students_count,
+            'totalTranslations', total_translations
+          ) ORDER BY start_time DESC
+        ) FILTER (WHERE start_time >= CURRENT_DATE - INTERVAL '7 days')`
+      }).from(sessions);
+      const result = weeklySessionsResult[0];
+      const sqlQuery = `SELECT COUNT(*) as total_sessions,
+                        COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END) as today_sessions,
+                        COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as week_sessions
+                        FROM sessions`;
+      res.json({
+        success: true,
+        data: {
+          totalSessions: Number(result.count || 0),
+          sessionsToday: Number(result.todayCount || 0),
+          sessionsThisWeek: Number(result.last7Days || 0),
+          weeklySessionDetails: result.thisWeekSessions || []
+        },
+        sql: sqlQuery,
+        description: "Sessions created in the last 7 days vs today vs all time"
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get weekly sessions" });
+    }
+  }
+  async function getTranslationsPerSession(req, res) {
+    try {
+      const translationStatsResult = await db.select({
+        avgTranslations: sql3`AVG(COALESCE(total_translations, 0))`,
+        totalTranslations: sql3`SUM(COALESCE(total_translations, 0))`,
+        sessionsWithTranslations: sql3`COUNT(CASE WHEN total_translations > 0 THEN 1 END)`,
+        topSessions: sql3`ARRAY_AGG(
+          JSON_BUILD_OBJECT(
+            'sessionId', session_id,
+            'classCode', class_code,
+            'translations', total_translations,
+            'students', students_count,
+            'startTime', start_time
+          ) ORDER BY total_translations DESC
+        ) FILTER (WHERE total_translations > 0)`
+      }).from(sessions);
+      const result = translationStatsResult[0];
+      const sqlQuery = `SELECT AVG(COALESCE(total_translations, 0)) as avg_translations,
+                        SUM(COALESCE(total_translations, 0)) as total_translations,
+                        COUNT(CASE WHEN total_translations > 0 THEN 1 END) as active_sessions
+                        FROM sessions`;
+      res.json({
+        success: true,
+        data: {
+          averageTranslationsPerSession: Math.round(Number(result.avgTranslations || 0) * 10) / 10,
+          totalTranslationsAllTime: Number(result.totalTranslations || 0),
+          sessionsWithActivity: Number(result.sessionsWithTranslations || 0),
+          topActiveSessions: (result.topSessions || []).slice(0, 5)
+        },
+        sql: sqlQuery,
+        description: "Translation activity across all sessions - shows actual usage"
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get translation stats" });
+    }
+  }
+  async function getPeakUsageHours(req, res) {
+    try {
+      const peakHoursResult = await db.select({
+        hourlyDistribution: sql3`ARRAY_AGG(
+          JSON_BUILD_OBJECT(
+            'hour', EXTRACT(HOUR FROM start_time),
+            'count', COUNT(*)
+          )
+        )`
+      }).from(sessions).groupBy(sql3`EXTRACT(HOUR FROM start_time)`).orderBy(sql3`COUNT(*) DESC`);
+      const todayActivityResult = await db.select({
+        connectionsToday: sql3`COUNT(*)`,
+        peakHour: sql3`EXTRACT(HOUR FROM start_time)`,
+        todaySessions: sql3`ARRAY_AGG(
+          JSON_BUILD_OBJECT(
+            'hour', EXTRACT(HOUR FROM start_time),
+            'classCode', class_code,
+            'students', students_count
+          ) ORDER BY start_time DESC
+        )`
+      }).from(sessions).where(sql3`DATE(start_time) = CURRENT_DATE`).groupBy(sql3`EXTRACT(HOUR FROM start_time)`).orderBy(sql3`COUNT(*) DESC`).limit(1);
+      const hourlyData = peakHoursResult[0];
+      const todayData = todayActivityResult[0];
+      const sqlQuery = `SELECT EXTRACT(HOUR FROM start_time) as hour, COUNT(*) as sessions
+                        FROM sessions 
+                        GROUP BY EXTRACT(HOUR FROM start_time) 
+                        ORDER BY COUNT(*) DESC`;
+      res.json({
+        success: true,
+        data: {
+          peakHour: Number(todayData?.peakHour || 0),
+          connectionsToday: Number(todayData?.connectionsToday || 0),
+          hourlyDistribution: hourlyData?.hourlyDistribution || [],
+          todayActivity: todayData?.todaySessions || []
+        },
+        sql: sqlQuery,
+        description: "Shows when teachers are most active (peak hours for starting sessions)"
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to get peak hours" });
+    }
+  }
+  return router2;
+}
+
+// server/routes/languages.routes.ts
+import { Router as Router4 } from "express";
+
+// server/services/LanguageService.ts
+var LanguageService = class {
+  constructor(storage) {
+    this.storage = storage;
+  }
+  /**
+   * Get all available languages
+   */
+  async getAllLanguages() {
+    return await this.storage.getLanguages();
+  }
+  /**
+   * Get only active languages
+   */
+  async getActiveLanguages() {
+    return await this.storage.getActiveLanguages();
+  }
+  /**
+   * Update language status
+   */
+  async updateLanguageStatus(code, isActive) {
+    const updatedLanguage = await this.storage.updateLanguageStatus(code, isActive);
+    if (!updatedLanguage) {
+      throw new Error(`Language with code '${code}' not found`);
+    }
+    return updatedLanguage;
+  }
+};
+
+// server/routes/languages.routes.ts
+function createLanguageRoutes(storage) {
+  const router2 = Router4();
+  const languageService = new LanguageService(storage);
+  const getLanguages = asyncHandler(async (req, res) => {
+    const languages3 = await languageService.getAllLanguages();
+    res.json(languages3);
+  });
+  const getActiveLanguages = asyncHandler(async (req, res) => {
+    const activeLanguages = await languageService.getActiveLanguages();
+    res.json(activeLanguages);
+  });
+  const updateLanguageStatus = asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    const { isActive } = req.body;
+    if (typeof isActive !== "boolean") {
+      throw new ApiError(400, "isActive must be a boolean value");
+    }
+    try {
+      const updatedLanguage = await languageService.updateLanguageStatus(code, isActive);
+      res.json(updatedLanguage);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("not found")) {
+        throw new ApiError(404, error.message);
+      }
+      throw error;
+    }
+  });
+  router2.get("/languages", getLanguages);
+  router2.get("/languages/active", getActiveLanguages);
+  router2.patch("/languages/:code/status", updateLanguageStatus);
+  return router2;
+}
+
+// server/routes/translations.routes.ts
+import { Router as Router5 } from "express";
+
+// server/services/TranslationRoutesService.ts
+var TranslationRoutesService = class {
+  constructor(storage) {
+    this.storage = storage;
+  }
+  /**
+   * Save a new translation
+   */
+  async saveTranslation(data) {
+    if (data.originalText.trim().length === 0) {
+      throw new Error("originalText cannot be empty");
+    }
+    if (data.translatedText.trim().length === 0) {
+      throw new Error("translatedText cannot be empty");
+    }
+    const translation = await this.storage.addTranslation({
+      sourceLanguage: data.sourceLanguage,
+      targetLanguage: data.targetLanguage,
+      originalText: data.originalText.trim(),
+      translatedText: data.translatedText.trim(),
+      latency: data.latency || 0
+    });
+    return translation;
+  }
+  /**
+   * Get translations by target language
+   */
+  async getTranslationsByLanguage(language, limit) {
+    return await this.storage.getTranslationsByLanguage(language, limit);
+  }
+};
+
+// server/routes/translations.routes.ts
+function createTranslationRoutes(storage) {
+  const router2 = Router5();
+  const translationService2 = new TranslationRoutesService(storage);
+  const saveTranslation = asyncHandler(async (req, res) => {
+    validateRequiredFields(req.body, ["sourceLanguage", "targetLanguage", "originalText", "translatedText"]);
+    const { sourceLanguage, targetLanguage, originalText, translatedText, latency } = req.body;
+    try {
+      const translation = await translationService2.saveTranslation({
+        sourceLanguage,
+        targetLanguage,
+        originalText,
+        translatedText,
+        latency
+      });
+      res.status(201).json(translation);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("cannot be empty")) {
+        throw new ApiError(400, error.message);
+      }
+      throw error;
+    }
+  });
+  const getTranslationsByLanguage = asyncHandler(async (req, res) => {
+    const { language } = req.params;
+    const limit = parseLimit(req.query.limit);
+    const translations2 = await translationService2.getTranslationsByLanguage(language, limit);
+    res.json(translations2);
+  });
+  router2.post("/translations", saveTranslation);
+  router2.get("/translations/language/:language", getTranslationsByLanguage);
+  return router2;
+}
+
+// server/routes/transcripts.routes.ts
+import { Router as Router6 } from "express";
+
+// server/services/TranscriptService.ts
+var TranscriptService = class {
+  constructor(storage) {
+    this.storage = storage;
+  }
+  /**
+   * Save a new transcript
+   */
+  async saveTranscript(data) {
+    if (data.text.trim().length === 0) {
+      throw new Error("text cannot be empty");
+    }
+    const transcript = await this.storage.addTranscript({
+      sessionId: data.sessionId,
+      language: data.language,
+      text: data.text.trim()
+    });
+    return transcript;
+  }
+  /**
+   * Get transcripts by session and language
+   */
+  async getTranscriptsBySession(sessionId, language) {
+    return await this.storage.getTranscriptsBySession(sessionId, language);
+  }
+};
+
+// server/routes/transcripts.routes.ts
+function createTranscriptRoutes(storage) {
+  const router2 = Router6();
+  const transcriptService = new TranscriptService(storage);
+  const saveTranscript = asyncHandler(async (req, res) => {
+    validateRequiredFields(req.body, ["sessionId", "language", "text"]);
+    const { sessionId, language, text: text2 } = req.body;
+    try {
+      const transcript = await transcriptService.saveTranscript({
+        sessionId,
+        language,
+        text: text2
+      });
+      res.status(201).json(transcript);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("cannot be empty")) {
+        throw new ApiError(400, error.message);
+      }
+      throw error;
+    }
+  });
+  const getTranscriptsBySession = asyncHandler(async (req, res) => {
+    const { sessionId, language } = req.params;
+    const transcripts2 = await transcriptService.getTranscriptsBySession(sessionId, language);
+    res.json(transcripts2);
+  });
+  router2.post("/transcripts", saveTranscript);
+  router2.get("/transcripts/:sessionId/:language", getTranscriptsBySession);
+  return router2;
+}
 
 // server/routes/auth.ts
 init_db();
 init_schema();
 init_logger();
-import { Router } from "express";
+import { Router as Router7 } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { eq } from "drizzle-orm";
-var router = Router();
+import { eq as eq2 } from "drizzle-orm";
+var router = Router7();
 var JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
 var SALT_ROUNDS = 10;
 router.post("/register", async (req, res) => {
@@ -831,7 +1692,7 @@ router.post("/register", async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ error: "Password must be at least 6 characters long" });
     }
-    const existingUser = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    const existingUser = await db.select().from(users).where(eq2(users.username, username)).limit(1);
     if (existingUser.length > 0) {
       return res.status(409).json({ error: "Username already exists" });
     }
@@ -856,7 +1717,7 @@ router.post("/login", async (req, res) => {
     if (!username || !password) {
       return res.status(400).json({ error: "Username and password are required" });
     }
-    const user = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    const user = await db.select().from(users).where(eq2(users.username, username)).limit(1);
     if (user.length === 0) {
       return res.status(401).json({ error: "Invalid username or password" });
     }
@@ -898,316 +1759,31 @@ router.get("/me", verifyTeacherToken, (req, res) => {
 });
 var auth_default = router;
 
-// server/routes.ts
-var API_VERSION = "1.0.0";
-var CLASSROOM_CODE_PATTERN = /^[A-Z0-9]{6}$/;
-var openai;
-try {
-  openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-for-initialization-only"
-  });
-} catch (error) {
-  console.error("Error initializing OpenAI client for analytics:", error);
-  openai = new OpenAI({ apiKey: "sk-placeholder-for-initialization-only" });
-}
-var ApiError = class extends Error {
-  constructor(statusCode, message, details) {
-    super(message);
-    this.statusCode = statusCode;
-    this.details = details;
-    this.name = "ApiError";
-  }
-};
-var asyncHandler = (fn) => (req, res, next) => {
-  return Promise.resolve(fn(req, res, next)).catch(next);
-};
-function validateRequiredFields(body, fields) {
-  const missingFields = fields.filter((field) => !body[field]);
-  if (missingFields.length > 0) {
-    throw new ApiError(400, `Missing required fields: ${missingFields.join(", ")}`);
-  }
-}
-function parseLimit(limitParam, defaultLimit = 10) {
-  if (!limitParam) return defaultLimit;
-  const limit = parseInt(limitParam);
-  if (isNaN(limit) || limit < 1) {
-    throw new ApiError(400, "Invalid limit parameter: must be a positive integer");
-  }
-  return Math.min(limit, 100);
-}
-var createApiRoutes = (storage, activeSessionProvider, sessionCleanupService) => {
-  const router2 = Router2();
-  const getLanguages = asyncHandler(async (req, res) => {
-    const languages3 = await storage.getLanguages();
-    res.json(languages3);
-  });
-  const getActiveLanguages = asyncHandler(async (req, res) => {
-    const activeLanguages = await storage.getActiveLanguages();
-    res.json(activeLanguages);
-  });
-  const updateLanguageStatus = asyncHandler(async (req, res) => {
-    const { code } = req.params;
-    const { isActive } = req.body;
-    if (typeof isActive !== "boolean") {
-      throw new ApiError(400, "isActive must be a boolean value");
-    }
-    const updatedLanguage = await storage.updateLanguageStatus(code, isActive);
-    if (!updatedLanguage) {
-      throw new ApiError(404, `Language with code '${code}' not found`);
-    }
-    res.json(updatedLanguage);
-  });
-  const saveTranslation = asyncHandler(async (req, res) => {
-    validateRequiredFields(req.body, ["sourceLanguage", "targetLanguage", "originalText", "translatedText"]);
-    const { sourceLanguage, targetLanguage, originalText, translatedText, latency } = req.body;
-    if (originalText.trim().length === 0) {
-      throw new ApiError(400, "originalText cannot be empty");
-    }
-    if (translatedText.trim().length === 0) {
-      throw new ApiError(400, "translatedText cannot be empty");
-    }
-    const translation = await storage.addTranslation({
-      sourceLanguage,
-      targetLanguage,
-      originalText: originalText.trim(),
-      translatedText: translatedText.trim(),
-      latency: latency || 0
-    });
-    res.status(201).json(translation);
-  });
-  const getTranslationsByLanguage = asyncHandler(async (req, res) => {
-    const { language } = req.params;
-    const limit = parseLimit(req.query.limit);
-    const translations2 = await storage.getTranslationsByLanguage(language, limit);
-    res.json(translations2);
-  });
-  const saveTranscript = asyncHandler(async (req, res) => {
-    validateRequiredFields(req.body, ["sessionId", "language", "text"]);
-    const { sessionId, language, text: text2 } = req.body;
-    if (text2.trim().length === 0) {
-      throw new ApiError(400, "text cannot be empty");
-    }
-    const transcript = await storage.addTranscript({
-      sessionId,
-      language,
-      text: text2.trim()
-    });
-    res.status(201).json(transcript);
-  });
-  const getTranscriptsBySession = asyncHandler(async (req, res) => {
-    const { sessionId, language } = req.params;
-    const transcripts2 = await storage.getTranscriptsBySession(sessionId, language);
-    res.json(transcripts2);
-  });
-  const getUser = asyncHandler(async (req, res) => {
-    const userId = 1;
-    const user = await storage.getUser(userId);
-    if (!user) {
-      throw new ApiError(404, "User not found");
-    }
-    res.json(user);
-  });
-  const healthCheck = asyncHandler(async (req, res) => {
-    let dbStatus = "unknown";
-    try {
-      await storage.getLanguages();
-      dbStatus = "connected";
-    } catch (e) {
-      dbStatus = "disconnected";
-    }
-    res.json({
-      status: "ok",
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      version: API_VERSION,
-      database: dbStatus,
-      environment: process.env.NODE_ENV || "development",
-      activeSessions: activeSessionProvider.getActiveSessionsCount(),
-      // Corrected method name
-      activeTeachers: activeSessionProvider.getActiveTeacherCount(),
-      // Added available metric
-      activeStudents: activeSessionProvider.getActiveStudentCount()
-      // Added available metric
-    });
-  });
-  const joinClassroom = asyncHandler(async (req, res) => {
-    const { classCode } = req.params;
-    if (!CLASSROOM_CODE_PATTERN.test(classCode)) {
-      throw new ApiError(400, "Invalid classroom code format");
-    }
-    res.redirect(`/student?code=${classCode}`);
-  });
-  async function processNaturalLanguageQuery(question, stats) {
-    try {
-      if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "sk-placeholder-for-initialization-only") {
-        return `I understand you're asking about "${question}". Based on the current data: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, ${stats.sessionsToday} sessions today, and ${stats.uniqueStudents} total student connections.`;
-      }
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `You are an AI assistant helping analyze AI Voice Translator system analytics. 
-
-Available data fields:
-- activeSessions: ${stats.activeSessions} (currently running sessions)
-- totalSessions: ${stats.totalSessions} (all sessions ever created)
-- sessionsToday: ${stats.sessionsToday} (sessions started today)
-- uniqueStudents: ${stats.uniqueStudents} (total student connections across all sessions)
-- currentlyActiveStudents: ${stats.currentlyActiveStudents} (students in currently active sessions)
-- averageSessionDuration: ${Math.round(stats.averageSessionDuration / 60)} minutes
-- completedSessions: ${stats.completedSessions} (sessions that have ended)
-
-Answer the user's question clearly and directly based on this data. Be concise and helpful.`
-          },
-          {
-            role: "user",
-            content: question
-          }
-        ],
-        max_tokens: 150,
-        temperature: 0.1
-      });
-      return completion.choices[0]?.message?.content || `Based on the current data: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, and ${stats.uniqueStudents} total student connections.`;
-    } catch (error) {
-      console.error("Error processing natural language query with OpenAI:", error);
-      return `I understand you're asking: "${question}". Current stats: ${stats.totalSessions} total sessions, ${stats.activeSessions} active sessions, ${stats.sessionsToday} sessions today, ${stats.uniqueStudents} total students, and ${Math.round(stats.averageSessionDuration / 60)} minutes average duration.`;
-    }
-  }
-  const handleAnalyticsQuery = asyncHandler(async (req, res) => {
-    const { question } = req.body;
-    if (!question || typeof question !== "string") {
-      throw new ApiError(400, "Question is required and must be a string");
-    }
-    const sessionStats = await db.select({
-      totalSessions: sql2`COUNT(*)`,
-      activeSessions: sql2`COUNT(CASE WHEN ${sessions.isActive} = true THEN 1 END)`,
-      sessionsToday: sql2`COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END)`,
-      recentSessions24h: sql2`COUNT(CASE WHEN start_time >= NOW() - INTERVAL '24 hours' THEN 1 END)`
-    }).from(sessions);
-    const studentStats = await db.select({
-      totalStudentConnections: sql2`SUM(COALESCE(students_count, 0))`,
-      avgStudentsPerSession: sql2`AVG(COALESCE(students_count, 0))`,
-      maxStudentsInSession: sql2`MAX(students_count)`,
-      currentlyActiveStudents: sql2`SUM(CASE WHEN is_active = true THEN COALESCE(students_count, 0) ELSE 0 END)`
-    }).from(sessions);
-    const durationStats = await db.select({
-      avgDurationSeconds: sql2`AVG(EXTRACT(EPOCH FROM (end_time - start_time)))`,
-      completedSessions: sql2`COUNT(*)`
-    }).from(sessions).where(sql2`end_time IS NOT NULL AND start_time IS NOT NULL`);
-    const sessionData = sessionStats[0] || {};
-    const studentData = studentStats[0] || {};
-    const durationData = durationStats[0] || {};
-    const stats = {
-      activeSessions: Number(sessionData.activeSessions || 0),
-      totalSessions: Number(sessionData.totalSessions || 0),
-      recentSessions: Number(sessionData.recentSessions24h || 0),
-      sessionsToday: Number(sessionData.sessionsToday || 0),
-      uniqueStudents: Number(studentData.totalStudentConnections || 0),
-      currentlyActiveStudents: Number(studentData.currentlyActiveStudents || 0),
-      averageSessionDuration: Number(durationData.avgDurationSeconds || 0),
-      completedSessions: Number(durationData.completedSessions || 0)
-    };
-    const answer = await processNaturalLanguageQuery(question, stats);
-    const response = {
-      success: true,
-      answer,
-      data: stats,
-      question
-    };
-    res.json(response);
-  });
-  const testAnalyticsQuery = asyncHandler(async (req, res) => {
-    const { question } = req.body;
-    console.log("\u{1F50D} DEBUG: Test analytics endpoint hit with question:", question);
-    const response = {
-      success: true,
-      answer: "Test response with success field",
-      data: { test: true },
-      question
-    };
-    res.json(response);
-  });
-  const debugDatabase = asyncHandler(async (req, res) => {
-    console.log("\u{1F50D} DEBUG: Database debug endpoint hit");
-    const allSessions = await db.select().from(sessions);
-    const activeSessions = await db.select({
-      count: sql2`COUNT(*)`
-    }).from(sessions).where(sql2`is_active = true`);
-    const totalStudents = await db.select({
-      total: sql2`SUM(students_count)`
-    }).from(sessions);
-    const response = {
-      success: true,
-      allSessions,
-      activeSessions: activeSessions[0],
-      totalStudents: totalStudents[0],
-      message: "Database debug info"
-    };
-    res.json(response);
-  });
-  const testEndpoint = (req, res) => {
-    res.json({
-      message: "API is working",
-      timestamp: (/* @__PURE__ */ new Date()).toISOString()
-    });
-  };
-  router2.get("/languages", getLanguages);
-  router2.get("/languages/active", getActiveLanguages);
-  router2.put("/languages/:code/status", updateLanguageStatus);
-  router2.post("/translations", saveTranslation);
-  router2.get("/translations/:language", getTranslationsByLanguage);
-  router2.post("/transcripts", saveTranscript);
-  router2.get("/transcripts/:sessionId/:language", getTranscriptsBySession);
-  router2.get("/user", getUser);
+// server/routes/index.ts
+var sessionCleanupService = new SessionCleanupService();
+function createApiRoutes(storage, activeSessionProvider, sessionCleanupService2) {
+  const router2 = Router8();
+  router2.use("/", createHealthRoutes(storage, activeSessionProvider));
+  router2.use("/", createClassroomRoutes());
+  router2.use("/", createAnalyticsRoutes());
+  router2.use("/", createLanguageRoutes(storage));
+  router2.use("/", createTranslationRoutes(storage));
+  router2.use("/", createTranscriptRoutes(storage));
   router2.use("/auth", auth_default);
-  router2.get("/health", healthCheck);
-  router2.get("/join/:classCode", joinClassroom);
-  router2.post("/analytics/query", handleAnalyticsQuery);
-  router2.post("/analytics/ask", handleAnalyticsQuery);
-  router2.post("/analytics/test", testAnalyticsQuery);
-  router2.get("/debug/database", debugDatabase);
-  router2.get("/test", testEndpoint);
+  router2.use(apiErrorHandler);
   return router2;
-};
-var apiErrorHandler = (error, req, res, next) => {
-  console.error("API Error:", error);
-  console.log(`API Error Handler - req.path: "${req.path}"`);
-  if (error instanceof ApiError) {
-    const errorResponse = {
-      error: error.message
-    };
-    if (error.details !== void 0) {
-      errorResponse.details = error.details;
-    }
-    res.status(error.statusCode).json(errorResponse);
-  } else {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.log(`API Error Handler - errorMessage: "${errorMessage}"`);
-    if (req.path === "/api/diagnostics" && errorMessage === "Metrics service failed") {
-      console.log("API Error Handler: Matched diagnostics error");
-      res.status(500).json({
-        error: "Failed to get diagnostics"
-      });
-    } else {
-      console.log("API Error Handler: Did NOT match diagnostics error, falling back to generic 500.");
-      res.status(500).json({
-        error: "Internal server error",
-        message: process.env.NODE_ENV === "development" ? errorMessage : void 0
-      });
-    }
-  }
-};
+}
 
 // server/database-storage.ts
 init_schema();
 init_logger();
 init_db();
-import { avg, count, desc as desc4, eq as eq7, gte as gte3, lte as lte2, and as and4, sql as sql3, isNotNull } from "drizzle-orm";
+import { avg, count, desc as desc4, eq as eq8, gte as gte3, lte as lte2, and as and5, sql as sql4, isNotNull } from "drizzle-orm";
 
 // server/storage/user.storage.ts
 init_schema();
 init_db();
-import { eq as eq2 } from "drizzle-orm";
+import { eq as eq3 } from "drizzle-orm";
 
 // server/storage.error.ts
 var StorageError = class _StorageError extends Error {
@@ -1223,11 +1799,11 @@ var StorageError = class _StorageError extends Error {
 // server/storage/user.storage.ts
 var BaseUserStorage = class {
   async getUser(id) {
-    const result = await db.select().from(users).where(eq2(users.id, id)).limit(1);
+    const result = await db.select().from(users).where(eq3(users.id, id)).limit(1);
     return result[0];
   }
   async getUserByUsername(username) {
-    const result = await db.select().from(users).where(eq2(users.username, username)).limit(1);
+    const result = await db.select().from(users).where(eq3(users.username, username)).limit(1);
     return result[0];
   }
   validateUserInput(user) {
@@ -1280,14 +1856,14 @@ var DbUserStorage = class extends BaseUserStorage {
 // server/storage/language.storage.ts
 init_schema();
 init_db();
-import { eq as eq3 } from "drizzle-orm";
+import { eq as eq4 } from "drizzle-orm";
 var DbLanguageStorage = class {
   async getLanguage(id) {
-    const result = await db.select().from(languages).where(eq3(languages.id, id)).limit(1);
+    const result = await db.select().from(languages).where(eq4(languages.id, id)).limit(1);
     return result[0];
   }
   async getLanguageByCode(code) {
-    const result = await db.select().from(languages).where(eq3(languages.code, code)).limit(1);
+    const result = await db.select().from(languages).where(eq4(languages.code, code)).limit(1);
     return result[0];
   }
   async createLanguage(language) {
@@ -1317,10 +1893,10 @@ var DbLanguageStorage = class {
     return this.listLanguages();
   }
   async getActiveLanguages() {
-    return db.select().from(languages).where(eq3(languages.isActive, true));
+    return db.select().from(languages).where(eq4(languages.isActive, true));
   }
   async updateLanguageStatus(code, isActive) {
-    const result = await db.update(languages).set({ isActive }).where(eq3(languages.code, code)).returning();
+    const result = await db.update(languages).set({ isActive }).where(eq4(languages.code, code)).returning();
     return result[0];
   }
   async initializeDefaultLanguages() {
@@ -1353,11 +1929,11 @@ var DbLanguageStorage = class {
 // server/storage/translation.storage.ts
 init_schema();
 init_db();
-import { eq as eq4, desc, and, gte, lte } from "drizzle-orm";
+import { eq as eq5, desc, and as and2, gte, lte } from "drizzle-orm";
 var DEFAULT_TRANSLATION_QUERY_LIMIT = 10;
 var DbTranslationStorage = class {
   async getTranslation(id) {
-    const result = await db.select().from(translations).where(eq4(translations.id, id)).limit(1);
+    const result = await db.select().from(translations).where(eq5(translations.id, id)).limit(1);
     return result[0];
   }
   async createTranslation(translation) {
@@ -1406,13 +1982,13 @@ var DbTranslationStorage = class {
     return this.createTranslation(translation);
   }
   async getTranslationsByLanguage(targetLanguage, limit = DEFAULT_TRANSLATION_QUERY_LIMIT) {
-    return db.select().from(translations).where(eq4(translations.targetLanguage, targetLanguage)).orderBy(desc(translations.timestamp)).limit(limit);
+    return db.select().from(translations).where(eq5(translations.targetLanguage, targetLanguage)).orderBy(desc(translations.timestamp)).limit(limit);
   }
   async getTranslations(limit = DEFAULT_TRANSLATION_QUERY_LIMIT, offset = 0) {
     return db.select().from(translations).orderBy(desc(translations.timestamp)).limit(limit).offset(offset);
   }
   async getTranslationsByDateRange(startDate, endDate) {
-    return db.select().from(translations).where(and(
+    return db.select().from(translations).where(and2(
       gte(translations.timestamp, startDate),
       lte(translations.timestamp, endDate)
     )).orderBy(desc(translations.timestamp));
@@ -1422,7 +1998,7 @@ var DbTranslationStorage = class {
 // server/storage/transcript.storage.ts
 init_schema();
 init_db();
-import { eq as eq5, and as and2, desc as desc2 } from "drizzle-orm";
+import { eq as eq6, and as and3, desc as desc2 } from "drizzle-orm";
 var DEFAULT_TRANSCRIPT_QUERY_LIMIT = 100;
 var DbTranscriptStorage = class {
   async addTranscript(transcript) {
@@ -1441,9 +2017,9 @@ var DbTranscriptStorage = class {
   }
   async getTranscriptsBySession(sessionId, language, limit = DEFAULT_TRANSCRIPT_QUERY_LIMIT) {
     try {
-      return await db.select().from(transcripts).where(and2(
-        eq5(transcripts.sessionId, sessionId),
-        eq5(transcripts.language, language)
+      return await db.select().from(transcripts).where(and3(
+        eq6(transcripts.sessionId, sessionId),
+        eq6(transcripts.language, language)
       )).orderBy(desc2(transcripts.timestamp)).limit(limit);
     } catch (error) {
       throw new StorageError("A database error occurred while retrieving transcripts.", "STORAGE_ERROR" /* STORAGE_ERROR */, error instanceof Error ? error.message : void 0);
@@ -1454,7 +2030,7 @@ var DbTranscriptStorage = class {
 // server/storage/session.storage.ts
 init_schema();
 init_db();
-import { eq as eq6, and as and3, or, desc as desc3, count as drizzleCount, gt, gte as gte2 } from "drizzle-orm";
+import { eq as eq7, and as and4, or, desc as desc3, count as drizzleCount, gt as gt2, gte as gte2 } from "drizzle-orm";
 init_logger();
 var DEFAULT_SESSION_QUERY_LIMIT = 10;
 var DbSessionStorage = class {
@@ -1488,7 +2064,7 @@ var DbSessionStorage = class {
   }
   async updateSession(sessionId, updates) {
     try {
-      const result = await db.update(sessions).set(updates).where(eq6(sessions.sessionId, sessionId)).returning();
+      const result = await db.update(sessions).set(updates).where(eq7(sessions.sessionId, sessionId)).returning();
       return result[0];
     } catch (error) {
       throw new StorageError(`Failed to update session ${sessionId}: ${error.message}`, "STORAGE_ERROR" /* STORAGE_ERROR */, error);
@@ -1496,10 +2072,10 @@ var DbSessionStorage = class {
   }
   async getActiveSession(sessionId) {
     try {
-      const result = await db.select().from(sessions).where(and3(
+      const result = await db.select().from(sessions).where(and4(
         // and, eq from drizzle-orm, sessions from ../../shared/schema
-        eq6(sessions.sessionId, sessionId),
-        eq6(sessions.isActive, true)
+        eq7(sessions.sessionId, sessionId),
+        eq7(sessions.isActive, true)
       )).limit(1);
       return result[0];
     } catch (error) {
@@ -1508,14 +2084,14 @@ var DbSessionStorage = class {
   }
   async getAllActiveSessions() {
     try {
-      return await db.select().from(sessions).where(eq6(sessions.isActive, true));
+      return await db.select().from(sessions).where(eq7(sessions.isActive, true));
     } catch (error) {
       throw new StorageError(`Failed to get all active sessions: ${error.message}`, "STORAGE_ERROR" /* STORAGE_ERROR */, error);
     }
   }
   async getCurrentlyActiveSessions() {
     try {
-      return await db.select().from(sessions).where(eq6(sessions.isActive, true));
+      return await db.select().from(sessions).where(eq7(sessions.isActive, true));
     } catch (error) {
       throw new StorageError(`Failed to get currently active sessions: ${error.message}`, "STORAGE_ERROR" /* STORAGE_ERROR */, error);
     }
@@ -1525,10 +2101,10 @@ var DbSessionStorage = class {
       const result = await db.update(sessions).set({
         endTime: /* @__PURE__ */ new Date(),
         isActive: false
-      }).where(and3(
+      }).where(and4(
         // and, eq from drizzle-orm, sessions from ../../shared/schema
-        eq6(sessions.sessionId, sessionId),
-        eq6(sessions.isActive, true)
+        eq7(sessions.sessionId, sessionId),
+        eq7(sessions.isActive, true)
       )).returning();
       return result[0];
     } catch (error) {
@@ -1559,23 +2135,23 @@ var DbSessionStorage = class {
         // Use the aliased aggregate from subquery
       }).from(sessions).leftJoin(
         transcriptCountsSubquery,
-        eq6(sessions.sessionId, transcriptCountsSubquery.sq_sessionId)
+        eq7(sessions.sessionId, transcriptCountsSubquery.sq_sessionId)
         // Join using the aliased sessionId from subquery
-      ).where(and3(
+      ).where(and4(
         // Timeline filter: sessions that started within the specified time range OR are currently active
         or(
           gte2(sessions.startTime, cutoffTime),
-          eq6(sessions.isActive, true)
+          eq7(sessions.isActive, true)
         ),
         // Activity filter: active sessions with students OR sessions with translations
         or(
-          and3(
-            eq6(sessions.isActive, true),
+          and4(
+            eq7(sessions.isActive, true),
             // Active sessions
-            gt(sessions.studentsCount, 0)
+            gt2(sessions.studentsCount, 0)
             // With at least one student
           ),
-          gt(sessions.totalTranslations, 0)
+          gt2(sessions.totalTranslations, 0)
           // Or completed sessions with at least one translation
         )
       )).orderBy(desc3(sessions.startTime)).limit(limit);
@@ -1604,7 +2180,7 @@ var DbSessionStorage = class {
   }
   async getSessionById(sessionId) {
     try {
-      const result = await db.select().from(sessions).where(eq6(sessions.sessionId, sessionId)).limit(1);
+      const result = await db.select().from(sessions).where(eq7(sessions.sessionId, sessionId)).limit(1);
       return result[0];
     } catch (error) {
       throw new StorageError(`Failed to get session by ID ${sessionId}: ${error.message}`, "STORAGE_ERROR" /* STORAGE_ERROR */, error);
@@ -1612,7 +2188,7 @@ var DbSessionStorage = class {
   }
   async getTranscriptCountBySession(sessionId) {
     try {
-      const result = await db.select({ count: drizzleCount(transcripts.id) }).from(transcripts).where(eq6(transcripts.sessionId, sessionId));
+      const result = await db.select({ count: drizzleCount(transcripts.id) }).from(transcripts).where(eq7(transcripts.sessionId, sessionId));
       return result[0]?.count ? Number(result[0].count) : 0;
     } catch (error) {
       throw new StorageError(`Failed to get transcript count for session ${sessionId}: ${error.message}`, "STORAGE_ERROR" /* STORAGE_ERROR */, error);
@@ -1683,9 +2259,9 @@ var DbSessionStorage = class {
       logger_default.info(`[DbSessionStorage] Finding recent session for teacherId: ${teacherId} within ${withinMinutes} minutes`);
       const cutoffTime = /* @__PURE__ */ new Date();
       cutoffTime.setMinutes(cutoffTime.getMinutes() - withinMinutes);
-      const result = await db.select().from(sessions).where(and3(
-        eq6(sessions.teacherId, teacherId),
-        eq6(sessions.isActive, false),
+      const result = await db.select().from(sessions).where(and4(
+        eq7(sessions.teacherId, teacherId),
+        eq7(sessions.isActive, false),
         // Only inactive (ended) sessions
         or(
           gte2(sessions.endTime, cutoffTime),
@@ -1720,9 +2296,9 @@ var DbSessionStorage = class {
         isActive: true,
         endTime: null,
         lastActivityAt: /* @__PURE__ */ new Date()
-      }).where(and3(
-        eq6(sessions.sessionId, sessionId),
-        eq6(sessions.isActive, false)
+      }).where(and4(
+        eq7(sessions.sessionId, sessionId),
+        eq7(sessions.isActive, false)
         // Only reactivate if currently inactive
       )).returning();
       if (result[0]) {
@@ -1859,17 +2435,6 @@ var DatabaseStorage = class {
   async getSessionById(sessionId) {
     return this.sessionStorage.getSessionById(sessionId);
   }
-  async getTotalStudentSlots() {
-    try {
-      const result = await db.select({
-        totalStudents: sql3`SUM(COALESCE(students_count, 0))`
-      }).from(sessions);
-      return Number(result[0]?.totalStudents) || 0;
-    } catch (error) {
-      logger_default.error("Failed to get total student slots:", error);
-      return 0;
-    }
-  }
   async createSession(sessionData) {
     return this.sessionStorage.createSession(sessionData);
   }
@@ -1885,7 +2450,7 @@ var DatabaseStorage = class {
   }
   // Analytics methods
   async getSessionAnalytics(sessionId) {
-    const translationsForSession = await db.select().from(translations).where(eq7(translations.sessionId, sessionId));
+    const translationsForSession = await db.select().from(translations).where(eq8(translations.sessionId, sessionId));
     if (translationsForSession.length === 0) {
       return { totalTranslations: 0, averageLatency: 0, languagePairs: [] };
     }
@@ -1926,22 +2491,22 @@ var DatabaseStorage = class {
   async getSessionMetrics(timeRange) {
     logger_default.debug("DatabaseStorage.getSessionMetrics called", { timeRange });
     const totalSessionsQueryName = timeRange ? "total_sessions_query_with_time_range" : "total_sessions_query_without_time_range";
-    const totalSessionsResult = await db.select({ totalSessions: count() }).from(sessions).where(timeRange ? and4(gte3(sessions.startTime, timeRange.startDate), lte2(sessions.startTime, timeRange.endDate)) : void 0).prepare(totalSessionsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : void 0);
+    const totalSessionsResult = await db.select({ totalSessions: count() }).from(sessions).where(timeRange ? and5(gte3(sessions.startTime, timeRange.startDate), lte2(sessions.startTime, timeRange.endDate)) : void 0).prepare(totalSessionsQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : void 0);
     const totalSessionsCount = Number(totalSessionsResult[0]?.totalSessions) || 0;
     let averageSessionDurationValue = 0;
     if (totalSessionsCount > 0) {
       const durationQueryName = timeRange ? "sum_duration_query_with_time_range" : "sum_duration_query_without_time_range";
       const durationResult = await db.select({
-        totalDuration: sql3`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
+        totalDuration: sql4`SUM(CASE WHEN ${sessions.endTime} IS NOT NULL THEN EXTRACT(EPOCH FROM (${sessions.endTime} - ${sessions.startTime})) * 1000 ELSE 0 END)::bigint`,
         countSessions: count(sessions.id)
       }).from(sessions).where(
-        timeRange ? and4(gte3(sessions.startTime, timeRange.startDate), lte2(sessions.startTime, timeRange.endDate), isNotNull(sessions.endTime)) : isNotNull(sessions.endTime)
+        timeRange ? and5(gte3(sessions.startTime, timeRange.startDate), lte2(sessions.startTime, timeRange.endDate), isNotNull(sessions.endTime)) : isNotNull(sessions.endTime)
       ).prepare(durationQueryName).execute(timeRange ? { startDate: timeRange.startDate, endDate: timeRange.endDate } : void 0);
       if (durationResult && durationResult.length > 0 && durationResult[0].countSessions && Number(durationResult[0].countSessions) > 0) {
         averageSessionDurationValue = (Number(durationResult[0].totalDuration) || 0) / Number(durationResult[0].countSessions);
       }
     }
-    const activeSessionsResult = await db.select({ count: count() }).from(sessions).where(eq7(sessions.isActive, true)).prepare("active_sessions_query").execute();
+    const activeSessionsResult = await db.select({ count: count() }).from(sessions).where(eq8(sessions.isActive, true)).prepare("active_sessions_query").execute();
     const activeSessionsCount = Number(activeSessionsResult[0]?.count) || 0;
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1e3);
     const sessionsLast24HoursResult = await db.select({ count: count() }).from(sessions).where(gte3(sessions.startTime, twentyFourHoursAgo)).prepare("sessions_last_24_hours_query").execute();
@@ -1962,7 +2527,7 @@ var DatabaseStorage = class {
       avg_latency: avg(translations.latency)
     }).from(translations);
     if (timeRange) {
-      query = query.where(and4(gte3(translations.timestamp, timeRange.startDate), lte2(translations.timestamp, timeRange.endDate)));
+      query = query.where(and5(gte3(translations.timestamp, timeRange.startDate), lte2(translations.timestamp, timeRange.endDate)));
     }
     const mainMetricsResult = await query.prepare(mainQueryName).execute(timeRange);
     let totalTranslationsValue = 0;
@@ -1991,7 +2556,7 @@ var DatabaseStorage = class {
       avg_latency: avg(translations.latency)
     }).from(translations);
     if (timeRange) {
-      queryBuilder = queryBuilder.where(and4(gte3(translations.timestamp, timeRange.startDate), lte2(translations.timestamp, timeRange.endDate)));
+      queryBuilder = queryBuilder.where(and5(gte3(translations.timestamp, timeRange.startDate), lte2(translations.timestamp, timeRange.endDate)));
     }
     const finalQuery = queryBuilder.groupBy(translations.sourceLanguage, translations.targetLanguage).orderBy(desc4(count(translations.id)));
     const results = await finalQuery.prepare(queryName).execute(timeRange);
@@ -2446,8 +3011,8 @@ var SilentTextToSpeechService = class {
   }
 };
 var OpenAITextToSpeechService = class {
-  constructor(openai3) {
-    this.openai = openai3;
+  constructor(openai2) {
+    this.openai = openai2;
     this.ensureCacheDirectoryExists();
   }
   /**
@@ -2704,8 +3269,8 @@ var TextToSpeechFactory = class _TextToSpeechFactory {
         ttsLogger.warn("[TTS Factory] OPENAI_API_KEY is missing. Falling back to silent TTS.");
         return this.services.get("silent");
       }
-      const openai3 = new OpenAI2({ apiKey });
-      return new OpenAITextToSpeechService(openai3);
+      const openai2 = new OpenAI2({ apiKey });
+      return new OpenAITextToSpeechService(openai2);
     }
     const service = this.services.get(serviceType.toLowerCase());
     if (!service) {
@@ -3009,8 +3574,8 @@ var SUSPICIOUS_PHRASES = [
   "return an empty string"
 ];
 var OpenAITranscriptionService = class {
-  constructor(openai3, audioHandler2 = new AudioFileHandler()) {
-    this.openai = openai3;
+  constructor(openai2, audioHandler2 = new AudioFileHandler()) {
+    this.openai = openai2;
     this.audioHandler = audioHandler2;
   }
   /**
@@ -3059,9 +3624,9 @@ var OpenAITranscriptionService = class {
   }
 };
 var OpenAITranslationService = class {
-  constructor(openai3) {
+  constructor(openai2) {
     this.maxRetries = 3;
-    this.openai = openai3;
+    this.openai = openai2;
   }
   /**
    * Get the full language name from a language code
@@ -3264,7 +3829,7 @@ var SpeechTranslationService = class {
     };
   }
 };
-var openai2;
+var openai;
 try {
   if (!process.env.OPENAI_API_KEY) {
     console.warn("OpenAI API key status: Missing");
@@ -3272,17 +3837,17 @@ try {
   } else {
     console.log("OpenAI API key status: Present");
   }
-  openai2 = new OpenAI3({
+  openai = new OpenAI3({
     apiKey: process.env.OPENAI_API_KEY || "sk-placeholder-for-initialization-only"
   });
   console.log("OpenAI client initialized successfully");
 } catch (error) {
   console.error("Error initializing OpenAI client:", error);
-  openai2 = new OpenAI3({ apiKey: "sk-placeholder-for-initialization-only" });
+  openai = new OpenAI3({ apiKey: "sk-placeholder-for-initialization-only" });
 }
 var audioHandler = new AudioFileHandler();
-var transcriptionService = new OpenAITranscriptionService(openai2, audioHandler);
-var translationService = new OpenAITranslationService(openai2);
+var transcriptionService = new OpenAITranscriptionService(openai, audioHandler);
+var translationService = new OpenAITranslationService(openai);
 var speechTranslationService = new SpeechTranslationService(
   transcriptionService,
   translationService,
@@ -5696,16 +6261,7 @@ var WebSocketServer = class _WebSocketServer {
    */
   setupEventHandlers() {
     this.wss.on("connection", (ws, request) => {
-      logger_default.info("WebSocket connection attempt received", {
-        url: request.url,
-        headers: request.headers,
-        origin: request.headers.origin,
-        userAgent: request.headers["user-agent"]
-      });
       this.handleConnection(ws, request);
-    });
-    this.wss.on("error", (error) => {
-      logger_default.error("WebSocket Server error:", { error });
     });
   }
   /**
@@ -6113,62 +6669,6 @@ import { createServer as createViteServer } from "vite";
 import path4 from "path";
 import fsPromises from "fs/promises";
 import fsSync from "fs";
-
-// server/middleware/analytics-security.ts
-import rateLimit from "express-rate-limit";
-import DOMPurify from "isomorphic-dompurify";
-var analyticsRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1e3,
-  // 15 minutes
-  max: 50,
-  // 50 requests per window per IP
-  message: {
-    success: false,
-    error: "Too many analytics requests. Please try again later.",
-    retryAfter: "15 minutes"
-  },
-  standardHeaders: true,
-  legacyHeaders: false
-});
-var analyticsPageAuth = (req, res, next) => {
-  const analyticsPassword = process.env.ANALYTICS_PASSWORD;
-  if (!analyticsPassword || analyticsPassword.trim() === "") {
-    console.error("\u{1F6A8} ANALYTICS_PASSWORD not set or empty - blocking analytics access");
-    res.status(401);
-    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-    return res.json({
-      error: "Analytics access requires authentication. ANALYTICS_PASSWORD must be configured.",
-      hint: 'Set ANALYTICS_PASSWORD environment variable and use username: "admin"'
-    });
-  }
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Basic ")) {
-    res.status(401);
-    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-    return res.json({
-      error: "Authentication required for analytics access",
-      hint: 'Use username: "admin" and the ANALYTICS_PASSWORD'
-    });
-  }
-  try {
-    const base64Credentials = authHeader.split(" ")[1];
-    const credentials = Buffer.from(base64Credentials, "base64").toString("ascii");
-    const [username, password] = credentials.split(":");
-    if (username === "admin" && password === analyticsPassword) {
-      return next();
-    } else {
-      res.status(401);
-      res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-      return res.json({ error: "Invalid credentials" });
-    }
-  } catch (error) {
-    res.status(401);
-    res.setHeader("WWW-Authenticate", 'Basic realm="Analytics"');
-    return res.json({ error: "Invalid authentication format" });
-  }
-};
-
-// server/vite.ts
 var vite = null;
 async function setupVite(app) {
   const viteConfigPath = path4.resolve(process.cwd(), "config", "vite.config.ts");

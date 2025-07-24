@@ -25,9 +25,10 @@
 - Shared between client and server
 
 ## CURRENT STATE
-- **Active Storage**: MemStorage (in-memory, no database required)
-- **Database Ready**: DatabaseStorage implemented but not used
-- **Switch Method**: Change `export const storage = new MemStorage()` to `new DatabaseStorage()`
+- **Active Storage**: DatabaseStorage (PostgreSQL with DrizzleORM)
+- **Database Provider**: PostgreSQL (Aiven for local/test, Supabase for dev/CI, Railway for production)
+- **ORM**: DrizzleORM with full schema migrations
+- **Connection**: Configured via DATABASE_URL environment variable
 
 ## TESTING STRUCTURE
 
@@ -60,22 +61,31 @@
 
 ## HOW TO USE
 
-### Current Setup (No Database / Memory Storage)
+### Current Setup (DatabaseStorage - Active)
 ```javascript
-// Already working - uses MemStorage if STORAGE_TYPE=memory (default)
+// Currently active - uses PostgreSQL database
 import { storage } from './server/storage';
-await storage.getLanguages(); // Works immediately
+await storage.getLanguages(); // Database query executed
+await storage.createSession(sessionData); // Persisted to PostgreSQL
 ```
 
-### Using Database Storage (Development & Test)
+The system requires a valid DATABASE_URL environment variable and will use:
+- **PostgreSQL with DrizzleORM**: Full-featured database with schema migrations
+- **Multi-provider support**: Aiven (local/test), Supabase (dev/CI), Railway (production)
+- **Connection pooling**: Managed via postgres-js library
+- **Schema validation**: Zod schemas for type safety
 
-1.  **Environment Variables:**
-    *   Set `STORAGE_TYPE=database` in your `.env` file (for development).
+### Using Database Storage (Currently Active)
+
+The application is currently configured to use PostgreSQL database storage by default. The system automatically detects and uses DatabaseStorage when a valid DATABASE_URL is provided.
+
+1.  **Environment Variables (Required):**
     *   Ensure `DATABASE_URL` in `.env` points to your development PostgreSQL database.
     *   Ensure `DATABASE_URL` in `.env.test` points to your test PostgreSQL database.
+    *   No need to set `STORAGE_TYPE` - DatabaseStorage is used automatically when DATABASE_URL is valid.
 
-2.  **Initial Database Setup / Schema Updates:**
-    *   **Modify Schema:** If making changes, edit `shared/schema.ts`.
+2.  **Database Setup & Schema Updates:**
+    *   **Modify Schema:** Edit `shared/schema.ts` to make changes.
     *   **Generate Migrations:**
         ```bash
         npm run db:migrations:generate
@@ -89,6 +99,16 @@ await storage.getLanguages(); // Works immediately
         ```bash
         npm run db:migrations:apply:test
         ```
+
+3.  **Storage Configuration:**
+    The system automatically uses DatabaseStorage via `server/storage.ts` when DATABASE_URL is configured. The storage factory creates appropriate storage instances based on environment.
+
+4.  **Start Application:**
+    ```bash
+    npm run dev
+    ```
+    
+    The application will connect to PostgreSQL and initialize default languages automatically.
 
 3.  **Switch `storage.ts` (if not already done):**
     Ensure `server/storage.ts` is configured to use `DatabaseStorage` when `STORAGE_TYPE=database`. (The current implementation in `storage.ts` should handle this based on `process.env.STORAGE_TYPE`).
