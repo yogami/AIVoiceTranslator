@@ -122,66 +122,43 @@ export function serveStatic(app: express.Express): void {
     return;
   }
   
-  // Serve static assets (JS, CSS, images) but not HTML files (index: false)
   app.use(express.static(clientDistPath, { index: false })); 
 
-  // SPA fallback - serve index.html for all routes that don't match static assets
-  const indexHtmlPath = path.join(clientDistPath, 'index.html');
-  
-  if (fsSync.existsSync(indexHtmlPath)) {
-    // Special handling for analytics route with auth
-    app.get('/analytics', analyticsPageAuth, (req, res) => {
-      const analyticsHtmlPath = path.join(clientDistPath, 'analytics.html');
-      if (fsSync.existsSync(analyticsHtmlPath)) {
-        logger.info(`[PROD STATIC] Serving ${analyticsHtmlPath} for ${req.path} (with auth)`);
-        res.sendFile(analyticsHtmlPath);
-      } else {
-        logger.info(`[PROD STATIC] Serving ${indexHtmlPath} for ${req.path} (analytics fallback with auth)`);
-        res.sendFile(indexHtmlPath);
-      }
-    });
+  const htmlEntries: { [key: string]: string } = {
+    '/': 'index.html',
+    '/teacher': 'teacher.html',
+    '/student': 'student.html',
+    '/analytics': 'analytics.html',
+    '/diagnostics': 'diagnostics.html',
+    '/teacher-login': 'teacher-login.html'
+  };
 
-    // Serve specific HTML files for their routes
-    const htmlRoutes = {
-      '/': 'index.html',
-      '/teacher': 'teacher.html',
-      '/teacher-login': 'teacher-login.html'
-    };
-
-    Object.entries(htmlRoutes).forEach(([route, htmlFile]) => {
-      const htmlPath = path.join(clientDistPath, htmlFile);
-      if (fsSync.existsSync(htmlPath)) {
-        app.get(route, (req, res) => {
-          logger.info(`[PROD STATIC] Serving ${htmlPath} for ${req.path}`);
-          res.sendFile(htmlPath);
+  Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
+    const filePath = path.join(clientDistPath, fileName);
+    // Use synchronous file check for simplicity in this part of the code, or adapt to async if preferred.
+    if (fsSync.existsSync(filePath)) { 
+      if (routePath === '/analytics') {
+        // Add authentication to analytics route in production
+        app.get(routePath, analyticsPageAuth, (req, res) => {
+          logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path} (with auth)`);
+          res.sendFile(filePath);
         });
       } else {
-        logger.warn(`[PROD STATIC] HTML file not found: ${htmlPath}. Route ${route} will fall back to index.html`);
-        app.get(route, (req, res) => {
-          logger.info(`[PROD STATIC] Serving ${indexHtmlPath} for ${req.path} (fallback)`);
-          res.sendFile(indexHtmlPath);
+        app.get(routePath, (req, res) => {
+          logger.info(`[PROD STATIC] Serving ${filePath} for ${req.path}`);
+          res.sendFile(filePath);
         });
       }
-    });
-
-    // Explicit index.html route
-    app.get('/index.html', (req, res) => {
-      logger.info(`[PROD STATIC] Serving ${indexHtmlPath} for /index.html (explicit)`);
-      res.sendFile(indexHtmlPath);
-    });
-
-    // Catch-all fallback for any other routes (SPA fallback)
-    app.get('*', (req, res) => {
-      // Don't handle API routes or static assets
-      if (req.path.startsWith('/api/') || req.path.includes('.')) {
-        return; // Let other handlers or 404 handle this
+      if (fileName === 'index.html' && routePath === '/') {
+        app.get('/index.html', (req, res) => {
+            logger.info(`[PROD STATIC] Serving ${filePath} for /index.html (explicit)`);
+            res.sendFile(filePath);
+        });
       }
-      logger.info(`[PROD STATIC] Serving ${indexHtmlPath} for ${req.path} (SPA fallback)`);
-      res.sendFile(indexHtmlPath);
-    });
-  } else {
-    logger.error(`[PROD STATIC] index.html not found at ${indexHtmlPath}. SPA routing will not work.`);
-  }
+    } else {
+      logger.warn(`[PROD STATIC] HTML file not found for route ${routePath}: ${filePath}. This route will result in a 404 if not handled otherwise.`);
+    }
+  });
   
   logger.info('[PROD STATIC] Static serving configured for assets and specific HTML files.');
 }
