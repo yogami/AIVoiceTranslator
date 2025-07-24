@@ -24,8 +24,8 @@ RUN ls -la dist/ && ls -la dist/client/
 # Clean up dev dependencies and install only production dependencies
 RUN npm prune --production && npm cache clean --force
 
-# Remove development files to reduce image size
-RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/
+# Remove development files to reduce image size (keep essential directories for production)
+RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/ temp/ scripts/
 
 # Set production environment
 ENV NODE_ENV=production
