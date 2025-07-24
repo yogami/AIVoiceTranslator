@@ -11,8 +11,7 @@ import path from 'path';
 import logger from './logger';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { config, validateConfig } from './config'; // Assuming config is imported and validated
-import { createApiRoutes } from './routes/index.js'; // Updated to use modular routes
-import { apiErrorHandler } from './middleware/error-handler.middleware.js';
+import { createApiRoutes, apiErrorHandler } from './routes.js'; // Revert to original single routes file
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
 import { WebSocketServer } from './services/WebSocketServer';
