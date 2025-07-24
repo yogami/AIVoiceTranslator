@@ -77,9 +77,9 @@ temp/
 .cache/
 audio-cache/
 
-# Scripts
+# Scripts (keep db-migration-scripts for production migrations)
 scripts/
-db-migration-scripts/
+# db-migration-scripts/ - COMMENTED OUT - needed for production migrations
 
 # Config files that aren't needed in production
 .eslintrc.*
