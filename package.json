@@ -8,7 +8,7 @@
     "dev:test": "./scripts/start-test-server.sh",
     "dev:client": "npx dotenv-cli -f .env --override -- vite --config config/vite.config.ts",
     "build": "npm run build:client && npm run build:server",
-    "build:client": "vite build --config config/vite.config.ts",
+    "build:client": "VITE_API_URL=https://aivoicetranslator-production.up.railway.app VITE_WS_URL=wss://aivoicetranslator-production.up.railway.app NODE_ENV=production vite build --config config/vite.config.ts",
     "build:server": "esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "deploy:railway": "railway deploy",
