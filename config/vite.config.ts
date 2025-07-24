@@ -55,22 +55,39 @@ export default defineConfig(async ({ mode, command }) => {
   const host = env.HOST || process.env.HOST || '127.0.0.1';
   
   // Environment-specific API and WebSocket URLs
+  // Railway detection: Railway sets RAILWAY_ENVIRONMENT during build
+  const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID;
+  const railwayUrl = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null;
+  
   const apiUrl = env.VITE_API_URL || process.env.VITE_API_URL || 
-    (mode === 'production' ? 'https://placeholder.railway.app' : `http://${host}:${port}`);
+    (mode === 'production' && railwayUrl ? railwayUrl :
+     mode === 'production' ? 'https://placeholder.railway.app' : `http://${host}:${port}`);
   const wsUrl = env.VITE_WS_URL || process.env.VITE_WS_URL || 
-    (mode === 'production' ? 'wss://placeholder.railway.app' : `ws://${host}:${port}`);
+    (mode === 'production' && railwayUrl ? railwayUrl.replace('https://', 'wss://') :
+     mode === 'production' ? 'wss://placeholder.railway.app' : `ws://${host}:${port}`);
   
   if (!env.VITE_API_URL && !process.env.VITE_API_URL && mode === 'production') {
-    console.warn('[vite.config.ts] WARNING: VITE_API_URL not set, using placeholder. Update after Railway deployment.');
+    if (isRailway && railwayUrl) {
+      console.log('[vite.config.ts] INFO: Railway deployment detected, using auto-detected URL:', railwayUrl);
+    } else {
+      console.warn('[vite.config.ts] WARNING: VITE_API_URL not set, using placeholder. Update after Railway deployment.');
+    }
   }
   if (!env.VITE_WS_URL && !process.env.VITE_WS_URL && mode === 'production') {
-    console.warn('[vite.config.ts] WARNING: VITE_WS_URL not set, using placeholder. Update after Railway deployment.');
+    if (isRailway && railwayUrl) {
+      console.log('[vite.config.ts] INFO: Railway deployment detected, using auto-detected WebSocket URL');
+    } else {
+      console.warn('[vite.config.ts] WARNING: VITE_WS_URL not set, using placeholder. Update after Railway deployment.');
+    }
   }
 
   console.log('[vite.config.ts] Environment: env.NODE_ENV =', env.NODE_ENV);
   console.log('[vite.config.ts] Environment: process.env.NODE_ENV =', process.env.NODE_ENV);
   console.log('[vite.config.ts] Environment: env.PORT =', env.PORT);
   console.log('[vite.config.ts] Environment: process.env.PORT =', process.env.PORT);
+  console.log('[vite.config.ts] Railway Detection: RAILWAY_ENVIRONMENT =', process.env.RAILWAY_ENVIRONMENT);
+  console.log('[vite.config.ts] Railway Detection: RAILWAY_PUBLIC_DOMAIN =', process.env.RAILWAY_PUBLIC_DOMAIN);
+  console.log('[vite.config.ts] Railway Detection: isRailway =', isRailway, 'railwayUrl =', railwayUrl);
   console.log('[vite.config.ts] Mode:', mode, 'Command:', command);
   console.log('[vite.config.ts] Port:', port, 'Host:', host);
   console.log('[vite.config.ts] For define block - VITE_API_URL:', apiUrl);

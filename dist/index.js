@@ -6774,7 +6774,10 @@ function serveStatic(app) {
   const htmlEntries = {
     "/": "index.html",
     "/teacher": "teacher.html",
-    "/teacher-login.html": "teacher-login.html"
+    "/student": "student.html",
+    "/analytics": "analytics.html",
+    "/diagnostics": "diagnostics.html",
+    "/teacher-login": "teacher-login.html"
   };
   Object.entries(htmlEntries).forEach(([routePath, fileName]) => {
     const filePath = path4.join(clientDistPath, fileName);
