@@ -59,21 +59,21 @@ export default defineConfig(async ({ mode, command }) => {
   const isRailway = process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID;
   const railwayUrl = process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null;
   
-  const apiUrl = env.VITE_API_URL || process.env.VITE_API_URL || 
+  const apiUrl = process.env.VITE_API_URL || env.VITE_API_URL || 
     (mode === 'production' && railwayUrl ? railwayUrl :
      mode === 'production' ? 'https://placeholder.railway.app' : `http://${host}:${port}`);
-  const wsUrl = env.VITE_WS_URL || process.env.VITE_WS_URL || 
+  const wsUrl = process.env.VITE_WS_URL || env.VITE_WS_URL || 
     (mode === 'production' && railwayUrl ? railwayUrl.replace('https://', 'wss://') :
      mode === 'production' ? 'wss://placeholder.railway.app' : `ws://${host}:${port}`);
   
-  if (!env.VITE_API_URL && !process.env.VITE_API_URL && mode === 'production') {
+  if (!process.env.VITE_API_URL && !env.VITE_API_URL && mode === 'production') {
     if (isRailway && railwayUrl) {
       console.log('[vite.config.ts] INFO: Railway deployment detected, using auto-detected URL:', railwayUrl);
     } else {
       console.warn('[vite.config.ts] WARNING: VITE_API_URL not set, using placeholder. Update after Railway deployment.');
     }
   }
-  if (!env.VITE_WS_URL && !process.env.VITE_WS_URL && mode === 'production') {
+  if (!process.env.VITE_WS_URL && !env.VITE_WS_URL && mode === 'production') {
     if (isRailway && railwayUrl) {
       console.log('[vite.config.ts] INFO: Railway deployment detected, using auto-detected WebSocket URL');
     } else {
