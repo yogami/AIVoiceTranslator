@@ -18,9 +18,6 @@ COPY package*.json ./
 # Install ALL dependencies (needed for build process)
 RUN npm ci
 
-# Initialize whisper-node to compile whisper.cpp binaries during build
-RUN node -e "try { console.log('Initializing whisper-node...'); require('whisper-node'); console.log('whisper-node initialized successfully'); } catch (error) { console.error('Failed to initialize whisper-node:', error.message); console.log('This is expected during build - whisper.cpp will compile on first use'); }"
-
 # Copy source code and configuration files
 COPY . .
 
@@ -60,4 +57,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "http.get('http://localhost:5000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
 # Start with migrations and server
-CMD ["sh", "-c", "echo 'Starting production server...' && echo 'Running migrations...' && npm run db:migrations:apply && echo 'Starting application...' && node dist/index.js"]
+CMD ["sh", "-c", "echo 'Starting production server...' && echo 'Current working directory:' && pwd && echo 'Listing app directory:' && ls -la /app && echo 'Running migrations...' && cd /app && npm run db:migrations:apply && echo 'Starting application...' && cd /app && node dist/index.js"]

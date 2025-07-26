@@ -121,8 +121,10 @@ export async function setupVite(app: express.Express): Promise<void> {
 }
 
 export function serveStatic(app: express.Express): void {
-  const clientDistPath = path.resolve(process.cwd(), 'dist', 'client');
+  // Use absolute path instead of process.cwd() which may be incorrect
+  const clientDistPath = path.resolve('/app', 'dist', 'client');
   logger.info(`[PROD STATIC] Configuring static file serving from: ${clientDistPath}`);
+  logger.info(`[PROD STATIC] Current working directory (process.cwd()): ${process.cwd()}`);
 
   if (!fsSync.existsSync(clientDistPath)) { // Use fsSync for existsSync
     logger.error(`[PROD STATIC] Distribution directory not found: ${clientDistPath}. Static serving will not work.`);
