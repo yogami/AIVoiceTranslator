@@ -553,8 +553,25 @@ try {
 }
 
 // Create service instances
+import { getTranscriptionService } from './transcription/TranscriptionServiceFactory.js';
+
+// Create a wrapper to adapt the factory service to our interface
+class TranscriptionServiceAdapter implements ITranscriptionService {
+  private factoryService: any;
+  
+  constructor() {
+    this.factoryService = getTranscriptionService();
+  }
+  
+  async transcribe(audioBuffer: Buffer, sourceLanguage: string): Promise<string> {
+    // Convert sourceLanguage to the options format expected by factory
+    const options = { language: sourceLanguage.split('-')[0] };
+    return this.factoryService.transcribe(audioBuffer, options);
+  }
+}
+
 const audioHandler = new AudioFileHandler();
-const transcriptionService = new OpenAITranscriptionService(openai, audioHandler);
+const transcriptionService = new TranscriptionServiceAdapter();
 const translationService = new OpenAITranslationService(openai);
 
 // Create and export the main service facade

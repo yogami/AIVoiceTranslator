@@ -26,10 +26,26 @@
     },
     "types": ["node", "vitest/globals", "vite/client"],
     "outDir": "dist/",
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    "declaration": false,
+    "sourceMap": false
   },
-  "include": ["server/**/*", "shared/**/*", "tests/**/*", "client/src/**/*", "vitest.config.ts"],
-  "exclude": ["node_modules", "dist", "dist-tests", "coverage", "client/public"],
+  "include": [
+    "server/**/*",
+    "shared/**/*", 
+    "tests/**/*",
+    "client/src/**/*",
+    "vitest.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-tests",
+    "coverage",
+    "client/public"
+  ],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"
