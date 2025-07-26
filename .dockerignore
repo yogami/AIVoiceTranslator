@@ -1,9 +1,6 @@
 # Development dependencies
 node_modules/
 
-# Build outputs (will be generated in container)
-dist/
-
 # Log files
 logs/
 *.log
