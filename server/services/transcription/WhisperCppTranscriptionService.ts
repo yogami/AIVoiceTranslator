@@ -37,7 +37,7 @@ export class WhisperCppTranscriptionService implements ITranscriptionService {
       console.log('[WhisperCpp] Starting transcription...');
       
       // Save audio buffer to temporary file
-      const tempFilePath = await this.audioHandler.saveToTempFile(audioBuffer, 'whisper-input', 'wav');
+      const tempFilePath = await this.audioHandler.createTempFile(audioBuffer);
       
       try {
         // Transcribe using whisper-node
@@ -57,7 +57,7 @@ export class WhisperCppTranscriptionService implements ITranscriptionService {
 
         // Extract text from the transcript
         const text = Array.isArray(transcript) 
-          ? transcript.map(segment => segment.speech || '').join(' ').trim()
+          ? transcript.map((segment: any) => segment.speech || '').join(' ').trim()
           : (transcript?.speech || '').trim();
 
         console.log('[WhisperCpp] Transcription completed:', text.substring(0, 100) + '...');
@@ -65,7 +65,7 @@ export class WhisperCppTranscriptionService implements ITranscriptionService {
 
       } finally {
         // Clean up temporary file
-        await this.audioHandler.deleteFile(tempFilePath);
+        await this.audioHandler.deleteTempFile(tempFilePath);
       }
 
     } catch (error) {
