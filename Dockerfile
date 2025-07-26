@@ -24,8 +24,11 @@ RUN ls -la dist/ && ls -la dist/client/
 # Clean up dev dependencies and install only production dependencies
 RUN npm prune --production && npm cache clean --force
 
-# Remove development files to reduce image size
-RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/
+# Remove development files to reduce image size (but keep migration scripts and config)
+RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/ temp/ logs/
+
+# Verify that migration files are still present
+RUN ls -la db-migration-scripts/ && ls -la migrations/
 
 # Set production environment
 ENV NODE_ENV=production
@@ -47,4 +50,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "http.get('http://localhost:5000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })" || exit 1
 
 # Start with migrations and server
-CMD ["sh", "-c", "echo 'Starting production server...' && echo 'Checking DATABASE_URL...' && echo 'Running migrations...' && npm run db:migrations:apply && echo 'Starting application...' && node dist/index.js"]
+CMD ["sh", "-c", "echo 'Starting production server...' && echo 'Running migrations...' && npm run db:migrations:apply && echo 'Starting application...' && node dist/index.js"]
