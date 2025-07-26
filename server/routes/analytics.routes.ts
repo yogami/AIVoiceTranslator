@@ -139,7 +139,7 @@ export function createAnalyticsRoutes(): Router {
           classCodes: result.classCodes || []
         },
         sql: sqlQuery,
-        description: "Shows currently active teaching sessions"
+        description: 'Shows currently active teaching sessions'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to get active sessions' });
@@ -182,7 +182,7 @@ export function createAnalyticsRoutes(): Router {
           weeklySessionDetails: result.thisWeekSessions || []
         },
         sql: sqlQuery,
-        description: "Sessions created in the last 7 days vs today vs all time"
+        description: 'Sessions created in the last 7 days vs today vs all time'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to get weekly sessions' });
@@ -224,7 +224,7 @@ export function createAnalyticsRoutes(): Router {
           topActiveSessions: (result.topSessions || []).slice(0, 5)
         },
         sql: sqlQuery,
-        description: "Translation activity across all sessions - shows actual usage"
+        description: 'Translation activity across all sessions - shows actual usage'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to get translation stats' });
@@ -280,7 +280,7 @@ export function createAnalyticsRoutes(): Router {
           todayActivity: todayData?.todaySessions || []
         },
         sql: sqlQuery,
-        description: "Shows when teachers are most active (peak hours for starting sessions)"
+        description: 'Shows when teachers are most active (peak hours for starting sessions)'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to get peak hours' });

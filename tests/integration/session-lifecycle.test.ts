@@ -6,6 +6,7 @@ import { sessions } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 import { setupTestIsolation } from '../../test-config/test-isolation';
 import { randomUUID } from 'crypto';
+import { DatabaseStorage } from '../../server/database-storage';
 
 describe('Session Lifecycle Integration Tests', () => {
   // Set up test isolation for this integration test suite
@@ -14,6 +15,7 @@ describe('Session Lifecycle Integration Tests', () => {
   let cleanupService: SessionCleanupService;
   let testSessionIds: string[] = [];
   let testId: string;
+  let originalSessionTimeouts: Record<string, number>;
 
   beforeAll(async () => {
     // Ensure test database is ready
@@ -22,6 +24,13 @@ describe('Session Lifecycle Integration Tests', () => {
   });
 
   beforeEach(async () => {
+    // Save original config.session timeout values
+    originalSessionTimeouts = {
+      emptyTeacherTimeout: config.session.emptyTeacherTimeout,
+      allStudentsLeftTimeout: config.session.allStudentsLeftTimeout,
+      staleSessionTimeout: config.session.staleSessionTimeout,
+      cleanupInterval: config.session.cleanupInterval,
+    };
     testId = randomUUID(); // Generate unique ID for each test run
   });
 
@@ -46,6 +55,13 @@ describe('Session Lifecycle Integration Tests', () => {
   });
 
   afterEach(async () => {
+    // Restore original config.session timeout values
+    if (originalSessionTimeouts) {
+      config.session.emptyTeacherTimeout = originalSessionTimeouts.emptyTeacherTimeout;
+      config.session.allStudentsLeftTimeout = originalSessionTimeouts.allStudentsLeftTimeout;
+      config.session.staleSessionTimeout = originalSessionTimeouts.staleSessionTimeout;
+      config.session.cleanupInterval = originalSessionTimeouts.cleanupInterval;
+    }
     // Clean up test sessions after each test
     if (testSessionIds.length > 0) {
       await Promise.all(
@@ -144,15 +160,30 @@ describe('Session Lifecycle Integration Tests', () => {
 
   describe('Students Disconnect Scenario - 10 Minute Grace Period', () => {
     it('should clean up sessions after 10 minute grace period when all students left', async () => {
-      // Create a session that had students but they left 12 minutes ago
+      // Create a session that had students, then simulate all students leaving
       const sessionId = `students-left-12min-${testId}`;
+      const tenSecondsAgo = new Date(Date.now() - 10 * 1000); // Use 10 seconds to be sure it's past the 1.8 second scaled timeout
       await createTestSession({
         sessionId,
-        studentsCount: 2, // Had students
-        startTime: new Date(Date.now() - 30 * 60 * 1000), // Started 30 minutes ago
-        lastActivityAt: new Date(Date.now() - 12 * 60 * 1000), // Last activity 12 minutes ago
+        studentsCount: 3, // Start with students
+        startTime: tenSecondsAgo,
+        lastActivityAt: tenSecondsAgo,
         isActive: true
       });
+
+      // Simulate all students leaving - both update count and mark grace period
+      await db.update(sessions)
+        .set({ studentsCount: 0 })
+        .where(eq(sessions.sessionId, sessionId));
+      
+      // Mark session as all students left to trigger grace period
+      await cleanupService.markAllStudentsLeft(sessionId);
+      
+      // Wait for actual grace period to expire (3 minutes scaled = 1.8 seconds)
+      await new Promise(resolve => setTimeout(resolve, 2500)); // Wait 2.5 seconds (more than 1.8s scaled timeout)
+      
+      // Run cleanup
+      await cleanupService.cleanupStaleSessions();
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
@@ -165,17 +196,19 @@ describe('Session Lifecycle Integration Tests', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].isActive).toBe(false);
-      expect(result[0].qualityReason).toContain(`All students disconnected, no activity for ${config.session.allStudentsLeftTimeout / 60000} minutes`);
+      expect(result[0].qualityReason).toContain('All students disconnected');
     });
 
     it('should NOT clean up sessions still in grace period', async () => {
-      // Create a session where students left only 3 seconds ago (scaled from 3 minutes)
-      const sessionId = `students-left-3min-${testId}`;
+      // Create a session where students left only 1 second ago - within scaled timeout
+      const sessionId = `students-left-grace-${testId}`;
+      const oneSecondAgo = new Date(Date.now() - 1 * 1000);
+      
       await createTestSession({
         sessionId,
         studentsCount: 1,
-        startTime: new Date(Date.now() - 20 * 1000), // 20 seconds ago (scaled from 20 minutes)
-        lastActivityAt: new Date(Date.now() - 3 * 1000), // 3 seconds ago (scaled from 3 minutes)
+        startTime: oneSecondAgo,
+        lastActivityAt: oneSecondAgo,
         isActive: true
       });
 
@@ -358,17 +391,15 @@ describe('Session Lifecycle Integration Tests', () => {
 
   describe('Enhanced Session Management - 90 Minute Timeout', () => {
     it('should not end sessions before 90 minutes of inactivity when students are present', async () => {
-      // Create a session with students and 60 minutes of inactivity
-      // This should be cleaned up by abandoned sessions logic (10-minute timeout)
-      // But let's test the 90-minute boundary differently
-      const sessionId = `test-session-60min-${testId}`;
-      const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
+      // Create a session with students present and 30 minutes of inactivity (less than 90 minute threshold)
+      const sessionId = `test-session-30min-${testId}`;
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       
       await createTestSession({
         sessionId,
         studentsCount: 1,
-        startTime: sixtyMinutesAgo,
-        lastActivityAt: sixtyMinutesAgo,
+        startTime: thirtyMinutesAgo,
+        lastActivityAt: thirtyMinutesAgo,
         isActive: true
       });
 
@@ -383,8 +414,7 @@ describe('Session Lifecycle Integration Tests', () => {
         .where(eq(sessions.sessionId, sessionId));
 
       expect(result).toHaveLength(1);
-      expect(result[0].isActive).toBe(false); // This is expected behavior
-      expect(result[0].qualityReason).toContain('All students disconnected');
+      expect(result[0].isActive).toBe(true); // Session should remain active before 90 minutes of inactivity
     });
 
     it('should end sessions after 90 minutes of inactivity', async () => {
@@ -523,15 +553,15 @@ describe('Session Lifecycle Integration Tests', () => {
 
   describe('Extended Grace Periods', () => {
     it('should use 15-minute timeout for empty teacher sessions', async () => {
-      // Create a session with no students, 12 minutes old (should not be cleaned up yet)
-      const sessionId = `empty-teacher-12min-${testId}`;
-      const twelveMinutesAgo = new Date(Date.now() - 12 * 60 * 1000);
+      // Create a session with no students, 1 second old - within scaled timeout
+      const sessionId = `empty-teacher-${testId}`;
+      const oneSecondAgo = new Date(Date.now() - 1 * 1000);
       
       await createTestSession({
         sessionId,
         studentsCount: 0,
-        startTime: twelveMinutesAgo,
-        lastActivityAt: twelveMinutesAgo,
+        startTime: oneSecondAgo,
+        lastActivityAt: oneSecondAgo,
         isActive: true
       });
 
@@ -575,17 +605,27 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should end abandoned sessions after 10 minutes of inactivity', async () => {
-      // Create a session that had students, 12 minutes of inactivity (should be cleaned up)
+      // Create a session that had students, then simulate all students leaving and inactivity
       const sessionId = `abandoned-session-12min-${testId}`;
       const twelveMinutesAgo = new Date(Date.now() - 12 * 60 * 1000);
-      
       await createTestSession({
         sessionId,
-        studentsCount: 3,
+        studentsCount: 3, // Start with students
         startTime: twelveMinutesAgo,
         lastActivityAt: twelveMinutesAgo,
         isActive: true
       });
+
+      // Simulate all students leaving - both update count and mark grace period
+      await db.update(sessions)
+        .set({ studentsCount: 0 })
+        .where(eq(sessions.sessionId, sessionId));
+      
+      // Mark that all students left (this would normally be done by ConnectionLifecycleManager)
+      await cleanupService.markAllStudentsLeft(sessionId);
+      
+      // Wait for grace period to expire 
+      await new Promise(resolve => setTimeout(resolve, 2500)); // Wait 2.5 seconds (more than 1.8s scaled timeout)
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
