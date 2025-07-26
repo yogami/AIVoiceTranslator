@@ -24,8 +24,8 @@ RUN ls -la dist/ && ls -la dist/client/
 # Clean up dev dependencies and install only production dependencies
 RUN npm prune --production && npm cache clean --force
 
-# Remove development files to reduce image size (but keep migration scripts and config)
-RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/ temp/ logs/
+# Remove development files to reduce image size (preserve db-migration-scripts, migrations, config)
+RUN rm -rf server/ client/ docs/ tests/ playwright-report/ test-results/ .git/ temp/ logs/ shared/ test-config/ test-scripts/
 
 # Verify that migration files are still present
 RUN ls -la db-migration-scripts/ && ls -la migrations/
