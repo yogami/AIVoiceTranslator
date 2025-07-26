@@ -112,44 +112,61 @@
 
     const webSocketHandler = {
         connect: function(classroomCode) {
+            console.log('[DEBUG] Student connect() called with classroomCode:', classroomCode);
             if (!classroomCode) {
+                console.error('[DEBUG] No classroom code provided');
                 uiUpdater.updateGeneralStatus('No classroom code provided for WebSocket connection.');
                 return;
             }
             if (!appState.selectedLanguage) {
-                console.log('No language selected, auto-selecting first option before WebSocket connect');
+                console.log('[DEBUG] No language selected, auto-selecting first option before WebSocket connect');
                 autoSelectFirstLanguage(); // This function should ensure appState.selectedLanguage is set
             }
             if (!appState.selectedLanguage) { // Fallback if autoSelect failed or wasn't possible
+                console.log('[DEBUG] Auto-select failed, using Spanish fallback');
                 appState.selectedLanguage = 'es'; 
                 uiUpdater.updateSelectedLanguageDisplay('Spanish (Default)');
             }
 
+            console.log('[DEBUG] Selected language:', appState.selectedLanguage);
+            console.log('[DEBUG] window.VITE_WS_URL:', window.VITE_WS_URL);
+            
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             // TODO: Replace with injected WS URL at build time or via global variable
             if (!window.VITE_WS_URL) {
+              console.error('[DEBUG] VITE_WS_URL is not set!');
               throw new Error('VITE_WS_URL must be set as a global variable or injected at build time.');
             }
             const wsUrl = window.VITE_WS_URL;
             
-            // console.log('Connecting to WebSocket:', wsUrl, 'Lang:', appState.selectedLanguage);
-            appState.ws = new WebSocket(wsUrl);
+            console.log('[DEBUG] Connecting to WebSocket:', wsUrl, 'Lang:', appState.selectedLanguage);
+            try {
+                appState.ws = new WebSocket(wsUrl);
+                console.log('[DEBUG] WebSocket object created successfully');
+            } catch (error) {
+                console.error('[DEBUG] Error creating WebSocket:', error);
+                uiUpdater.updateGeneralStatus('Error creating WebSocket connection');
+                return;
+            }
 
             appState.ws.onopen = () => {
-                // console.log('WebSocket connected to server.');
+                console.log('[DEBUG] WebSocket connected to server.');
                 uiUpdater.updateConnectionStatus(true);
                 appState.isConnected = true;
                 this.register(classroomCode);
             };
-            appState.ws.onmessage = (event) => this.handleMessage(event);
+            appState.ws.onmessage = (event) => {
+                console.log('[DEBUG] WebSocket message received:', event.data);
+                this.handleMessage(event);
+            };
             appState.ws.onclose = () => {
-                // console.log('WebSocket disconnected from server.');
+                console.log('[DEBUG] WebSocket disconnected from server.');
                 uiUpdater.updateConnectionStatus(false);
                 appState.isConnected = false;
                 // No automatic reconnect for student, relies on manual connect button.
             };
             appState.ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
+                console.error('[DEBUG] WebSocket error:', error);
                 uiUpdater.updateConnectionStatus(false);
                 appState.isConnected = false;
             };
@@ -163,6 +180,12 @@
         },
 
         register: function(classroomCode) {
+            console.log('[DEBUG] Student register() called with:', { 
+                classroomCode, 
+                wsReadyState: appState.ws?.readyState, 
+                selectedLanguage: appState.selectedLanguage 
+            });
+            
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.selectedLanguage) {
                 const message = {
                     type: 'register',
@@ -170,14 +193,17 @@
                     languageCode: appState.selectedLanguage,
                     classroomCode: classroomCode 
                 };
-                // console.log("Sending student registration:", message);
+                console.log('[DEBUG] Sending student registration:', message);
                 appState.ws.send(JSON.stringify(message));
                 // Optional: send a ping shortly after registration
                 setTimeout(() => {
                     if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                        console.log('[DEBUG] Sending ping after registration');
                         appState.ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
                     }
                 }, 1000);
+            } else {
+                console.error('[DEBUG] Cannot register - ws state:', appState.ws?.readyState, 'lang:', appState.selectedLanguage);
             }
         },
 
@@ -315,8 +341,14 @@
     }
 
     function toggleConnection() {
-        if (appState.isConnected) webSocketHandler.disconnect();
-        else webSocketHandler.connect(appState.classroomCode);
+        console.log('[DEBUG] toggleConnection() called, isConnected:', appState.isConnected);
+        if (appState.isConnected) {
+            console.log('[DEBUG] Disconnecting...');
+            webSocketHandler.disconnect();
+        } else {
+            console.log('[DEBUG] Connecting with classroomCode:', appState.classroomCode);
+            webSocketHandler.connect(appState.classroomCode);
+        }
     }
 
     function playAudio(audioBase64) {

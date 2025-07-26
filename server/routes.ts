@@ -463,7 +463,7 @@ Answer the user's question clearly and directly based on this data. Be concise a
         classCodes: result.classCodes || []
       },
       sql: sqlQuery,
-      description: "Shows currently active teaching sessions"
+      description: 'Shows currently active teaching sessions'
     });
   });
 
@@ -502,7 +502,7 @@ Answer the user's question clearly and directly based on this data. Be concise a
         weeklySessionDetails: result.thisWeekSessions || []
       },
       sql: sqlQuery,
-      description: "Sessions created in the last 7 days vs today vs all time"
+      description: 'Sessions created in the last 7 days vs today vs all time'
     });
   });
 
@@ -540,7 +540,7 @@ Answer the user's question clearly and directly based on this data. Be concise a
         topActiveSessions: (result.topSessions || []).slice(0, 5)
       },
       sql: sqlQuery,
-      description: "Translation activity across all sessions - shows actual usage"
+      description: 'Translation activity across all sessions - shows actual usage'
     });
   });
 
@@ -592,7 +592,7 @@ Answer the user's question clearly and directly based on this data. Be concise a
         todayActivity: todayData?.todaySessions || []
       },
       sql: sqlQuery,
-      description: "Shows when teachers are most active (peak hours for starting sessions)"
+      description: 'Shows when teachers are most active (peak hours for starting sessions)'
     });
   });
 

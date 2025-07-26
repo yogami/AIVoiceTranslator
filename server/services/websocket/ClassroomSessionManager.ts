@@ -97,6 +97,13 @@ export class ClassroomSessionManager {
       return false;
     }
     
+    // Check if teacher is connected
+    if (!session.teacherConnected) {
+      console.log(`[DEBUG] Classroom code ${code} invalid - teacher not connected`);
+      logger.info(`DEBUG: Classroom code ${code} invalid - teacher not connected`);
+      return false;
+    }
+    
     // Check expiration
     const now = Date.now();
     console.log(`[DEBUG] Checking expiration for code ${code}: now=${now}, expiresAt=${session.expiresAt}, expired=${now > session.expiresAt}`);
@@ -136,6 +143,33 @@ export class ClassroomSessionManager {
     const session = this.classroomSessions.get(code);
     if (session) {
       session.lastActivity = Date.now();
+    }
+  }
+
+  /**
+   * Mark teacher as disconnected for a session
+   */
+  public markTeacherDisconnected(sessionId: string): void {
+    for (const [code, session] of this.classroomSessions.entries()) {
+      if (session.sessionId === sessionId) {
+        session.teacherConnected = false;
+        logger.info(`Marked teacher as disconnected for classroom ${code} (session ${sessionId})`);
+        return;
+      }
+    }
+  }
+
+  /**
+   * Mark teacher as connected for a session (used during reconnection)
+   */
+  public markTeacherReconnected(sessionId: string): void {
+    for (const [code, session] of this.classroomSessions.entries()) {
+      if (session.sessionId === sessionId) {
+        session.teacherConnected = true;
+        session.lastActivity = Date.now();
+        logger.info(`Marked teacher as reconnected for classroom ${code} (session ${sessionId})`);
+        return;
+      }
     }
   }
 
