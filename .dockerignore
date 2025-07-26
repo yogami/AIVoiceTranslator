@@ -79,7 +79,6 @@ audio-cache/
 
 # Scripts
 scripts/
-db-migration-scripts/
 
 # Config files that aren't needed in production
 .eslintrc.*
