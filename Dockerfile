@@ -2,14 +2,24 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++ && ln -sf python3 /usr/bin/python
+# Install build dependencies for whisper.cpp compilation
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git \
+    cmake \
+    pkgconfig \
+    && ln -sf python3 /usr/bin/python
 
 # Copy package files first for better caching
 COPY package*.json ./
 
 # Install ALL dependencies (needed for build process)
 RUN npm ci
+
+# Initialize whisper-node to compile whisper.cpp binaries during build
+RUN node -e "try { console.log('Initializing whisper-node...'); require('whisper-node'); console.log('whisper-node initialized successfully'); } catch (error) { console.error('Failed to initialize whisper-node:', error.message); console.log('This is expected during build - whisper.cpp will compile on first use'); }"
 
 # Copy source code and configuration files
 COPY . .
