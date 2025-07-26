@@ -1,7 +1,7 @@
 import { OpenAI } from 'openai';
-import { AudioTranscriptionService } from './AudioTranscriptionService.js';
+import { OpenAITranscriptionService } from './OpenAITranscriptionService.js';
 import { WhisperCppTranscriptionService } from './WhisperCppTranscriptionService.js';
-import { AudioFileHandler } from '../../utils/AudioFileHandler.js';
+import { AudioFileHandler } from '../handlers/AudioFileHandler.js';
 
 export interface ITranscriptionService {
   transcribe(audioBuffer: Buffer, options?: { language?: string }): Promise<string>;
@@ -29,7 +29,7 @@ export class AutoFallbackTranscriptionService implements ITranscriptionService {
     if (apiKey) {
       try {
         const openai = new OpenAI({ apiKey });
-        this.openaiService = new AudioTranscriptionService(openai);
+        this.openaiService = new OpenAITranscriptionService(openai);
       } catch (error) {
         console.warn('[AutoFallback STT] Failed to initialize OpenAI service:', error);
         this.openaiService = null;
@@ -204,7 +204,7 @@ export class TranscriptionServiceFactory {
         return this.services.get('whisper')!;
       }
       const openai = new OpenAI({ apiKey });
-      return new AudioTranscriptionService(openai);
+      return new OpenAITranscriptionService(openai);
     }
     
     const service = this.services.get(serviceTypeLower);

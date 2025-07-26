@@ -20,7 +20,7 @@ export class OpenAITranscriptionService implements ITranscriptionService {
       console.log('[OpenAI STT] Starting transcription...');
       
       // Save audio buffer to temporary file for OpenAI API
-      const tempFilePath = await this.audioHandler.saveToTempFile(audioBuffer, 'openai-input', 'wav');
+      const tempFilePath = await this.audioHandler.createTempFile(audioBuffer);
       
       try {
         // Use OpenAI Whisper API for transcription
@@ -37,7 +37,7 @@ export class OpenAITranscriptionService implements ITranscriptionService {
 
       } finally {
         // Clean up temporary file
-        await this.audioHandler.deleteFile(tempFilePath);
+        await this.audioHandler.deleteTempFile(tempFilePath);
       }
 
     } catch (error) {
