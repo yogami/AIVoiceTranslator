@@ -41,3 +41,4 @@ backup/
 .jest-cache/
 test-results/
 cleanup.sh
+.env.test
