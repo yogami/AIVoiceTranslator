@@ -134,6 +134,113 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 domElements.recordButton.textContent = 'Start Recording';
                 domElements.recordButton.classList.remove('recording');
             }
+        },
+
+        updateStudentCount: function(count) {
+            if (domElements.studentCountDisplay) {
+                domElements.studentCountDisplay.textContent = count;
+            }
+            
+            // Update the students list display (for now just show count, can be enhanced later)
+            if (domElements.studentsListDisplay) {
+                if (count === 0) {
+                    domElements.studentsListDisplay.textContent = 'No students connected yet';
+                } else {
+                    domElements.studentsListDisplay.textContent = `${count} student${count !== 1 ? 's' : ''} connected`;
+                }
+            }
+        },
+
+        updateSessionStatus: function(statusData) {
+            // Update student count
+            if (domElements.studentCountDisplay) {
+                domElements.studentCountDisplay.textContent = statusData.connectedStudents;
+            }
+            
+            // Update students list display
+            if (domElements.studentsListDisplay) {
+                if (statusData.connectedStudents === 0) {
+                    domElements.studentsListDisplay.textContent = 'No students connected yet';
+                } else {
+                    domElements.studentsListDisplay.textContent = `${statusData.connectedStudents} student${statusData.connectedStudents !== 1 ? 's' : ''} connected`;
+                }
+            }
+            
+            // Update language breakdown
+            const languageBreakdown = document.getElementById('languageBreakdown');
+            const languageList = document.getElementById('languageList');
+            
+            if (statusData.languages && statusData.languages.length > 0) {
+                // Show language breakdown section
+                if (languageBreakdown) {
+                    languageBreakdown.style.display = 'block';
+                }
+                
+                // Clear existing list
+                if (languageList) {
+                    languageList.innerHTML = '';
+                    
+                    // Add each language
+                    statusData.languages.forEach(lang => {
+                        const listItem = document.createElement('li');
+                        listItem.className = 'language-item';
+                        listItem.innerHTML = `
+                            <span class="language-name">${lang.languageName}</span>
+                            <div class="language-count">
+                                <span class="student-count-badge">${lang.studentCount}</span>
+                                <span class="percentage">(${lang.percentage}%)</span>
+                            </div>
+                        `;
+                        languageList.appendChild(listItem);
+                    });
+                }
+            } else {
+                // Hide language breakdown section if no languages
+                if (languageBreakdown) {
+                    languageBreakdown.style.display = 'none';
+                }
+            }
+            
+            // Update last updated time
+            const lastUpdatedElement = document.getElementById('lastUpdated');
+            const lastUpdatedTimeElement = document.getElementById('lastUpdatedTime');
+            if (lastUpdatedElement && lastUpdatedTimeElement) {
+                lastUpdatedElement.style.display = 'block';
+                lastUpdatedTimeElement.textContent = new Date().toLocaleTimeString();
+            }
+        }
+    };
+
+    // Session Status Service for fetching language breakdown
+    const sessionStatusService = {
+        async refreshStatus(sessionId) {
+            if (!sessionId) {
+                console.error('[DEBUG] refreshStatus: No session ID provided');
+                return null;
+            }
+            
+            try {
+                console.log('[DEBUG] Fetching session status for:', sessionId);
+                const response = await fetch(`/api/sessions/${sessionId}/status`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('[DEBUG] Session status response:', data);
+                
+                if (data.success) {
+                    uiUpdater.updateSessionStatus(data.data);
+                    return data.data;
+                } else {
+                    throw new Error(data.message || 'Failed to fetch session status');
+                }
+            } catch (error) {
+                console.error('[DEBUG] Error refreshing session status:', error);
+                uiUpdater.updateStatus(`Failed to refresh status: ${error.message}`, 'error');
+                return null;
+            }
         }
     };
 
@@ -244,7 +351,15 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.status === 'success') {
                         uiUpdater.updateStatus('Registered as teacher', 'success');
                         console.log('Teacher registration successful:', data);
-                        // Add any specific actions needed after successful teacher registration
+                        
+                        // Initial refresh of language breakdown after successful registration
+                        if (appState.sessionId) {
+                            setTimeout(() => {
+                                sessionStatusService.refreshStatus(appState.sessionId).catch(error => {
+                                    console.warn('[DEBUG] Failed to do initial language breakdown refresh:', error);
+                                });
+                            }, 1000); // Small delay to allow for any initial student connections
+                        }
                     } else {
                         const errorMessage = 'Registration failed: ' + (data.message || (data.data ? JSON.stringify(data.data) : 'Unknown reason'));
                         uiUpdater.updateStatus(errorMessage, 'error');
@@ -274,6 +389,20 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 case 'ping':
                     // console.log('Ping received from server, sending pong.');
                     this.sendPong();
+                    break;
+
+                case 'studentCountUpdate':
+                    console.log('Student count update received:', data);
+                    if (typeof data.count === 'number') {
+                        uiUpdater.updateStudentCount(data.count);
+                        
+                        // Also refresh the language breakdown when student count changes
+                        if (appState.sessionId) {
+                            sessionStatusService.refreshStatus(appState.sessionId).catch(error => {
+                                console.warn('[DEBUG] Failed to refresh language breakdown:', error);
+                            });
+                        }
+                    }
                     break;
 
                 default: 

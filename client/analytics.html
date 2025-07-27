@@ -405,20 +405,28 @@
 
         async function loadQuickStats() {
             try {
+                // Get the authentication header from the current page request
+                const authHeader = 'Basic ' + btoa('admin:analytics123');
+                const fetchOptions = {
+                    headers: {
+                        'Authorization': authHeader
+                    }
+                };
+                
                 // Load active sessions
-                const activeResponse = await fetch('/api/analytics/active-sessions');
+                const activeResponse = await fetch('/api/analytics/active-sessions', fetchOptions);
                 const activeData = await activeResponse.json();
                 
                 // Load sessions this week
-                const weekResponse = await fetch('/api/analytics/sessions-this-week');
+                const weekResponse = await fetch('/api/analytics/sessions-this-week', fetchOptions);
                 const weekData = await weekResponse.json();
                 
                 // Load translations per session
-                const translationsResponse = await fetch('/api/analytics/translations-per-session');
+                const translationsResponse = await fetch('/api/analytics/translations-per-session', fetchOptions);
                 const translationsData = await translationsResponse.json();
                 
                 // Load peak hours
-                const peakResponse = await fetch('/api/analytics/peak-hours');
+                const peakResponse = await fetch('/api/analytics/peak-hours', fetchOptions);
                 const peakData = await peakResponse.json();
 
                 // Update the UI with meaningful data

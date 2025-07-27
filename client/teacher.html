@@ -170,8 +170,21 @@
         </div>
         
         <div class="students-list">
-            <h3>Connected Students: <span id="studentCount">0</span></h3>
+            <div class="students-header">
+                <h3>Connected Students: <span id="studentCount">0</span></h3>
+            </div>
             <div id="studentsList">No students connected yet</div>
+            
+            <div class="language-breakdown" id="languageBreakdown" style="display: none;">
+                <h4>🌍 Languages</h4>
+                <ul class="language-list" id="languageList">
+                    <!-- Language breakdown will be populated here -->
+                </ul>
+            </div>
+            
+            <div class="last-updated" id="lastUpdated" style="display: none;">
+                <small>Last updated: <span id="lastUpdatedTime">Never</span></small>
+            </div>
         </div>
         
         <div class="session-metrics" id="session-metrics" style="display: none;">

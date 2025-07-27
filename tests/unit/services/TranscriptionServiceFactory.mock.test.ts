@@ -42,7 +42,7 @@ describe('TranscriptionServiceFactory Auto-Fallback (Mocked)', () => {
     const service = factory.getService('auto');
     
     expect(service).toBeDefined();
-    expect(service.constructor.name).toBe('AutoFallbackTranscriptionService');
+    expect(service.constructor.name).toBe('AutoFallbackSTTService');
   });
 
   it('should verify auto-fallback has transcribe method', async () => {

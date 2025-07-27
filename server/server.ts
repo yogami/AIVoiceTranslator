@@ -77,7 +77,7 @@ export async function startServer(app: express.Express): Promise<Server> {
 
   // Dynamically determine Vite dev server port
   let vitePort = process.env.VITE_PORT || '3006'; // Default port as string
-  const vitePortFilePath = path.resolve('/app', '.vite_dev_server_port'); // Use absolute path
+  const vitePortFilePath = path.resolve('/app', '.vite_dev_server_port');
   logger.info(`[INIT] Attempting to read Vite port from: ${vitePortFilePath}`);
   logger.info(`[INIT] Current working directory (process.cwd()): ${process.cwd()}`);
   try {

@@ -612,6 +612,10 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
         studentSessionId,
         studentName
       });
+
+      // Broadcast updated student count to teachers in the session
+      context.webSocketServer.broadcastStudentCount(studentSessionId);
+      
     } catch (error: any) {
       logger.error('Failed to handle student registration:', { error });
     }

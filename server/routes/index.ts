@@ -28,6 +28,7 @@ import { createAnalyticsRoutes } from './analytics.routes.js';
 import { createLanguageRoutes } from './languages.routes.js';
 import { createTranslationRoutes } from './translations.routes.js';
 import { createTranscriptRoutes } from './transcripts.routes.js';
+import { createSessionRoutes } from './sessions.routes.js';
 import authRoutes from './auth.js';
 
 // Import error handling
@@ -47,6 +48,7 @@ export function createApiRoutes(
   router.use('/', createLanguageRoutes(storage));
   router.use('/', createTranslationRoutes(storage));
   router.use('/', createTranscriptRoutes(storage));
+  router.use('/', createSessionRoutes(storage, activeSessionProvider));
   
   // Auth routes (existing)
   router.use('/auth', authRoutes);

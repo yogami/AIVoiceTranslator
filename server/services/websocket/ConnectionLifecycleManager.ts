@@ -181,6 +181,11 @@ export class ConnectionLifecycleManager {
       
       logger.info(`Student disconnected from session ${sessionId}. Remaining: ${remainingStudents} students, ${remainingTeachers} teachers`);
       
+      // Broadcast updated student count after disconnect
+      if (this.webSocketServer?.broadcastStudentCount) {
+        this.webSocketServer.broadcastStudentCount(sessionId);
+      }
+      
       if (remainingStudents === 0) {
         if (remainingTeachers > 0) {
           // Students left but teacher still there - update session activity
