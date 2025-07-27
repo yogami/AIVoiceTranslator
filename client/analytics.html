@@ -405,51 +405,31 @@
 
         async function loadQuickStats() {
             try {
-                // Get the authentication header from the current page request
-                const authHeader = 'Basic ' + btoa('admin:analytics123');
-                const fetchOptions = {
-                    headers: {
-                        'Authorization': authHeader
-                    }
-                };
-                
-                // Load active sessions
-                const activeResponse = await fetch('/api/analytics/active-sessions', fetchOptions);
-                const activeData = await activeResponse.json();
-                
-                // Load sessions this week
-                const weekResponse = await fetch('/api/analytics/sessions-this-week', fetchOptions);
-                const weekData = await weekResponse.json();
-                
-                // Load translations per session
-                const translationsResponse = await fetch('/api/analytics/translations-per-session', fetchOptions);
-                const translationsData = await translationsResponse.json();
-                
-                // Load peak hours
-                const peakResponse = await fetch('/api/analytics/peak-hours', fetchOptions);
-                const peakData = await peakResponse.json();
+                const response = await fetch('/api/analytics/ask', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Basic ' + btoa('admin:analytics123')
+                    },
+                    body: JSON.stringify({ question: 'Give me quick stats: total sessions, sessions today, total unique students, and average session duration' })
+                });
 
-                // Update the UI with meaningful data
-                if (activeData.success) {
-                    document.getElementById('activeSessions').textContent = activeData.data.activeSessionsCount;
+                const data = await response.json();
+                if (data.success && data.data) {
+                    // Use the actual data from the API response
+                    document.getElementById('activeSessions').textContent = data.data.recentSessions || '0';
+                    document.getElementById('weekSessions').textContent = data.data.sessionsToday || '0';
+                    document.getElementById('avgTranslations').textContent = data.data.uniqueStudents || '0';
+                    document.getElementById('peakHour').textContent = Math.round(data.data.averageSessionDuration / 60) + ' min';
+                } else {
+                    // Fallback if API call fails
+                    document.getElementById('activeSessions').textContent = 'Error';
+                    document.getElementById('weekSessions').textContent = 'Error';
+                    document.getElementById('avgTranslations').textContent = 'Error';
+                    document.getElementById('peakHour').textContent = 'Error';
                 }
-                
-                if (weekData.success) {
-                    document.getElementById('weekSessions').textContent = weekData.data.sessionsThisWeek;
-                }
-                
-                if (translationsData.success) {
-                    document.getElementById('avgTranslations').textContent = translationsData.data.averageTranslationsPerSession;
-                }
-                
-                if (peakData.success) {
-                    const hour = peakData.data.peakHour;
-                    const hourDisplay = hour === 0 ? '12 AM' : hour <= 12 ? `${hour} AM` : `${hour-12} PM`;
-                    document.getElementById('peakHour').textContent = hourDisplay;
-                }
-                
             } catch (error) {
-                console.error('Could not load quick stats:', error);
+                console.log('Could not load quick stats');
                 // Show error state
                 document.getElementById('activeSessions').textContent = 'Error';
                 document.getElementById('weekSessions').textContent = 'Error';
