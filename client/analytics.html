@@ -374,7 +374,7 @@
 
             <div class="sidebar">
                 <div class="quick-stats" id="quickStats">
-                    <h3>📊 Quick Stats</h3>
+                    <h3>📊 Quick Stats <span style="font-size:0.9em;color:#888;font-weight:normal;">(last 7 days)</span></h3>
                     <div class="stat-item clickable-stat" onclick="showStatDetails('active-sessions')">
                         <span>Active Sessions Now</span>
                         <span class="stat-value" id="activeSessions">-</span>
@@ -387,9 +387,13 @@
                         <span>Avg Translations/Session</span>
                         <span class="stat-value" id="avgTranslations">-</span>
                     </div>
-                    <div class="stat-item clickable-stat" onclick="showStatDetails('peak-hours')">
-                        <span>Peak Usage Hour</span>
-                        <span class="stat-value" id="peakHour">-</span>
+                    <div class="stat-item clickable-stat" onclick="showStatDetails('sessions-this-week')">
+                        <span>Avg Students/Session</span>
+                        <span class="stat-value" id="avgStudents">-</span>
+                    </div>
+                    <div class="stat-item clickable-stat" onclick="showStatDetails('sessions-this-week')">
+                        <span>Avg Session Duration</span>
+                        <span class="stat-value" id="avgSessionDuration">-</span>
                     </div>
                 </div>
             </div>
@@ -405,36 +409,37 @@
 
         async function loadQuickStats() {
             try {
-                const response = await fetch('/api/analytics/ask', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Basic ' + btoa('admin:analytics123')
-                    },
-                    body: JSON.stringify({ question: 'Give me quick stats: total sessions, sessions today, total unique students, and average session duration' })
-                });
+                // Active Sessions Now
+                const activeRes = await fetch('/api/analytics/active-sessions');
+                const activeData = await activeRes.json();
+                document.getElementById('activeSessions').textContent = (activeData.success && activeData.data) ? activeData.data.activeSessionsCount : 'Error';
 
-                const data = await response.json();
-                if (data.success && data.data) {
-                    // Use the actual data from the API response
-                    document.getElementById('activeSessions').textContent = data.data.recentSessions || '0';
-                    document.getElementById('weekSessions').textContent = data.data.sessionsToday || '0';
-                    document.getElementById('avgTranslations').textContent = data.data.uniqueStudents || '0';
-                    document.getElementById('peakHour').textContent = Math.round(data.data.averageSessionDuration / 60) + ' min';
+                // Sessions This Week
+                const weekRes = await fetch('/api/analytics/sessions-this-week');
+                const weekData = await weekRes.json();
+                document.getElementById('weekSessions').textContent = (weekData.success && weekData.data) ? weekData.data.sessionsThisWeek : 'Error';
+
+                // Avg Translations/Session
+                const transRes = await fetch('/api/analytics/translations-per-session');
+                const transData = await transRes.json();
+                document.getElementById('avgTranslations').textContent = (transData.success && transData.data) ? transData.data.averageTranslationsPerSession : 'Error';
+
+                // Avg Students/Session
+                document.getElementById('avgStudents').textContent = (weekData.success && weekData.data) ? weekData.data.averageStudentsPerSession : 'Error';
+
+                // Avg Session Duration (show in minutes)
+                if (weekData.success && weekData.data && typeof weekData.data.averageSessionDurationSeconds === 'number') {
+                    const mins = Math.round(weekData.data.averageSessionDurationSeconds / 60);
+                    document.getElementById('avgSessionDuration').textContent = mins + ' min';
                 } else {
-                    // Fallback if API call fails
-                    document.getElementById('activeSessions').textContent = 'Error';
-                    document.getElementById('weekSessions').textContent = 'Error';
-                    document.getElementById('avgTranslations').textContent = 'Error';
-                    document.getElementById('peakHour').textContent = 'Error';
+                    document.getElementById('avgSessionDuration').textContent = 'Error';
                 }
             } catch (error) {
-                console.log('Could not load quick stats');
-                // Show error state
                 document.getElementById('activeSessions').textContent = 'Error';
                 document.getElementById('weekSessions').textContent = 'Error';
                 document.getElementById('avgTranslations').textContent = 'Error';
-                document.getElementById('peakHour').textContent = 'Error';
+                document.getElementById('avgStudents').textContent = 'Error';
+                document.getElementById('avgSessionDuration').textContent = 'Error';
             }
         }
 
