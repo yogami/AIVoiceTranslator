@@ -151,23 +151,50 @@ export function createAnalyticsRoutes(): Router {
    */
   async function getSessionsThisWeek(req: Request, res: Response) {
     try {
-      const weeklySessionsResult = await db.select({
+      // Get all sessions from the last 7 days with all needed fields
+      const sessionsRes = await db.select({
+        sessionId: sql<string>`session_id`,
+        startTime: sql<string>`start_time`,
+        lastActivityAt: sql<string>`last_activity_at`,
+        studentsCount: sql<number>`students_count`,
+        teacherId: sql<string>`teacher_id`,
+        classCode: sql<string>`class_code`,
+        totalTranslations: sql<number>`total_translations`
+      }).from(sessions).where(sql`start_time >= CURRENT_DATE - INTERVAL '7 days'`);
+
+      let totalStudents = 0;
+      let totalDuration = 0;
+      let sessionCount = sessionsRes.length;
+      let weeklySessionDetails: any[] = [];
+      sessionsRes.forEach((s: { studentsCount?: number; startTime?: string; lastActivityAt?: string; sessionId?: string; teacherId?: string; classCode?: string; totalTranslations?: number }) => {
+        totalStudents += typeof s.studentsCount === 'number' ? s.studentsCount : 0;
+        if (s.startTime && s.lastActivityAt) {
+          const start = new Date(s.startTime).getTime();
+          const end = new Date(s.lastActivityAt).getTime();
+          if (end > start) {
+            totalDuration += (end - start) / 1000; // seconds
+          }
+        }
+        weeklySessionDetails.push({
+          sessionId: s.sessionId,
+          teacherId: s.teacherId,
+          classCode: s.classCode,
+          startTime: s.startTime,
+          lastActivityAt: s.lastActivityAt,
+          studentsCount: s.studentsCount,
+          totalTranslations: s.totalTranslations
+        });
+      });
+      const avgStudents = sessionCount > 0 ? Math.round((totalStudents / sessionCount) * 10) / 10 : 0;
+      const avgSessionDuration = sessionCount > 0 ? Math.round(totalDuration / sessionCount) : 0;
+
+      // Get session counts for today and week
+      const sessionCounts = await db.select({
         count: sql<number>`COUNT(*)`,
         todayCount: sql<number>`COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END)`,
-        last7Days: sql<number>`COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END)`,
-        thisWeekSessions: sql<any>`ARRAY_AGG(
-          JSON_BUILD_OBJECT(
-            'sessionId', session_id,
-            'teacherId', teacher_id,
-            'classCode', class_code,
-            'startTime', start_time,
-            'studentsCount', students_count,
-            'totalTranslations', total_translations
-          ) ORDER BY start_time DESC
-        ) FILTER (WHERE start_time >= CURRENT_DATE - INTERVAL '7 days')`
+        last7Days: sql<number>`COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END)`
       }).from(sessions);
-
-      const result = weeklySessionsResult[0];
+      const result = sessionCounts[0];
       const sqlQuery = `SELECT COUNT(*) as total_sessions,
                         COUNT(CASE WHEN DATE(start_time) = CURRENT_DATE THEN 1 END) as today_sessions,
                         COUNT(CASE WHEN start_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as week_sessions
@@ -179,10 +206,12 @@ export function createAnalyticsRoutes(): Router {
           totalSessions: Number(result.count || 0),
           sessionsToday: Number(result.todayCount || 0),
           sessionsThisWeek: Number(result.last7Days || 0),
-          weeklySessionDetails: result.thisWeekSessions || []
+          averageStudentsPerSession: avgStudents,
+          averageSessionDurationSeconds: avgSessionDuration,
+          weeklySessionDetails
         },
         sql: sqlQuery,
-        description: 'Sessions created in the last 7 days vs today vs all time'
+        description: 'Sessions created in the last 7 days vs today vs all time, with averages'
       });
     } catch (error) {
       res.status(500).json({ error: 'Failed to get weekly sessions' });
