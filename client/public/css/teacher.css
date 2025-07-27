@@ -65,6 +65,76 @@ button:disabled {
     background-color: #f8f9fa;
     border-radius: 6px;
 }
+
+.students-header {
+    margin-bottom: 10px;
+}
+
+.language-breakdown {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #dee2e6;
+}
+
+.language-breakdown h4 {
+    margin-bottom: 10px;
+    color: #495057;
+    font-size: 16px;
+}
+
+.language-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.language-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.language-item:last-child {
+    border-bottom: none;
+}
+
+.language-name {
+    font-weight: 500;
+    color: #343a40;
+}
+
+.language-count {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.student-count-badge {
+    background: #e3f2fd;
+    color: #1976d2;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.percentage {
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.last-updated {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #e9ecef;
+    text-align: right;
+}
+
+.last-updated small {
+    color: #6c757d;
+}
 .student-item {
     display: flex;
     justify-content: space-between;

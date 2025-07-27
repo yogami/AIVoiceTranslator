@@ -25,5 +25,10 @@ declare module 'whisper-node' {
 
   function whisper(filePath: string, config?: WhisperConfig): Promise<TranscriptResult>;
   
-  export = whisper;
+  const _default: {
+    whisper: typeof whisper;
+    default: typeof whisper;
+  };
+  
+  export = _default;
 }

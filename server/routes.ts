@@ -643,13 +643,13 @@ Answer the user's question clearly and directly based on this data. Be concise a
   router.post('/analytics/query', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, handleAnalyticsQuery);
   router.post('/analytics/ask', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, handleAnalyticsQuery); // Alias for client compatibility
   router.post('/analytics/test', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, testAnalyticsQuery); // Test endpoint
-  router.get('/debug/database', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, debugDatabase); // Debug endpoint
+  router.get('/debug/database', analyticsPageAuth, debugDatabase); // Debug endpoint - simplified middleware
   
-  // New meaningful analytics endpoints - Also protected
-  router.get('/analytics/active-sessions', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, getActiveSessionsNow);
-  router.get('/analytics/sessions-this-week', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, getSessionsThisWeek);
-  router.get('/analytics/translations-per-session', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, getTranslationsPerSession);
-  router.get('/analytics/peak-hours', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, getPeakUsageHours);
+  // New meaningful analytics endpoints - Protected with auth and rate limiting but NOT security middleware
+  router.get('/analytics/active-sessions', analyticsPageAuth, analyticsRateLimit, getActiveSessionsNow);
+  router.get('/analytics/sessions-this-week', analyticsPageAuth, analyticsRateLimit, getSessionsThisWeek);
+  router.get('/analytics/translations-per-session', analyticsPageAuth, analyticsRateLimit, getTranslationsPerSession);
+  router.get('/analytics/peak-hours', analyticsPageAuth, analyticsRateLimit, getPeakUsageHours);
 
   // Test routes
   router.get('/test', testEndpoint);

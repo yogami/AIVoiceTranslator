@@ -8,10 +8,7 @@ export const users = pgTable('users', {
   password: text('password').notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
+export const insertUserSchema = createInsertSchema(users);
 
 export const languages = pgTable('languages', {
   id: serial('id').primaryKey(),
@@ -20,11 +17,7 @@ export const languages = pgTable('languages', {
   isActive: boolean('is_active').default(true),
 });
 
-export const insertLanguageSchema = createInsertSchema(languages).pick({
-  code: true,
-  name: true,
-  isActive: true,
-});
+export const insertLanguageSchema = createInsertSchema(languages);
 
 export const translations = pgTable('translations', {
   id: serial('id').primaryKey(),
@@ -47,11 +40,7 @@ export const transcripts = pgTable('transcripts', {
   timestamp: timestamp('timestamp').defaultNow(),
 });
 
-export const insertTranscriptSchema = createInsertSchema(transcripts).pick({
-  sessionId: true,
-  language: true,
-  text: true,
-});
+export const insertTranscriptSchema = createInsertSchema(transcripts);
 
 export const sessions = pgTable('sessions', {
   id: serial('id').primaryKey(),

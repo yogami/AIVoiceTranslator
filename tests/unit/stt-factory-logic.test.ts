@@ -33,21 +33,10 @@ describe('STT Factory Service Type Selection', () => {
     // Import the utility function
     const { getTranscriptionService } = await import('../../server/services/transcription/TranscriptionServiceFactory.js');
     
-    // Mock the factory to avoid initialization
-    const mockFactory = {
-      getService: vi.fn().mockReturnValue({
-        constructor: { name: 'AutoFallbackTranscriptionService' }
-      })
-    };
-    
-    // Import and override the factory
-    const { TranscriptionServiceFactory } = await import('../../server/services/transcription/TranscriptionServiceFactory.js');
-    vi.spyOn(TranscriptionServiceFactory, 'getInstance').mockReturnValue(mockFactory as any);
-    
+    // Call the service to verify it uses the environment variable
     const service = getTranscriptionService();
     
-    // Verify factory was called with auto type from environment
-    expect(mockFactory.getService).toHaveBeenCalledWith('auto');
+    // Verify service type matches environment setting
     expect(service.constructor.name).toBe('AutoFallbackTranscriptionService');
     
     console.log('✅ getTranscriptionService correctly uses environment variable');

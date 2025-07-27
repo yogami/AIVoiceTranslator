@@ -1,4 +1,5 @@
 import { OpenAI } from 'openai';
+import fs from 'fs';
 import { ITranscriptionService } from './TranscriptionServiceFactory.js';
 import { AudioFileHandler } from '../handlers/AudioFileHandler.js';
 
@@ -25,7 +26,7 @@ export class OpenAITranscriptionService implements ITranscriptionService {
       try {
         // Use OpenAI Whisper API for transcription
         const transcription = await this.openai.audio.transcriptions.create({
-          file: require('fs').createReadStream(tempFilePath),
+          file: fs.createReadStream(tempFilePath),
           model: 'whisper-1',
           language: options?.language || undefined,
           response_format: 'json',

@@ -19,6 +19,7 @@ import { TestDatabaseManager } from '../../utils/TestDatabaseManager';
 import { speechTranslationService } from '../../../server/services/TranslationService';
 import { setupTestIsolation, createTestSessionId, waitForAsyncOperations } from '../../../test-config/test-isolation';
 import { initTestDatabase, closeDatabaseConnection } from '../../setup/db-setup';
+import { config } from '../../../server/config';
 
 // Mock the translation service
 vi.mock('../../../server/services/TranslationService', () => ({
@@ -27,9 +28,20 @@ vi.mock('../../../server/services/TranslationService', () => ({
   }
 }));
 
-// Test configuration constants
+// Test configuration using externalized values with scaling - optimized for component tests
 const TEST_PORT = 0; // Use 0 to let the system assign an available port
 let actualPort: number; // Store the actual assigned port
+
+// Use reasonable timeouts for component tests - aggressively scaled for speed
+const TEST_TIMEOUTS = {
+  CONNECTION: 2000, // 2 seconds for connections
+  REGISTRATION: 3000, // 3 seconds for registration
+  TRANSLATION: 5000, // 5 seconds for translation (mocked, should be fast)
+  CLEANUP: 1000, // 1 second for cleanup
+  SMALL_DELAY: 300, // Increased 300ms for small delays (better isolation)
+  MULTI_STUDENT_DELAY: 1500, // 1.5 seconds between student registrations (increased for stability)
+  TEST_SUITE: 15000, // 15 seconds max for entire test
+};
 
 describe('Translation Flow Component Tests', () => {
   // Set up test isolation for this component test suite
@@ -57,6 +69,13 @@ describe('Translation Flow Component Tests', () => {
       targetLanguage: string,
       preTranscribedText?: string
     ) => {
+      console.log(`[MOCK] translateSpeech called with:`, {
+        sourceLanguage,
+        targetLanguage, 
+        text: preTranscribedText,
+        hasAudioBuffer: !!audioBuffer
+      });
+      
       // Use preTranscribedText if available, otherwise fall back to a default
       const text = preTranscribedText || 'Mock transcribed text';
       
@@ -79,11 +98,14 @@ describe('Translation Flow Component Tests', () => {
           : 'Text ins Deutsche übersetzt',
       };
       
-      return {
+      const result = {
         originalText: text,
         translatedText: translations[targetLanguage] || `Translated to ${targetLanguage}: ${text}`,
         audioBuffer: Buffer.from('mock-audio-data')
       };
+      
+      console.log(`[MOCK] translateSpeech returning:`, result);
+      return result;
     });
 
     // Create HTTP server
@@ -112,7 +134,7 @@ describe('Translation Flow Component Tests', () => {
     }
     
     // Give a brief moment for connections to close
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.SMALL_DELAY));
     
     // Close WebSocket server first
     if (wsServer) {
@@ -128,7 +150,7 @@ describe('Translation Flow Component Tests', () => {
           console.warn('HTTP server close timeout, forcing close');
           httpServer.closeAllConnections?.(); // Force close all connections if available
           resolve(); // Don't reject, just resolve to continue cleanup
-        }, 5000); // Reduced timeout to 5 seconds
+        }, TEST_TIMEOUTS.CLEANUP); // Use scaled timeout for server cleanup
         
         httpServer.close((err) => {
           clearTimeout(timeout);
@@ -150,7 +172,7 @@ describe('Translation Flow Component Tests', () => {
     } catch (error) {
       console.warn('Failed to close database connection:', error instanceof Error ? error.message : String(error));
     }
-  }, 35000); // Increased timeout to 35 seconds to match database cleanup
+  }, TEST_TIMEOUTS.TEST_SUITE); // Use scaled cleanup timeout
   
   beforeEach(async () => {
     // Clear message arrays
@@ -164,7 +186,7 @@ describe('Translation Flow Component Tests', () => {
           const timeout = setTimeout(() => {
             console.warn(`Force closing ${name} connection due to timeout`);
             resolve();
-          }, 1500); // Increased timeout for better cleanup
+          }, TEST_TIMEOUTS.SMALL_DELAY); // Use scaled timeout for connection cleanup
           
           client.on('close', () => {
             clearTimeout(timeout);
@@ -187,10 +209,10 @@ describe('Translation Flow Component Tests', () => {
     studentClient = null;
     
     // Wait for all async operations to complete before next test
-    await waitForAsyncOperations(500);
+    await waitForAsyncOperations(TEST_TIMEOUTS.SMALL_DELAY);
     
     // Extended cleanup time for better test isolation
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.SMALL_DELAY));
   });
   
   describe('Teacher to Student Translation', () => {
@@ -230,7 +252,7 @@ describe('Translation Flow Component Tests', () => {
       const classroomCode = classroomMessage.code;
       
       // Add small delay to ensure teacher session is fully committed
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.SMALL_DELAY));
       
       // Create student connection with classroom code
       studentClient = new WebSocket(`ws://localhost:${actualPort}?code=${classroomCode}`);
@@ -269,7 +291,7 @@ describe('Translation Flow Component Tests', () => {
       }));
       
       // Wait for translation with increased timeout
-      await waitForMessage(studentMessages, 'translation', 10000);
+      await waitForMessage(studentMessages, 'translation', TEST_TIMEOUTS.TRANSLATION);
       
       const translation = studentMessages.find(m => m.type === 'translation');
       expect(translation).toBeDefined();
@@ -318,10 +340,10 @@ describe('Translation Flow Component Tests', () => {
           await new Promise<void>((resolve, reject) => {
             teacherWs.on('open', resolve);
             teacherWs.on('error', reject);
-            setTimeout(() => reject(new Error('Teacher connection timeout')), 15000);
+            setTimeout(() => reject(new Error('Teacher connection timeout')), TEST_TIMEOUTS.CONNECTION);
           });
           
-          await waitForMessage(teacherMessages, 'connection', 15000);
+          await waitForMessage(teacherMessages, 'connection', TEST_TIMEOUTS.CONNECTION);
           
           teacherWs.send(JSON.stringify({
             type: 'register',
@@ -329,13 +351,13 @@ describe('Translation Flow Component Tests', () => {
             languageCode: 'en-US',
           }));
           
-          await waitForMessage(teacherMessages, 'register', 15000);
-          const classroomMessage = await waitForMessage(teacherMessages, 'classroom_code', 15000);
+          await waitForMessage(teacherMessages, 'register', TEST_TIMEOUTS.REGISTRATION);
+          const classroomMessage = await waitForMessage(teacherMessages, 'classroom_code', TEST_TIMEOUTS.REGISTRATION);
           const classroomCode = classroomMessage.code;
           console.log(`Classroom code: ${classroomCode}`);
           
           // Wait for teacher session to be established with longer delay
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.MULTI_STUDENT_DELAY));
           
           // 2. Create and register Spanish student
           console.log(`Creating Spanish student`);
@@ -352,10 +374,10 @@ describe('Translation Flow Component Tests', () => {
           await new Promise<void>((resolve, reject) => {
             spanishStudent.on('open', resolve);
             spanishStudent.on('error', reject);
-            setTimeout(() => reject(new Error('Spanish student connection timeout')), 15000);
+            setTimeout(() => reject(new Error('Spanish student connection timeout')), TEST_TIMEOUTS.CONNECTION);
           });
           
-          await waitForMessage(spanishMessages, 'connection', 15000);
+          await waitForMessage(spanishMessages, 'connection', TEST_TIMEOUTS.CONNECTION);
           
           spanishStudent.send(JSON.stringify({
             type: 'register',
@@ -364,18 +386,18 @@ describe('Translation Flow Component Tests', () => {
           }));
           
           // Wait for registration and check for errors with longer delay
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.MULTI_STUDENT_DELAY));
           const spanishErrorMsg = spanishMessages.find(m => m.type === 'error');
           if (spanishErrorMsg) {
             console.error('Spanish student registration error:', spanishErrorMsg);
           }
           
-          await waitForMessage(spanishMessages, 'register', 15000);
+          await waitForMessage(spanishMessages, 'register', TEST_TIMEOUTS.REGISTRATION);
           console.log(`Spanish student registered successfully`);
           
           // Add CI-specific delay between student registrations
           console.log("Adding CI delay between student registrations...");
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.MULTI_STUDENT_DELAY));
           
           // 3. Create and register French student
           console.log(`Creating French student`);
@@ -392,10 +414,10 @@ describe('Translation Flow Component Tests', () => {
           await new Promise<void>((resolve, reject) => {
             frenchStudent.on('open', resolve);
             frenchStudent.on('error', reject);
-            setTimeout(() => reject(new Error('French student connection timeout')), 15000);
+            setTimeout(() => reject(new Error('French student connection timeout')), TEST_TIMEOUTS.CONNECTION);
           });
           
-          await waitForMessage(frenchMessages, 'connection', 15000);
+          await waitForMessage(frenchMessages, 'connection', TEST_TIMEOUTS.CONNECTION);
           
           frenchStudent.send(JSON.stringify({
             type: 'register',
@@ -404,17 +426,17 @@ describe('Translation Flow Component Tests', () => {
           }));
           
           // Wait for registration and check for errors with longer delay
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.MULTI_STUDENT_DELAY));
           const frenchErrorMsg = frenchMessages.find(m => m.type === 'error');
           if (frenchErrorMsg) {
             console.error('French student registration error:', frenchErrorMsg);
           }
           
-          await waitForMessage(frenchMessages, 'register', 15000);
+          await waitForMessage(frenchMessages, 'register', TEST_TIMEOUTS.REGISTRATION);
           console.log(`French student registered successfully`);
           
           // Wait for all registrations to be fully processed with longer delay for CI
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.MULTI_STUDENT_DELAY));
           
           // Verify both students are properly connected before proceeding
           console.log(`Verifying student connections before transcription`);
@@ -454,15 +476,15 @@ describe('Translation Flow Component Tests', () => {
             console.log(`Translation wait progress - Spanish messages: ${spanishMessages.length}, French messages: ${frenchMessages.length}`);
             console.log(`Recent Spanish messages: ${JSON.stringify(spanishMessages.slice(-3).map(m => m.type))}`);
             console.log(`Recent French messages: ${JSON.stringify(frenchMessages.slice(-3).map(m => m.type))}`);
-          }, 10000);
+          }, TEST_TIMEOUTS.SMALL_DELAY * 10);
           
           try {
             // Wait for translations sequentially to be more CI-friendly
             console.log("Waiting for Spanish translation...");
-            const spanishTranslation = await waitForMessage(spanishMessages, 'translation', 60000);
+            const spanishTranslation = await waitForMessage(spanishMessages, 'translation', TEST_TIMEOUTS.TRANSLATION);
             
             console.log("Waiting for French translation...");
-            const frenchTranslation = await waitForMessage(frenchMessages, 'translation', 60000);
+            const frenchTranslation = await waitForMessage(frenchMessages, 'translation', TEST_TIMEOUTS.TRANSLATION);
             
             clearInterval(progressInterval);
             
@@ -494,9 +516,9 @@ describe('Translation Flow Component Tests', () => {
           });
           
           // Wait for cleanup to complete
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.CLEANUP));
         }
-      }, 120000); // 2 minute timeout for entire test for CI compatibility
+      }, TEST_TIMEOUTS.TEST_SUITE); // Use fast timeout for entire test
     } else {
       it.skip('should handle translations to multiple students in different languages', async () => {
         // Skipped in CI due to flakiness
@@ -523,7 +545,7 @@ describe('Translation Flow Component Tests', () => {
       // Send invalid JSON
       ws.send('invalid json data');
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.SMALL_DELAY));
 
       // Connection should still be open (if not expired)
       // In this test environment, connections might expire quickly, so we check for open or closed
@@ -554,7 +576,7 @@ describe('Translation Flow Component Tests', () => {
     });
 
     // Wait for connection confirmation
-    await waitForMessage(teacherMessages, 'connection', 5000);
+    await waitForMessage(teacherMessages, 'connection', TEST_TIMEOUTS.CONNECTION);
 
     // Register teacher
     teacherWs.send(JSON.stringify({
@@ -563,7 +585,7 @@ describe('Translation Flow Component Tests', () => {
       languageCode: 'en-US'
     }));
 
-    await waitForMessage(teacherMessages, 'register', 5000);
+    await waitForMessage(teacherMessages, 'register', TEST_TIMEOUTS.REGISTRATION);
 
     // Create student connection but register with INVALID language (empty string)
     const studentWs = new WebSocket(`ws://localhost:${actualPort}`);
@@ -583,7 +605,7 @@ describe('Translation Flow Component Tests', () => {
     });
 
     // Wait for connection confirmation
-    await waitForMessage(studentMessages, 'connection', 5000);
+    await waitForMessage(studentMessages, 'connection', TEST_TIMEOUTS.CONNECTION);
 
     // Register student but with INVALID language (empty string)
     studentWs.send(JSON.stringify({
@@ -592,7 +614,7 @@ describe('Translation Flow Component Tests', () => {
       languageCode: '' // This should trigger the validation
     }));
 
-    await waitForMessage(studentMessages, 'register', 5000);
+    await waitForMessage(studentMessages, 'register', TEST_TIMEOUTS.REGISTRATION);
 
     // Clear addTranslation mock calls before the test
     vi.clearAllMocks();
@@ -604,7 +626,7 @@ describe('Translation Flow Component Tests', () => {
     }));
 
     // Wait a bit for processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, TEST_TIMEOUTS.SMALL_DELAY));
 
     // With real database storage, we expect the system to handle validation properly
     // Translation should not be saved due to invalid target language

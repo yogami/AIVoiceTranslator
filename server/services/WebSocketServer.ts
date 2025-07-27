@@ -712,4 +712,31 @@ export class WebSocketServer implements IActiveSessionProvider { // Implement IA
   public get _connectionHealthManager() {
     return this.connectionHealthManager;
   }
+
+  /**
+   * Broadcast student count update to all teachers in the session
+   */
+  public broadcastStudentCount(sessionId: string): void {
+    const studentCount = this.connectionManager.getStudentCount();
+    const message = {
+      type: 'studentCountUpdate',
+      count: studentCount
+    };
+
+    // Send to all teachers in the specified session
+    const connections = this.connectionManager.getConnections();
+    connections.forEach(client => {
+      const role = this.connectionManager.getRole(client);
+      const clientSessionId = this.connectionManager.getSessionId(client);
+      
+      if (role === 'teacher' && clientSessionId === sessionId) {
+        try {
+          client.send(JSON.stringify(message));
+          logger.info(`Broadcasted student count update: ${studentCount} to teacher in session ${sessionId}`);
+        } catch (error) {
+          logger.error('Failed to broadcast student count to teacher:', { error, sessionId });
+        }
+      }
+    });
+  }
 }

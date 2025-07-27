@@ -105,13 +105,13 @@ export function createAnalyticsRoutes(): Router {
     testAnalyticsQuery
   ); // Test endpoint
   
-  router.get('/debug/database', debugDatabase); // Debug endpoint
+  router.get('/debug/database', analyticsPageAuth, debugDatabase); // Debug endpoint
 
-  // New meaningful analytics endpoints
-  router.get('/analytics/active-sessions', getActiveSessionsNow);
-  router.get('/analytics/sessions-this-week', getSessionsThisWeek);
-  router.get('/analytics/translations-per-session', getTranslationsPerSession);
-  router.get('/analytics/peak-hours', getPeakUsageHours);
+  // New meaningful analytics endpoints - Protected with auth and rate limiting but NOT security middleware
+  router.get('/analytics/active-sessions', analyticsPageAuth, analyticsRateLimit, getActiveSessionsNow);
+  router.get('/analytics/sessions-this-week', analyticsPageAuth, analyticsRateLimit, getSessionsThisWeek);
+  router.get('/analytics/translations-per-session', analyticsPageAuth, analyticsRateLimit, getTranslationsPerSession);
+  router.get('/analytics/peak-hours', analyticsPageAuth, analyticsRateLimit, getPeakUsageHours);
 
   /**
    * Get currently active sessions
