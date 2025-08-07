@@ -12,7 +12,7 @@ import http from 'http';
 import { createApiRoutes, apiErrorHandler } from '../../../server/routes';
 import { DatabaseStorage } from '../../../server/database-storage';
 import { WebSocketServer } from '../../../server/services/WebSocketServer';
-import { SessionCleanupService } from '../../../server/services/SessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../../server/services/session/cleanup/UnifiedSessionCleanupService';
 
 // Simple wrapper function to wait for promises
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));

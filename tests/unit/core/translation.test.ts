@@ -28,10 +28,10 @@ import os from 'os';
 import fsPromises from 'fs/promises';
 import {
   OpenAITranslationService,
-  OpenAITranscriptionService,
+  OpenAISTTTranscriptionService,
   SpeechTranslationService,
   ITranslationService,
-  ITranscriptionService
+  ISTTTranscriptionService
 } from '../../../server/services/TranslationService';
 
 vi.mock('fs', async () => {
@@ -144,7 +144,7 @@ vi.mock('../../../server/services/textToSpeech/TextToSpeechService', () => ({
 describe('Translation Services - Real Implementations', () => {
   let mockOpenAI: any;
   let translationService: ITranslationService;
-  let transcriptionService: ITranscriptionService;
+  let transcriptionService: ISTTTranscriptionService;
   let speechTranslationService: SpeechTranslationService;
 
   beforeEach(async () => {
@@ -154,7 +154,7 @@ describe('Translation Services - Real Implementations', () => {
     const OpenAI = (await import('openai')).default;
     mockOpenAI = new OpenAI();
     
-    const { AudioFileHandler } = await import('../../../server/services/handlers/AudioFileHandler');
+    const { AudioFileHandler } = await import('../../../server/services/stttranscription/AudioFileHandler');
     const mockAudioHandlerInstance = new AudioFileHandler();
     // Return a mock file path without creating actual files
     vi.mocked(mockAudioHandlerInstance.createTempFile).mockResolvedValue('/mock/temp/audio.wav');
@@ -162,7 +162,7 @@ describe('Translation Services - Real Implementations', () => {
 
     // Create REAL service instances using concrete classes, injecting mock AudioFileHandler
     translationService = new OpenAITranslationService(mockOpenAI);
-    transcriptionService = new OpenAITranscriptionService(mockOpenAI, mockAudioHandlerInstance);
+    transcriptionService = new OpenAISTTTranscriptionService(mockOpenAI, mockAudioHandlerInstance);
     speechTranslationService = new SpeechTranslationService(
       transcriptionService,
       translationService,

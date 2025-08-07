@@ -36,7 +36,7 @@ export interface EmotionalTTSOptions {
   outputFormat?: 'mp3' | 'wav' | 'opus';
 }
 
-export class EmotionControlService {
+export class ElevenLabsEmotionControlService {
   private readonly EMOTION_SETTINGS = {
     excited: {
       stability: 0.3,
@@ -154,7 +154,7 @@ export class EmotionControlService {
   /**
    * Get voice settings based on emotion context
    */
-  private getEmotionSettings(emotionContext: EmotionContext) {
+  public getEmotionSettings(emotionContext: EmotionContext) {
     const baseSettings = this.EMOTION_SETTINGS[emotionContext.primaryEmotion];
     const intensity = emotionContext.intensity || 0.6;
     
@@ -194,7 +194,7 @@ export class EmotionControlService {
   /**
    * Apply cultural adaptations to text
    */
-  private applyCulturalAdaptation(text: string, culturalContext?: EmotionContext['culturalContext']): string {
+  public applyCulturalAdaptation(text: string, culturalContext?: EmotionContext['culturalContext']): string {
     if (!culturalContext) return text;
     
     let adaptedText = text;
@@ -219,7 +219,7 @@ export class EmotionControlService {
   /**
    * Add emphasis markers for key words
    */
-  private applyEmphasis(text: string, emphasisWords?: string[]): string {
+  public applyEmphasis(text: string, emphasisWords?: string[]): string {
     if (!emphasisWords || emphasisWords.length === 0) return text;
     
     let emphasizedText = text;
@@ -285,5 +285,297 @@ export class EmotionControlService {
    */
   isAvailable(): boolean {
     return !!process.env.ELEVENLABS_API_KEY;
+  }
+
+  /**
+   * Apply emotional context using ElevenLabs voice settings
+   * Based on ElevenLabs API documentation for voice settings and style parameters
+   */
+  async applyEmotionalContext(options: EmotionalTTSOptions): Promise<{
+    text: string;
+    emotionSettings: any;
+    culturalAdaptations?: any;
+    emphasis?: string[];
+    audioBuffer?: Buffer;
+  }> {
+    // Get ElevenLabs emotion-specific voice settings
+    const emotionSettings = this.getEmotionSettings(options.emotionContext);
+    
+    // Apply cultural adaptation to text
+    const culturalAdaptations = this.adjustForCulture(options.emotionContext);
+    const adaptedText = this.applyCulturalAdaptation(options.text, culturalAdaptations.culturalContext);
+    
+    // Apply emphasis markers for ElevenLabs SSML-like formatting
+    const emphasizedText = this.applyEmphasis(adaptedText, options.emotionContext.emphasis);
+    
+    // Synthesize audio with emotional context
+    let audioBuffer: Buffer | undefined = undefined;
+    try {
+      audioBuffer = await this.synthesizeWithEmotion({
+        ...options,
+        text: emphasizedText,
+        emotionContext: { ...options.emotionContext, ...culturalAdaptations }
+      });
+    } catch (error) {
+      console.warn('[EmotionControl] Synthesis failed, continuing without audio:', error instanceof Error ? error.message : error);
+    }
+    
+    return {
+      text: emphasizedText,
+      emotionSettings: {
+        ...emotionSettings,
+        intensity: options.emotionContext.intensity || 0.6,
+        pace: options.emotionContext.pace,
+        elevenLabsSettings: {
+          stability: emotionSettings.stability,
+          similarity_boost: emotionSettings.similarityBoost,
+          style: emotionSettings.style,
+          use_speaker_boost: true
+        }
+      },
+      culturalAdaptations: culturalAdaptations.culturalAdaptations,
+      emphasis: options.emotionContext.emphasis,
+      audioBuffer
+    };
+  }
+
+  /**
+   * Get supported emotions based on ElevenLabs voice settings capabilities
+   */
+  getSupportedEmotions(): string[] {
+    return Object.keys(this.EMOTION_SETTINGS) as Array<keyof typeof this.EMOTION_SETTINGS>;
+  }
+
+  /**
+   * Get available pace options for speech rate control
+   */
+  getPaceOptions(): string[] {
+    return ['slow', 'normal', 'fast'];
+  }
+
+  /**
+   * Validate emotion context against ElevenLabs supported parameters
+   */
+  validateEmotionContext(context: EmotionContext): boolean {
+    const validEmotions = this.getSupportedEmotions();
+    const validPaces = this.getPaceOptions();
+    
+    // Check if emotion is supported
+    if (!validEmotions.includes(context.primaryEmotion)) {
+      return false;
+    }
+    
+    // Check intensity range (ElevenLabs accepts 0.0-1.0)
+    if (context.intensity !== undefined && (context.intensity < 0 || context.intensity > 1)) {
+      return false;
+    }
+    
+    // Check pace options
+    if (context.pace !== undefined && !validPaces.includes(context.pace)) {
+      return false;
+    }
+    
+    // Check cultural context structure
+    if (context.culturalContext) {
+      const validFormalityLevels = ['formal', 'casual', 'academic'];
+      const validAgeGroups = ['children', 'teens', 'adults'];
+      
+      if (context.culturalContext.formalityLevel && 
+          !validFormalityLevels.includes(context.culturalContext.formalityLevel)) {
+        return false;
+      }
+      
+      if (context.culturalContext.ageGroup && 
+          !validAgeGroups.includes(context.culturalContext.ageGroup)) {
+        return false;
+      }
+    }
+    
+    return true;
+  }
+
+  /**
+   * Extract emotion from text using linguistic analysis for ElevenLabs emotion control
+   * Based on prosodic and semantic patterns that map to ElevenLabs voice settings
+   */
+  extractEmotionFromText(text: string): EmotionContext {
+    const lowerText = text.toLowerCase();
+    const hasExclamation = text.includes('!');
+    const hasQuestion = text.includes('?');
+    const punctuationCount = (text.match(/[!?]/g) || []).length;
+    
+    // Excited patterns - high energy, enthusiasm
+    if (hasExclamation || 
+        lowerText.match(/\b(great|amazing|wonderful|fantastic|excellent|awesome|wow)\b/) ||
+        punctuationCount >= 2) {
+      return { 
+        primaryEmotion: 'excited', 
+        intensity: Math.min(0.7 + (punctuationCount * 0.1), 1.0),
+        pace: 'fast'
+      };
+    }
+    
+    // Concerned patterns - care, worry, attention
+    if (lowerText.match(/\b(careful|watch|careful|attention|important|warning|concern)\b/) ||
+        lowerText.includes('please be')) {
+      return { 
+        primaryEmotion: 'concerned', 
+        intensity: 0.7,
+        pace: 'normal'
+      };
+    }
+    
+    // Encouraging patterns - support, positive reinforcement
+    if (lowerText.match(/\b(well done|good job|keep going|you can|believe|try)\b/)) {
+      return { 
+        primaryEmotion: 'encouraging', 
+        intensity: 0.8,
+        pace: 'normal'
+      };
+    }
+    
+    // Serious patterns - formal, important information
+    if (lowerText.match(/\b(however|therefore|important|must|required|necessary)\b/) ||
+        text.length > 100) {
+      return { 
+        primaryEmotion: 'serious', 
+        intensity: 0.6,
+        pace: 'slow'
+      };
+    }
+    
+    // Calm patterns - gentle, peaceful instruction
+    if (lowerText.match(/\b(please|slowly|gently|calmly|relax|breathe)\b/)) {
+      return { 
+        primaryEmotion: 'calm', 
+        intensity: 0.5,
+        pace: 'slow'
+      };
+    }
+    
+    // Default to neutral with question handling
+    return { 
+      primaryEmotion: 'neutral', 
+      intensity: hasQuestion ? 0.6 : 0.5,
+      pace: 'normal'
+    };
+  }
+
+  /**
+   * Adjust emotion context for cultural considerations using ElevenLabs voice parameters
+   * Based on cultural communication patterns and ElevenLabs voice customization
+   */
+  adjustForCulture(context: EmotionContext): EmotionContext & { culturalAdaptations?: any } {
+    const adjusted = { ...context };
+    const adaptations: any = { applied: false, adjustments: [] };
+    
+    if (!context.culturalContext) {
+      return { ...adjusted, culturalAdaptations: adaptations };
+    }
+    
+    const { targetCulture, formalityLevel, ageGroup } = context.culturalContext;
+    
+    // Cultural emotion intensity adjustments
+    if (targetCulture) {
+      switch (targetCulture.toLowerCase()) {
+        case 'japanese':
+        case 'korean':
+          // East Asian cultures often prefer more subdued emotional expression
+          adjusted.intensity = Math.max((adjusted.intensity || 0.6) * 0.8, 0.3);
+          adaptations.adjustments.push('reduced_intensity_east_asian');
+          break;
+          
+        case 'italian':
+        case 'spanish':
+        case 'brazilian':
+          // Mediterranean/Latin cultures often appreciate more expressive emotions
+          adjusted.intensity = Math.min((adjusted.intensity || 0.6) * 1.2, 1.0);
+          adaptations.adjustments.push('increased_intensity_latin');
+          break;
+          
+        case 'german':
+        case 'de':
+        case 'dutch':
+          // Germanic cultures often prefer more formal, controlled expression
+          if (adjusted.primaryEmotion === 'excited') {
+            adjusted.intensity = Math.min((adjusted.intensity || 0.7) * 0.9, 0.8);
+          }
+          adaptations.adjustments.push('controlled_expression_germanic');
+          break;
+          
+        case 'british':
+          // British culture often values understatement
+          adjusted.intensity = Math.max((adjusted.intensity || 0.6) * 0.85, 0.4);
+          adaptations.adjustments.push('understatement_british');
+          break;
+      }
+      adaptations.applied = true;
+    }
+    
+    // Formality level adjustments
+    if (formalityLevel) {
+      switch (formalityLevel) {
+        case 'formal':
+          adjusted.intensity = Math.min((adjusted.intensity || 0.6) * 0.8, 0.7);
+          if (adjusted.primaryEmotion === 'excited') {
+            adjusted.primaryEmotion = 'encouraging';
+          }
+          adaptations.adjustments.push('formal_tone_adjustment');
+          break;
+          
+        case 'academic':
+          adjusted.pace = 'slow';
+          adjusted.intensity = Math.max(Math.min((adjusted.intensity || 0.6) * 0.8, 0.8), 0.6);
+          if (['excited', 'encouraging'].includes(adjusted.primaryEmotion)) {
+            adjusted.primaryEmotion = 'serious';
+          }
+          adaptations.adjustments.push('academic_tone_adjustment');
+          break;
+          
+        case 'casual':
+          adjusted.intensity = Math.min((adjusted.intensity || 0.6) * 1.1, 1.0);
+          adaptations.adjustments.push('casual_tone_adjustment');
+          break;
+      }
+      adaptations.applied = true;
+    }
+    
+    // Age group adjustments
+    if (ageGroup) {
+      switch (ageGroup) {
+        case 'children':
+          adjusted.pace = adjusted.pace === 'fast' ? 'normal' : 'slow';
+          if (adjusted.primaryEmotion === 'serious') {
+            adjusted.primaryEmotion = 'encouraging';
+          }
+          adaptations.adjustments.push('child_friendly_adjustment');
+          break;
+          
+        case 'teens':
+          if (adjusted.intensity && adjusted.intensity < 0.5) {
+            adjusted.intensity = 0.6; // Teens respond to more energy
+          }
+          adaptations.adjustments.push('teen_engagement_adjustment');
+          break;
+          
+        case 'adults':
+          // No specific adjustments needed for adults
+          adaptations.adjustments.push('adult_standard');
+          break;
+      }
+      adaptations.applied = true;
+    }
+    
+    return {
+      ...adjusted,
+      culturalAdaptations: {
+        ...adaptations,
+        targetCulture,
+        formalityLevel,
+        ageGroup,
+        originalIntensity: context.intensity,
+        adjustedIntensity: adjusted.intensity
+      }
+    };
   }
 }

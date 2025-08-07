@@ -5,9 +5,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { asyncHandler, ApiError } from '../middleware/error-handler.middleware.js';
-import { IStorage } from '../storage.interface.js';
-import { IActiveSessionProvider } from '../services/IActiveSessionProvider.js';
+import { asyncHandler, ApiError } from '../middleware/error-handler.middleware';
+import { IStorage } from '../storage.interface';
+import { IActiveSessionProvider } from '../services/session/IActiveSessionProvider';
 
 // Language name mapping for display
 const LANGUAGE_NAMES: Record<string, string> = {

@@ -1,4 +1,4 @@
-import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
+import { IMessageHandler, MessageHandlerContext } from '../websocket/MessageHandler';
 import type { TTSRequestMessageToServer, TTSResponseMessageToClient } from '../WebSocketTypes';
 import logger from '../../logger';
 

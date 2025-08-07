@@ -47,8 +47,8 @@ const getTestTimeouts = (mode) => {
     case 'integration':
       return {
         testTimeout: 120000,         // 2 minutes per integration test
-        hookTimeout: 60000,          // 1 minute for hooks 
-        teardownTimeout: 30000,      // 30 seconds for teardown
+        hookTimeout: 120000,         // 2 minutes for hooks (increased for database setup)
+        teardownTimeout: 60000,      // 1 minute for teardown
       };
     case 'component':
       return {
@@ -67,7 +67,6 @@ const getTestTimeouts = (mode) => {
 };
 
 const setupFiles = [
-  './test-config/test-env.js',  // This will now handle all env var checks and loading from .env.test
   './test-config/vitest/vitest.setup.ts',
   // Add test isolation setup for component and integration tests
   ...(testMode === 'component' || testMode === 'integration' ? ['./test-config/test-isolation.ts'] : [])

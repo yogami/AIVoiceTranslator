@@ -26,7 +26,8 @@ export interface MessageHandlerContext {
   connectionManager: any; // ConnectionManager - using any to avoid circular dependency
   storage: any; // IStorage - using any to avoid circular dependency  
   sessionService: any; // SessionService - using any to avoid circular dependency
-  translationService: any; // TranslationOrchestrator - using any to avoid circular dependency
+  translationService: any; // Legacy service - using any to avoid circular dependency (may be removed)
+  speechPipelineOrchestrator?: any; // SpeechPipelineOrchestrator - new orchestrator architecture
   sessionLifecycleService: any; // SessionLifecycleService - using any to avoid circular dependency
   webSocketServer: any; // WebSocketServer - using any to avoid circular dependency
 }
@@ -145,6 +146,8 @@ export class MessageDispatcher {
       }
     } catch (error) {
       logger.error('Error handling message:', { error, data });
+      // Extra error logging for integration test visibility
+      console.error('[MessageHandler] Exception:', error, error instanceof Error ? error.stack : undefined, error instanceof Error ? error.message : String(error));
     }
   }
 }

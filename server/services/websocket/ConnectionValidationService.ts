@@ -8,7 +8,7 @@
 
 import logger from '../../logger';
 import { WebSocketClient } from './ConnectionManager';
-import { ClassroomSessionManager } from './ClassroomSessionManager';
+import { ClassroomSessionManager } from '../session/ClassroomSessionManager';
 import { WebSocketResponseService, type ValidationError } from './WebSocketResponseService';
 
 export interface ValidationResult {

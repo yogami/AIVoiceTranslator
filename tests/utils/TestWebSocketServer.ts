@@ -5,8 +5,6 @@
 import * as http from 'http';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { IStorage } from '../../server/storage.interface';
-import { SessionCleanupService } from '../../server/services/SessionCleanupService';
-import { MockTranslationOrchestrator } from './MockTranslationOrchestrator';
 import { MessageDispatcher } from '../../server/services/websocket/MessageHandler';
 
 export class TestWebSocketServer extends WebSocketServer {
@@ -49,9 +47,9 @@ export class TestWebSocketServer extends WebSocketServer {
         }
       }
       
-      // Stop all services
-      if (ws.sessionCleanupService && typeof ws.sessionCleanupService.stop === 'function') {
-        ws.sessionCleanupService.stop();
+      // Stop cleanup services
+      if (ws.unifiedSessionCleanupService && typeof ws.unifiedSessionCleanupService.stop === 'function') {
+        ws.unifiedSessionCleanupService.stop();
       }
       
       // Clear classroom sessions
@@ -59,68 +57,9 @@ export class TestWebSocketServer extends WebSocketServer {
         ws.classroomSessionManager.clearAll();
       }
       
-      // Reset orchestrator completely
-      if (ws.originalTranslationOrchestrator) {
-        ws.translationOrchestrator = ws.originalTranslationOrchestrator;
-        
-        // Recreate message dispatcher
-        if (ws.messageDispatcher && ws.messageHandlerRegistry) {
-          const originalContext = {
-            ws: null as any,
-            connectionManager: ws.connectionManager,
-            storage: ws.storage,
-            sessionService: ws.sessionService,
-            translationService: ws.originalTranslationOrchestrator,
-            sessionLifecycleService: ws.sessionLifecycleService,
-            webSocketServer: this
-          };
-          
-          ws.messageDispatcher = new MessageDispatcher(ws.messageHandlerRegistry, originalContext);
-        }
-        
-        ws.originalTranslationOrchestrator = null;
-      }
-      
       console.log('🔧 [RESET] ✅ Complete state reset successful');
     } catch (error) {
       console.warn('🔧 [RESET] ⚠️ Reset error (ignoring):', error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  // Allow setting a mock translation orchestrator for testing
-  setMockTranslationOrchestrator(mockTranslationService?: any): void {
-    const ws = this as any;
-    
-    if (ws.translationOrchestrator) {
-      // Store original orchestrator if not already stored
-      if (!ws.originalTranslationOrchestrator) {
-        ws.originalTranslationOrchestrator = ws.translationOrchestrator;
-      }
-      
-      // Create a complete mock orchestrator
-      const mockOrchestrator = new MockTranslationOrchestrator(ws.translationOrchestrator.storage);
-      
-      // Replace the orchestrator completely
-      ws.translationOrchestrator = mockOrchestrator;
-      
-      // CRITICAL: Update the message dispatcher context to use the mock
-      if (ws.messageDispatcher && ws.messageHandlerRegistry) {
-        const newContext = {
-          ws: null as any,
-          connectionManager: ws.connectionManager,
-          storage: ws.storage,
-          sessionService: ws.sessionService,
-          translationService: mockOrchestrator, // Use the mock orchestrator here!
-          sessionLifecycleService: ws.sessionLifecycleService,
-          webSocketServer: this
-        };
-        
-        ws.messageDispatcher = new MessageDispatcher(ws.messageHandlerRegistry, newContext);
-      }
-      
-      console.log('🔧 [MOCK] ✅ MockTranslationOrchestrator installed');
-    } else {
-      console.warn('🔧 [MOCK] ❌ Could not install mock - translationOrchestrator not found');
     }
   }
 
@@ -137,18 +76,25 @@ export class TestWebSocketServer extends WebSocketServer {
     console.log('🔧 ✅ TestWebSocketServer shutdown complete');
   }
 
-  // Expose the translation orchestrator for testing
-  public getTranslationOrchestrator(): any {
-    return (this as any).translationOrchestrator;
+  // Expose the speech pipeline orchestrator for testing
+  public getSpeechPipelineOrchestrator(): any {
+    return (this as any).speechPipelineOrchestrator;
   }
 
-  // Expose the session cleanup service for testing
+  /**
+   * Get the cleanup service for testing purposes
+   */
   public getSessionCleanupService(): any {
-    return (this as any).sessionCleanupService;
+    return (this as any).unifiedSessionCleanupService;
   }
 
-  // Expose the original translation orchestrator for testing
-  public getOriginalTranslationOrchestrator(): any {
-    return (this as any).originalTranslationOrchestrator;
+  // Expose the message handler registry for testing
+  public getMessageHandlerRegistry(): any {
+    return (this as any).messageHandlerRegistry;
+  }
+
+  // Expose the WebSocketServer instance for tests that need direct access
+  public getWebSocketServer(): WebSocketServer {
+    return this;
   }
 }

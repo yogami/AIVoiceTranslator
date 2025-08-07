@@ -82,19 +82,19 @@
  */
 import { Router, Request, Response, NextFunction } from 'express';
 import { sql } from 'drizzle-orm';
-import { sessions } from '../shared/schema.js';
-import { db } from './db.js';
+import { sessions } from '../shared/schema';
+import { db } from './db';
 import OpenAI from 'openai';
-import { IStorage } from './storage.interface.js';
-import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
-import { SessionCleanupService } from './services/SessionCleanupService.js';
+import { IStorage } from './storage.interface';
+import { IActiveSessionProvider } from './services/session/IActiveSessionProvider';
+import { UnifiedSessionCleanupService } from './services/session/cleanup/UnifiedSessionCleanupService';
 import authRoutes from './routes/auth';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { 
   analyticsRateLimit, 
   analyticsSecurityMiddleware, 
   analyticsPageAuth 
-} from './middleware/analytics-security.js';
+} from './middleware/analytics-security';
 
 // Constants
 const API_VERSION = '1.0.0';
@@ -162,7 +162,7 @@ export const createApiRoutes = (
   storage: IStorage,
   activeSessionProvider: IActiveSessionProvider, // Or WebSocketServer if direct interaction is needed  
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  sessionCleanupService?: SessionCleanupService // Add optional cleanup service for admin endpoints
+  sessionCleanupService?: UnifiedSessionCleanupService // Add optional cleanup service for admin endpoints
 ): Router => {
   const router = Router();
 

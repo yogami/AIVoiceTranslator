@@ -215,21 +215,22 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     const sessionStatusService = {
         async refreshStatus(sessionId) {
             if (!sessionId) {
-                console.error('[DEBUG] refreshStatus: No session ID provided');
+                // Don't display error if no sessionId (likely first page load)
+                console.warn('[DEBUG] refreshStatus: No session ID provided');
                 return null;
             }
-            
+
             try {
                 console.log('[DEBUG] Fetching session status for:', sessionId);
                 const response = await fetch(`/api/sessions/${sessionId}/status`);
-                
+
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
                 const data = await response.json();
                 console.log('[DEBUG] Session status response:', data);
-                
+
                 if (data.success) {
                     uiUpdater.updateSessionStatus(data.data);
                     return data.data;
@@ -237,8 +238,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     throw new Error(data.message || 'Failed to fetch session status');
                 }
             } catch (error) {
-                console.error('[DEBUG] Error refreshing session status:', error);
-                uiUpdater.updateStatus(`Failed to refresh status: ${error.message}`, 'error');
+                // Only display error if sessionId is present and not first load
+                if (sessionId) {
+                    console.error('[DEBUG] Error refreshing session status:', error);
+                    uiUpdater.updateStatus(`Failed to refresh status: ${error.message}`, 'error');
+                } else {
+                    // Suppress error message on first load
+                    console.warn('[DEBUG] Suppressed status error on first load:', error);
+                }
                 return null;
             }
         }

@@ -64,7 +64,7 @@ vi.mock('../../../server/services/websocket/ConnectionHealthManager', () => ({
 }));
 
 import { WebSocketServer } from '../../../server/services/WebSocketServer';
-import { SessionLifecycleService } from '../../../server/services/SessionLifecycleService';
+import { SessionLifecycleService } from '../../../server/services/session/SessionLifecycleService';
 import logger from '../../../server/logger';
 
 describe('WebSocketServer - Lifecycle Management', () => {
@@ -280,9 +280,9 @@ describe('WebSocketServer - Lifecycle Management', () => {
       expect(sessionService).toBeDefined();
     });
 
-    it('should delegate translation operations to TranslationOrchestrator', () => {
-      const translationOrchestrator = (webSocketServer as any).translationOrchestrator;
-      expect(translationOrchestrator).toBeDefined();
+    it('should delegate translation operations to SpeechPipelineOrchestrator', () => {
+      const speechPipelineOrchestrator = (webSocketServer as any).speechPipelineOrchestrator;
+      expect(speechPipelineOrchestrator).toBeDefined();
     });
 
     it('should delegate session lifecycle to SessionLifecycleService', () => {

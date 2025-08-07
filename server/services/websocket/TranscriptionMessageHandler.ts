@@ -1,6 +1,19 @@
+/**
+ * WebSocket Message Handler for Transcription
+ * 
+ * This is a LIGHTWEIGHT transport layer handler that:
+ * 1. Validates message format and authorization
+ * 2. Delegates business logic to TranscriptionBusinessService
+ * 
+ * Following Clean Architecture principles:
+ * - WebSocket layer handles only transport concerns
+ * - Business logic is delegated to domain services
+ * - No TTS/STT/Translation logic in WebSocket layer
+ */
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { TranscriptionMessageToServer } from '../WebSocketTypes';
 import type { WebSocketClient } from './ConnectionManager';
+import { TranscriptionBusinessService, type ClientSettingsProvider } from '../transcription/TranscriptionBusinessService';
 import logger from '../../logger';
 
 export class TranscriptionMessageHandler implements IMessageHandler<TranscriptionMessageToServer> {
@@ -14,7 +27,32 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
       text: message.text 
     });
     
-    // Start tracking latency when transcription is received
+    const role = context.connectionManager.getRole(context.ws);
+    const sessionId = context.connectionManager.getSessionId(context.ws);
+    
+    // Create business service instance
+    if (!context.speechPipelineOrchestrator) {
+      throw new Error('SpeechPipelineOrchestrator not available in context');
+    }
+    
+    const transcriptionService = new TranscriptionBusinessService(
+      context.storage,
+      context.speechPipelineOrchestrator
+    );
+    
+    // Validate transcription source
+    const validation = transcriptionService.validateTranscriptionSource(role);
+    if (!validation.valid) {
+      logger.warn(validation.reason);
+      return;
+    }
+    
+    if (!sessionId) {
+      logger.warn('No session ID found for transcription');
+      return;
+    }
+    
+    // Prepare request data
     const startTime = Date.now();
     const latencyTracking = {
       start: startTime,
@@ -26,94 +64,40 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
       }
     };
     
-    const role = context.connectionManager.getRole(context.ws);
-    const sessionId = context.connectionManager.getSessionId(context.ws);
-    
-    // Only process transcriptions from teacher
-    if (role !== 'teacher') {
-      logger.warn('Ignoring transcription from non-teacher role:', { role });
-      return;
-    }
-    
-    // Store the transcript in the database
-    if (sessionId) {
-      const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';
-      try {
-        await context.storage.addTranscript({
-          sessionId,
-          language: teacherLanguage,
-          text: message.text
-        });
-        logger.info('Transcript stored successfully', { sessionId, language: teacherLanguage });
-      } catch (error) {
-        logger.error('Failed to store transcript:', { error, sessionId });
-        // Continue with translation - don't break core functionality
-      }
-    }
-    
-    // Get all student connections and their languages for this session only
-    const { connections: studentConnections, languages: studentLanguages } = 
-      context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId!);
-    
-    if (studentConnections.length === 0) {
-      logger.info('No students connected, skipping translation');
-      return;
-    }
-    
-    // Translate text to all student languages
     const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';
     
-    // Perform translations for all required languages
-    const result = await context.translationService.translateToMultipleLanguages({
-      text: message.text,
-      sourceLanguage: teacherLanguage,
-      targetLanguages: studentLanguages,
-      startTime,
-      latencyTracking
-    });
+    // Get student connections and languages
+    const { connections: studentConnections, languages: studentLanguages } = 
+      context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId);
     
-    // Convert result format to match expected type
-    const translations: Record<string, string> = {};
-    const translationResults: Record<string, { 
-      originalText: string;
-      translatedText: string;
-      audioBuffer: Buffer;
-    }> = {};
-    
-    result.translations.forEach((translation: string, language: string) => {
-      translations[language] = translation;
-    });
-    
-    result.translationResults.forEach(({ language, translation }: { language: string; translation: string }) => {
-      translationResults[language] = {
-        originalText: message.text,
-        translatedText: translation,
-        audioBuffer: Buffer.from('') // Empty buffer for now
-      };
-    });
-    
-    const latencyInfo = result.latencyInfo;
-    
-    // Update latency tracking with the results
-    Object.assign(latencyTracking.components, latencyInfo);
-    
-    // Calculate processing latency before sending translations
-    const processingEndTime = Date.now();
-    latencyTracking.components.processing = processingEndTime - startTime - latencyTracking.components.translation;
-    
-    // Send translations to students
-    context.translationService.sendTranslationsToStudents({
-      studentConnections,
-      originalText: message.text,
-      sourceLanguage: teacherLanguage,
-      translations: result.translations,
-      translationResults: result.translationResults,
-      startTime,
-      latencyTracking,
+    // Create client settings provider
+    const clientProvider: ClientSettingsProvider = {
       getClientSettings: (ws: WebSocketClient) => context.connectionManager.getClientSettings(ws),
       getLanguage: (ws: WebSocketClient) => context.connectionManager.getLanguage(ws),
-      getSessionId: (ws: WebSocketClient) => context.connectionManager.getSessionId(ws),
-      storage: context.storage
-    });
+      getSessionId: (ws: WebSocketClient) => context.connectionManager.getSessionId(ws)
+    };
+    
+    // Delegate to business service
+    try {
+      await transcriptionService.processTranscription({
+        text: message.text,
+        teacherLanguage,
+        sessionId,
+        studentConnections,
+        studentLanguages: Array.from(studentLanguages), // Convert Set to Array
+        startTime,
+        latencyTracking
+      }, clientProvider);
+    } catch (error) {
+      logger.error('Error in transcription message handling:', { 
+        error, 
+        errorMessage: error instanceof Error ? error.message : String(error), 
+        errorStack: error instanceof Error ? error.stack : undefined 
+      });
+      // Extra error logging for integration test visibility
+      console.error('[TranscriptionMessageHandler] Exception:', error, error instanceof Error ? error.stack : undefined, error instanceof Error ? error.message : String(error));
+      // Re-throw to be caught by MessageHandler
+      throw error;
+    }
   }
 }

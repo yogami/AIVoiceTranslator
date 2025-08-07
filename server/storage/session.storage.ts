@@ -316,6 +316,12 @@ export class DbSessionStorage implements ISessionStorage {
       
       return result[0];
     } catch (error: any) {
+      logger.error('Failed to update session activity', {
+        sessionId,
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw new StorageError(`Failed to update session ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
@@ -332,6 +338,12 @@ export class DbSessionStorage implements ISessionStorage {
         .limit(1);
       return result[0];
     } catch (error: any) {
+      logger.error('Failed to get active session', {
+        sessionId,
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw new StorageError(`Failed to get active session ${sessionId}: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
@@ -343,6 +355,11 @@ export class DbSessionStorage implements ISessionStorage {
         .from(sessions) // sessions from ../../shared/schema
         .where(eq(sessions.isActive, true)); // eq from drizzle-orm, sessions from ../../shared/schema
     } catch (error: any) {
+      logger.error('Failed to get all active sessions', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw new StorageError(`Failed to get all active sessions: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
@@ -355,6 +372,11 @@ export class DbSessionStorage implements ISessionStorage {
         .from(sessions)
         .where(eq(sessions.isActive, true));
     } catch (error: any) {
+      logger.error('Failed to get currently active sessions', {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw new StorageError(`Failed to get currently active sessions: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
@@ -374,6 +396,12 @@ export class DbSessionStorage implements ISessionStorage {
         .returning();
       return result[0];
     } catch (error: any) {
+      logger.error('Failed to end session', {
+        sessionId,
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw new StorageError(`Failed to end session: ${error.message}`, StorageErrorCode.STORAGE_ERROR, error);
     }
   }
@@ -565,8 +593,9 @@ export class DbSessionStorage implements ISessionStorage {
       return activeSession;
     } catch (error: any) {
       logger.error(`[DbSessionStorage] Error in findActiveSessionByTeacherId for teacherId ${teacherId}:`, {
-        message: error.message,
-        stack: error.stack,
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         code: error.code,
         detail: error.detail
       });
@@ -609,8 +638,9 @@ export class DbSessionStorage implements ISessionStorage {
       return result[0] || null;
     } catch (error: any) {
       logger.error(`[DbSessionStorage] Error in findRecentSessionByTeacherId for ${teacherId}:`, {
-        error: error.message,
-        stack: error.stack,
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         code: error.code,
         details: error
       });
@@ -648,8 +678,9 @@ export class DbSessionStorage implements ISessionStorage {
       return result[0] || null;
     } catch (error: any) {
       logger.error(`[DbSessionStorage] Error reactivating session ${sessionId}:`, {
-        error: error.message,
-        stack: error.stack,
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         code: error.code,
         details: error
       });

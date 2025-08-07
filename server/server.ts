@@ -11,11 +11,11 @@ import path from 'path';
 import logger from './logger';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { config, validateConfig } from './config'; // Assuming config is imported and validated
-import { createApiRoutes, apiErrorHandler } from './routes.js'; // Revert to original single routes file
+import { createApiRoutes, apiErrorHandler } from './routes'; // Revert to original single routes file
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
-import { WebSocketServer } from './services/WebSocketServer';
-import { SessionCleanupService } from './services/SessionCleanupService';
+// import { createTranslationService } from './services/communication'; // Removed problematic import
+import { UnifiedSessionCleanupService } from './services/session/cleanup/UnifiedSessionCleanupService';
 import fs from 'fs'; // Added fs import
 // Ensure setupVite and serveStatic are imported from your vite.ts
 import { setupVite, serveStatic } from './vite';
@@ -99,10 +99,15 @@ export async function startServer(app: express.Express): Promise<Server> {
   logger.info('[INIT] Using database storage.');
 
   const httpServer = createServer(app);
-  const wss = new WebSocketServer(httpServer, storage);
   
-  // Initialize session cleanup service
-  const cleanupService = new SessionCleanupService();
+  // Use the working WebSocketServer instead of the problematic communication service
+  const { WebSocketServer } = await import('./services/WebSocketServer');
+  const wsServer = new WebSocketServer(httpServer, storage);
+  logger.info('[INIT] WebSocket server started.');
+  
+  // Initialize unified session cleanup service with SOLID architecture
+  const classroomSessionsMap = new Map(); // Empty for standalone server
+  const cleanupService = new UnifiedSessionCleanupService(storage, classroomSessionsMap);
   cleanupService.start();
   logger.info('[INIT] Session cleanup service started.');
   
@@ -110,14 +115,16 @@ export async function startServer(app: express.Express): Promise<Server> {
   process.on('SIGTERM', () => {
     logger.info('SIGTERM received, shutting down gracefully...');
     cleanupService.stop();
+    // translationService.stop(); // Remove this since we're not using it
   });
   
   process.on('SIGINT', () => {
     logger.info('SIGINT received, shutting down gracefully...');
     cleanupService.stop();
+    // translationService.stop(); // Remove this since we're not using it
   });
 
-  const apiRoutes = createApiRoutes(storage, wss, cleanupService);
+  const apiRoutes = createApiRoutes(storage, wsServer, cleanupService);
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 

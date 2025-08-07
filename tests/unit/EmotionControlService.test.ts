@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EmotionControlService, EmotionContext, EmotionalTTSOptions } from '../../server/services/tts/EmotionControlService.js';
+import { ElevenLabsEmotionControlService as EmotionControlService, EmotionContext, EmotionalTTSOptions } from '../../server/services/tts/EmotionControlService';
 
 // Helper to create proper ArrayBuffer for mocking
 function createMockArrayBuffer(size: number): ArrayBuffer {
@@ -17,7 +17,7 @@ function createMockArrayBuffer(size: number): ArrayBuffer {
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
 
-describe('EmotionControlService Unit Tests', () => {
+describe('ElevenLabsEmotionControlService Unit Tests', () => {
   let originalApiKey: string | undefined;
 
   beforeEach(() => {

@@ -27,9 +27,11 @@ interface AppConfig {
     staleSessionTimeout: number;
     staleSessionTimeoutUnscaled: number; // For display purposes in quality reasons
     allStudentsLeftTimeout: number;
-    emptyTeacherTimeout: number;
+    allStudentsLeftTimeoutUnscaled: number; // For display purposes in quality reasons
+    emptyTeacherTimeout: number; // Time to wait before cleaning up teacher sessions with no students
+    emptyTeacherTimeoutUnscaled: number; // For display purposes in quality reasons
     cleanupInterval: number;
-    // Classroom session timeouts (in milliseconds)
+    // Classroom code lifecycle (in milliseconds)
     classroomCodeExpiration: number;
     classroomCodeCleanupInterval: number;
     // Connection health timeouts (in milliseconds)
@@ -49,28 +51,25 @@ interface AppConfig {
 
 /**
  * Test timing scaling factor
- * This mathematically scales down all timing values during E2E tests to save time
+ * This mathematically scales down all timing values during test runs to save time
  * while maintaining proportional relationships between different timeouts.
- * Integration tests should use normal production timeouts for realistic behavior.
+ * Both E2E and integration tests use scaled timings via TEST_TIMING_SCALE env var.
  */
 const getTestScalingFactor = (): number => {
   if (process.env.NODE_ENV === 'test') {
-    // Only apply scaling for E2E tests, not integration tests
-    if (process.env.E2E_TEST_MODE === 'true') {
-      const customScale = process.env.TEST_TIMING_SCALE;
-      console.log(`🔧 DEBUG: E2E test mode - TEST_TIMING_SCALE env var: ${customScale}`);
-      if (customScale) {
-        const parsed = parseFloat(customScale);
-        if (!isNaN(parsed) && parsed > 0 && parsed <= 1) {
-          return parsed;
-        }
+    // Apply scaling for both E2E and integration tests using TEST_TIMING_SCALE
+    const customScale = process.env.TEST_TIMING_SCALE;
+    console.log(`🔧 DEBUG: Test mode - TEST_TIMING_SCALE env var: ${customScale}`);
+    if (customScale) {
+      const parsed = parseFloat(customScale);
+      if (!isNaN(parsed) && parsed > 0 && parsed <= 1) {
+        console.log(`🔧 DEBUG: Using TEST_TIMING_SCALE: ${parsed} (${Math.round(1/parsed)}x faster)`);
+        return parsed;
       }
-      // Default E2E test scaling: 1/100th of production timing (100x faster)
-      return 1/100;
     }
-    // Integration tests use normal production timeouts
-    console.log('🔧 DEBUG: Integration test mode - using production timeouts');
-    return 1;
+    // Default test scaling: 1/100th of production timing (100x faster)
+    console.log('🔧 DEBUG: Using default test scaling: 0.01 (100x faster)');
+    return 1/100;
   }
   return 1; // No scaling for non-test environments
 };
@@ -81,8 +80,8 @@ const getTestScalingFactor = (): number => {
 const scaleForTest = (productionValue: number): number => {
   const scalingFactor = getTestScalingFactor();
   const scaled = Math.round(productionValue * scalingFactor);
-  // Ensure minimum timing values for test stability
-  return Math.max(scaled, 200); // At least 200ms
+  // Ensure minimum timing values for test stability - much faster for scaled tests
+  return Math.max(scaled, 20); // At least 20ms for very fast scaled tests
 };
 
 /**
@@ -188,7 +187,7 @@ export const config: AppConfig = {
       if (envValue) {
         const parsed = parseInt(envValue, 10);
         if (isNaN(parsed)) throw new Error('SESSION_STALE_TIMEOUT_MS must be a valid number');
-        return parsed;
+        return scaleForTest(parsed); // Apply scaling to environment variable too
       }
       // Default: 90 minutes, scaled for tests
       return scaleForTest(90 * 60 * 1000);
@@ -210,10 +209,32 @@ export const config: AppConfig = {
       if (envValue) {
         const parsed = parseInt(envValue, 10);
         if (isNaN(parsed)) throw new Error('SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS must be a valid number');
-        return parsed;
+        return scaleForTest(parsed); // Apply scaling to environment variable too
       }
       // Default: 10 minutes, scaled for tests
       return scaleForTest(10 * 60 * 1000);
+    })(),
+    
+    allStudentsLeftTimeoutUnscaled: (() => {
+      const envValue = process.env.SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS;
+      if (envValue) {
+        const parsed = parseInt(envValue, 10);
+        if (isNaN(parsed)) throw new Error('SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS must be a valid number');
+        return parsed;
+      }
+      // Default: 10 minutes, unscaled for display in quality reasons
+      return 10 * 60 * 1000;
+    })(),
+    
+    emptyTeacherTimeoutUnscaled: (() => {
+      const envValue = process.env.SESSION_EMPTY_TEACHER_TIMEOUT_MS;
+      if (envValue) {
+        const parsed = parseInt(envValue, 10);
+        if (isNaN(parsed)) throw new Error('SESSION_EMPTY_TEACHER_TIMEOUT_MS must be a valid number');
+        return parsed;
+      }
+      // Default: 15 minutes, unscaled for display in quality reasons
+      return 15 * 60 * 1000;
     })(),
     
     emptyTeacherTimeout: (() => {
@@ -221,7 +242,7 @@ export const config: AppConfig = {
       if (envValue) {
         const parsed = parseInt(envValue, 10);
         if (isNaN(parsed)) throw new Error('SESSION_EMPTY_TEACHER_TIMEOUT_MS must be a valid number');
-        return parsed;
+        return scaleForTest(parsed); // Apply scaling for tests
       }
       // Default: 15 minutes, scaled for tests
       return scaleForTest(15 * 60 * 1000);
@@ -232,7 +253,7 @@ export const config: AppConfig = {
       if (envValue) {
         const parsed = parseInt(envValue, 10);
         if (isNaN(parsed)) throw new Error('SESSION_CLEANUP_INTERVAL_MS must be a valid number');
-        return parsed;
+        return scaleForTest(parsed); // Apply scaling to environment variable too
       }
       // Default: 2 minutes, scaled for tests
       return scaleForTest(2 * 60 * 1000);

@@ -10,7 +10,7 @@ import express from 'express';
 import { createApiRoutes } from '../../server/routes';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
-import { SessionCleanupService } from '../../server/services/SessionCleanupService';
+import { SessionCleanupService } from '../../server/services/session/SessionCleanupService';
 
 /**
  * Start a test server for E2E tests

@@ -7,7 +7,7 @@
  */
 
 import colors from 'colors';
-import { getTranscriptionService } from '../server/services/transcription/TranscriptionServiceFactory.js';
+import { getTranscriptionService } from '../server/services/stttranscription/TranscriptionServiceFactory.js';
 import { getTranslationService } from '../server/services/translation/TranslationServiceFactory.js';
 
 console.log(colors.cyan.bold('\n🔧 Auto-Fallback Configuration Verification\n'));

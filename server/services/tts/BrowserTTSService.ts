@@ -4,7 +4,7 @@
  * This is a fallback service when ElevenLabs is unavailable
  */
 
-import { ITTSService } from './ElevenLabsTTSService.js';
+import { ITTSService, TTSResult } from './TTSService';
 
 export class BrowserTTSService implements ITTSService {
   private isInitialized = false;
@@ -86,15 +86,18 @@ export class BrowserTTSService implements ITTSService {
     return this.supportedLanguages.has(normalizedLang);
   }
 
-  public async synthesize(text: string, options: { language?: string; voice?: string } = {}): Promise<{ audioBuffer?: Buffer; audioUrl?: string; error?: string }> {
+  public async synthesize(text: string, options: { language?: string; voice?: string } = {}): Promise<TTSResult> {
+    const ttsServiceType = 'browser';
     if (!this.isInitialized) {
       return {
-        error: 'Browser TTS service not initialized'
+        audioBuffer: Buffer.alloc(0),
+        error: { name: 'BrowserTTSNotInitialized', message: 'Browser TTS service not initialized' },
+        ttsServiceType
       };
     }
 
     if (!text || text.trim().length === 0) {
-      throw new Error('Text cannot be empty');
+      return { audioBuffer: Buffer.alloc(0), error: { name: 'BrowserTTSEmptyText', message: 'Text cannot be empty' }, ttsServiceType };
     }
 
     const { language = 'en-US' } = options;
@@ -117,14 +120,23 @@ export class BrowserTTSService implements ITTSService {
 
       return {
         audioBuffer,
-        audioUrl
+        audioUrl,
+        ttsServiceType
       };
 
     } catch (error) {
-      console.error('[Browser TTS] Synthesis failed:', error);
-      return {
-        error: `Browser TTS failed: ${error instanceof Error ? error.message : String(error)}`
-      };
+      console.error('[Browser TTS] Synthesis failed:', error, error instanceof Error ? error.stack : undefined);
+      let errObj: { name: string; message: string };
+      if (error instanceof Error) {
+        errObj = { name: error.name || 'BrowserTTSServiceError', message: error.message || '' };
+      } else if (typeof error === 'object' && error !== null && typeof (error as any).message === 'string') {
+        errObj = { name: typeof (error as any).name === 'string' ? (error as any).name : 'BrowserTTSServiceError', message: (error as any).message };
+      } else {
+        errObj = { name: 'BrowserTTSServiceError', message: String(error) };
+      }
+      // Extra error logging for integration test visibility
+      console.error('[BrowserTTSService] Exception:', error, errObj, error instanceof Error ? error.stack : undefined);
+      return { audioBuffer: Buffer.alloc(0), error: errObj, ttsServiceType };
     }
   }
 

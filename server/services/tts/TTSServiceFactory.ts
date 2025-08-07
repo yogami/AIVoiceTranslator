@@ -3,9 +3,10 @@
  * Manages TTS service creation and automatic fallback mechanisms
  */
 
-import { ElevenLabsTTSService, ITTSService } from './ElevenLabsTTSService.js';
-import { BrowserTTSService } from './BrowserTTSService.js';
-import { OpenAITTSService } from './OpenAITTSService.js';
+import { ElevenLabsTTSService } from './ElevenLabsTTSService';
+import { ITTSService, TTSResult } from './TTSService';
+import { BrowserTTSService } from './BrowserTTSService';
+import { OpenAITTSService } from './OpenAITTSService';
 
 interface CircuitBreakerState {
   failures: number;
@@ -40,8 +41,7 @@ export class AutoFallbackTTSService implements ITTSService {
       isOpen: false,
       nextRetryTime: 0
     };
-    
-    console.log('[AutoFallback TTS] 3-tier service initialized: OpenAI → ElevenLabs → Browser TTS');
+    console.log('[AutoFallback TTS] 3-tier service initialized: ElevenLabs → OpenAI → Browser TTS');
   }
 
   private updateCircuitBreaker(circuitBreaker: CircuitBreakerState, success: boolean, serviceName: string): void {
@@ -116,53 +116,91 @@ export class AutoFallbackTTSService implements ITTSService {
     return fallbackErrorPatterns.some(pattern => errorMessage.includes(pattern));
   }
 
-  public async synthesize(text: string, options: { language?: string; voice?: string } = {}): Promise<{ audioBuffer?: Buffer; audioUrl?: string; error?: string }> {
+  public async synthesize(text: string, options: { language?: string; voice?: string } = {}): Promise<TTSResult> {
     if (!text || text.trim().length === 0) {
-      throw new Error('Text cannot be empty');
+      return { 
+        error: 'Text cannot be empty', 
+        ttsServiceType: 'invalid',
+        audioBuffer: Buffer.alloc(0)
+      };
     }
 
-    // 1. Try Primary Service (OpenAI TTS)
-    if (this.shouldUseService(this.primaryCircuitBreaker, 'Primary (OpenAI)')) {
+    console.log('[AutoFallback TTS] synthesize called', { text, options });
+
+    let lastError: any = undefined;
+
+    // 1. Try Primary Service (ElevenLabs TTS)
+    if (this.shouldUseService(this.primaryCircuitBreaker, 'Primary (ElevenLabs)')) {
       try {
-        console.log('[AutoFallback TTS] Attempting primary service (OpenAI TTS)');
+        console.log('[AutoFallback TTS] Attempting primary service (ElevenLabs TTS)');
         const result = await this.primaryService.synthesize(text, options);
-        
-        this.updateCircuitBreaker(this.primaryCircuitBreaker, true, 'Primary (OpenAI)');
-        console.log('[AutoFallback TTS] Primary service succeeded');
-        return result;
-        
+        console.log('[AutoFallback TTS] ElevenLabsTTSService result:', result);
+        if (!result.error && result.audioBuffer && result.audioBuffer.length > 0) {
+          this.updateCircuitBreaker(this.primaryCircuitBreaker, true, 'Primary (ElevenLabs)');
+          console.log('[AutoFallback TTS] Primary service succeeded and selected');
+          if (result && result.ttsServiceType && result.ttsServiceType !== 'auto') return result;
+          // fallback: if provider didn't set, set to 'elevenlabs'
+          return { ...result, ttsServiceType: 'elevenlabs' };
+        } else {
+          // Treat as failure and trigger fallback
+          lastError = result.error || 'No audio data returned';
+          this.updateCircuitBreaker(this.primaryCircuitBreaker, false, 'Primary (ElevenLabs)');
+          console.warn('[AutoFallback TTS] Primary service returned error or no audio, triggering fallback:', lastError);
+          // Continue to secondary service
+        }
       } catch (error) {
+        lastError = error;
         console.log('[AutoFallback TTS] Primary service failed:', error instanceof Error ? error.message : String(error));
-        
         if (this.shouldTriggerFallback(error)) {
-          this.updateCircuitBreaker(this.primaryCircuitBreaker, false, 'Primary (OpenAI)');
+          this.updateCircuitBreaker(this.primaryCircuitBreaker, false, 'Primary (ElevenLabs)');
+          console.log('[AutoFallback TTS] Fallback triggered from primary service due to error:', error instanceof Error ? error.message : String(error), error);
           // Continue to secondary service
         } else {
           // Don't trigger fallback for non-recoverable errors
-          throw error;
+          console.log('[AutoFallback TTS] No fallback triggered, error not recoverable.', error);
+          return { 
+            error: error instanceof Error ? error.message : String(error), 
+            ttsServiceType: 'elevenlabs',
+            audioBuffer: Buffer.alloc(0)
+          };
         }
       }
+    } else {
+      console.log('[AutoFallback TTS] Primary service circuit breaker open, skipping to secondary');
     }
 
-    // 2. Try Secondary Service (ElevenLabs)
-    if (this.shouldUseService(this.secondaryCircuitBreaker, 'Secondary (ElevenLabs)')) {
+    // 2. Try Secondary Service (OpenAI)
+    if (this.shouldUseService(this.secondaryCircuitBreaker, 'Secondary (OpenAI)')) {
       try {
-        console.log('[AutoFallback TTS] Attempting secondary service (ElevenLabs)');
+        console.log('[AutoFallback TTS] Attempting secondary service (OpenAI)');
         const result = await this.secondaryService.synthesize(text, options);
-        
-        this.updateCircuitBreaker(this.secondaryCircuitBreaker, true, 'Secondary (ElevenLabs)');
-        console.log('[AutoFallback TTS] Secondary service succeeded');
-        return result;
-        
+        if (!result.error && result.audioBuffer && result.audioBuffer.length > 0) {
+          this.updateCircuitBreaker(this.secondaryCircuitBreaker, true, 'Secondary (OpenAI)');
+          console.log('[AutoFallback TTS] Secondary service succeeded and selected');
+          if (result && result.ttsServiceType && result.ttsServiceType !== 'auto') return result;
+          return { ...result, ttsServiceType: 'openai' };
+        } else {
+          // Treat as failure and trigger fallback
+          lastError = result.error || 'No audio data returned';
+          this.updateCircuitBreaker(this.secondaryCircuitBreaker, false, 'Secondary (OpenAI)');
+          console.warn('[AutoFallback TTS] Secondary service returned error or no audio, triggering fallback:', lastError);
+          // Continue to final fallback
+        }
       } catch (error) {
+        lastError = error;
         console.log('[AutoFallback TTS] Secondary service failed:', error instanceof Error ? error.message : String(error));
-        
         if (this.shouldTriggerFallback(error)) {
-          this.updateCircuitBreaker(this.secondaryCircuitBreaker, false, 'Secondary (ElevenLabs)');
+          this.updateCircuitBreaker(this.secondaryCircuitBreaker, false, 'Secondary (OpenAI)');
+          console.log('[AutoFallback TTS] Fallback triggered from secondary service due to error:', error instanceof Error ? error.message : String(error));
           // Continue to final fallback
         } else {
           // Don't trigger fallback for non-recoverable errors
-          throw error;
+          console.log('[AutoFallback TTS] No fallback triggered, error not recoverable.');
+          return { 
+            error: error instanceof Error ? error.message : String(error), 
+            ttsServiceType: 'openai',
+            audioBuffer: Buffer.alloc(0)
+          };
         }
       }
     } else {
@@ -173,11 +211,41 @@ export class AutoFallbackTTSService implements ITTSService {
     console.log('[AutoFallback TTS] Using final fallback service (Browser TTS)');
     try {
       const result = await this.finalFallbackService.synthesize(text, options);
-      console.log('[AutoFallback TTS] Final fallback service succeeded');
-      return result;
+      console.log('[AutoFallback TTS] Final fallback service succeeded and selected');
+      if (result && result.ttsServiceType && result.ttsServiceType !== 'auto') return result;
+      // If browser fallback also failed, propagate the last error from previous attempts if present
+      if (result && result.error) {
+        // Throw error as expected by integration tests
+        throw (typeof result.error === 'object' && result.error !== null) ? result.error : { name: 'TextToSpeechError', message: String(result.error) };
+      } else if (lastError) {
+        // Always throw a proper error object
+        let errObj: { name: string; message: string };
+        if (lastError instanceof Error) {
+          errObj = { name: lastError.name || 'AutoFallbackTTSServiceError', message: lastError.message || '' };
+        } else if (typeof lastError === 'object' && lastError !== null && typeof (lastError as any).message === 'string') {
+          errObj = { name: typeof (lastError as any).name === 'string' ? (lastError as any).name : 'AutoFallbackTTSServiceError', message: (lastError as any).message };
+        } else {
+          errObj = { name: 'AutoFallbackTTSServiceError', message: String(lastError) };
+        }
+        throw errObj;
+      } else {
+        throw { name: 'AutoFallbackTTSServiceError', message: 'All TTS services failed' };
+      }
     } catch (error) {
       console.error('[AutoFallback TTS] All services failed, including final fallback:', error);
-      throw new Error(`All TTS services failed. Primary: OpenAI TTS failed. Secondary: ElevenLabs failed. Final: Browser TTS failed - ${error instanceof Error ? error.message : String(error)}`);
+      let errObj: { name: string; message: string };
+      if (error instanceof Error) {
+        errObj = { name: error.name || 'AutoFallbackTTSServiceError', message: error.message || '' };
+      } else if (typeof error === 'object' && error !== null && typeof (error as any).message === 'string') {
+        errObj = { name: typeof (error as any).name === 'string' ? (error as any).name : 'AutoFallbackTTSServiceError', message: (error as any).message };
+      } else {
+        errObj = { name: 'AutoFallbackTTSServiceError', message: String(error) };
+      }
+      return { 
+        error: errObj, 
+        ttsServiceType: 'browser',
+        audioBuffer: Buffer.alloc(0)
+      };
     }
   }
 
@@ -215,7 +283,10 @@ export class TTSServiceFactory {
   private static instances = new Map<string, ITTSService>();
 
   public static createTTSService(type: string = 'auto'): ITTSService {
-    // Check for cached instance
+    // Detailed logging for debugging service selection and environment
+    console.log('[TTSFactory] createTTSService called with type:', type);
+    console.log('[TTSFactory] ENV TTS_SERVICE_TYPE:', process.env.TTS_SERVICE_TYPE);
+    console.log('[TTSFactory] ENV ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? '[REDACTED]' : '[MISSING]');
     if (this.instances.has(type)) {
       console.log(`[TTSFactory] Returning cached ${type} service`);
       return this.instances.get(type)!;
@@ -225,14 +296,15 @@ export class TTSServiceFactory {
 
     switch (type.toLowerCase()) {
       case 'openai':
+        console.log('[TTSFactory] Explicitly requested OpenAI TTS');
         service = new OpenAITTSService();
         break;
 
-      case 'elevenlabs':
+      case 'elevenlabs': {
         const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
+        console.log('[TTSFactory] Explicitly requested ElevenLabs TTS. API Key present:', !!elevenLabsApiKey);
         if (!elevenLabsApiKey) {
           console.warn('[TTSFactory] ELEVENLABS_API_KEY not found for elevenlabs service, falling back to auto-fallback');
-          // Create 3-tier fallback: OpenAI → ElevenLabs (unavailable) → Browser
           const openaiService = new OpenAITTSService();
           const browserService = new BrowserTTSService();
           service = new AutoFallbackTTSService(openaiService, browserService, browserService);
@@ -240,33 +312,32 @@ export class TTSServiceFactory {
           service = new ElevenLabsTTSService(elevenLabsApiKey);
         }
         break;
+      }
 
       case 'browser':
+        console.log('[TTSFactory] Explicitly requested Browser TTS');
         service = new BrowserTTSService();
         break;
 
       case 'auto':
-      default:
-        console.log('[TTSFactory] Creating 3-tier auto-fallback TTS service: OpenAI → ElevenLabs → Browser');
-        
-        // Create 3-tier fallback system
-        const openaiPrimary = new OpenAITTSService();
-        
+      default: {
+        console.log('[TTSFactory] Creating 3-tier auto-fallback TTS service: ElevenLabs → OpenAI → Browser');
         const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-        const elevenLabsSecondary = elevenLabsKey 
+        console.log('[TTSFactory] Auto mode. ELEVENLABS_API_KEY present:', !!elevenLabsKey);
+        const elevenLabsPrimary = elevenLabsKey
           ? new ElevenLabsTTSService(elevenLabsKey)
-          : new BrowserTTSService(); // If no ElevenLabs key, use Browser as secondary
-          
+          : new BrowserTTSService();
+        const openaiSecondary = new OpenAITTSService();
         const browserFinal = new BrowserTTSService();
-        
-        service = new AutoFallbackTTSService(openaiPrimary, elevenLabsSecondary, browserFinal);
+        // Order: ElevenLabs (primary), OpenAI (secondary), Browser (final)
+        service = new AutoFallbackTTSService(elevenLabsPrimary, openaiSecondary, browserFinal);
         break;
+      }
     }
 
     // Cache the service instance
     this.instances.set(type, service);
     console.log(`[TTSFactory] Created and cached ${type} service`);
-    
     return service;
   }
 

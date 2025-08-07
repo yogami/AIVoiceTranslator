@@ -1,8 +1,5 @@
 /**
- * Register Message     logger.info('Processing message type=register from connection:', 
-      { role: message.role, languageCode: message.languageCode, name: message.name }); // Added name to log
-    
-    const currentRole = context.connectionManager.getRole(context.ws);ler
+ * Register Message Handler
  * 
  * Handles user registration (teacher/student) messages.
  * Manages role assignment, language settings, classroom code generation, and student notifications.
@@ -37,11 +34,6 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
         logger.info(`Changing connection role from ${currentRole} to ${message.role}`);
       }
       context.connectionManager.setRole(context.ws, message.role);
-      
-      // If registering as teacher, generate or update classroom code
-      if (message.role === 'teacher') {
-        await this.handleTeacherRegistration(context.ws, message, context);
-      }
     }
     
     // Update language if provided
@@ -64,7 +56,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     logger.info('Updated connection:', 
       { role: context.connectionManager.getRole(context.ws), languageCode: context.connectionManager.getLanguage(context.ws), settings: settings });
     
-    // If registering as student, validate classroom code and handle registration
+    // If registering as student, validate classroom code first
     if (message.role === 'student') {
       // Get classroom code from message or connection manager
       const classroomCode = message.classroomCode || context.connectionManager.getClassroomCode(context.ws);
@@ -100,7 +92,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       // but in tests it might be omitted, so we continue without validation
     }
     
-    // Send confirmation (only if validation passed)
+    // Send immediate confirmation response (before any slow operations)
     const response: RegisterResponseToClient = {
       type: 'register',
       status: 'success',
@@ -112,6 +104,12 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
     };
     
     context.ws.send(JSON.stringify(response));
+    
+    // Now handle slow operations after sending the immediate response
+    if (message.role === 'teacher') {
+      // Handle teacher registration (database operations happen after response sent)
+      await this.handleTeacherRegistration(context.ws, message, context);
+    }
     
     // If registering as student, handle registration (validation already passed)
     if (message.role === 'student') {
@@ -154,13 +152,25 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           const recentSession = await context.storage.findRecentSessionByTeacherId(message.teacherId, 10); // 10 minutes
           
           if (recentSession && !recentSession.isActive) {
-            logger.info(`[TEACHER_RECONNECT] Found recent inactive session, reactivating: ${recentSession.sessionId}`);
-            // Use the dedicated reactivateSession method
-            existingSession = await context.storage.reactivateSession(recentSession.sessionId);
-            if (existingSession) {
-              logger.info(`[TEACHER_RECONNECT] Successfully reactivated session: ${existingSession.sessionId}`);
+            // Check if the session is within the grace period before reactivating
+            const gracePeriodThreshold = new Date(Date.now() - config.session.teacherReconnectionGracePeriod);
+            const sessionLastActivity = recentSession.lastActivityAt ? new Date(recentSession.lastActivityAt) : new Date(recentSession.endTime || 0);
+            
+            if (sessionLastActivity > gracePeriodThreshold) {
+              logger.info(`[TEACHER_RECONNECT] Found recent inactive session within grace period, reactivating: ${recentSession.sessionId}`);
+              // Use the dedicated reactivateSession method
+              existingSession = await context.storage.reactivateSession(recentSession.sessionId);
+              if (existingSession) {
+                logger.info(`[TEACHER_RECONNECT] Successfully reactivated session: ${existingSession.sessionId}`);
+              } else {
+                logger.warn(`[TEACHER_RECONNECT] Failed to reactivate session: ${recentSession.sessionId}`);
+              }
             } else {
-              logger.warn(`[TEACHER_RECONNECT] Failed to reactivate session: ${recentSession.sessionId}`);
+              logger.info(`[TEACHER_RECONNECT] Found recent session but outside grace period, not reactivating: ${recentSession.sessionId}`, {
+                sessionLastActivity,
+                gracePeriodThreshold,
+                gracePeriodMs: config.session.teacherReconnectionGracePeriod
+              });
             }
           }
         }
@@ -342,7 +352,15 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           logger.warn('Failed to update session with teacher language', { sessionId });
         }
       } catch (error: any) {
-        logger.error('Error updating session with teacher language:', { error, sessionId });
+        logger.error('Error updating session with teacher language:', {
+          error,
+          sessionId,
+          errorType: typeof error,
+          errorConstructor: error?.constructor?.name,
+          errorKeys: error && typeof error === 'object' ? Object.keys(error) : undefined,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined
+        });
       }
     }
     

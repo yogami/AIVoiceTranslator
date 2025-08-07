@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { SessionCleanupService } from '../../server/services/SessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../server/services/session/cleanup/UnifiedSessionCleanupService';
 import { config } from '../../server/config';
 import { db } from '../../server/db';
 import { sessions } from '../../shared/schema';
@@ -12,14 +12,16 @@ describe('Session Lifecycle Integration Tests', () => {
   // Set up test isolation for this integration test suite
   setupTestIsolation('Session Lifecycle Integration Tests', 'integration');
   
-  let cleanupService: SessionCleanupService;
+  let cleanupService: UnifiedSessionCleanupService;
   let testSessionIds: string[] = [];
   let testId: string;
   let originalSessionTimeouts: Record<string, number>;
 
   beforeAll(async () => {
     // Ensure test database is ready
-    cleanupService = new SessionCleanupService();
+    const storage = new DatabaseStorage();
+    const classroomSessionsMap = new Map(); // Empty map for tests
+    cleanupService = new UnifiedSessionCleanupService(storage, classroomSessionsMap);
     // DON'T start the service automatically - we only want manual cleanup in tests
   });
 
@@ -130,7 +132,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].isActive).toBe(false);
-      expect(result[0].qualityReason).toContain(`No students joined within ${config.session.emptyTeacherTimeout / 60000} minutes`);
+      expect(result[0].qualityReason).toContain(`No students joined within ${config.session.emptyTeacherTimeoutUnscaled / 60000} minutes`);
     });
 
     it('should NOT clean up recent teacher sessions', async () => {
@@ -278,7 +280,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].isActive).toBe(false);
-      expect(result[0].qualityReason).toContain(`Session inactive for ${config.session.staleSessionTimeout / 60000} minutes`);
+      expect(result[0].qualityReason).toContain(`Session inactive for ${config.session.staleSessionTimeoutUnscaled / 60000} minutes`);
     });
   });
 
@@ -391,23 +393,23 @@ describe('Session Lifecycle Integration Tests', () => {
 
   describe('Enhanced Session Management - 90 Minute Timeout', () => {
     it('should not end sessions before 90 minutes of inactivity when students are present', async () => {
-      // Create a session with students present and 30 minutes of inactivity (less than 90 minute threshold)
+      // Create a session with students present and recent activity (less than stale threshold)
       const sessionId = `test-session-30min-${testId}`;
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      // Use 10 seconds ago - well within the scaled 18-second threshold from .env.test
+      const tenSecondsAgo = new Date(Date.now() - 10 * 1000);
       
       await createTestSession({
         sessionId,
         studentsCount: 1,
-        startTime: thirtyMinutesAgo,
-        lastActivityAt: thirtyMinutesAgo,
+        startTime: tenSecondsAgo,
+        lastActivityAt: tenSecondsAgo,
         isActive: true
       });
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
 
-      // Session should be cleaned up by abandoned sessions logic (10-minute timeout)
-      // since it had students but has been inactive for 60 minutes
+      // Session should remain active since it's within the scaled threshold
       const result = await db
         .select()
         .from(sessions)
@@ -418,15 +420,16 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should end sessions after 90 minutes of inactivity', async () => {
-      // Create a session with 95 minutes of inactivity (should be cleaned up)
+      // Create a session with inactivity longer than the scaled threshold
       const sessionId = `test-session-95min-${testId}`;
-      const ninetyFiveMinutesAgo = new Date(Date.now() - 95 * 60 * 1000);
+      // Use 4 minutes ago - longer than the scaled 216-second (3.6 minute) threshold
+      const fourMinutesAgo = new Date(Date.now() - 4 * 60 * 1000);
       
       await createTestSession({
         sessionId,
         studentsCount: 1,
-        startTime: ninetyFiveMinutesAgo,
-        lastActivityAt: ninetyFiveMinutesAgo,
+        startTime: fourMinutesAgo,
+        lastActivityAt: fourMinutesAgo,
         isActive: true
       });
 
@@ -442,12 +445,17 @@ describe('Session Lifecycle Integration Tests', () => {
       expect(result).toHaveLength(1);
       expect(result[0].isActive).toBe(false);
       expect(result[0].endTime).toBeTruthy();
-      expect(result[0].qualityReason).toContain(`${config.session.staleSessionTimeout / 60000} minutes`);
+      expect(result[0].qualityReason).toContain(`${config.session.staleSessionTimeoutUnscaled / 60000} minutes`);
     });
   });
 
   describe('Teacher Reconnection Logic', () => {
     it('should find existing active session for teacher language within grace period', async () => {
+      // Clean up any existing English teacher sessions to ensure isolation
+      await db
+        .delete(sessions)
+        .where(eq(sessions.teacherLanguage, 'en'));
+      
       // Create an active session for English teacher within grace period
       const sessionId = `teacher-session-en-${testId}`;
       const oneSecondAgo = new Date(Date.now() - 1000); // 1 second ago - within 3 second grace period
@@ -475,6 +483,11 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should not find sessions outside grace period', async () => {
+      // Clean up any existing English teacher sessions to ensure isolation
+      await db
+        .delete(sessions)
+        .where(eq(sessions.teacherLanguage, 'en'));
+        
       // Create an active session for English teacher outside grace period
       const sessionId = `teacher-session-old-${testId}`;
       const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
@@ -579,22 +592,23 @@ describe('Session Lifecycle Integration Tests', () => {
     });
 
     it('should use 10-minute timeout for abandoned sessions', async () => {
-      // Create a session that had students, 7 minutes of inactivity (should not be cleaned up yet)
+      // Create a session that had students, with recent activity (should not be cleaned up yet)
       const sessionId = `abandoned-session-7min-${testId}`;
-      const sevenMinutesAgo = new Date(Date.now() - 7 * 60 * 1000);
+      // Use 1 second ago - within the scaled 1.8-second threshold from .env.test
+      const oneSecondAgo = new Date(Date.now() - 1 * 1000);
       
       await createTestSession({
         sessionId,
         studentsCount: 2,
-        startTime: sevenMinutesAgo,
-        lastActivityAt: sevenMinutesAgo,
+        startTime: oneSecondAgo,
+        lastActivityAt: oneSecondAgo,
         isActive: true
       });
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
 
-      // Session should still be active (10 minute timeout for abandoned sessions)
+      // Session should still be active (within scaled timeout threshold)
       const result = await db
         .select()
         .from(sessions)
@@ -639,7 +653,7 @@ describe('Session Lifecycle Integration Tests', () => {
       expect(result).toHaveLength(1);
       expect(result[0].isActive).toBe(false);
       expect(result[0].endTime).toBeTruthy();
-      expect(result[0].qualityReason).toContain(`All students disconnected, no activity for ${config.session.allStudentsLeftTimeout / 60000} minutes`);
+      expect(result[0].qualityReason).toContain(`All students disconnected, no activity for ${config.session.allStudentsLeftTimeoutUnscaled / 60000} minutes`);
     });
   });
 

@@ -1,107 +1,88 @@
-/**
- * ElevenLabs TTS Service
- * Premium text-to-speech service using ElevenLabs API
- */
-
-export interface ITTSService {
-  synthesize(text: string, options?: { language?: string; voice?: string }): Promise<{ audioBuffer?: Buffer; audioUrl?: string; error?: string }>;
+import { ITTSService, TTSResult } from './TTSService';
+import { ElevenLabsEmotionControlService, EmotionContext } from './EmotionControlService';
+import * as fs from 'fs';
+const LOG_PREFIX = '[ElevenLabsTTSService]';
+function log(...args: any[]) {
+    console.log(LOG_PREFIX, ...args);
 }
-
-export interface ElevenLabsVoice {
-  voice_id: string;
-  name: string;
-  category: string;
-  labels: Record<string, string>;
-}
+(global as any).fetch = fetch;
 
 export class ElevenLabsTTSService implements ITTSService {
   private apiKey: string;
   private baseUrl = 'https://api.elevenlabs.io/v1';
-  private defaultVoiceId = 'EXAVITQu4vr4xnSDxMaL'; // Bella voice (female)
-  
+  private defaultVoiceId = 'EXAVITQu4vr4xnSDxMaL';
+  private emotionControlService: ElevenLabsEmotionControlService | null = null;
+
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    console.log('[ElevenLabs TTS] Service initialized');
+    // Initialize emotion control service if API key is available
+    try {
+      this.emotionControlService = new ElevenLabsEmotionControlService();
+    } catch (error) {
+      console.warn('[ElevenLabsTTSService] Emotion control unavailable:', error instanceof Error ? error.message : error);
+    }
   }
 
   private getVoiceId(language: string = 'en-US', voiceGender: string = 'female'): string {
-    // Voice mapping for different languages and genders
     const voiceMap: Record<string, Record<string, string>> = {
       'en-US': {
-        'female': 'EXAVITQu4vr4xnSDxMaL', // Bella
-        'male': 'VR6AewLTigWG4xSOukaG'    // Sam
+        'female': 'EXAVITQu4vr4xnSDxMaL',
+        'male': 'VR6AewLTigWG4xSOukaG'
       },
       'en-GB': {
-        'female': 'XrExE9yKIg1WjnnlVkGX', // Matilda
-        'male': 'VR6AewLTigWG4xSOukaG'    // Sam
+        'female': 'XrExE9yKIg1WjnnlVkGX',
+        'male': 'VR6AewLTigWG4xSOukaG'
       },
-      'fr-FR': {
-        'female': 'EXAVITQu4vr4xnSDxMaL', // Default for now
-        'male': 'VR6AewLTigWG4xSOukaG'    // Default for now
-      },
-      'es-ES': {
-        'female': 'EXAVITQu4vr4xnSDxMaL', // Default for now
-        'male': 'VR6AewLTigWG4xSOukaG'    // Default for now
-      },
-      'de-DE': {
-        'female': 'EXAVITQu4vr4xnSDxMaL', // Default for now
-        'male': 'VR6AewLTigWG4xSOukaG'    // Default for now
-      }
     };
-
     return voiceMap[language]?.[voiceGender] || this.defaultVoiceId;
   }
 
-  private isElevenLabsError(error: any): boolean {
-    if (!error) return false;
-    
-    const errorMessage = error.message?.toLowerCase() || '';
-    const errorStatus = error.status || error.code;
-    
-    // HTTP status codes that should trigger fallback
-    const fallbackStatusCodes = [
-      401, // Unauthorized (invalid API key)
-      402, // Payment Required (billing issue)
-      403, // Forbidden (quota exceeded, access denied)
-      429, // Too Many Requests (rate limit)
-      500, // Internal Server Error
-      502, // Bad Gateway
-      503, // Service Unavailable
-      504  // Gateway Timeout
-    ];
-    
-    // Check status codes
-    if (fallbackStatusCodes.includes(errorStatus)) {
-      console.log(`[ElevenLabs TTS] API error detected - Status Code: ${errorStatus}`);
-      return true;
-    }
-    
-    // Check error message patterns
-    const fallbackErrorPatterns = [
-      'rate limit', 'quota', 'billing', 'payment',
-      'unauthorized', 'forbidden', 'invalid api key',
-      'service unavailable', 'timeout', 'network error'
-    ];
-    
-    return fallbackErrorPatterns.some(pattern => errorMessage.includes(pattern));
-  }
+  public async synthesize(text: string, options: { language?: string; voice?: string; emotionContext?: EmotionContext } = {}): Promise<TTSResult> {
+    const voiceId = this.getVoiceId(options.language || 'en-US', options.voice || 'female');
+    log('synthesize called', { text, options });
 
-  public async synthesize(text: string, options: { language?: string; voice?: string } = {}): Promise<{ audioBuffer?: Buffer; audioUrl?: string; error?: string }> {
-    if (!text || text.trim().length === 0) {
-      throw new Error('Text cannot be empty');
+    const ttsServiceType = 'elevenlabs';
+
+    // Use emotion control service if available and emotion context provided
+    if (this.emotionControlService && options.emotionContext) {
+      try {
+        log('Using advanced emotion control for synthesis');
+        const emotionalResult = await this.emotionControlService.applyEmotionalContext({
+          text,
+          language: options.language || 'en-US',
+          voiceId,
+          emotionContext: options.emotionContext
+        });
+
+        if (emotionalResult.audioBuffer) {
+          log('Emotional synthesis successful, audio buffer length:', emotionalResult.audioBuffer.length);
+          return { 
+            audioBuffer: emotionalResult.audioBuffer, 
+            audioUrl: undefined, 
+            error: undefined, 
+            ttsServiceType 
+          };
+        }
+      } catch (emotionError) {
+        log('Emotion control failed, falling back to standard synthesis:', emotionError);
+        // Continue with standard synthesis below
+      }
     }
 
-    if (text.length > 2500) {
-      console.warn('[ElevenLabs TTS] Text length exceeds recommended limit, truncating');
-      text = text.substring(0, 2500);
-    }
-
-    const { language = 'en-US', voice = 'female' } = options;
-    const voiceId = this.getVoiceId(language, voice);
+    // Standard synthesis with enhanced settings
+    const requestBody: any = {
+      text: text,
+      model_id: 'eleven_multilingual_v2', // Use advanced multilingual model
+      voice_settings: {
+        stability: 0.6,      // Improved stability
+        similarity_boost: 0.7, // Enhanced similarity
+        style: 0.3,          // Add some style variation
+        use_speaker_boost: true
+      }
+    };
 
     try {
-      console.log(`[ElevenLabs TTS] Synthesizing text (${text.length} chars) with voice: ${voiceId}`);
-      
+      log('Making ElevenLabs API request', { url: `${this.baseUrl}/text-to-speech/${voiceId}`, apiKeyPresent: !!this.apiKey, requestBody });
       const response = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
         method: 'POST',
         headers: {
@@ -109,67 +90,24 @@ export class ElevenLabsTTSService implements ITTSService {
           'Content-Type': 'application/json',
           'xi-api-key': this.apiKey
         },
-        body: JSON.stringify({
-          text: text,
-          model_id: 'eleven_monolingual_v1',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.5,
-            style: 0.0,
-            use_speaker_boost: true
-          }
-        })
+        body: JSON.stringify(requestBody)
       });
 
+      log('ElevenLabs API response status:', response.status);
       if (!response.ok) {
         const errorText = await response.text();
-        const error = new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
-        (error as any).status = response.status;
-        throw error;
+        log('API error', response.status, errorText);
+        return { audioBuffer: Buffer.alloc(0), error: `TextToSpeechError: ElevenLabs API error: ${response.status} - ${errorText}`, ttsServiceType };
       }
 
       const audioBuffer = Buffer.from(await response.arrayBuffer());
-      
-      console.log(`[ElevenLabs TTS] Successfully synthesized ${audioBuffer.length} bytes of audio`);
-      
-      return {
-        audioBuffer,
-        audioUrl: undefined // ElevenLabs returns audio directly
-      };
-
-    } catch (error) {
-      console.error('[ElevenLabs TTS] Synthesis failed:', error);
-      
-      if (this.isElevenLabsError(error)) {
-        // Re-throw with clear indication this should trigger fallback
-        const fallbackError = new Error(`ElevenLabs TTS failed: ${error instanceof Error ? error.message : String(error)}`);
-        (fallbackError as any).shouldFallback = true;
-        (fallbackError as any).originalError = error;
-        throw fallbackError;
-      }
-      
-      // For non-API errors, still throw but don't mark for fallback
-      throw error;
-    }
-  }
-
-  public async getAvailableVoices(): Promise<ElevenLabsVoice[]> {
-    try {
-      const response = await fetch(`${this.baseUrl}/voices`, {
-        headers: {
-          'xi-api-key': this.apiKey
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch voices: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.voices || [];
-    } catch (error) {
-      console.error('[ElevenLabs TTS] Failed to fetch voices:', error);
-      return [];
+      log('API call successful, received audio buffer, length:', audioBuffer.length);
+      return { audioBuffer, audioUrl: undefined, error: undefined, ttsServiceType };
+    } catch (err: any) {
+      log('Exception during ElevenLabs API call', err, err?.stack);
+      // Extra error logging for integration test visibility
+      console.error('[ElevenLabsTTSService] Exception:', err, err?.message, err?.stack);
+      return { audioBuffer: Buffer.alloc(0), error: err?.message || 'Unknown error', ttsServiceType };
     }
   }
 }

@@ -330,11 +330,9 @@ beforeAll(async () => {
         reject(err);
       });
     });
-    // Create test WebSocket server with MOCK orchestrator for component testing
+    // Create test WebSocket server for component testing
     wsServer = new TestWebSocketServer(httpServer, realStorage);
-    // ALWAYS use mock orchestrator for component tests - this is what makes it a component test
-    wsServer.setMockTranslationOrchestrator();
-    console.log('🔍 [LIFECYCLE] WebSocketServer created with MOCK orchestrator for component testing:', wsServer.getTranslationOrchestrator()?.constructor?.name);
+    console.log('🔍 [LIFECYCLE] WebSocketServer created for component testing:', wsServer.getSpeechPipelineOrchestrator()?.constructor?.name);
     console.log('[TEST] Setup complete');
   });
 
@@ -541,7 +539,7 @@ beforeAll(async () => {
         console.log(`[DEBUG] Session state after sending "${text}":`, sessionState);
 
 
-      // Allow async DB writes from MockTranslationOrchestrator to complete
+      // Allow async DB writes to complete
       await new Promise(resolve => setTimeout(resolve, 500));
       }
 

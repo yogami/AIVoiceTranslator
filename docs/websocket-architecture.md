@@ -24,8 +24,9 @@ The WebSocket system is **fully implemented and actively running** in the applic
    - Manages session creation, updates, and termination
    - Integrates with database storage for persistence
 
-4. **TranslationOrchestrator** (`server/services/websocket/TranslationOrchestrator.ts`)
-   - Coordinates translation and TTS services
+4. **SpeechPipelineOrchestrator** (`server/services/SpeechPipelineOrchestrator.ts`)
+   - Clean architecture orchestrator with dependency injection
+   - Coordinates translation and TTS services through injected dependencies
    - Handles real-time speech processing pipeline
    - Manages audio transcription and delivery
 

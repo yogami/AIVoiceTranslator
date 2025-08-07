@@ -6,13 +6,16 @@ import { IStorage } from '../../../server/storage.interface';
 import { setupIsolatedTest } from '../../utils/test-database-isolation';
 import { initTestDatabase, closeDatabaseConnection } from '../../setup/db-setup';
 
+import { INTEGRATION_TEST_CONFIG, debugTestTimingScaling } from '../../helpers/test-timing';
+
 // Test configuration for integration tests with real services
 const TEST_CONFIG = {
-  CONNECTION_TIMEOUT: 10000, // Longer timeouts for real service calls
-  MESSAGE_TIMEOUT: 15000,
-  TRANSLATION_TIMEOUT: 20000,
-  SETUP_DELAY: 100,
-  CLEANUP_DELAY: 100
+  CONNECTION_TIMEOUT: INTEGRATION_TEST_CONFIG.CONNECTION_TIMEOUT,
+  MESSAGE_TIMEOUT: INTEGRATION_TEST_CONFIG.MESSAGE_TIMEOUT,
+  TRANSLATION_TIMEOUT: INTEGRATION_TEST_CONFIG.TRANSLATION_TIMEOUT,
+  SETUP_DELAY: INTEGRATION_TEST_CONFIG.STANDARD_WAIT,
+  CLEANUP_DELAY: INTEGRATION_TEST_CONFIG.CLEANUP_DELAY,
+  RECONNECTION_WAIT: INTEGRATION_TEST_CONFIG.RECONNECTION_WAIT
 };
 
 describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }, () => {
@@ -109,6 +112,9 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
   };
 
   beforeAll(async () => {
+    // Debug timing scaling for diagnostics
+    debugTestTimingScaling();
+    
     // Check if we have real API keys for integration testing
     const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
     const hasElevenLabsKey = !!process.env.ELEVENLABS_API_KEY;
@@ -504,7 +510,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       // Step 3: Teacher disconnects (simulate network issue)
       console.log('[INTEGRATION] Simulating teacher disconnect...');
       teacherClient.terminate();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.RECONNECTION_WAIT));
       
       // Step 4: Teacher reconnects with same teacherId
       console.log('[INTEGRATION] Teacher reconnecting with same teacherId...');
@@ -526,6 +532,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       expect(reconnectedMessage.code).toBe(classroomCode); // Same sessionId should reuse same classroom code
       
       // Step 6: Verify student is still connected and can receive messages
+      // Note: No student_joined message should be sent when teacher reconnects to existing session with students
       await sendAndWait(teacherClient, {
         type: 'transcription',
         text: 'Reconnection test message',
@@ -605,6 +612,9 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
         name: 'Student Two'
       }, 'register', 4);
       
+      // Add small delays to avoid race conditions in multiple teacher scenario
+      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.SETUP_DELAY));
+      
       await waitForMessage(teacher1Client, 'student_joined', 1);
       await waitForMessage(teacher2Client, 'student_joined', 2);
       
@@ -612,7 +622,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       console.log('[INTEGRATION] Both teachers disconnecting...');
       teacher1Client.terminate();
       teacher2Client.terminate();
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, TEST_CONFIG.RECONNECTION_WAIT));
       
       // Step 6: Teachers reconnect with correct teacherIds
       console.log('[INTEGRATION] Teachers reconnecting...');
@@ -640,6 +650,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       }, 'register', 6);
       
       // Step 7: Verify each teacher keeps their original session (1-to-1 mapping preserved)
+      // Note: No student_joined messages should be sent when teachers reconnect to existing sessions with students
       const teacher1Reconnected = await waitForMessage(reconnectedTeacher1, 'classroom_code', 5);
       const teacher2Reconnected = await waitForMessage(reconnectedTeacher2, 'classroom_code', 6);
       

@@ -11,7 +11,7 @@
  * - Human-quality translations from professional translators
  */
 
-import { ITranslationService } from '../TranslationService.js';
+import { ITranslationService } from './translation.interfaces';
 
 // Language code mapping from our format to MyMemory format
 const LANGUAGE_CODE_MAP: Record<string, string> = {

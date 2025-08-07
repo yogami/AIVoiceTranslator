@@ -63,13 +63,14 @@ describe('Sessions API Integration Tests', () => {
     // Create WebSocket server with the HTTP server
     wsServer = new WebSocketServer(server, storage);
 
-    // Create a test session
-    sessionId = 'test-session-123';
+    // Create a unique test session using timestamp to avoid duplicates
+    sessionId = `test-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     classCode = 'ABC123';
     await storage.createSession({
       sessionId,
       classCode,
       teacherId: 'teacher-1',
+      teacherLanguage: 'en',
       isActive: true,
       startTime: new Date(),
       lastActivityAt: new Date()
@@ -77,11 +78,35 @@ describe('Sessions API Integration Tests', () => {
   });
 
   afterEach(async () => {
-    wsServer.close();
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-  });
+    try {
+      // Clean up the session first
+      if (sessionId) {
+        await storage.endSession(sessionId);
+      }
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+
+    try {
+      // Close WebSocket server if it has a close method
+      if (wsServer && typeof wsServer.close === 'function') {
+        wsServer.close();
+      }
+    } catch (error) {
+      // Ignore WebSocket cleanup errors
+    }
+
+    // Close HTTP server with timeout
+    if (server) {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => resolve(), 5000); // 5 second timeout
+        server.close(() => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    }
+  }, 10000); // 10 second timeout for the entire cleanup
 
   it('should return correct language breakdown when students join in different languages', async () => {
     // Step 1: Connect teacher

@@ -17,15 +17,17 @@ import { WebSocketServer as WSServer } from 'ws';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
 import { TestDatabaseManager } from '../utils/TestDatabaseManager';
-import { speechTranslationService } from '../../server/services/TranslationService';
+import { SpeechPipelineOrchestrator } from '../../server/services/SpeechPipelineOrchestrator';
 import { setupTestIsolation } from '../../test-config/test-isolation';
 import { initTestDatabase, closeDatabaseConnection } from '../setup/db-setup';
 
-// Mock the translation service
-vi.mock('../../server/services/TranslationService', () => ({
-  speechTranslationService: {
-    translateSpeech: vi.fn()
-  }
+// Mock the SpeechPipelineOrchestrator
+const mockSpeechPipelineOrchestrator = {
+  process: vi.fn()
+};
+
+vi.mock('../../server/services/SpeechPipelineOrchestrator', () => ({
+  SpeechPipelineOrchestrator: vi.fn().mockImplementation(() => mockSpeechPipelineOrchestrator)
 }));
 
 // Test configuration constants
@@ -51,12 +53,13 @@ describe('Translation Flow Integration', () => {
     storage = new TestDatabaseManager();
     await storage.initializeTestDatabase();
     
-    // Mock the translation service with dynamic responses
-    vi.mocked(speechTranslationService.translateSpeech).mockImplementation(async (
+    // Mock the SpeechPipelineOrchestrator process method with dynamic responses
+    vi.mocked(mockSpeechPipelineOrchestrator.process).mockImplementation(async (
       audioBuffer: Buffer,
       sourceLanguage: string,
       targetLanguage: string,
-      preTranscribedText?: string
+      preTranscribedText?: string,
+      options?: { ttsServiceType?: string }
     ) => {
       // Use preTranscribedText if available, otherwise fall back to a default
       const text = preTranscribedText || 'Mock transcribed text';

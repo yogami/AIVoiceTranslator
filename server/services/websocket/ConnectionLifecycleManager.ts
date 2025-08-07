@@ -10,8 +10,8 @@ import { URL } from 'url';
 import { randomUUID, randomBytes } from 'crypto';
 import { WebSocketClient } from './ConnectionManager';
 import { ConnectionManager } from './ConnectionManager';
-import { ClassroomSessionManager } from './ClassroomSessionManager';
-import { StorageSessionManager } from './StorageSessionManager';
+import { ClassroomSessionManager } from '../session/ClassroomSessionManager';
+import { StorageSessionManager } from '../session/StorageSessionManager';
 import { ConnectionHealthManager } from './ConnectionHealthManager';
 import { MessageDispatcher } from './MessageHandler';
 import { WebSocketResponseService } from './WebSocketResponseService';
@@ -87,8 +87,7 @@ export class ConnectionLifecycleManager {
       logger.error('Failed to send connection confirmation:', { sessionId, error });
     }
     
-    // Set up event handlers
-    this.setupConnectionEventHandlers(ws);
+    // Note: Event handlers are set up by WebSocketServer to avoid duplication
   }
 
   /**
@@ -231,10 +230,14 @@ export class ConnectionLifecycleManager {
             const sessionAge = sessionStartTime ? Date.now() - sessionStartTime.getTime() : 0;
             const isVeryShortSession = sessionAge < config.session.veryShortSessionThreshold;
             
-            if (hadStudents) {
-              // Session had students and now everyone has disconnected - end immediately
+            if (hadStudents && !session.teacherId) {
+              // Session had students and now everyone has disconnected, but no teacherId for reconnection - end immediately
               await cleanupService.endSession(sessionId, 'All users disconnected');
-              logger.info(`Ended session ${sessionId} immediately - all users disconnected from session with students.`);
+              logger.info(`Ended session ${sessionId} immediately - all users disconnected from session with students (no teacherId).`);
+            } else if (hadStudents && session.teacherId) {
+              // Session had students but has teacherId for reconnection - give grace period
+              await cleanupService.updateSessionActivity(sessionId);
+              logger.info(`Teacher disconnected from session ${sessionId} with students. Starting grace period for teacher reconnection (teacherId: ${session.teacherId}).`);
             } else if (isVeryShortSession && !session.teacherId) {
               // Very short teacher-only session WITHOUT teacherId - end immediately (likely accidental)
               await cleanupService.endSession(sessionId, 'Teacher disconnected, session too short');

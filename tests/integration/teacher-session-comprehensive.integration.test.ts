@@ -18,7 +18,7 @@ import request from 'supertest';
 import { WebSocketServer } from '../../server/services/WebSocketServer';
 import { createApiRoutes } from '../../server/routes';
 import { setupTestIsolation, getCurrentTestContext } from '../../test-config/test-isolation';
-import { SessionCleanupService } from '../../server/services/SessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../server/services/session/cleanup/UnifiedSessionCleanupService';
 import { DatabaseStorage } from '../../server/database-storage';
 import { initTestDatabase, closeDatabaseConnection } from '../setup/db-setup';
 import logger from '../../server/logger';
@@ -84,7 +84,8 @@ describe('Fast Teacher Session Integration Tests', () => {
     await initTestDatabase();
     
     // Create real services
-    const cleanupService = new SessionCleanupService();
+    const classroomSessionsMap = new Map(); // Empty for tests
+    const cleanupService = new UnifiedSessionCleanupService(storage, classroomSessionsMap);
     const mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(0),
       getActiveSessions: vi.fn().mockReturnValue([]),

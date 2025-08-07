@@ -246,7 +246,7 @@ describe('TTS Auto-Fallback Integration', () => {
     
     const results = await Promise.all(promises);
     expect(results).toHaveLength(3);
-    results.forEach(result => {
+results.forEach((result: any) => {
       expect(result).toBeDefined();
     });
   });

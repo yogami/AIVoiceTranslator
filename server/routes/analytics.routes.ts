@@ -5,15 +5,15 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { asyncHandler, ApiError } from '../middleware/error-handler.middleware.js';
-import { AnalyticsService } from '../services/AnalyticsService.js';
+import { asyncHandler, ApiError } from '../middleware/error-handler.middleware';
+import { AnalyticsService } from '../services/AnalyticsService';
 import { 
   analyticsRateLimit, 
   analyticsSecurityMiddleware, 
   analyticsPageAuth 
-} from '../middleware/analytics-security.js';
-import { db } from '../db.js';
-import { sessions } from '../../shared/schema.js';
+} from '../middleware/analytics-security';
+import { db } from '../db';
+import { sessions } from '../../shared/schema';
 import { sql } from 'drizzle-orm';
 
 export function createAnalyticsRoutes(): Router {

@@ -13,7 +13,7 @@ import request from 'supertest';
 import express from 'express';
 import { createApiRoutes } from '../../../server/routes';
 import { setupIsolatedTest, cleanupIsolatedTest } from '../../utils/test-database-isolation';
-import { SessionCleanupService } from '../../../server/services/SessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../../server/services/session/cleanup/UnifiedSessionCleanupService.js';
 import logger from '../../../server/logger';
 import jwt from 'jsonwebtoken';
 import { DatabaseStorage } from '../../../server/database-storage';
@@ -21,7 +21,7 @@ import { DatabaseStorage } from '../../../server/database-storage';
 describe('Authentication Integration Tests', () => {
   let app: express.Application;
   let storage: DatabaseStorage;
-  let cleanupService: SessionCleanupService;
+  let cleanupService: UnifiedSessionCleanupService;
   const testId = 'auth-integration-test';
 
   beforeEach(async () => {
@@ -29,7 +29,8 @@ describe('Authentication Integration Tests', () => {
     storage = await setupIsolatedTest(testId);
     
     // Create cleanup service
-    cleanupService = new SessionCleanupService();
+    const classroomSessionsMap = new Map(); // Empty for tests
+    cleanupService = new UnifiedSessionCleanupService(storage, classroomSessionsMap);
     const mockActiveSessionProvider = {
       getActiveSessionCount: vi.fn().mockReturnValue(0),
       getActiveSessions: vi.fn().mockReturnValue([]),

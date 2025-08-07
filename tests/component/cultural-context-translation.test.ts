@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CulturalContextService, CulturalAdaptationOptions } from '../../server/services/translation/CulturalContextService.js';
-import { getTranslationService } from '../../server/services/translation/TranslationServiceFactory.js';
+import { CulturalContextService, CulturalAdaptationOptions } from '../../server/services/translation/CulturalContextService';
+import { getTranslationService } from '../../server/services/translation/TranslationServiceFactory';
 
 describe('Cultural Context Translation Component Tests', () => {
   let originalApiKeys: Record<string, string | undefined>;

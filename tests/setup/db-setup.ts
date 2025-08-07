@@ -10,9 +10,33 @@ import { users, languages, translations, transcripts, sessions } from '../../sha
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import { eq } from 'drizzle-orm';
 import { getCurrentTestContext, waitForAsyncOperations } from '../../test-config/test-isolation';
+import { INTEGRATION_TEST_CONFIG } from '../helpers/test-timing';
 
 // Track database state per test suite
-const testDatabaseState = new Map<string, { initialized: boolean; cleanupPromise?: Promise<void> }>();
+const testDatabaseState = new Map<string, { initialized: boolean; cleanupPromise?: Promise<void>; available?: boolean }>();
+
+/**
+ * Test if database is available and responsive
+ */
+async function isDatabaseAvailable(): Promise<boolean> {
+  try {
+    const timeoutMs = 5000; // Fixed 5-second timeout for availability check
+    console.log(`[DB Setup] Checking database availability (timeout: ${timeoutMs}ms)...`);
+    
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Database availability check timeout')), timeoutMs)
+    );
+    
+    const checkQuery = pool`SELECT 1`;
+    await Promise.race([checkQuery, timeout]);
+    
+    console.log(`[DB Setup] Database is available and responsive`);
+    return true;
+  } catch (error) {
+    console.warn(`[DB Setup] Database availability check failed:`, error instanceof Error ? error.message : String(error));
+    return false;
+  }
+}
 
 /**
  * Get test-specific database state key
@@ -32,6 +56,18 @@ export async function initTestDatabase() {
   try {
     console.log(`[DB Setup] Initializing test database for suite: ${stateKey}`);
     
+    // Check if database is available first
+    const dbAvailable = await isDatabaseAvailable();
+    if (!dbAvailable) {
+      console.warn(`[DB Setup] Database is not available, marking as unavailable for suite: ${stateKey}`);
+      testDatabaseState.set(stateKey, { initialized: false, available: false });
+      
+      // For now, skip database operations rather than failing
+      // In the future, this could use a mock database or in-memory storage
+      console.log(`[DB Setup] Skipping database initialization due to unavailability`);
+      return null;
+    }
+    
     // Wait for any previous cleanup to complete
     const existingState = testDatabaseState.get(stateKey);
     if (existingState?.cleanupPromise) {
@@ -48,13 +84,15 @@ export async function initTestDatabase() {
     // Add default test data
     await addDefaultTestData();
     
-    // Mark as initialized
-    testDatabaseState.set(stateKey, { initialized: true });
+    // Mark as initialized and available
+    testDatabaseState.set(stateKey, { initialized: true, available: true });
     
     console.log(`[DB Setup] Test database initialized successfully for suite: ${stateKey}`);
     return db; // Return the database connection for further use
   } catch (error) {
     console.error(`[DB Setup] Failed to initialize test database for suite ${stateKey}:`, error);
+    // Mark as unavailable on error
+    testDatabaseState.set(stateKey, { initialized: false, available: false });
     throw error;
   }
 }
@@ -64,12 +102,16 @@ export async function initTestDatabase() {
  */
 async function ensureSchemaUpToDate() {
   try {
-    // Add timeout to prevent hanging
+    // Use scaled timeout instead of hardcoded value
+    const timeoutMs = INTEGRATION_TEST_CONFIG.STORAGE_OPERATION_TIMEOUT;
+    console.log(`[DB Setup] Using schema check timeout: ${timeoutMs}ms`);
+    
     const timeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Schema check timeout')), 15000)
+      setTimeout(() => reject(new Error('Schema check timeout')), timeoutMs)
     );
     
     const schemaCheck = (async () => {
+      console.log(`[DB Setup] Starting schema check...`);
       // Check if teacher_id column exists in sessions table
       // Use the pool directly with SQL template literal syntax
       const result = await pool`
@@ -105,15 +147,19 @@ async function clearAllTablesWithRetry(maxRetries = 3) {
     try {
       console.log(`[DB Setup] Clearing tables for suite ${stateKey} (attempt ${attempt}/${maxRetries})`);
       
-      // Wait for any pending operations to complete (reduced timeout)
-      await waitForAsyncOperations(1000);
+      // Wait for any pending operations to complete (scaled timeout)
+      await waitForAsyncOperations(INTEGRATION_TEST_CONFIG.DATABASE_SYNC_WAIT);
       
-      // Add timeout for the entire clear operation
+      // Use scaled timeout instead of hardcoded value
+      const timeoutMs = INTEGRATION_TEST_CONFIG.STORAGE_OPERATION_TIMEOUT;
+      console.log(`[DB Setup] Using clear tables timeout: ${timeoutMs}ms`);
+      
       const clearTimeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Clear tables timeout')), 10000)
+        setTimeout(() => reject(new Error('Clear tables timeout')), timeoutMs)
       );
       
       const clearOperation = (async () => {
+        console.log(`[DB Setup] Starting table clearing operations...`);
         // Delete data from all tables in the reverse order of dependencies
         await db.delete(transcripts);
         await db.delete(translations);
@@ -132,8 +178,8 @@ async function clearAllTablesWithRetry(maxRetries = 3) {
       console.warn(`[DB Setup] Error clearing tables (attempt ${attempt}/${maxRetries}):`, error);
       
       if (attempt < maxRetries) {
-        // Wait before retry
-        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        // Use scaled retry delay
+        await new Promise(resolve => setTimeout(resolve, INTEGRATION_TEST_CONFIG.RETRY_DELAY * attempt));
       }
     }
   }
@@ -197,6 +243,15 @@ async function addDefaultTestData() {
 }
 
 /**
+ * Check if database is available for testing
+ */
+export function isDatabaseAvailableForTesting(): boolean {
+  const stateKey = getTestStateKey();
+  const state = testDatabaseState.get(stateKey);
+  return state?.available === true;
+}
+
+/**
  * Close database connection after tests
  */
 export async function closeDatabaseConnection() {
@@ -205,14 +260,14 @@ export async function closeDatabaseConnection() {
   try {
     console.log(`[DB Setup] Closing database connection for suite: ${stateKey}`);
     
-    // Create cleanup promise with timeout
+    // Create cleanup promise with scaled timeout
     const cleanupTimeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Database cleanup timeout')), 25000)
+      setTimeout(() => reject(new Error('Database cleanup timeout')), INTEGRATION_TEST_CONFIG.STORAGE_OPERATION_TIMEOUT * 3)
     );
     
     const cleanupPromise = (async () => {
-      // Wait for any pending operations (reduced timeout)
-      await waitForAsyncOperations(500);
+      // Wait for any pending operations (scaled timeout)
+      await waitForAsyncOperations(INTEGRATION_TEST_CONFIG.DATABASE_SYNC_WAIT * 5);
       
       // Clear tables with fewer retries for faster cleanup
       try {

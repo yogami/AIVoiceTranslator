@@ -5,10 +5,10 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { asyncHandler, ApiError } from '../middleware/error-handler.middleware.js';
-import { validateRequiredFields, parseLimit } from '../middleware/validation.middleware.js';
-import { TranslationRoutesService } from '../services/TranslationRoutesService.js';
-import { IStorage } from '../storage.interface.js';
+import { asyncHandler, ApiError } from '../middleware/error-handler.middleware';
+import { validateRequiredFields, parseLimit } from '../middleware/validation.middleware';
+import { TranslationRoutesService } from '../services/TranslationRoutesService';
+import { IStorage } from '../storage.interface';
 
 export function createTranslationRoutes(storage: IStorage): Router {
   const router = Router();

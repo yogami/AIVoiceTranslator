@@ -9,7 +9,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { speechTranslationService } from '../../../server/services/TranslationService';
+import { SpeechPipelineOrchestrator } from '../../../server/services/SpeechPipelineOrchestrator.js';
+import { getTTSService } from '../../../server/services/tts/TTSServiceFactory.js';
+import { getSTTTranscriptionService } from '../../../server/services/stttranscription/TranscriptionServiceFactory.js';
+import { getTranslationService } from '../../../server/services/translation/TranslationServiceFactory.js';
 import * as dotenv from 'dotenv';
 import path from 'path';
 
@@ -22,10 +25,24 @@ describe('Translation with TTS Integration', () => {
                          process.env.OPENAI_API_KEY === 'your-api-key-here' ||
                          process.env.OPENAI_API_KEY === 'sk-placeholder-for-initialization-only';
 
+  let speechPipelineOrchestrator: SpeechPipelineOrchestrator;
+
   beforeEach(() => {
     if (skipIfNoApiKey) {
       console.log('Skipping test - no valid OpenAI API key found');
     }
+    
+    // Initialize the speech pipeline orchestrator
+    const sttService = getSTTTranscriptionService();
+    const translationService = getTranslationService();
+    const ttsServiceFactory = (type: string) => getTTSService(type);
+    
+    speechPipelineOrchestrator = new SpeechPipelineOrchestrator(
+      sttService,
+      translationService,
+      ttsServiceFactory,
+      'auto'
+    );
   });
 
   afterEach(() => {
@@ -39,7 +56,7 @@ describe('Translation with TTS Integration', () => {
         return;
       }
 
-      const result = await speechTranslationService.translateSpeech(
+      const result = await speechPipelineOrchestrator.process(
         Buffer.from('dummy audio'),
         'en-US',
         'es-ES'
@@ -61,8 +78,8 @@ describe('Translation with TTS Integration', () => {
       const results = await Promise.all(
         languages.map(async lang => {
           try {
-            // Use translateSpeech with dummy audio since translateText might not exist
-            const result = await speechTranslationService.translateSpeech(
+            // Use process with dummy audio since translateText might not exist
+            const result = await speechPipelineOrchestrator.process(
               Buffer.from('dummy audio for hello world'),
               'en-US',
               lang
@@ -100,7 +117,7 @@ describe('Translation with TTS Integration', () => {
       try {
         // First call - not cached
         const start1 = Date.now();
-        const result1 = await speechTranslationService.translateSpeech(
+        const result1 = await speechPipelineOrchestrator.process(
           dummyAudio,
           sourceLanguage,
           targetLanguage
@@ -109,7 +126,7 @@ describe('Translation with TTS Integration', () => {
 
         // Second call - should be cached
         const start2 = Date.now();
-        const result2 = await speechTranslationService.translateSpeech(
+        const result2 = await speechPipelineOrchestrator.process(
           dummyAudio,
           sourceLanguage,
           targetLanguage
@@ -135,7 +152,7 @@ describe('Translation with TTS Integration', () => {
       const invalidBuffer = Buffer.from('invalid audio data');
       
       try {
-        await speechTranslationService.translateSpeech(
+        await speechPipelineOrchestrator.process(
           invalidBuffer,
           'invalid-lang',
           'es-ES'
@@ -154,7 +171,7 @@ describe('Translation with TTS Integration', () => {
       }
 
       // Generate TTS through the translation service
-      const result = await speechTranslationService.translateSpeech(
+      const result = await speechPipelineOrchestrator.process(
         Buffer.from('dummy audio for TTS test'),
         'en-US',
         'en-US' // Same language to just test TTS
