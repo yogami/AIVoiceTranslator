@@ -198,6 +198,10 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           sessionId = existingSession.sessionId;
           wasExistingSession = true;
           
+          // CRITICAL FIX: Clear old classroom code so teacher gets a fresh one
+          context.webSocketServer.classroomSessionManager.clearSessionClassroomCode(sessionId);
+          logger.info(`Cleared old classroom code for reconnecting teacher session: ${sessionId}`);
+          
           // Update the connection to use the existing session
           context.connectionManager.updateSessionId(context.ws, existingSession.sessionId);
           
@@ -260,6 +264,10 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             // Use the existing session instead
             sessionId = existingSession.sessionId;
             wasExistingSession = true;
+            
+            // CRITICAL FIX: Clear old classroom code so teacher gets a fresh one
+            context.webSocketServer.classroomSessionManager.clearSessionClassroomCode(sessionId);
+            logger.info(`Cleared old classroom code for reconnecting teacher session: ${sessionId}`);
             
             // Update the connection to use the existing session
             context.connectionManager.updateSessionId(context.ws, existingSession.sessionId);

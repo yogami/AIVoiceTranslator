@@ -78,6 +78,26 @@ export class ClassroomSessionManager {
   }
 
   /**
+   * Clear classroom code for a specific session (for teacher reconnects)
+   */
+  public clearSessionClassroomCode(sessionId: string): boolean {
+    console.log(`🔍 DEBUG: clearSessionClassroomCode called for sessionId: ${sessionId}`);
+    
+    // Find and remove the classroom code for this session
+    for (const [code, session] of this.classroomSessions.entries()) {
+      if (session.sessionId === sessionId) {
+        this.classroomSessions.delete(code);
+        console.log(`🔍 DEBUG: Cleared classroom code ${code} for sessionId ${sessionId}`);
+        logger.info(`Cleared classroom code ${code} for session ${sessionId}`);
+        return true;
+      }
+    }
+    
+    console.log(`🔍 DEBUG: No classroom code found to clear for sessionId ${sessionId}`);
+    return false;
+  }
+
+  /**
    * Validate classroom code
    */
   public isValidClassroomCode(code: string): boolean {
