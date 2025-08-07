@@ -38,6 +38,7 @@ export interface TranslationMessage extends WebSocketMessage {
   targetLanguage?: string;
   timestamp?: number;
   audioFormat?: string;
+  ttsServiceType?: string;
 }
 
 export interface ClassroomCodeMessage extends WebSocketMessage {

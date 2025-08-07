@@ -163,7 +163,8 @@ export class TranscriptionBusinessService {
                 sourceLanguage: teacherLanguage,
                 targetLanguage: targetLanguage,
                 timestamp: Date.now(),
-                audioFormat: 'mp3' // Default format since TTSResult doesn't specify format
+                audioFormat: 'mp3', // Default format since TTSResult doesn't specify format
+                ttsServiceType: ttsResult.ttsServiceType // Add the missing TTS service type
               };
 
               // Send the message via WebSocket
