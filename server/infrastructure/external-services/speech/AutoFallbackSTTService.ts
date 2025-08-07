@@ -20,6 +20,7 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
   private secondaryService: ISTTTranscriptionService | null = null;
   private finalFallbackService: ISTTTranscriptionService | null = null;
   private voiceIsolationService: VoiceIsolationService | null = null;
+  private initializationPromise: Promise<void>;
   
   // Circuit breaker state for primary service (OpenAI)
   private isPrimaryDown: boolean = false;
@@ -35,7 +36,7 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
   private readonly MAX_COOLDOWN_MS = 1500000; // 25 minutes max
 
   constructor() {
-    this.initializeServices();
+    this.initializationPromise = this.initializeServices();
   }
 
   private async initializeServices(): Promise<void> {
@@ -101,16 +102,21 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
   }
 
   async transcribe(audioBuffer: Buffer, sourceLanguage: string): Promise<string> {
+    // Wait for services to be initialized before proceeding
+    await this.initializationPromise;
+    
     if (!audioBuffer || audioBuffer.length === 0) {
       throw new Error('Audio buffer is required and cannot be empty');
     }
     const language = sourceLanguage || 'en';
     // Apply voice isolation to improve STT accuracy across all services
     // Voice isolation will only be applied for Whisper.cpp fallback
-    // Try primary service (OpenAI)
-    if (this.shouldTryPrimary()) {
+    // Try primary service (Whisper.cpp FREE)
+    const shouldTryPrimary = this.shouldTryPrimary();
+    console.log('[AutoFallback STT] shouldTryPrimary():', shouldTryPrimary, 'primaryService:', !!this.primaryService, 'isPrimaryDown:', this.isPrimaryDown);
+    if (shouldTryPrimary) {
       try {
-        console.log('[AutoFallback STT] Attempting primary service (OpenAI STT)');
+        console.log('[AutoFallback STT] Attempting primary service (Whisper.cpp FREE)');
         const result = await this.primaryService!.transcribe(audioBuffer, language);
         // Reset failure count on success
         if (this.primaryFailureCount > 0) {
@@ -118,20 +124,22 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
           this.primaryFailureCount = 0;
           this.isPrimaryDown = false;
         }
-        console.log('[AutoFallback STT] Primary service succeeded');
+        console.log('[AutoFallback STT] Primary service (Whisper.cpp) succeeded');
         return result;
       } catch (error) {
-        console.error('[AutoFallback STT] Primary service failed:', error instanceof Error ? error.message : error);
+        console.error('[AutoFallback STT] Primary service (Whisper.cpp) failed:', error instanceof Error ? error.message : error);
         // Handle circuit breaker logic
         if (this.isPrimaryAPIError(error)) {
           this.handlePrimaryFailure();
         }
       }
     }
-    // Try secondary service (ElevenLabs)
-    if (this.shouldTrySecondary()) {
+    // Try secondary service (OpenAI PAID)
+    const shouldTrySecondary = this.shouldTrySecondary();
+    console.log('[AutoFallback STT] shouldTrySecondary():', shouldTrySecondary, 'secondaryService:', !!this.secondaryService, 'isSecondaryDown:', this.isSecondaryDown);
+    if (shouldTrySecondary) {
       try {
-        console.log('[AutoFallback STT] Attempting secondary service (ElevenLabs STT)');
+        console.log('[AutoFallback STT] Attempting secondary service (OpenAI PAID)');
         const result = await this.secondaryService!.transcribe(audioBuffer, language);
         // Reset failure count on success
         if (this.secondaryFailureCount > 0) {
@@ -139,7 +147,7 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
           this.secondaryFailureCount = 0;
           this.isSecondaryDown = false;
         }
-        console.log('[AutoFallback STT] Secondary service succeeded');
+        console.log('[AutoFallback STT] Secondary service (OpenAI) succeeded');
         return result;
       } catch (error) {
         console.error('[AutoFallback STT] Secondary service failed:', error instanceof Error ? error.message : error);
@@ -149,9 +157,9 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
         }
       }
     }
-    // Use final fallback service (Whisper.cpp) with voice isolation
+    // Use final fallback service (ElevenLabs EXPENSIVE) with voice isolation
     try {
-      console.log('[AutoFallback STT] Using final fallback service (Whisper.cpp)');
+      console.log('[AutoFallback STT] Using final fallback service (ElevenLabs EXPENSIVE)');
       let processedAudioBuffer = audioBuffer;
       if (this.voiceIsolationService?.isAvailable()) {
         try {
