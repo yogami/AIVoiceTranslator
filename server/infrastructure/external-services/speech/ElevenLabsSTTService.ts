@@ -14,7 +14,7 @@ export class ElevenLabsSTTService implements ISTTTranscriptionService {
   /**
    * Transcribes audio using ElevenLabs Speech-to-Text API
    */
-  async transcribe(audioBuffer: Buffer, sourceLanguage: string): Promise<string> {
+  async transcribe(audioBuffer: Buffer, sourceLanguage?: string): Promise<string> {
     if (!audioBuffer || audioBuffer.length === 0) {
       throw new Error('Audio buffer is required and cannot be empty');
     }
@@ -24,9 +24,13 @@ export class ElevenLabsSTTService implements ISTTTranscriptionService {
       console.log(`[ElevenLabs STT] Starting transcription for ${audioBuffer.length} bytes of audio data`);
       // Create form data
       const formData = new FormData();
-      // Convert buffer to blob for form data
+      // Convert buffer to blob for form data - ElevenLabs expects 'file' parameter name
       const audioBlob = new Blob([audioBuffer], { type: 'audio/wav' });
-      formData.append('audio', audioBlob, 'audio.wav');
+      formData.append('file', audioBlob, 'audio.wav');
+      
+      // Add required model_id parameter (ElevenLabs requires this)
+      formData.append('model_id', 'scribe_v1');
+      
       // Add language parameter if supported
       if (language && language !== 'en') {
         formData.append('language', language);
@@ -86,9 +90,11 @@ export class ElevenLabsSTTService implements ISTTTranscriptionService {
     
     // HTTP status codes that should trigger fallback
     const fallbackStatusCodes = [
+      400, // Bad Request (invalid parameters, missing required fields)
       401, // Unauthorized (invalid API key)
       402, // Payment Required (billing issue)
       403, // Forbidden (quota exceeded, access denied)
+      422, // Unprocessable Entity (bad request format, missing parameters)
       429, // Too Many Requests (rate limit)
       500, // Internal Server Error
       502, // Bad Gateway

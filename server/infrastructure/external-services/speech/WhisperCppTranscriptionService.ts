@@ -1,5 +1,6 @@
 import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
 import { AudioFileHandler } from '../../handlers/AudioFileHandler';
+import path from 'path';
 
 /**
  * WhisperCpp Transcription Service
@@ -14,8 +15,13 @@ export class WhisperCppSTTTranscriptionService implements ISTTTranscriptionServi
   constructor() {
     this.audioHandler = new AudioFileHandler();
     // Allow model selection via env var, fallback to 'base' for safety
-    this.model = process.env.WHISPER_MODEL || 'base';
-    console.log('[WhisperCpp] Service initialized with model:', this.model);
+    const modelName = process.env.WHISPER_MODEL || 'base';
+    
+    // Use absolute path to our project's model directory
+    const projectRoot = process.cwd();
+    this.model = path.join(projectRoot, 'models', 'whisper', `ggml-${modelName}.bin`);
+    
+    console.log('[WhisperCpp] Service initialized with model path:', this.model);
   }
 
   private async getWhisperInstance() {
@@ -83,9 +89,9 @@ export class WhisperCppSTTTranscriptionService implements ISTTTranscriptionServi
       // Save audio buffer to temporary file
       const tempFilePath = await this.audioHandler.createTempFile(audioBuffer);
       try {
-        // Transcribe using whisper-node
+        // Transcribe using whisper-node with absolute model path
         const transcript = await whisper(tempFilePath, {
-          modelName: this.model,
+          modelPath: this.model,
           language: sourceLanguage || 'auto',
           whisperOptions: {
             outputInText: true,

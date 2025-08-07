@@ -74,7 +74,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
   });
 
 
-  // 1. STT errors (OpenAI, ElevenLabs, Whisper)
+  // 1. STT errors (OpenAI, ElevenLabs, Whisper) - these should FAIL when using specific services with bad credentials
   [
     { name: 'OpenAI STT rate limit', stt: 'openai', key: 'rate-limit-key' },
     { name: 'OpenAI STT expired key', stt: 'openai', key: 'expired-key' },
@@ -96,8 +96,10 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
       } catch (err) {
         error = err;
       }
-      expect(error).toBeUndefined();
-      expect(result).toBeDefined();
+      // CORRECTED: When using specific service with bad credentials, it should FAIL
+      expect(error).toBeDefined();
+      expect(error.message).toContain('Speech pipeline failed');
+      expect(result).toBeUndefined();
     });
   });
 
