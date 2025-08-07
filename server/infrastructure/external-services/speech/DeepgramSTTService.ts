@@ -4,7 +4,7 @@
  * Better accuracy than Whisper.cpp, supports real-time streaming
  */
 
-import { ISTTTranscriptionService } from '../translation/translation.interfaces';
+import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
 
 export class DeepgramSTTService implements ISTTTranscriptionService {
   private isInitialized = false;

@@ -14,12 +14,12 @@
  * TTS: Premium → High-Quality Free → Basic Free → Silent
  */
 
-import { getSTTTranscriptionService } from './stttranscription/TranscriptionServiceFactory';
-import { getTranslationService } from './translation/TranslationServiceFactory';
-import { getTTSService } from './tts/TTSServiceFactory';
-import type { ISTTTranscriptionService } from './translation/translation.interfaces';
-import type { ITranslationService } from './translation/translation.interfaces';
-import type { ITTSService, TTSResult } from './tts/TTSService';
+import { getSTTTranscriptionService } from '../../infrastructure/factories/STTServiceFactory';
+import { getTranslationService } from '../../infrastructure/factories/TranslationServiceFactory';
+import { getTTSService } from '../../infrastructure/factories/TTSServiceFactory';
+import type { ISTTTranscriptionService } from '../../services/translation/translation.interfaces';
+import type { ITranslationService } from '../../services/translation/translation.interfaces';
+import type { ITTSService, TTSResult } from '../../services/tts/TTSService';
 
 // Pipeline configuration interface
 interface PipelineConfig {

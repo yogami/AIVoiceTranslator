@@ -8,11 +8,11 @@
  * Tier 4 (Fallback): Silent/Error Mode - No audio output, error handling
  */
 
-import { ITTSService, TTSResult } from './TTSService';
-import { ElevenLabsTTSService } from './ElevenLabsTTSService';
-import { OpenAITTSService } from './OpenAITTSService';
-import { LocalTTSService } from './LocalTTSService';
-import { BrowserTTSService } from './BrowserTTSService';
+import { ITTSService, TTSResult } from '../../services/tts/TTSService';
+import { ElevenLabsTTSService } from '../external-services/tts/ElevenLabsTTSService';
+import { OpenAITTSService } from '../external-services/tts/OpenAITTSService';
+import { LocalTTSService } from '../external-services/tts/LocalTTSService';
+import { BrowserTTSService } from '../external-services/tts/BrowserTTSService';
 
 // Service tier enumeration for consistency
 export enum TTSServiceTier {

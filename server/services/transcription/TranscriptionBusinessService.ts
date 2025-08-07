@@ -10,7 +10,7 @@
  */
 import logger from '../../logger';
 import type { IStorage } from '../../storage.interface';
-import type { SpeechPipelineOrchestrator } from '../SpeechPipelineOrchestrator';
+import type { SpeechPipelineOrchestrator } from '../../application/services/SpeechPipelineOrchestrator';
 import type { WebSocketClient } from '../websocket/ConnectionManager';
 
 export interface TranscriptionProcessingRequest {

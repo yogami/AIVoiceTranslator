@@ -8,35 +8,35 @@
  */
 import { WebSocketServer as WSServer, WebSocket } from 'ws';
 import * as http from 'http';
-import logger from '../logger';
-import { config } from '../config';
+import logger from '../../logger';
+import { config } from '../../config';
 import { URL } from 'url';
 
-import { IActiveSessionProvider } from './session/IActiveSessionProvider';
-import { ConnectionManager, type WebSocketClient } from './websocket/ConnectionManager';
-import { SessionService, type ClassroomSession } from './session/SessionService';
-import { SpeechPipelineOrchestrator } from './SpeechPipelineOrchestrator';
-import { ClassroomSessionManager } from './session/ClassroomSessionManager';
-import { StorageSessionManager } from './session/StorageSessionManager';
-import { ConnectionHealthManager } from './websocket/ConnectionHealthManager';
-import { ConnectionLifecycleManager } from './websocket/ConnectionLifecycleManager';
-import { ConnectionValidationService } from './websocket/ConnectionValidationService';
-import { SessionMetricsService } from './session/SessionMetricsService';
-import { WebSocketResponseService } from './websocket/WebSocketResponseService';
-import { SessionLifecycleService } from './session/SessionLifecycleService';
-import { SessionCountCacheService } from './session/SessionCountCacheService';
+import { IActiveSessionProvider } from '../../application/services/session/IActiveSessionProvider';
+import { ConnectionManager, type WebSocketClient } from './websocket-services/ConnectionManager';
+import { SessionService, type ClassroomSession } from '../../application/services/session/SessionService';
+import { SpeechPipelineOrchestrator } from '../../application/services/SpeechPipelineOrchestrator';
+import { ClassroomSessionManager } from '../../application/services/session/ClassroomSessionManager';
+import { StorageSessionManager } from '../../application/services/session/StorageSessionManager';
+import { ConnectionHealthManager } from './websocket-services/ConnectionHealthManager';
+import { ConnectionLifecycleManager } from './websocket-services/ConnectionLifecycleManager';
+import { ConnectionValidationService } from './websocket-services/ConnectionValidationService';
+import { SessionMetricsService } from '../../application/services/session/SessionMetricsService';
+import { WebSocketResponseService } from './websocket-services/WebSocketResponseService';
+import { SessionLifecycleService } from '../../application/services/session/SessionLifecycleService';
+import { SessionCountCacheService } from '../../application/services/session/SessionCountCacheService';
 import { 
   MessageHandlerRegistry, 
   MessageDispatcher, 
   MessageHandlerContext 
-} from './websocket/MessageHandler';
-import { RegisterMessageHandler } from './websocket/RegisterMessageHandler';
-import { PingMessageHandler } from './websocket/PingMessageHandler';
-import { SettingsMessageHandler } from './websocket/SettingsMessageHandler';
-import { TranscriptionMessageHandler } from './websocket/TranscriptionMessageHandler';
-import { TTSRequestMessageHandler } from './websocket/TTSRequestMessageHandler';
-import { AudioMessageHandler } from './websocket/AudioMessageHandler';
-import { PongMessageHandler } from './websocket/PongMessageHandler';
+} from './websocket-services/MessageHandler';
+import { RegisterMessageHandler } from './websocket-services/RegisterMessageHandler';
+import { PingMessageHandler } from './websocket-services/PingMessageHandler';
+import { SettingsMessageHandler } from './websocket-services/SettingsMessageHandler';
+import { TranscriptionMessageHandler } from './websocket-services/TranscriptionMessageHandler';
+import { TTSRequestMessageHandler } from './websocket-services/TTSRequestMessageHandler';
+import { AudioMessageHandler } from './websocket-services/AudioMessageHandler';
+import { PongMessageHandler } from './websocket-services/PongMessageHandler';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -55,8 +55,8 @@ import type {
   ErrorMessageToClient,
   StudentJoinedMessageToClient
 } from './WebSocketTypes';
-import { IStorage } from '../storage.interface';
-import { UnifiedSessionCleanupService } from './session/cleanup/UnifiedSessionCleanupService';
+import { IStorage } from '../../storage.interface';
+import { UnifiedSessionCleanupService } from '../../application/services/session/cleanup/UnifiedSessionCleanupService';
 
 /**
  * WebSocketServer - SOLID Refactored

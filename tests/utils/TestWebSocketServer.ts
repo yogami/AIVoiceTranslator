@@ -3,9 +3,9 @@
  * for the purpose of integration testing.
  */
 import * as http from 'http';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { WebSocketServer } from '../../server/interface-adapters/websocket/WebSocketServer';
 import { IStorage } from '../../server/storage.interface';
-import { MessageDispatcher } from '../../server/services/websocket/MessageHandler';
+import { MessageDispatcher } from '../../server/interface-adapters/websocket/websocket-services/MessageHandler';
 
 export class TestWebSocketServer extends WebSocketServer {
   // Constructor that matches the parent class

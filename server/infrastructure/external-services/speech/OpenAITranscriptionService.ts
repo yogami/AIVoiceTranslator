@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import fs from 'fs';
-import { ISTTTranscriptionService } from '../translation/translation.interfaces';
-import { AudioFileHandler } from './AudioFileHandler';
+import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
+import { AudioFileHandler } from '../../handlers/AudioFileHandler';
 
 /**
  * OpenAI Transcription Service Wrapper

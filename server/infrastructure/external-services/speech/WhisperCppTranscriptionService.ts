@@ -1,5 +1,5 @@
-import { ISTTTranscriptionService } from '../translation/translation.interfaces';
-import { AudioFileHandler } from './AudioFileHandler';
+import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
+import { AudioFileHandler } from '../../handlers/AudioFileHandler';
 
 /**
  * WhisperCpp Transcription Service

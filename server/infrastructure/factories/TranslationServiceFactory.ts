@@ -8,11 +8,11 @@
  * Tier 4 (Fallback): Offline Translation - Basic quality, no network required
  */
 
-import { ITranslationService } from './translation.interfaces';
-import { OpenAITranslationService } from './OpenAITranslationService';
-import { DeepSeekTranslationService } from './DeepSeekTranslationService';
-import { MyMemoryTranslationService } from './MyMemoryTranslationService';
-import { AutoFallbackTranslationService } from './AutoFallbackTranslationService';
+import { ITranslationService } from '../../services/translation/translation.interfaces';
+import { OpenAITranslationService } from '../external-services/translation/OpenAITranslationService';
+import { DeepSeekTranslationService } from '../external-services/translation/DeepSeekTranslationService';
+import { MyMemoryTranslationService } from '../external-services/translation/MyMemoryTranslationService';
+import { AutoFallbackTranslationService } from '../external-services/translation/AutoFallbackTranslationService';
 import { OpenAI } from 'openai';
 
 // Service tier enumeration for consistency

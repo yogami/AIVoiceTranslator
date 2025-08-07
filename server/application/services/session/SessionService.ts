@@ -5,10 +5,10 @@
  * Follows Single Responsibility Principle by handling only session-related operations.
  */
 
-import logger from '../../logger';
-import { config } from '../../config';
-import { IStorage } from '../../storage.interface';
-import type { InsertSession } from '../../../shared/schema';
+import logger from '../../../logger';
+import { config } from '../../../config';
+import { IStorage } from '../../../storage.interface';
+import type { InsertSession } from '../../../../shared/schema';
 
 // Classroom session interface
 export interface ClassroomSession {

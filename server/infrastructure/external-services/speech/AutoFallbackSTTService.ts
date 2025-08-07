@@ -9,7 +9,7 @@
  * Features circuit breaker pattern with exponential backoff for robust error handling.
  */
 
-import { ISTTTranscriptionService } from '../translation/translation.interfaces';
+import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
 import { OpenAISTTTranscriptionService } from './OpenAITranscriptionService';
 import { ElevenLabsSTTService } from './ElevenLabsSTTService';
 import { VoiceIsolationService } from '../audio/VoiceIsolationService';

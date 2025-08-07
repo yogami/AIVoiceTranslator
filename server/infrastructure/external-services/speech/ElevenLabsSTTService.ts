@@ -1,4 +1,4 @@
-import { ISTTTranscriptionService } from '../translation/translation.interfaces';
+import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
 
 export class ElevenLabsSTTService implements ISTTTranscriptionService {
   private readonly apiKey: string;

@@ -101,7 +101,7 @@ export async function startServer(app: express.Express): Promise<Server> {
   const httpServer = createServer(app);
   
   // Use the working WebSocketServer instead of the problematic communication service
-  const { WebSocketServer } = await import('./services/WebSocketServer');
+  const { WebSocketServer } = await import('./interface-adapters/websocket/WebSocketServer');
   const wsServer = new WebSocketServer(httpServer, storage);
   logger.info('[INIT] WebSocket server started.');
   

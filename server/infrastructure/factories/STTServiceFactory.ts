@@ -8,12 +8,12 @@
  * Tier 4 (Basic Free): Whisper.cpp - Basic quality, local processing
  */
 
-import { ISTTTranscriptionService } from '../translation/translation.interfaces';
-import { OpenAISTTTranscriptionService } from './OpenAITranscriptionService';
-import { ElevenLabsSTTService } from './ElevenLabsSTTService';
-import { DeepgramSTTService } from './DeepgramSTTService';
-import { WhisperCppSTTTranscriptionService } from './WhisperCppTranscriptionService';
-import { AutoFallbackSTTService } from './AutoFallbackSTTService';
+import { ISTTTranscriptionService } from '../../services/translation/translation.interfaces';
+import { OpenAISTTTranscriptionService } from '../external-services/speech/OpenAITranscriptionService';
+import { ElevenLabsSTTService } from '../external-services/speech/ElevenLabsSTTService';
+import { DeepgramSTTService } from '../external-services/speech/DeepgramSTTService';
+import { WhisperCppSTTTranscriptionService } from '../external-services/speech/WhisperCppTranscriptionService';
+import { AutoFallbackSTTService } from '../external-services/speech/AutoFallbackSTTService';
 import { OpenAI } from 'openai';
 
 // Service tier enumeration for consistency

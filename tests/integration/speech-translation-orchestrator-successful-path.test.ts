@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SpeechPipelineOrchestrator } from '../../server/services/SpeechPipelineOrchestrator.js';
+import { SpeechPipelineOrchestrator } from '../../server/application/services/SpeechPipelineOrchestrator.js';
 import { DbTranslationStorage } from '../../server/storage/translation.storage.js';
 import { setupIsolatedTest } from '../utils/test-database-isolation.js';
 
