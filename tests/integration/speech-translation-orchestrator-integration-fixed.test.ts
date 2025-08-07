@@ -1,8 +1,5 @@
 import { it, describe, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SpeechPipelineOrchestrator } from '../../server/services/SpeechPipelineOrchestrator.js';
-import { getTTSService } from '../../server/services/tts/TTSServiceFactory.js';
-import { getSTTTranscriptionService } from '../../server/services/stttranscription/TranscriptionServiceFactory.js';
-import { getTranslationService } from '../../server/services/translation/TranslationServiceFactory.js';
 
 // Helper to create a dummy audio buffer
 function createTestAudioBuffer(): Buffer {
@@ -11,14 +8,7 @@ function createTestAudioBuffer(): Buffer {
 
 // Helper function to create orchestrator
 function createOrchestrator() {
-  const sttService = getSTTTranscriptionService();
-  const translationService = getTranslationService();
-  const ttsServiceFactory = (type: string) => getTTSService(type);
-  return new SpeechPipelineOrchestrator(
-    sttService,
-    translationService,
-    ttsServiceFactory
-  );
+  return SpeechPipelineOrchestrator.createWithDefaultServices();
 }
 
 // Edge case: OpenAI STT fails but OpenAI TTS succeeds (simulate by using a bad key for STT, good key for TTS)
@@ -31,14 +21,16 @@ it('should handle edge case where OpenAI STT fails but OpenAI TTS succeeds', asy
   let result, error;
     // Patch the TTSServiceFactory.getTTSService to swap key before TTS call using vi.spyOn
     const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
-    const spy = vi.spyOn(ttsServiceFactory, 'getTTSService').mockImplementation((type?: string) => {
+    const spy = vi.spyOn(ttsServiceFactory, 'getTTSService');
+    const originalGetTTSService = spy.getMockImplementation() || ttsServiceFactory.getTTSService;
+    spy.mockImplementation((type?: string) => {
       process.env.OPENAI_API_KEY = process.env._REAL_OPENAI_API_KEY || '';
       // Call the original implementation
-      return (spy.mock as any).originalFn.call(ttsServiceFactory, type);
+      return originalGetTTSService.call(ttsServiceFactory, type);
     });
   const speechPipelineOrchestrator = createOrchestrator();
   try {
-    result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+    result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
   } catch (err) {
     error = err;
     } finally {
@@ -88,7 +80,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -116,7 +108,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -144,7 +136,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -163,7 +155,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     const speechPipelineOrchestrator = createOrchestrator();
     let result, error;
     try {
-      result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+      result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     } catch (err) {
       error = err;
     }
@@ -179,7 +171,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     const speechPipelineOrchestrator = createOrchestrator();
     let result, error;
     try {
-      result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+      result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     } catch (err) {
       error = err;
     }
@@ -195,7 +187,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     const speechPipelineOrchestrator = createOrchestrator();
     let result, error;
     try {
-      result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+      result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     } catch (err) {
       error = err;
     }
@@ -211,7 +203,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     const speechPipelineOrchestrator = createOrchestrator();
     let result, error;
     try {
-      result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+      result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     } catch (err) {
       error = err;
     }
@@ -227,7 +219,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     const speechPipelineOrchestrator = createOrchestrator();
     let result, error;
     try {
-      result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+      result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     } catch (err) {
       error = err;
     }
@@ -239,11 +231,11 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     delete process.env.OPENAI_API_KEY;
     const speechPipelineOrchestrator = createOrchestrator();
     const audioBuffer = createTestAudioBuffer();
-    const result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+    const result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     expect(result).toBeDefined();
-    expect(result.originalText).toBeDefined();
-    expect(result.translatedText).toBeDefined();
-    expect(result.audioBuffer).toBeInstanceOf(Buffer);
+    expect(result.transcription).toBeDefined();
+    expect(result.translation).toBeDefined();
+    expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
   });
 });
 
@@ -286,7 +278,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         const audioBuffer = createTestAudioBuffer();
         let result, error;
         try {
-          result = await orchestrator.process(audioBuffer, 'en', 'es');
+          result = await orchestrator.processAudioPipeline(audioBuffer, 'en', 'es');
         } catch (err) {
           error = err;
         }
@@ -294,8 +286,8 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         expect(error).toBeUndefined();
         expect(result).toBeDefined();
         if (result) {
-          expect(result.audioBuffer).toBeInstanceOf(Buffer);
-          expect(result.audioBuffer.length).toBeGreaterThan(0);
+          expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
+          expect(result.audioResult.audioBuffer.length).toBeGreaterThan(0);
         }
       });
     });
@@ -325,7 +317,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         const audioBuffer = createTestAudioBuffer();
         let result, error;
         try {
-          result = await speechPipelineOrchestrator.process(audioBuffer, source, target);
+          result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, source, target);
         } catch (err) {
           error = err;
         }
@@ -335,9 +327,9 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         if (result) {
           // Note: sourceLanguage and targetLanguage are parameters, not return values
           // The process method uses these as inputs but doesn't return them
-          expect(result.originalText).toBeDefined();
-          expect(result.translatedText).toBeDefined();
-          expect(result.audioBuffer).toBeInstanceOf(Buffer);
+          expect(result.transcription).toBeDefined();
+          expect(result.translation).toBeDefined();
+          expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
         }
       });
     });
@@ -356,7 +348,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(emptyBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(emptyBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -370,7 +362,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(smallBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(smallBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -384,7 +376,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(largeBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(largeBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -398,7 +390,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const speechPipelineOrchestrator = createOrchestrator();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(corruptedBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(corruptedBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -442,7 +434,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
           const audioBuffer = createTestAudioBuffer();
           let result, error;
           try {
-            result = await orchestrator.process(audioBuffer, 'en', 'fr');
+            result = await orchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
           } catch (err) {
             error = err;
           }
@@ -450,7 +442,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
           expect(error).toBeUndefined();
           expect(result).toBeDefined();
           if (result) {
-            expect(result.audioBuffer).toBeInstanceOf(Buffer);
+            expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
           }
         });
       });
@@ -492,7 +484,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         const audioBuffer = createTestAudioBuffer();
         let result, error;
         try {
-          result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+          result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
         } catch (err) {
           error = err;
         }
@@ -500,9 +492,9 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         expect(error).toBeUndefined();
         expect(result).toBeDefined();
         if (result) {
-          expect(result.audioBuffer).toBeInstanceOf(Buffer);
-          expect(result.originalText).toBeDefined();
-          expect(result.translatedText).toBeDefined();
+          expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
+          expect(result.transcription).toBeDefined();
+          expect(result.translation).toBeDefined();
         }
       });
     });
@@ -518,7 +510,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const speechPipelineOrchestrator = createOrchestrator();
       const audioBuffer = createTestAudioBuffer();
       const promises = Array.from({ length: 3 }, (_, i) => 
-        speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr')
+        speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr')
       );
 
       const results = await Promise.allSettled(promises);
@@ -527,7 +519,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         expect(result.status).toBe('fulfilled');
         if (result.status === 'fulfilled') {
           expect(result.value).toBeDefined();
-          expect(result.value.audioBuffer).toBeInstanceOf(Buffer);
+          expect(result.value.audioResult.audioBuffer).toBeInstanceOf(Buffer);
         }
       });
     });
@@ -546,7 +538,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       ];
 
       const promises = languagePairs.map(({ source, target }) => 
-        speechPipelineOrchestrator.process(audioBuffer, source, target)
+        speechPipelineOrchestrator.processAudioPipeline(audioBuffer, source, target)
       );
 
       const results = await Promise.allSettled(promises);
@@ -556,9 +548,9 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         if (result.status === 'fulfilled') {
           const { source, target } = languagePairs[index];
           expect(result.value).toBeDefined();
-          expect(result.value.originalText).toBeDefined();
-          expect(result.value.translatedText).toBeDefined();
-          expect(result.value.audioBuffer).toBeInstanceOf(Buffer);
+          expect(result.value.transcription).toBeDefined();
+          expect(result.value.translation).toBeDefined();
+          expect(result.value.audioResult.audioBuffer).toBeInstanceOf(Buffer);
           // Note: The SpeechPipelineOrchestrator doesn't return sourceLanguage/targetLanguage
           // These are input parameters, not output fields
         }
@@ -577,7 +569,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const audioBuffer = createTestAudioBuffer();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }
@@ -595,7 +587,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       const audioBuffer = createTestAudioBuffer();
       let result, error;
       try {
-        result = await speechPipelineOrchestrator.process(audioBuffer, 'en', 'fr');
+        result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
       } catch (err) {
         error = err;
       }

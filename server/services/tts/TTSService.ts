@@ -6,6 +6,9 @@ export type TTSResult = {
   audioUrl?: string;
   error?: string | { name: string; message: string };
   ttsServiceType: string;
+  // Client-side synthesis properties (for browser TTS)
+  clientSideText?: string;
+  clientSideLanguage?: string;
 };
 
 // Main TTS Service Interface

@@ -5,7 +5,7 @@
 
 import type { WebSocketClient } from '../websocket/ConnectionManager';
 import type { ClientSettings, TranslationMessageToClient } from '../WebSocketTypes';
-import { ITTSService } from '../SpeechPipelineOrchestrator';
+import type { ITTSService } from '../tts/TTSService';
 import { AudioEncodingService } from '../audio/AudioEncodingService';
 import logger from '../../logger';
 
@@ -136,6 +136,25 @@ export class TranslationDeliveryService {
     try {
       const ttsService = this.ttsServiceFactory(ttsServiceTypeFlag);
       const ttsResult = await ttsService.synthesize(text, { language });
+      
+      // Handle browser TTS special case
+      if (ttsResult.ttsServiceType === 'browser' && ttsResult.clientSideText) {
+        // For browser TTS, encode client-side synthesis instructions
+        const browserTTSInstructions = {
+          type: 'browser-speech',
+          text: ttsResult.clientSideText,
+          languageCode: ttsResult.clientSideLanguage || language,
+          autoPlay: true
+        };
+        
+        const audioData = Buffer.from(JSON.stringify(browserTTSInstructions), 'utf8').toString('base64');
+        return { 
+          audioData, 
+          ttsServiceType: 'browser' 
+        };
+      }
+      
+      // For other TTS services, encode the actual audio buffer
       const audioData = this.audioEncodingService.encodeToBase64(ttsResult.audioBuffer || Buffer.alloc(0));
       return { 
         audioData, 

@@ -1,7 +1,7 @@
 /**
- * Browser TTS Service (Fallback)
- * Uses Web Speech API for text-to-speech synthesis
- * This is a fallback service when ElevenLabs is unavailable
+ * Browser TTS Service (Client-Side)
+ * Signals to the client to use Web Speech API for text-to-speech synthesis
+ * This service doesn't generate audio server-side, but tells the client to use browser TTS
  */
 
 import { ITTSService, TTSResult } from './TTSService';
@@ -15,11 +15,10 @@ export class BrowserTTSService implements ITTSService {
   }
 
   private initialize(): void {
-    // In server environment, we'll simulate browser TTS behavior
-    // In actual browser environment, this would use speechSynthesis API
+    // Browser TTS is handled client-side using Web Speech API
     this.isInitialized = true;
     
-    // Simulate supported languages
+    // Common languages supported by most browsers
     this.supportedLanguages = new Set([
       'en-US', 'en-GB', 'en-AU', 'en-CA',
       'es-ES', 'es-MX', 'es-AR', 'es-CO',
@@ -30,7 +29,7 @@ export class BrowserTTSService implements ITTSService {
       'no-NO', 'fi-FI', 'pl-PL', 'tr-TR'
     ]);
     
-    console.log('[Browser TTS] Service initialized with simulated speech synthesis');
+    console.log('[Browser TTS] Service initialized for client-side Web Speech API');
   }
 
   private getLanguageCode(language: string): string {
@@ -57,28 +56,7 @@ export class BrowserTTSService implements ITTSService {
       'tr': 'tr-TR'
     };
 
-    return languageMap[language] || language || 'en-US';
-  }
-
-  private simulateAudioGeneration(text: string, language: string): Buffer {
-    // In real implementation, this would generate actual audio
-    // For testing purposes, we create a simple buffer representing audio data
-    const audioData = JSON.stringify({
-      text,
-      language,
-      timestamp: Date.now(),
-      service: 'browser-tts',
-      length: text.length
-    });
-    
-    return Buffer.from(audioData, 'utf-8');
-  }
-
-  private createAudioUrl(audioBuffer: Buffer): string {
-    // In browser environment, this would create a blob URL
-    // For server environment, we simulate this
-    const base64Audio = audioBuffer.toString('base64');
-    return `data:audio/wav;base64,${base64Audio}`;
+    return languageMap[language] || language;
   }
 
   public isLanguageSupported(language: string): boolean {
@@ -97,71 +75,64 @@ export class BrowserTTSService implements ITTSService {
     }
 
     if (!text || text.trim().length === 0) {
-      return { audioBuffer: Buffer.alloc(0), error: { name: 'BrowserTTSEmptyText', message: 'Text cannot be empty' }, ttsServiceType };
+      return { 
+        audioBuffer: Buffer.alloc(0), 
+        error: { name: 'BrowserTTSEmptyText', message: 'Text cannot be empty' }, 
+        ttsServiceType 
+      };
     }
 
     const { language = 'en-US' } = options;
     const normalizedLanguage = this.getLanguageCode(language);
 
     try {
-      console.log(`[Browser TTS] Synthesizing text (${text.length} chars) in language: ${normalizedLanguage}`);
+      console.log(`[Browser TTS] Requesting client-side synthesis for text (${text.length} chars) in language: ${normalizedLanguage}`);
 
       if (!this.isLanguageSupported(normalizedLanguage)) {
-        console.warn(`[Browser TTS] Language ${normalizedLanguage} not supported, using en-US`);
+        console.warn(`[Browser TTS] Language ${normalizedLanguage} may not be supported by all browsers, using en-US fallback`);
       }
 
-      // Simulate processing time
-      await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
-
-      const audioBuffer = this.simulateAudioGeneration(text, normalizedLanguage);
-      const audioUrl = this.createAudioUrl(audioBuffer);
-
-      console.log(`[Browser TTS] Successfully synthesized ${audioBuffer.length} bytes of audio`);
+      // For Browser TTS, we don't generate audio server-side
+      // Instead, we return a special flag that tells the client to use Web Speech API
+      console.log(`[Browser TTS] Client-side synthesis requested for: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
 
       return {
-        audioBuffer,
-        audioUrl,
-        ttsServiceType
+        audioBuffer: Buffer.alloc(0), // No server-side audio
+        audioUrl: undefined,
+        ttsServiceType,
+        clientSideText: text, // Signal to client to synthesize this text
+        clientSideLanguage: normalizedLanguage
       };
 
     } catch (error) {
       console.error('[Browser TTS] Synthesis failed:', error, error instanceof Error ? error.stack : undefined);
       let errObj: { name: string; message: string };
       if (error instanceof Error) {
-        errObj = { name: error.name || 'BrowserTTSServiceError', message: error.message || '' };
-      } else if (typeof error === 'object' && error !== null && typeof (error as any).message === 'string') {
-        errObj = { name: typeof (error as any).name === 'string' ? (error as any).name : 'BrowserTTSServiceError', message: (error as any).message };
+        errObj = { name: error.name, message: error.message };
       } else {
-        errObj = { name: 'BrowserTTSServiceError', message: String(error) };
+        errObj = { name: 'BrowserTTSUnknownError', message: 'Unknown error occurred' };
       }
-      // Extra error logging for integration test visibility
-      console.error('[BrowserTTSService] Exception:', error, errObj, error instanceof Error ? error.stack : undefined);
-      return { audioBuffer: Buffer.alloc(0), error: errObj, ttsServiceType };
+
+      return {
+        audioBuffer: Buffer.alloc(0),
+        error: errObj,
+        ttsServiceType
+      };
     }
   }
 
-  public getSupportedLanguages(): string[] {
-    return Array.from(this.supportedLanguages).sort();
+  public async getVoices(): Promise<string[]> {
+    // Return a list of common browser voice identifiers
+    // The actual voices available will depend on the client's browser and OS
+    return Array.from(this.supportedLanguages);
   }
 
-  public async getAvailableVoices(language?: string): Promise<Array<{ name: string; lang: string; gender?: string }>> {
-    // Simulate available voices
-    const voices = [
-      { name: 'Microsoft David - English (United States)', lang: 'en-US', gender: 'male' },
-      { name: 'Microsoft Zira - English (United States)', lang: 'en-US', gender: 'female' },
-      { name: 'Microsoft Mark - English (United States)', lang: 'en-US', gender: 'male' },
-      { name: 'Google UK English Female', lang: 'en-GB', gender: 'female' },
-      { name: 'Google UK English Male', lang: 'en-GB', gender: 'male' },
-      { name: 'Google Español', lang: 'es-ES', gender: 'female' },
-      { name: 'Google Français', lang: 'fr-FR', gender: 'female' },
-      { name: 'Google Deutsch', lang: 'de-DE', gender: 'female' }
-    ];
+  public getSupportedFormats(): string[] {
+    return ['browser']; // Special format indicating browser-side synthesis
+  }
 
-    if (language) {
-      const normalizedLang = this.getLanguageCode(language);
-      return voices.filter(voice => voice.lang === normalizedLang);
-    }
-
-    return voices;
+  public getMaxTextLength(): number {
+    return 32768; // Typical browser limit for speechSynthesis
   }
 }
+

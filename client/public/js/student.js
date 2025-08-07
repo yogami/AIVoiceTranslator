@@ -3,6 +3,7 @@
         ws: null,
         selectedLanguage: null,
         currentAudioData: null,
+        currentBrowserTTS: null, // Store browser TTS utterance for replay
         isConnected: false,
         classroomCode: null // Will get this from URL params
     };
@@ -233,7 +234,24 @@
                     if (data.audioData) {
                         appState.currentAudioData = data.audioData;
                         if (domElements.playButton) domElements.playButton.disabled = false;
-                        playAudio(data.audioData);
+                        
+                        // Check if this is browser TTS instructions
+                        try {
+                            const decodedData = atob(data.audioData);
+                            const parsedData = JSON.parse(decodedData);
+                            
+                            if (parsedData.type === 'browser-speech') {
+                                // Use Web Speech API for browser TTS
+                                console.log('[Browser TTS] Using Web Speech API for:', parsedData.text);
+                                speakWithBrowserTTS(parsedData.text, parsedData.languageCode, parsedData.autoPlay);
+                            } else {
+                                // Regular audio data - play as before
+                                playAudio(data.audioData);
+                            }
+                        } catch (e) {
+                            // If decoding/parsing fails, treat as regular audio
+                            playAudio(data.audioData);
+                        }
                     }
                     break;
                 case 'error':
@@ -365,8 +383,86 @@
         }
     }
 
+    function speakWithBrowserTTS(text, languageCode, autoPlay = true) {
+        try {
+            // Check if speech synthesis is available
+            if (!('speechSynthesis' in window)) {
+                console.warn('Speech Synthesis API not supported in this browser');
+                uiUpdater.showAudioErrorInDisplay();
+                return;
+            }
+
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+
+            // Create speech utterance
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = languageCode;
+            
+            // Set volume based on control
+            if (domElements.volumeControl) {
+                utterance.volume = parseFloat(domElements.volumeControl.value);
+            }
+
+            // Set voice if available
+            const voices = window.speechSynthesis.getVoices();
+            const matchingVoice = voices.find(voice => voice.lang === languageCode);
+            if (matchingVoice) {
+                utterance.voice = matchingVoice;
+            }
+
+            // Event handlers
+            utterance.onstart = () => {
+                console.log('[Browser TTS] Speech started');
+            };
+            
+            utterance.onend = () => {
+                console.log('[Browser TTS] Speech ended');
+            };
+            
+            utterance.onerror = (e) => {
+                console.error('[Browser TTS] Speech error:', e);
+                uiUpdater.showAudioErrorInDisplay();
+            };
+
+            // Speak the text
+            if (autoPlay) {
+                window.speechSynthesis.speak(utterance);
+                console.log(`[Browser TTS] Speaking: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}" in ${languageCode}`);
+            }
+
+            // Store the utterance for manual playback
+            appState.currentBrowserTTS = {
+                text,
+                languageCode,
+                utterance: utterance
+            };
+
+        } catch (error) {
+            console.error('Error with browser TTS:', error);
+            uiUpdater.showAudioErrorInDisplay();
+        }
+    }
+
     function playCurrentAudio() {
-        if (appState.currentAudioData) playAudio(appState.currentAudioData);
+        if (appState.currentAudioData) {
+            // Check if this is browser TTS instructions
+            try {
+                const decodedData = atob(appState.currentAudioData);
+                const parsedData = JSON.parse(decodedData);
+                
+                if (parsedData.type === 'browser-speech') {
+                    // Replay browser TTS
+                    speakWithBrowserTTS(parsedData.text, parsedData.languageCode, true);
+                } else {
+                    // Regular audio data
+                    playAudio(appState.currentAudioData);
+                }
+            } catch (e) {
+                // If decoding/parsing fails, treat as regular audio
+                playAudio(appState.currentAudioData);
+            }
+        }
     }
 
     // Expose for testing/mocking if needed

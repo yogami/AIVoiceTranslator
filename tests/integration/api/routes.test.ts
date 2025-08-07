@@ -5,56 +5,72 @@
  * to a test instance of the Express app.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import request from 'supertest';
-import express, { Express } from 'express';
-import http from 'http';
-import { createApiRoutes, apiErrorHandler } from '../../../server/routes';
-import { DatabaseStorage } from '../../../server/database-storage';
-import { WebSocketServer } from '../../../server/services/WebSocketServer';
-import { UnifiedSessionCleanupService } from '../../../server/services/session/cleanup/UnifiedSessionCleanupService';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import supertest from 'supertest';
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
+import { AddressInfo } from 'net';
+
+import { createApiRoutes } from '../../../server/api/routes.js';
+import { WebSocketManager } from '../../../server/services/websocket/WebSocketManager.js';
+import { SessionCountCacheService } from '../../../server/services/session/SessionCountCacheService.js';
+import { DatabaseStorage } from '../../../server/storage/DatabaseStorage.js';
+import { UnifiedSessionCleanupService } from '../../../server/services/session/UnifiedSessionCleanupService.js';
+import { setupIsolatedTest } from '../../helpers/test-isolation.js';
 
 // Simple wrapper function to wait for promises
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe('API Routes', () => {
-  let app: Express;
-  let server: http.Server;
-  let webSocketServer: WebSocketServer;
+  let app: express.Application;
   let storage: DatabaseStorage;
-  let cleanupService: SessionCleanupService;
-  
+  let cleanupService: UnifiedSessionCleanupService;
+  let wsManager: WebSocketManager;
+  let httpServer: any;
+  let wsPort: number;
+  let cleanup: (() => Promise<void>) | undefined;
+
   beforeEach(async () => {
+    cleanup = await setupIsolatedTest();
+    
     // Create dependencies for the API routes
     storage = new DatabaseStorage();
-    cleanupService = new SessionCleanupService();
+    cleanupService = new UnifiedSessionCleanupService();
     
     // Create a test HTTP server for WebSocket
+    httpServer = createServer();
+    const wss = new WebSocketServer({ server: httpServer });
+    
+    // Listen on a random port
+    await new Promise<void>((resolve) => {
+      httpServer.listen(0, () => {
+        wsPort = (httpServer.address() as AddressInfo).port;
+        resolve();
+      });
+    });
+    
+    wsManager = new WebSocketManager(wss, storage, cleanupService);
+    
+    // Create Express app and add API routes
     app = express();
-    server = http.createServer(app);
-    webSocketServer = new WebSocketServer(server, storage);
-    
-    // Create API routes with dependencies
-    const apiRoutes = createApiRoutes(storage, webSocketServer, cleanupService);
-    
-    // Set up the Express app
     app.use(express.json());
-    app.use('/api', apiRoutes);
-    app.use('/api', apiErrorHandler);
+    
+    // Add API routes
+    createApiRoutes(app, storage, wsManager);
   });
-  
+
   afterEach(async () => {
-    // Clean up resources to prevent hanging
-    if (webSocketServer) {
-      webSocketServer.shutdown();
+    if (httpServer) {
+      httpServer.close();
     }
-    if (server) {
-      server.close();
+    if (cleanup) {
+      await cleanup();
     }
   });
   
   it('should handle health check endpoint', async () => {
-    const response = await request(app)
+    const response = await supertest(app)
       .get('/api/health')
       .expect('Content-Type', /json/)
       .expect(200);
@@ -63,7 +79,7 @@ describe('API Routes', () => {
   });
   
   it('should get all languages', async () => {
-    const response = await request(app)
+    const response = await supertest(app)
       .get('/api/languages')
       .expect('Content-Type', /json/)
       .expect(200);
@@ -81,7 +97,7 @@ describe('API Routes', () => {
   });
   
   it('should get active languages', async () => {
-    const response = await request(app)
+    const response = await supertest(app)
       .get('/api/languages/active')
       .expect('Content-Type', /json/)
       .expect(200);
@@ -97,7 +113,7 @@ describe('API Routes', () => {
   // Test getting user information from the API - simplified test
   it('should get a response from user endpoint', async () => {
     // Just verify the API endpoint responds
-    const response = await request(app)
+    const response = await supertest(app)
       .get('/api/user')
       .expect('Content-Type', /json/);
     

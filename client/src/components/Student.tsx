@@ -55,12 +55,74 @@ const Student: React.FC = () => {
 
   const playAudio = (base64Audio: string) => {
     try {
+      // Check if this is browser TTS instructions
+      try {
+        const decodedData = atob(base64Audio);
+        const parsedData = JSON.parse(decodedData);
+        
+        if (parsedData.type === 'browser-speech') {
+          // Use Web Speech API for browser TTS
+          console.log('[Browser TTS] Using Web Speech API for:', parsedData.text);
+          speakWithBrowserTTS(parsedData.text, parsedData.languageCode, true);
+          return;
+        }
+      } catch (e) {
+        // If decoding/parsing fails, treat as regular audio
+      }
+      
+      // Regular audio data - play as MP3
       const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
       audio.play().catch(err => {
         console.error('Error playing audio:', err);
       });
     } catch (err) {
       console.error('Error creating audio:', err);
+    }
+  };
+
+  const speakWithBrowserTTS = (text: string, languageCode: string, autoPlay: boolean = true) => {
+    try {
+      // Check if speech synthesis is available
+      if (!('speechSynthesis' in window)) {
+        console.warn('Speech Synthesis API not supported in this browser');
+        return;
+      }
+
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+
+      // Create speech utterance
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = languageCode;
+
+      // Set voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const matchingVoice = voices.find(voice => voice.lang === languageCode);
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+      }
+
+      // Event handlers
+      utterance.onstart = () => {
+        console.log('[Browser TTS] Speech started');
+      };
+      
+      utterance.onend = () => {
+        console.log('[Browser TTS] Speech ended');
+      };
+      
+      utterance.onerror = (e) => {
+        console.error('[Browser TTS] Speech error:', e);
+      };
+
+      // Speak the text
+      if (autoPlay) {
+        window.speechSynthesis.speak(utterance);
+        console.log(`[Browser TTS] Speaking: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}" in ${languageCode}`);
+      }
+
+    } catch (error) {
+      console.error('Error with browser TTS:', error);
     }
   };
 
