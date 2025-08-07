@@ -5,8 +5,8 @@
  * This allows for clean separation of concerns and easy extensibility.
  */
 
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 import { WebSocketClient } from './ConnectionManager';
 import type {
   WebSocketMessageToServer,

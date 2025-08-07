@@ -97,7 +97,7 @@ export class ElevenLabsTTSService implements ITTSService {
       if (!response.ok) {
         const errorText = await response.text();
         log('API error', response.status, errorText);
-        return { audioBuffer: Buffer.alloc(0), error: `TextToSpeechError: ElevenLabs API error: ${response.status} - ${errorText}`, ttsServiceType };
+        throw new Error(`ElevenLabs API error: ${response.status} - ${errorText}`);
       }
 
       const audioBuffer = Buffer.from(await response.arrayBuffer());

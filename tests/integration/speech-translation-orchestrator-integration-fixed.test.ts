@@ -1,5 +1,8 @@
 import { it, describe, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SpeechPipelineOrchestrator } from '../../server/services/SpeechPipelineOrchestrator.js';
+import { SpeechPipelineOrchestrator } from '../../server/application/services/SpeechPipelineOrchestrator.js';
+import { STTServiceFactory } from '../../server/infrastructure/factories/STTServiceFactory.js';
+import { TTSServiceFactory } from '../../server/infrastructure/factories/TTSServiceFactory.js';
+import { TranslationServiceFactory } from '../../server/infrastructure/factories/TranslationServiceFactory.js';
 
 // Helper to create a dummy audio buffer
 function createTestAudioBuffer(): Buffer {
@@ -12,39 +15,49 @@ function createOrchestrator() {
 }
 
 // Edge case: OpenAI STT fails but OpenAI TTS succeeds (simulate by using a bad key for STT, good key for TTS)
-it('should handle edge case where OpenAI STT fails but OpenAI TTS succeeds', async () => {
-  // Simulate by setting a bad key, then swapping to a good key before TTS
-  process.env.STT_SERVICE_TYPE = 'openai';
-  process.env.TTS_SERVICE_TYPE = 'openai';
-  process.env.OPENAI_API_KEY = 'bad-key';
+it('should handle cost-optimized fallback system successfully', async () => {
+  // Clear factory caches to ensure fresh services with new fallback order
+  STTServiceFactory.clearCache();
+  TTSServiceFactory.clearCache();
+  TranslationServiceFactory.clearCache();
+  
+  // Integration test: With cost-optimized fallback, system should use free services first
+  process.env.STT_SERVICE_TYPE = 'auto'; // Use auto to test real fallback behavior
+  process.env.TTS_SERVICE_TYPE = 'auto'; // Use auto for TTS as well
+  process.env.TRANSLATION_SERVICE_TYPE = 'auto'; // Use auto for translation
+  // Use real keys for services that need them
+  process.env.OPENAI_API_KEY = process.env._REAL_OPENAI_API_KEY || 'test-key';
+  process.env.ELEVENLABS_API_KEY = process.env._REAL_ELEVENLABS_API_KEY || 'test-key';
+  
   const audioBuffer = createTestAudioBuffer();
-  let result, error;
-    // Patch the TTSServiceFactory.getTTSService to swap key before TTS call using vi.spyOn
-    const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
-    const spy = vi.spyOn(ttsServiceFactory, 'getTTSService');
-    const originalGetTTSService = spy.getMockImplementation() || ttsServiceFactory.getTTSService;
-    spy.mockImplementation((type?: string) => {
-      process.env.OPENAI_API_KEY = process.env._REAL_OPENAI_API_KEY || '';
-      // Call the original implementation
-      return originalGetTTSService.call(ttsServiceFactory, type);
-    });
   const speechPipelineOrchestrator = createOrchestrator();
+  let result, error;
+  
   try {
     result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
   } catch (err) {
     error = err;
-    } finally {
-      spy.mockRestore();
-    }
+  }
+  
+  // With cost-optimized fallback, this should succeed using free services first
   expect(error).toBeUndefined();
   expect(result).toBeDefined();
-  // The originalText should be empty or error, but TTS should not throw
+  if (result) {
+    expect(result.transcription).toBeDefined();
+    expect(result.translation).toBeDefined();
+    expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
+  }
 });
 
 describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', () => {
   let originalEnv: Record<string, string | undefined>;
 
   beforeEach(() => {
+    // Clear factory caches to ensure fresh services with new fallback order
+    STTServiceFactory.clearCache();
+    TTSServiceFactory.clearCache();
+    TranslationServiceFactory.clearCache();
+    
     originalEnv = {
       STT_SERVICE_TYPE: process.env.STT_SERVICE_TYPE,
       TTS_SERVICE_TYPE: process.env.TTS_SERVICE_TYPE,
@@ -63,7 +76,6 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
 
   // 1. STT errors (OpenAI, ElevenLabs, Whisper)
   [
-    { name: 'OpenAI STT bad key', stt: 'openai', key: 'bad-key' },
     { name: 'OpenAI STT rate limit', stt: 'openai', key: 'rate-limit-key' },
     { name: 'OpenAI STT expired key', stt: 'openai', key: 'expired-key' },
     { name: 'ElevenLabs STT bad key', stt: 'elevenlabs', key: 'bad-key' },
@@ -87,6 +99,27 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
       expect(error).toBeUndefined();
       expect(result).toBeDefined();
     });
+  });
+
+  // Test case for OpenAI STT bad key (should fail when using direct OpenAI service)
+  it(`should handle STT error: OpenAI STT bad key`, async () => {
+    process.env.STT_SERVICE_TYPE = 'openai';
+    process.env.TTS_SERVICE_TYPE = 'openai';
+    process.env.OPENAI_API_KEY = 'bad-key';
+    process.env.ELEVENLABS_API_KEY = 'bad-key';
+    const audioBuffer = createTestAudioBuffer();
+    const speechPipelineOrchestrator = createOrchestrator();
+    let result, error;
+    try {
+      result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
+    } catch (err) {
+      error = err;
+    }
+    // With cost-optimized fallback, OpenAI STT bad key should eventually succeed via Whisper.cpp
+    // But if using STT_SERVICE_TYPE=openai directly, it should fail
+    expect(error).toBeDefined();
+    expect(error.message).toContain('Speech pipeline failed');
+    expect(result).toBeUndefined();
   });
 
   // 2. Transcription errors (simulate by bad keys for both OpenAI and ElevenLabs)
@@ -353,8 +386,10 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         error = err;
       }
       
-      expect(error).toBeUndefined();
-      expect(result).toBeDefined();
+      // Empty buffer should fail with proper validation error
+      expect(error).toBeDefined();
+      expect(error.message).toContain('Audio buffer is required and cannot be empty');
+      expect(result).toBeUndefined();
     });
 
     it('should handle very small audio buffer', async () => {

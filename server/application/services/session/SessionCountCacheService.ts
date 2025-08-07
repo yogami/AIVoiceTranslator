@@ -4,8 +4,8 @@
  * Manages caching of active session count from database for accurate diagnostics.
  * Provides real-time cache invalidation when session state changes.
  */
-import logger from '../../logger';
-import { IStorage } from '../../storage.interface';
+import logger from '../../../logger';
+import { IStorage } from '../../../storage.interface';
 
 export class SessionCountCacheService {
   private storage: IStorage;

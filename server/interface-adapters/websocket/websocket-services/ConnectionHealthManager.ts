@@ -4,8 +4,8 @@
  * Manages WebSocket connection health monitoring, heartbeat, and dead connection detection.
  * Handles the health aspect of WebSocket connections.
  */
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 import { WebSocketClient } from './ConnectionManager';
 import { WebSocketServer as WSServer } from 'ws';
 

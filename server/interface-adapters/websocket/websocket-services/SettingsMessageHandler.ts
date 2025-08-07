@@ -5,7 +5,7 @@
  * Manages TTS service preferences and other client-specific configurations.
  */
 
-import logger from '../../logger';
+import logger from '../../../logger';
 import { WebSocketClient } from './ConnectionManager';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type {

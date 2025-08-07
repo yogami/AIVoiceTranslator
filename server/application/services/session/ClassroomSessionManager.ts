@@ -4,8 +4,8 @@
  * Manages classroom codes, session validation, and cleanup.
  * Handles the generation and lifecycle of classroom sessions.
  */
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 
 export interface ClassroomSession {
   code: string;

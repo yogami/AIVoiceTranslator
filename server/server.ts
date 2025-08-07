@@ -15,7 +15,7 @@ import { createApiRoutes, apiErrorHandler } from './routes'; // Revert to origin
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
 // import { createTranslationService } from './services/communication'; // Removed problematic import
-import { UnifiedSessionCleanupService } from './services/session/cleanup/UnifiedSessionCleanupService';
+import { UnifiedSessionCleanupService } from './application/services/session/cleanup/UnifiedSessionCleanupService';
 import fs from 'fs'; // Added fs import
 // Ensure setupVite and serveStatic are imported from your vite.ts
 import { setupVite, serveStatic } from './vite';

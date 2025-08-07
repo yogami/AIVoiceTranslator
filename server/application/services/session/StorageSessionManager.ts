@@ -4,9 +4,9 @@
  * Manages database session operations - creation, updates, and cleanup.
  * Handles the persistence aspect of WebSocket sessions.
  */
-import logger from '../../logger';
-import { IStorage } from '../../storage.interface';
-import { type InsertSession } from '../../../shared/schema';
+import logger from '../../../logger';
+import { IStorage } from '../../../storage.interface';
+import { type InsertSession } from '../../../../shared/schema';
 
 export class StorageSessionManager {
   private storage: IStorage;

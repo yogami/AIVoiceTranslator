@@ -1,6 +1,6 @@
 import { IMessageHandler, MessageHandlerContext } from '../websocket/MessageHandler';
 import type { TTSRequestMessageToServer, TTSResponseMessageToClient } from '../WebSocketTypes';
-import logger from '../../logger';
+import logger from '../../../logger';
 
 export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessageToServer> {
   getMessageType(): string {

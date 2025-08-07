@@ -111,26 +111,43 @@ export class TranslationServiceFactory implements ITranslationServiceFactory {
     let primaryService: ITranslationService;
     let fallbackService: ITranslationService;
 
+    // REORDERED: FREE SERVICES FIRST
+    // Primary: MyMemory (FREE)
+    try {
+      primaryService = new MyMemoryTranslationService();
+      console.log('[TranslationFactory] Tier 1 (FREE) available: MyMemory');
+    } catch (error) {
+      console.warn('[TranslationFactory] Free MyMemory service unavailable:', error instanceof Error ? error.message : error);
+      // Fallback to DeepSeek if MyMemory fails
+      try {
+        primaryService = new DeepSeekTranslationService();
+        console.log('[TranslationFactory] Tier 1 fallback (FREE) available: DeepSeek');
+      } catch (deepseekError) {
+        console.warn('[TranslationFactory] DeepSeek fallback unavailable:', deepseekError instanceof Error ? deepseekError.message : deepseekError);
+        // Last resort: Use OpenAI if available
+        if (hasOpenAI) {
+          const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+          primaryService = new OpenAITranslationService(openai);
+          console.log('[TranslationFactory] Emergency primary (PAID): OpenAI');
+        } else {
+          throw new Error('No translation services available');
+        }
+      }
+    }
+
+    // Fallback: OpenAI (PAID)
     try {
       if (hasOpenAI) {
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-        primaryService = new OpenAITranslationService(openai);
-        console.log('[TranslationFactory] Tier 1 (Premium) available: OpenAI');
+        fallbackService = new OpenAITranslationService(openai);
+        console.log('[TranslationFactory] Tier 2 (PAID) available: OpenAI');
       } else {
-        primaryService = new DeepSeekTranslationService();
-        console.log('[TranslationFactory] Tier 2 (High-Quality Free) as primary: DeepSeek');
+        fallbackService = new DeepSeekTranslationService();
+        console.log('[TranslationFactory] Tier 2 (FREE) available: DeepSeek');
       }
     } catch (error) {
-      console.warn('[TranslationFactory] Primary service unavailable, using DeepSeek:', error instanceof Error ? error.message : error);
-      primaryService = new DeepSeekTranslationService();
-    }
-
-    try {
-      fallbackService = new MyMemoryTranslationService();
-      console.log('[TranslationFactory] Tier 3 (Basic Free) as fallback: MyMemory');
-    } catch (error) {
       console.warn('[TranslationFactory] Fallback service unavailable:', error instanceof Error ? error.message : error);
-      fallbackService = new MyMemoryTranslationService();
+      fallbackService = new DeepSeekTranslationService();
     }
 
     // Create 2-tier fallback with existing constructor

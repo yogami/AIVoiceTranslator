@@ -234,7 +234,7 @@ export class OpenAITTSService implements ITTSService {
   ): Promise<TTSResult> {
     const ttsServiceType = 'openai';
     if (!this.isInitialized) {
-      return { audioBuffer: Buffer.alloc(0), error: 'OpenAI TTS service not initialized', ttsServiceType };
+      throw new Error('OpenAI TTS service not initialized');
     }
     if (!text || text.trim().length === 0) {
       return { audioBuffer: Buffer.alloc(0), error: 'Text cannot be empty', ttsServiceType };
@@ -257,7 +257,7 @@ export class OpenAITTSService implements ITTSService {
         await this.cacheAudio(cacheKey, audioBuffer);
         return { audioBuffer, audioUrl: undefined, ttsServiceType };
       } else {
-        return { audioBuffer: Buffer.alloc(0), error: { name: 'OpenAITTSNoAudioError', message: 'OpenAI TTS returned no audio data' }, ttsServiceType };
+        throw new Error('OpenAI TTS returned no audio data');
       }
     } catch (error) {
       console.error('[OpenAI TTS] Synthesis failed:', error);
@@ -267,7 +267,7 @@ export class OpenAITTSService implements ITTSService {
       } else {
         errObj = { name: 'OpenAITTSServiceError', message: String(error) };
       }
-      return { audioBuffer: Buffer.alloc(0), error: errObj, ttsServiceType };
+      throw error;
     }
   }
 

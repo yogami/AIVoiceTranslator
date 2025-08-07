@@ -1,5 +1,5 @@
-import logger from '../../../logger';
-import { IStorage } from '../../../storage.interface';
+import logger from '../../../../logger';
+import { IStorage } from '../../../../storage.interface';
 import { ISessionClassifier, SessionQuality, ClassificationResult } from './ISessionClassifier';
 
 /**

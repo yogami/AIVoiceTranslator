@@ -34,6 +34,10 @@ export interface TranslationMessage extends WebSocketMessage {
   text?: string;
   translatedText?: string;
   audioData?: string;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  timestamp?: number;
+  audioFormat?: string;
 }
 
 export interface ClassroomCodeMessage extends WebSocketMessage {

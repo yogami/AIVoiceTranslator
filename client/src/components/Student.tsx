@@ -27,8 +27,8 @@ const Student: React.FC = () => {
         setTranslations(prev => [...prev, data.text]);
         
         // Play audio if provided
-        if (data.audio) {
-          playAudio(data.audio);
+        if (data.audioData) {
+          playAudio(data.audioData);
         }
       } else if (data.type === 'error') {
         setError(data.message);

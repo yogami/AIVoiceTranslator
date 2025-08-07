@@ -7,8 +7,8 @@
 import { Router } from 'express';
 import { DatabaseStorage } from '../database-storage';
 import { IStorage } from '../storage.interface';
-import { IActiveSessionProvider } from '../services/session/IActiveSessionProvider';
-import { UnifiedSessionCleanupService } from '../services/session/cleanup/UnifiedSessionCleanupService';
+import { IActiveSessionProvider } from '../application/services/session/IActiveSessionProvider';
+import { UnifiedSessionCleanupService } from '../application/services/session/cleanup/UnifiedSessionCleanupService';
 // Business logic services
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { AnalyticsService } from '../services/AnalyticsService';

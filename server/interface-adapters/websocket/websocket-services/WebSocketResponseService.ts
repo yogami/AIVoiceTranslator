@@ -5,7 +5,7 @@
  * Centralizes response construction to ensure consistency.
  */
 
-import logger from '../../logger';
+import logger from '../../../logger';
 import { WebSocketClient } from './ConnectionManager';
 import type {
   ErrorMessageToClient,

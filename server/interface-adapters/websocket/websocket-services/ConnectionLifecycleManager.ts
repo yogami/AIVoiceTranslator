@@ -4,8 +4,8 @@
  * Manages WebSocket connection setup, teardown, and lifecycle events.
  * Handles the initialization and cleanup of WebSocket connections.
  */
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 import { URL } from 'url';
 import { randomUUID, randomBytes } from 'crypto';
 import { WebSocketClient } from './ConnectionManager';

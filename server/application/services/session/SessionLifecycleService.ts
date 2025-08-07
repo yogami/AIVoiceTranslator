@@ -9,9 +9,9 @@
 
       logger.info('Cleaned up dead sessions', result);nd quality assessment
  */
-import logger from '../../logger';
-import { IStorage } from '../../storage.interface';
-import type { Session, InsertSession } from '../../../shared/schema';
+import logger from '../../../logger';
+import { IStorage } from '../../../storage.interface';
+import type { Session, InsertSession } from '../../../../shared/schema';
 
 export interface SessionQuality {
   isReal: boolean;

@@ -6,7 +6,7 @@
  * main WebSocketServer orchestrator.
  */
 
-import logger from '../../logger';
+import logger from '../../../logger';
 import { WebSocketClient } from './ConnectionManager';
 import { ClassroomSessionManager } from '../session/ClassroomSessionManager';
 import { WebSocketResponseService, type ValidationError } from './WebSocketResponseService';

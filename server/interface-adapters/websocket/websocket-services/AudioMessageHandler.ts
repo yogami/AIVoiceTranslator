@@ -1,7 +1,7 @@
 import { IMessageHandler, MessageHandlerContext } from '../websocket/MessageHandler';
 import type { AudioMessageToServer } from '../WebSocketTypes';
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 
 export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer> {
   getMessageType(): string {

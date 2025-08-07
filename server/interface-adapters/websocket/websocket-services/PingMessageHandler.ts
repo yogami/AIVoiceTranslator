@@ -5,8 +5,8 @@
  * Marks connections as alive and sends pong responses.
  */
 
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 import { WebSocketClient } from './ConnectionManager';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type {

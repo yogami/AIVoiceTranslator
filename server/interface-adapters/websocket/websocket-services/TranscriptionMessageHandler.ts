@@ -13,8 +13,8 @@
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { TranscriptionMessageToServer } from '../WebSocketTypes';
 import type { WebSocketClient } from './ConnectionManager';
-import { TranscriptionBusinessService, type ClientSettingsProvider } from '../transcription/TranscriptionBusinessService';
-import logger from '../../logger';
+import { TranscriptionBusinessService, type ClientSettingsProvider } from '../../../services/transcription/TranscriptionBusinessService';
+import logger from '../../../logger';
 
 export class TranscriptionMessageHandler implements IMessageHandler<TranscriptionMessageToServer> {
   getMessageType(): string {

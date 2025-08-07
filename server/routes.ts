@@ -86,8 +86,8 @@ import { sessions } from '../shared/schema';
 import { db } from './db';
 import OpenAI from 'openai';
 import { IStorage } from './storage.interface';
-import { IActiveSessionProvider } from './services/session/IActiveSessionProvider';
-import { UnifiedSessionCleanupService } from './services/session/cleanup/UnifiedSessionCleanupService';
+import { IActiveSessionProvider } from './application/services/session/IActiveSessionProvider';
+import { UnifiedSessionCleanupService } from './application/services/session/cleanup/UnifiedSessionCleanupService';
 import authRoutes from './routes/auth';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { 

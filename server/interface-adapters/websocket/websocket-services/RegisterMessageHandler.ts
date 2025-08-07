@@ -5,8 +5,8 @@
  * Manages role assignment, language settings, classroom code generation, and student notifications.
  */
 
-import logger from '../../logger';
-import { config } from '../../config';
+import logger from '../../../logger';
+import { config } from '../../../config';
 import { WebSocketClient } from './ConnectionManager';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type {

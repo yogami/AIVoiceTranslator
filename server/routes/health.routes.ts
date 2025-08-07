@@ -6,7 +6,7 @@
 
 import { Router, Request, Response } from 'express';
 import { IStorage } from '../storage.interface';
-import { IActiveSessionProvider } from '../services/session/IActiveSessionProvider';
+import { IActiveSessionProvider } from '../application/services/session/IActiveSessionProvider';
 import { asyncHandler } from '../middleware/error-handler.middleware';
 
 // Constants
