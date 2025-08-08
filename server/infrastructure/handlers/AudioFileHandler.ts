@@ -42,6 +42,7 @@ interface CreateTempFileOptions {
   prefix?: string;
   extension?: string;
   preserveTimestamp?: boolean;
+  mimeTypeHint?: string; // e.g., 'audio/webm', 'audio/ogg', 'audio/wav'
 }
 
 /**
@@ -104,7 +105,15 @@ export class AudioFileHandler {
    */
   private generateFilename(options: CreateTempFileOptions = {}): string {
     const prefix = options.prefix || AUDIO_FILE_PREFIX;
-    const extension = options.extension || AUDIO_FILE_EXTENSION;
+    let extension = options.extension || AUDIO_FILE_EXTENSION;
+    // Pick extension based on mimeTypeHint if provided
+    if (!options.extension && options.mimeTypeHint) {
+      const mt = options.mimeTypeHint.toLowerCase();
+      if (mt.includes('webm')) extension = '.webm';
+      else if (mt.includes('ogg')) extension = '.ogg';
+      else if (mt.includes('wav') || mt.includes('pcm')) extension = '.wav';
+      else if (mt.includes('mp3') || mt.includes('mpeg')) extension = '.mp3';
+    }
     const timestamp = options.preserveTimestamp ? Date.now() : Date.now() + Math.random();
     
     return `${prefix}${timestamp}${extension}`;

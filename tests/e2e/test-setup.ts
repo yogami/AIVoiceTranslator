@@ -8,9 +8,9 @@ import { execSync } from 'child_process';
 import { createServer } from 'http';
 import express from 'express';
 import { createApiRoutes } from '../../server/routes';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { WebSocketServer } from '../../server/interface-adapters/websocket/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
-import { SessionCleanupService } from '../../server/services/session/SessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../server/application/services/session/cleanup/UnifiedSessionCleanupService';
 
 /**
  * Start a test server for E2E tests
@@ -31,7 +31,7 @@ export async function startTestServer(port = 5001) {
   const wsService = new WebSocketServer(server, storage);
   
   // Set up session cleanup service for testing
-  const cleanupService = new SessionCleanupService();
+  const cleanupService = new UnifiedSessionCleanupService(storage, new Map());
   
   // Set up API routes  
   app.use('/api', createApiRoutes(storage, wsService, cleanupService));

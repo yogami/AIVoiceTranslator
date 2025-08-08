@@ -283,11 +283,19 @@ export class SpeechPipelineOrchestrator {
    * Factory method to create orchestrator with default configuration
    */
   static createWithDefaultServices(): SpeechPipelineOrchestrator {
+    const sttTier = process.env.STT_SERVICE_TYPE || 'auto';
+    const translationTier = process.env.TRANSLATION_SERVICE_TYPE || 'auto';
+    const ttsTier = process.env.TTS_SERVICE_TYPE || 'auto';
+    
     console.log('[SpeechPipelineOrchestrator] Creating with default 4-tier services');
+    console.log(`[SpeechPipelineOrchestrator] STT_SERVICE_TYPE: "${process.env.STT_SERVICE_TYPE}" -> using: "${sttTier}"`);
+    console.log(`[SpeechPipelineOrchestrator] TRANSLATION_SERVICE_TYPE: "${process.env.TRANSLATION_SERVICE_TYPE}" -> using: "${translationTier}"`);
+    console.log(`[SpeechPipelineOrchestrator] TTS_SERVICE_TYPE: "${process.env.TTS_SERVICE_TYPE}" -> using: "${ttsTier}"`);
+    
     return new SpeechPipelineOrchestrator({
-      sttTier: 'auto',
-      translationTier: 'auto',
-      ttsTier: 'auto',
+      sttTier,
+      translationTier,
+      ttsTier,
       enableVoiceIsolation: true,
       enableQualityOptimization: true
     });

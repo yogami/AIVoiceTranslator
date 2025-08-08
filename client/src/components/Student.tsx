@@ -28,7 +28,7 @@ const Student: React.FC = () => {
         
         // Play audio if provided
         if (data.audioData) {
-          playAudio(data.audioData);
+          playAudio(data.audioData, (data as any).ttsServiceType, (data as any).audioFormat);
         }
       } else if (data.type === 'error') {
         setError(data.message);
@@ -53,7 +53,7 @@ const Student: React.FC = () => {
     });
   };
 
-  const playAudio = (base64Audio: string) => {
+  const playAudio = (base64Audio: string, ttsServiceType?: string, audioFormat?: string) => {
     try {
       // Check if this is browser TTS instructions
       try {
@@ -70,11 +70,38 @@ const Student: React.FC = () => {
         // If decoding/parsing fails, treat as regular audio
       }
       
-      // Regular audio data - play as MP3
-      const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
-      audio.play().catch(err => {
-        console.error('Error playing audio:', err);
-      });
+      // Determine appropriate MIME type
+      let mime: string = 'audio/mpeg';
+      if (audioFormat) {
+        if (audioFormat.toLowerCase() === 'wav') mime = 'audio/wav';
+        else if (audioFormat.toLowerCase() === 'mp3' || audioFormat.toLowerCase() === 'mpeg') mime = 'audio/mpeg';
+        else mime = `audio/${audioFormat}`;
+      } else if (ttsServiceType === 'local') {
+        // Local TTS produces WAV via eSpeak-NG
+        mime = 'audio/wav';
+      } else {
+        // Heuristic: detect RIFF header for WAV
+        try {
+          const header = atob(base64Audio.slice(0, 8));
+          if (header.startsWith('RIFF')) mime = 'audio/wav';
+        } catch {}
+      }
+
+      const tryPlay = async (preferredMime: string) => {
+        const el = new Audio(`data:${preferredMime};base64,${base64Audio}`);
+        try {
+          await el.play();
+        } catch (err) {
+          console.error('Error playing audio with', preferredMime, err);
+          // Fallback between MP3 and WAV
+          if (preferredMime !== 'audio/wav') {
+            const fallback = new Audio(`data:audio/wav;base64,${base64Audio}`);
+            fallback.play().catch(e => console.error('Fallback WAV play failed:', e));
+          }
+        }
+      };
+
+      tryPlay(mime);
     } catch (err) {
       console.error('Error creating audio:', err);
     }

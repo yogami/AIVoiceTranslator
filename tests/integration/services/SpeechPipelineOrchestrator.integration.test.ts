@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SpeechPipelineOrchestrator, ITTSService, SpeechPipelineOptions } from '../../../server/services/SpeechPipelineOrchestrator';
+import { SpeechPipelineOrchestrator, ITTSService, SpeechPipelineOptions } from '../../../server/application/services/SpeechPipelineOrchestrator';
 import { ISTTTranscriptionService, ITranslationService } from '../../../server/services/translation/translation.interfaces';
 
 // Mocks for dependencies

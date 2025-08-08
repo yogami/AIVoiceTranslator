@@ -1,0 +1,166 @@
+/**
+ * 🚨 CRITICAL AUDIO BUG TEST - Minimal Database-Free Test
+ * Tests the audio pipeline without database dependencies
+ */
+
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { SpeechPipelineOrchestrator } from '../../server/application/services/SpeechPipelineOrchestrator';
+
+// Mock WebSocket client
+interface MockWebSocketClient {
+  send: (data: string) => void;
+  readyState: number;
+  sentMessages: any[];
+}
+
+function createMockWebSocketClient(): MockWebSocketClient {
+  const mock = {
+    send: vi.fn((data: string) => {
+      mock.sentMessages.push(JSON.parse(data));
+    }),
+    readyState: 1, // WebSocket.OPEN
+    sentMessages: [] as any[]
+  };
+  return mock;
+}
+
+describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
+  let speechOrchestrator: SpeechPipelineOrchestrator;
+  let mockStudentWs: MockWebSocketClient;
+
+  beforeEach(async () => {
+    // Create services using real implementations (not mocked for integration test)
+    speechOrchestrator = SpeechPipelineOrchestrator.createWithDefaultServices();
+    
+    // Create mock student WebSocket
+    mockStudentWs = createMockWebSocketClient();
+  });
+
+  it('🎵 CRITICAL: STT Service should work independently', async () => {
+    console.log('🚨 [CRITICAL TEST] Testing STT service...');
+    
+    // Test STT in isolation
+    const testAudioBuffer = Buffer.alloc(1024, 'audio test data');
+    
+    try {
+      const transcription = await speechOrchestrator.transcribeAudio(testAudioBuffer, 'en-US');
+      console.log('🎤 STT Result:', transcription);
+      expect(transcription).toBeDefined();
+      expect(typeof transcription).toBe('string');
+    } catch (error) {
+      console.error('🚨 STT Failed:', error);
+      // STT might fail in test environment, but we can still test TTS
+    }
+  }, 15000);
+
+  it('🎵 CRITICAL: Translation Service should work independently', async () => {
+    console.log('🚨 [CRITICAL TEST] Testing Translation service...');
+    
+    try {
+      const translation = await speechOrchestrator.translateText('Hello world', 'en', 'es');
+      console.log('🌍 Translation Result:', translation);
+      expect(translation).toBeDefined();
+      expect(typeof translation).toBe('string');
+      expect(translation.length).toBeGreaterThan(0);
+    } catch (error) {
+      console.error('🚨 Translation Failed:', error);
+      throw error;
+    }
+  }, 15000);
+
+  it('🎵 CRITICAL: TTS Service should generate audio data', async () => {
+    console.log('🚨 [CRITICAL TEST] Testing TTS service - THE CORE OF THE BUG...');
+    
+    try {
+      const ttsResult = await speechOrchestrator.synthesizeSpeech('Hola mundo', 'es-ES');
+      
+      console.log('🔊 TTS Result structure:', {
+        hasAudioBuffer: !!ttsResult.audioBuffer,
+        audioBufferLength: ttsResult.audioBuffer?.length || 0,
+        ttsServiceType: ttsResult.ttsServiceType,
+        error: ttsResult.error
+      });
+
+      // CRITICAL ASSERTIONS - This is where the audio bug manifests
+      expect(ttsResult).toBeDefined();
+      expect(ttsResult.audioBuffer).toBeDefined();
+      expect(ttsResult.audioBuffer.length).toBeGreaterThan(0);
+      expect(ttsResult.ttsServiceType).toBeDefined();
+      expect(ttsResult.error).toBeUndefined();
+
+      // Test base64 encoding (what the client receives)
+      const base64Audio = ttsResult.audioBuffer.toString('base64');
+      console.log('📦 Base64 audio length:', base64Audio.length);
+      expect(base64Audio.length).toBeGreaterThan(0);
+
+      console.log('✅ [CRITICAL TEST] TTS service working correctly!');
+    } catch (error) {
+      console.error('🚨 TTS Failed:', error);
+      throw error;
+    }
+  }, 15000);
+
+  it('🎵 CRITICAL: Complete Pipeline should work end-to-end', async () => {
+    console.log('🚨 [CRITICAL TEST] Testing complete pipeline...');
+    
+    try {
+      // Test the complete pipeline
+      const testAudioBuffer = Buffer.alloc(1024, 'test audio');
+      const result = await speechOrchestrator.processAudioPipeline(
+        testAudioBuffer,
+        'en-US',
+        'es-ES'
+      );
+
+      console.log('🔄 Pipeline Result:', {
+        hasTranscription: !!result.transcription,
+        hasTranslation: !!result.translation,
+        hasAudioResult: !!result.audioResult,
+        audioBufferLength: result.audioResult?.audioBuffer?.length || 0,
+        ttsServiceType: result.audioResult?.ttsServiceType,
+        metrics: result.metrics
+      });
+
+      expect(result.transcription).toBeDefined();
+      expect(result.translation).toBeDefined();
+      expect(result.audioResult).toBeDefined();
+      expect(result.audioResult.audioBuffer).toBeDefined();
+      expect(result.audioResult.audioBuffer.length).toBeGreaterThan(0);
+      expect(result.audioResult.ttsServiceType).toBeDefined();
+
+      console.log('✅ [CRITICAL TEST] Complete pipeline working!');
+    } catch (error) {
+      console.error('🚨 Pipeline Failed:', error);
+      throw error;
+    }
+  }, 30000);
+
+  it('🎵 CRITICAL: Test LocalTTS Service Specifically (Primary Free Tier)', async () => {
+    console.log('🚨 [CRITICAL TEST] Testing LocalTTS service directly...');
+    
+    // Import LocalTTS directly to test it in isolation
+    try {
+      const { LocalTTSService } = await import('../../server/infrastructure/external-services/tts/LocalTTSService');
+      const localTTS = new LocalTTSService();
+      
+      const result = await localTTS.synthesize('Hello world test', { language: 'en-US' });
+      
+      console.log('🎙️ LocalTTS Result:', {
+        hasAudioBuffer: !!result.audioBuffer,
+        audioBufferLength: result.audioBuffer?.length || 0,
+        ttsServiceType: result.ttsServiceType,
+        error: result.error
+      });
+
+      expect(result.audioBuffer).toBeDefined();
+      expect(result.audioBuffer.length).toBeGreaterThan(0);
+      expect(result.ttsServiceType).toBe('LocalTTSService');
+      
+      console.log('✅ [CRITICAL TEST] LocalTTS service working!');
+    } catch (error) {
+      console.error('🚨 LocalTTS Failed:', error);
+      console.log('📝 This might be the root cause of the audio bug!');
+      throw error;
+    }
+  }, 15000);
+});

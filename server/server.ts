@@ -15,7 +15,7 @@ import { createApiRoutes, apiErrorHandler } from './routes'; // Revert to origin
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
 // import { createTranslationService } from './services/communication'; // Removed problematic import
-import { UnifiedSessionCleanupService } from './application/services/session/cleanup/UnifiedSessionCleanupService';
+// Cleanup service is managed inside WebSocketServer; avoid duplicate initialization here
 import fs from 'fs'; // Added fs import
 // Ensure setupVite and serveStatic are imported from your vite.ts
 import { setupVite, serveStatic } from './vite';
@@ -105,26 +105,8 @@ export async function startServer(app: express.Express): Promise<Server> {
   const wsServer = new WebSocketServer(httpServer, storage);
   logger.info('[INIT] WebSocket server started.');
   
-  // Initialize unified session cleanup service with SOLID architecture
-  const classroomSessionsMap = new Map(); // Empty for standalone server
-  const cleanupService = new UnifiedSessionCleanupService(storage, classroomSessionsMap);
-  cleanupService.start();
-  logger.info('[INIT] Session cleanup service started.');
-  
-  // Gracefully shutdown cleanup service when server shuts down
-  process.on('SIGTERM', () => {
-    logger.info('SIGTERM received, shutting down gracefully...');
-    cleanupService.stop();
-    // translationService.stop(); // Remove this since we're not using it
-  });
-  
-  process.on('SIGINT', () => {
-    logger.info('SIGINT received, shutting down gracefully...');
-    cleanupService.stop();
-    // translationService.stop(); // Remove this since we're not using it
-  });
-
-  const apiRoutes = createApiRoutes(storage, wsServer, cleanupService);
+  // Pass the cleanup service managed by WebSocketServer into routes if needed
+  const apiRoutes = createApiRoutes(storage, wsServer, wsServer.getSessionCleanupService?.());
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 

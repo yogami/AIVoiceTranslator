@@ -59,6 +59,10 @@ export class WhisperCppSTTTranscriptionService implements ISTTTranscriptionServi
       return this.whisperInstance;
     } catch (error) {
       console.error('[WhisperCpp] Failed to load whisper-node:', error);
+      // Provide helpful hint if binary cannot be executed
+      if (error instanceof Error && /main: No such file|ENOENT|not found/i.test(error.message)) {
+        console.error('[WhisperCpp] Whisper binary not runnable in this environment. Falling back will be required.');
+      }
       // Ensure working directory is restored even on error
       if (process.cwd() !== originalCwd) {
         process.chdir(originalCwd);

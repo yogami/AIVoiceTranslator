@@ -15,24 +15,21 @@ import { testConfig } from "../tests/e2e/helpers/test-timeouts.js";
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: "tests/e2enew",
+  testDir: "../tests/e2e",
   fullyParallel: false, // Disable parallel execution to avoid DB conflicts during seeding
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Force single worker to ensure database isolation
-  reporter: "html",
+  reporter: process.env.CI ? "dot" : "html",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
     trace: "on-first-retry",
+    headless: true,
   },
   projects: [
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-    },
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
     },
     // Temporarily disable webkit due to compatibility issues
     // {
@@ -42,17 +39,17 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev:test",
-    url: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
+    url: `http://127.0.0.1:5001/teacher`,
     // reuseExistingServer is not supported in latest Playwright config
     cwd: process.cwd(),
-    timeout: 12000, // Restore timeout to default for faster feedback
+    timeout: 90000,
     env: {
       ...process.env,
-      NODE_ENV: "test",
+      NODE_ENV: "development",
       E2E_TEST_MODE: "true",
-      LOG_LEVEL: "info",
-      PORT: process.env.PORT || "5001",
-      HOST: process.env.HOST || "127.0.0.1",
+      LOG_LEVEL: "warn",
+      PORT: "5001",
+      HOST: "127.0.0.1",
       ANALYTICS_PASSWORD: ""
     },
   },

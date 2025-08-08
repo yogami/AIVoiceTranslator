@@ -1,5 +1,6 @@
-import { IMessageHandler, MessageHandlerContext } from '../websocket/MessageHandler';
-import type { AudioMessageToServer } from '../WebSocketTypes';
+import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
+import type { AudioMessageToServer } from '../../../services/WebSocketTypes';
+import { TranscriptionBusinessService } from '../../../services/transcription/TranscriptionBusinessService';
 import logger from '../../../logger';
 import { config } from '../../../config';
 
@@ -9,8 +10,14 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
   }
 
   async handle(message: AudioMessageToServer, context: MessageHandlerContext): Promise<void> {
+    // If client streams chunks, ignore non-final chunks to avoid log/API spam
+    if (typeof (message as any).isFinalChunk !== 'undefined' && !(message as any).isFinalChunk) {
+      return;
+    }
+
     try {
       const role = context.connectionManager.getRole(context.ws);
+      logger.debug(`[AudioMessageHandler] Role: ${role}`);
       
       // Only process audio from teacher
       if (role !== 'teacher') {
@@ -48,32 +55,57 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
         logger.error('No session ID found for teacher');
         return;
       }
-      // Comment out server-side transcription since we're using client-side speech recognition
-      // The client sends both audio chunks and transcriptions separately
-      /*
-      // Transcribe the audio
-      const transcription = await audioTranscriptionService.transcribeAudio(
-        audioBuffer,
-        teacherLanguage
+      // Process audio using TranscriptionBusinessService (same pattern as TranscriptionMessageHandler)
+      logger.info(`[AudioMessageHandler] Processing audio from teacher in session ${sessionId}`);
+      
+      if (!context.speechPipelineOrchestrator) {
+        logger.error('[AudioMessageHandler] SpeechPipelineOrchestrator not available in context');
+        return;
+      }
+      
+      const transcriptionService = new TranscriptionBusinessService(
+        context.storage,
+        context.speechPipelineOrchestrator
       );
-      console.log('Transcribed audio:', transcription);
-      // If we got a transcription, process it as a transcription message
-      if (transcription && transcription.trim().length > 0) {
-        await this.handleTranscriptionMessage(context.ws, {
-          type: 'transcription',
-          text: transcription,
-          timestamp: Date.now(),
-      if (transcription && transcriptions.trim().length > 0) {
-        await this.handleTranscriptionMessage(context.ws, {
-          type: 'transcription',
-          text: transcription,
+      
+      try {
+        // First, transcribe the audio to get text
+        const transcriptionResult = await context.speechPipelineOrchestrator.transcribeAudio(
+          audioBuffer,
+          teacherLanguage
+        );
+        
+        if (!transcriptionResult || !transcriptionResult.trim()) {
+          logger.warn('[AudioMessageHandler] No transcription result from audio');
+          return;
+        }
+        
+        logger.info(`[AudioMessageHandler] Audio transcribed: "${transcriptionResult.substring(0, 100)}..."`);
+        
+        // Now process the transcription through the business service
+        // This will handle translation, TTS, and sending to students
+        const mockTranscriptionMessage = {
+          type: 'transcription' as const,
+          text: transcriptionResult,
           timestamp: Date.now(),
           isFinal: true
-        } as TranscriptionMessageToServer);
+        };
+        
+        await transcriptionService.processTranscription(
+          context.ws,
+          mockTranscriptionMessage,
+          {
+            start: Date.now(),
+            components: {},
+            end: Date.now()
+          }
+        );
+        
+        logger.info(`[AudioMessageHandler] Audio processing pipeline completed successfully`);
+        
+      } catch (error) {
+        logger.error('[AudioMessageHandler] Audio processing failed:', error);
       }
-      */
-      // For now, just log that we received audio
-      logger.debug('Received audio chunk from teacher, using client-side transcription');
     } catch (error) {
       logger.error('Error processing teacher audio:', { error });
     }

@@ -163,7 +163,7 @@ export class TranscriptionBusinessService {
                 sourceLanguage: teacherLanguage,
                 targetLanguage: targetLanguage,
                 timestamp: Date.now(),
-                audioFormat: 'mp3', // Default format since TTSResult doesn't specify format
+                audioFormat: ttsResult.ttsServiceType === 'local' ? 'wav' : 'mp3',
                 ttsServiceType: ttsResult.ttsServiceType // Add the missing TTS service type
               };
 

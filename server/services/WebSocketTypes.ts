@@ -31,6 +31,10 @@ export interface TranscriptionMessageToServer extends BaseWebSocketMessage {
 export interface AudioMessageToServer extends BaseWebSocketMessage {
   type: 'audio';
   data: string; // base64 encoded audio
+  // Optional streaming flags from teacher public client
+  isFirstChunk?: boolean;
+  isFinalChunk?: boolean;
+  mimeType?: string; // e.g., 'audio/webm', 'audio/ogg', 'audio/wav'
   // Note: May contain embedded JSON from client Web Speech API with transcription hint
 }
 

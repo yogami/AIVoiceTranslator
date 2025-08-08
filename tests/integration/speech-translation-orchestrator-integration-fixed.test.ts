@@ -98,7 +98,7 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
       }
       // CORRECTED: When using specific service with bad credentials, it should FAIL
       expect(error).toBeDefined();
-      expect(error.message).toContain('Speech pipeline failed');
+      expect((error as Error).message).toContain('Speech pipeline failed');
       expect(result).toBeUndefined();
     });
   });
@@ -115,12 +115,12 @@ describe('SpeechPipelineOrchestrator Integration - Real API Error Simulation', (
     try {
       result = await speechPipelineOrchestrator.processAudioPipeline(audioBuffer, 'en', 'fr');
     } catch (err) {
-      error = err;
-    }
-    // With cost-optimized fallback, OpenAI STT bad key should eventually succeed via Whisper.cpp
-    // But if using STT_SERVICE_TYPE=openai directly, it should fail
-    expect(error).toBeDefined();
-    expect(error.message).toContain('Speech pipeline failed');
+          error = err;
+  }
+  // With cost-optimized fallback, OpenAI STT bad key should eventually succeed via Whisper.cpp
+  // But if using STT_SERVICE_TYPE=openai directly, it should fail
+  expect(error).toBeDefined();
+  expect((error as Error).message).toContain('Speech pipeline failed');
     expect(result).toBeUndefined();
   });
 
@@ -390,7 +390,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
       
       // Empty buffer should fail with proper validation error
       expect(error).toBeDefined();
-      expect(error.message).toContain('Audio buffer is required and cannot be empty');
+      expect((error as Error).message).toContain('Audio buffer is required and cannot be empty');
       expect(result).toBeUndefined();
     });
 

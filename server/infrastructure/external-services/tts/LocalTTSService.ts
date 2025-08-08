@@ -4,7 +4,7 @@
  * Supports 100+ languages and accents out-of-the-box
  */
 
-import { ITTSService, TTSResult } from './TTSService';
+import { ITTSService, TTSResult } from '../../../services/tts/TTSService';
 
 export class LocalTTSService implements ITTSService {
   private isInitialized = false;
@@ -18,7 +18,9 @@ export class LocalTTSService implements ITTSService {
   private async initialize(): Promise<void> {
     try {
       // Lazy load text2wav to avoid issues during module initialization
-      this.text2wav = require('text2wav');
+      // Use dynamic import for ESM compatibility
+      const text2wavModule = await import('text2wav');
+      this.text2wav = text2wavModule.default || text2wavModule;
       this.isInitialized = true;
       
       // Common languages supported by eSpeak-NG

@@ -4,21 +4,29 @@ import { MyMemoryTranslationService } from './MyMemoryTranslationService';
 import { OpenAI } from 'openai';
 
 export class AutoFallbackTranslationService implements ITranslationService {
-  private openaiService: ITranslationService;
-  private myMemoryService: ITranslationService;
+  private primaryService: ITranslationService;
+  private fallbackService: ITranslationService;
 
-  constructor(openaiService: ITranslationService, myMemoryService: ITranslationService) {
-    this.openaiService = openaiService;
-    this.myMemoryService = myMemoryService;
+  constructor(primaryService: ITranslationService, fallbackService: ITranslationService) {
+    this.primaryService = primaryService;
+    this.fallbackService = fallbackService;
   }
 
   async translate(text: string, sourceLang: string, targetLang: string): Promise<string> {
     try {
-      return await this.openaiService.translate(text, sourceLang, targetLang);
+      console.log('[AutoFallbackTranslation] Attempting primary service...');
+      return await this.primaryService.translate(text, sourceLang, targetLang);
     } catch (error) {
       // Log and fallback
-      console.warn('[AutoFallbackTranslation] OpenAI failed, falling back to MyMemory:', error instanceof Error ? error.message : error);
-      return await this.myMemoryService.translate(text, sourceLang, targetLang);
+      console.warn('[AutoFallbackTranslation] Primary service failed, falling back to secondary:', error instanceof Error ? error.message : error);
+      try {
+        return await this.fallbackService.translate(text, sourceLang, targetLang);
+      } catch (fallbackError) {
+        console.error('[AutoFallbackTranslation] Both services failed:', fallbackError instanceof Error ? fallbackError.message : fallbackError);
+        // Return original text as last resort instead of throwing
+        console.warn('[AutoFallbackTranslation] Returning original text as last resort');
+        return text;
+      }
     }
   }
 }
@@ -26,18 +34,25 @@ export class AutoFallbackTranslationService implements ITranslationService {
 // Factory function to create the fallback service
 export function createAutoFallbackTranslationService(): ITranslationService {
   const openaiApiKey = process.env.OPENAI_API_KEY;
-  let openaiService: ITranslationService;
+  let primaryService: ITranslationService;
+  let fallbackService: ITranslationService;
+  
+  // Primary: MyMemory (FREE)
+  primaryService = new MyMemoryTranslationService();
+  
+  // Fallback: OpenAI (PAID) if available, otherwise return original text
   if (openaiApiKey) {
     const openai = new OpenAI({ apiKey: openaiApiKey });
-    openaiService = new OpenAITranslationService(openai);
+    fallbackService = new OpenAITranslationService(openai);
   } else {
-    // If no OpenAI key, always fallback
-    openaiService = {
-      translate: async (_text, _sourceLang, _targetLang) => {
-        throw new Error('OpenAI API key not configured');
+    // If no OpenAI key, create a service that returns original text
+    fallbackService = {
+      translate: async (text, _sourceLang, _targetLang) => {
+        console.warn('[AutoFallbackTranslation] No OpenAI key, returning original text');
+        return text;
       }
     };
   }
-  const myMemoryService = new MyMemoryTranslationService();
-  return new AutoFallbackTranslationService(openaiService, myMemoryService);
+  
+  return new AutoFallbackTranslationService(primaryService, fallbackService);
 }

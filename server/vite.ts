@@ -105,6 +105,48 @@ export async function setupVite(app: express.Express): Promise<void> {
       }
       logger.info('[VITE DEV] Vite HTML transformation routes configured.');
 
+      // Ensure fallback HTML routes exist in dev in case rollup inputs are not mapped as expected
+      try {
+        const clientRoot = path.resolve(process.cwd(), 'client');
+        const teacherHtml = path.resolve(clientRoot, 'teacher.html');
+        const studentHtml = path.resolve(clientRoot, 'public/student.html');
+        const analyticsHtml = path.resolve(clientRoot, 'analytics.html');
+
+        app.get('/teacher', async (req, res, next) => {
+          try {
+            const html = await fsPromises.readFile(teacherHtml, 'utf-8');
+            const transformed = await vite!.transformIndexHtml(req.originalUrl, html);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
+          } catch (e: any) {
+            logger.error(`[VITE DEV] Error serving /teacher (fallback): ${e.message}`);
+            return next(e);
+          }
+        });
+
+        app.get('/student', async (req, res, next) => {
+          try {
+            const html = await fsPromises.readFile(studentHtml, 'utf-8');
+            const transformed = await vite!.transformIndexHtml(req.originalUrl, html);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
+          } catch (e: any) {
+            logger.error(`[VITE DEV] Error serving /student (fallback): ${e.message}`);
+            return next(e);
+          }
+        });
+
+        app.get('/analytics', analyticsPageAuth, async (req, res, next) => {
+          try {
+            const html = await fsPromises.readFile(analyticsHtml, 'utf-8');
+            const transformed = await vite!.transformIndexHtml(req.originalUrl, html);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
+          } catch (e: any) {
+            logger.error(`[VITE DEV] Error serving /analytics (fallback): ${e.message}`);
+            return next(e);
+          }
+        });
+        logger.info('[VITE DEV] Fallback HTML routes configured for /teacher, /student, /analytics');
+      } catch {}
+
     } else {
       logger.error('[VITE DEV SETUP] Vite server instance was not created. Middleware not applied.');
       throw new Error('Vite server instance is null after creation attempt.');
