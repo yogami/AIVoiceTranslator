@@ -83,6 +83,10 @@ export async function startServer(app: express.Express): Promise<Server> {
       const studentHtml = path.resolve(clientRoot, 'public', 'student.html');
       const analyticsHtml = path.resolve(clientRoot, 'analytics.html');
 
+      // Serve static assets directly to avoid relying on Vite in E2E
+      app.use('/css', express.static(path.join(clientRoot, 'css')));
+      app.use('/js', express.static(path.join(clientRoot, 'public', 'js')));
+
       app.get(['/teacher', '/teacher.html'], (_req, res) => {
         res.sendFile(teacherHtml);
       });

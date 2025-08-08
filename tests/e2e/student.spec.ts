@@ -85,9 +85,9 @@ test.describe('Student Interface - Basic Scenarios', () => {
     // Click the connect button
     await connectButton.click();
 
-    // Wait for the error message in the translation display
+    // Wait for the error message in the translation display (allow formatted prefix like "❌ Error")
     const translationDisplay = page.locator('#translation-display');
-    await expect(translationDisplay).toContainText('Error: Classroom session expired or invalid. Please ask teacher for new link.', { timeout: testConfig.ui.teacherRegistrationTimeout });
+    await expect(translationDisplay).toContainText('Classroom session expired or invalid. Please ask teacher for new link.', { timeout: testConfig.ui.teacherRegistrationTimeout });
 
     // Verify connection status updates to disconnected
     const connectionStatus = page.locator('#connection-status');
@@ -116,6 +116,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
       await expect(classroomCodeElement).toBeVisible({ timeout: testConfig.ui.teacherRegistrationTimeout });
       
       await expect(classroomCodeElement).not.toBeEmpty({ timeout: testConfig.ui.recordButtonTimeout }); 
+      await expect(classroomCodeElement).not.toHaveText('LIVE', { timeout: testConfig.ui.classroomCodeTimeout });
       const classroomCode = await classroomCodeElement.innerText();
       expect(classroomCode).toMatch(/^[A-Z0-9]{6}$/);
 

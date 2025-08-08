@@ -168,8 +168,7 @@
             };
             appState.ws.onerror = (error) => {
                 console.error('[DEBUG] WebSocket error:', error);
-                uiUpdater.updateConnectionStatus(false);
-                appState.isConnected = false;
+                // Do not immediately mark as disconnected on transient errors; wait for onclose
             };
         },
 

@@ -25,6 +25,14 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
     trace: "on-first-retry",
     headless: true,
+    ...(process.env.ANALYTICS_PASSWORD
+      ? {
+          httpCredentials: {
+            username: "admin",
+            password: process.env.ANALYTICS_PASSWORD as string,
+          },
+        }
+      : {}),
   },
   projects: [
     {

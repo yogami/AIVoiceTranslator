@@ -1,5 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { testConfig } from './helpers/test-timeouts.js';
 import { getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 

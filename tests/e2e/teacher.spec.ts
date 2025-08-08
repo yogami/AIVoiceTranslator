@@ -23,9 +23,15 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
     }
     const context = await browser.newContext(contextOptions);
     page = await context.newPage();
+    page.on('console', msg => {
+      // Surface browser logs into test output for debugging
+      // eslint-disable-next-line no-console
+      console.log(`[browser:${msg.type()}]`, msg.text());
+    });
     
     // Mock getUserMedia and Speech Recognition for audio tests
-    await page.addInitScript(() => {
+    const audioDataDelayInMs = testConfig.mock.audioDataDelay;
+    await page.addInitScript((delay) => {
       // Create a mock MediaStream
       const mockStream = {
         getTracks: () => [{
@@ -62,7 +68,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
               if (this.ondataavailable) {
                 this.ondataavailable({ data: mockBlob });
               }
-            }, testConfig.mock.audioDataDelay);
+            }, delay as number);
           }
         }
         
@@ -122,10 +128,10 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
           }
         }
       };
-    });
+    }, audioDataDelayInMs);
     
-    // Navigate to teacher page with E2E test flag
-    await page.goto(getTeacherURL('e2e=true')); 
+    // Navigate to teacher page with E2E test flag (use explicit .html for dev/E2E reliability)
+    await page.goto(getTeacherURL('e2e=true').replace('/teacher', '/teacher.html'));
     await page.waitForLoadState('domcontentloaded');
   });
 
@@ -176,12 +182,11 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       // Wait for WebSocket connection and registration
       await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       
-      // Check classroom code is displayed
+      // Check classroom code is displayed and becomes a 6-char code (not placeholder)
       const classroomCode = page.locator('#classroom-code-display');
-      await expect(classroomCode).toBeVisible();
-      
-      // Code should be 6 characters
-      const codeText = await classroomCode.textContent();
+      await expect(classroomCode).toBeVisible({ timeout: testConfig.ui.classroomCodeTimeout });
+      await expect(classroomCode).not.toHaveText('LIVE', { timeout: testConfig.ui.classroomCodeTimeout });
+      const codeText = (await classroomCode.textContent()) || '';
       expect(codeText).toMatch(/^[A-Z0-9]{6}$/);
       
       // Student URL should be displayed
@@ -560,7 +565,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // Wait for teacher to be ready
         await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
         const classroomCodeElement = page.locator('#classroom-code-display');
-        await expect(classroomCodeElement).toBeVisible();
+        await expect(classroomCodeElement).toBeVisible({ timeout: testConfig.ui.classroomCodeTimeout });
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy(); // Ensure classroomCode is not null or empty
         
@@ -666,6 +671,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       await expect(page.locator('#status')).toContainText('Registered as teacher', { timeout: testConfig.ui.teacherRegistrationTimeout });
       const classroomCodeElement = page.locator('#classroom-code-display');
       await expect(classroomCodeElement).toBeVisible();
+      await expect(classroomCodeElement).not.toHaveText('LIVE', { timeout: testConfig.ui.classroomCodeTimeout });
       const classroomCode = await classroomCodeElement.textContent();
       expect(classroomCode).toBeTruthy();
       if (classroomCode) { // Type guard for classroomCode

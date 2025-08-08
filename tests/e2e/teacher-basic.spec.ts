@@ -11,6 +11,8 @@ test('teacher page loads and registers over websocket', async ({ page }) => {
   // Basic UI element presence to confirm teacher page loaded in dev
   await expect(page.locator('#status')).toContainText(/Ready to connect|Registered as teacher/, { timeout: testConfig.ui.connectionStatusTimeout });
   await expect(page.locator('#teacherLanguage')).toBeVisible({ timeout: testConfig.ui.elementVisibilityTimeout });
+  // Allow extra time for classroom code to appear on slower first-loads
+  await expect(page.locator('#classroom-code-display')).toBeVisible({ timeout: testConfig.ui.classroomCodeTimeout });
 });
 
 

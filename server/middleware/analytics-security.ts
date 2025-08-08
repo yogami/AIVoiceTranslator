@@ -12,8 +12,12 @@ import rateLimit from 'express-rate-limit';
 import DOMPurify from 'isomorphic-dompurify';
 import { Request, Response, NextFunction } from 'express';
 
+// In test/E2E environments, we should not rate limit to avoid flaky tests
+const isTestOrE2EEnvironment =
+  process.env.E2E_TEST_MODE === 'true' || process.env.NODE_ENV === 'test';
+
 // Rate limiting for analytics endpoints
-export const analyticsRateLimit = rateLimit({
+const baseAnalyticsRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 50, // 50 requests per window per IP
   message: {
@@ -25,13 +29,31 @@ export const analyticsRateLimit = rateLimit({
   legacyHeaders: false,
 });
 
+// Wrapper that disables rate limiting during tests/E2E runs
+export const analyticsRateLimit = (req: Request, res: Response, next: NextFunction) => {
+  if (isTestOrE2EEnvironment) {
+    return next();
+  }
+  return baseAnalyticsRateLimiter(req, res, next);
+};
+
 // Authentication for analytics page access
 export const analyticsPageAuth = (req: Request, res: Response, next: NextFunction) => {
   // Simple password protection for internal analytics page
   const analyticsPassword = process.env.ANALYTICS_PASSWORD;
-  
-  // If no password is set, allow access (for development)
+  const isProd = process.env.NODE_ENV === 'production';
+  const isTestOrE2E = process.env.NODE_ENV === 'test' || process.env.E2E_TEST_MODE === 'true';
+
+  // If no password is set
   if (!analyticsPassword) {
+    if (isProd) {
+      // In production, DO NOT allow access without a configured password
+      return res.status(503).json({
+        error: 'Analytics access is not configured',
+        details: 'ANALYTICS_PASSWORD must be set in production'
+      });
+    }
+    // In test or development, allow access to avoid friction
     console.warn('⚠️  ANALYTICS_PASSWORD not set - analytics page is accessible without authentication');
     return next();
   }

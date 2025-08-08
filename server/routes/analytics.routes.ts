@@ -84,24 +84,25 @@ export function createAnalyticsRoutes(): Router {
   });
 
   // Register routes with security middleware
+  // Enforce auth first, then rate limit and input validation
   router.post('/analytics/query', 
+    analyticsPageAuth,
     analyticsRateLimit, 
     analyticsSecurityMiddleware, 
-    analyticsPageAuth, 
     handleAnalyticsQuery
   );
   
   router.post('/analytics/ask', 
+    analyticsPageAuth,
     analyticsRateLimit, 
     analyticsSecurityMiddleware, 
-    analyticsPageAuth, 
     handleAnalyticsQuery
   ); // Alias for client compatibility
   
   router.post('/analytics/test', 
+    analyticsPageAuth,
     analyticsRateLimit, 
     analyticsSecurityMiddleware, 
-    analyticsPageAuth, 
     testAnalyticsQuery
   ); // Test endpoint
   

@@ -375,6 +375,14 @@
             <div class="sidebar">
                 <div class="quick-stats" id="quickStats">
                     <h3>📊 Quick Stats <span style="font-size:0.9em;color:#888;font-weight:normal;">(last 7 days)</span></h3>
+                    <div class="stat-item">
+                        <span>Total Sessions</span>
+                        <span class="stat-value" id="totalSessions">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Today Sessions</span>
+                        <span class="stat-value" id="todaySessions">-</span>
+                    </div>
                     <div class="stat-item clickable-stat" onclick="showStatDetails('active-sessions')">
                         <span>Active Sessions Now</span>
                         <span class="stat-value" id="activeSessions">-</span>
@@ -382,6 +390,10 @@
                     <div class="stat-item clickable-stat" onclick="showStatDetails('sessions-this-week')">
                         <span>Sessions This Week</span>
                         <span class="stat-value" id="weekSessions">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Total Students</span>
+                        <span class="stat-value" id="totalStudents">-</span>
                     </div>
                     <div class="stat-item clickable-stat" onclick="showStatDetails('translations-per-session')">
                         <span>Avg Translations/Session</span>
@@ -394,6 +406,19 @@
                     <div class="stat-item clickable-stat" onclick="showStatDetails('sessions-this-week')">
                         <span>Avg Session Duration</span>
                         <span class="stat-value" id="avgSessionDuration">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Avg Duration</span>
+                        <span class="stat-value" id="avgDuration">-</span>
+                    </div>
+                </div>
+                <div class="suggestion-buttons" style="margin-top: 16px;">
+                    <h3 style="margin-bottom: 8px;">Suggestions</h3>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <button class="suggestion-btn" onclick="fillQuestion('What is the average number of students per session?')">👥 Avg Students</button>
+                        <button class="suggestion-btn" onclick="fillQuestion('Show me a chart of sessions per day this week')">📊 Sessions per Day</button>
+                        <button class="suggestion-btn" onclick="fillQuestion('Which language pairs are most popular?')">🌍 Language Pairs</button>
+                        <button class="suggestion-btn" onclick="fillQuestion('How many sessions were conducted today?')">📈 Today Sessions</button>
                     </div>
                 </div>
             </div>
@@ -418,6 +443,19 @@
                 const weekRes = await fetch('/api/analytics/sessions-this-week');
                 const weekData = await weekRes.json();
                 document.getElementById('weekSessions').textContent = (weekData.success && weekData.data) ? weekData.data.sessionsThisWeek : 'Error';
+                // Totals and averages derived from weekData
+                if (weekData.success && weekData.data) {
+                    const totalSessions = typeof weekData.data.totalSessions === 'number' ? weekData.data.totalSessions : '-';
+                    const todaySessions = typeof weekData.data.sessionsToday === 'number' ? weekData.data.sessionsToday : '-';
+                    const avgStudents = typeof weekData.data.averageStudentsPerSession === 'number' ? weekData.data.averageStudentsPerSession : '-';
+                    const avgDurationMin = typeof weekData.data.averageSessionDurationSeconds === 'number'
+                      ? Math.round(weekData.data.averageSessionDurationSeconds / 60)
+                      : '-';
+                    document.getElementById('totalSessions').textContent = totalSessions;
+                    document.getElementById('todaySessions').textContent = todaySessions;
+                    document.getElementById('avgStudents').textContent = avgStudents;
+                    document.getElementById('avgDuration').textContent = avgDurationMin + (avgDurationMin === '-' ? '' : ' min');
+                }
 
                 // Avg Translations/Session
                 const transRes = await fetch('/api/analytics/translations-per-session');
@@ -434,12 +472,25 @@
                 } else {
                     document.getElementById('avgSessionDuration').textContent = 'Error';
                 }
+
+                // Total students (approximate from stats if available)
+                try {
+                  const debugRes = await fetch('/api/analytics/translations-per-session');
+                  const debugJson = await debugRes.json();
+                  if (debugJson.success && debugJson.data && typeof debugJson.data.sessionsWithActivity === 'number') {
+                    document.getElementById('totalStudents').textContent = debugJson.data.sessionsWithActivity;
+                  }
+                } catch {}
             } catch (error) {
                 document.getElementById('activeSessions').textContent = 'Error';
                 document.getElementById('weekSessions').textContent = 'Error';
                 document.getElementById('avgTranslations').textContent = 'Error';
                 document.getElementById('avgStudents').textContent = 'Error';
                 document.getElementById('avgSessionDuration').textContent = 'Error';
+                document.getElementById('totalSessions').textContent = 'Error';
+                document.getElementById('todaySessions').textContent = 'Error';
+                document.getElementById('totalStudents').textContent = 'Error';
+                document.getElementById('avgDuration').textContent = 'Error';
             }
         }
 
