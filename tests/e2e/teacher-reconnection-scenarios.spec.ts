@@ -34,7 +34,7 @@ async function askAnalyticsQuestion(page: any, question: string): Promise<string
   await page.waitForFunction(
     (expectedCount: number) => document.querySelectorAll('.ai-message').length > expectedCount,
     existingMessages,
-    { timeout: 30000 }
+    { timeout: testConfig.ui.connectionStatusTimeout }
   );
   
   // Get the latest AI message
@@ -67,7 +67,7 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
   await page.waitForLoadState('networkidle');
   
   // Wait for classroom code to appear
-  await page.waitForSelector('#classroom-code-display', { timeout: 10000 });
+  await page.waitForSelector('#classroom-code-display', { timeout: testConfig.ui.elementVisibilityTimeout });
   
   const classroomCode = await page.locator('#classroom-code-display').textContent();
   return classroomCode || '';

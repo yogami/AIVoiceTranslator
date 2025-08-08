@@ -35,7 +35,7 @@ async function askAnalyticsQuestion(page: Page, question: string): Promise<strin
   await page.waitForFunction(
     (expectedCount: number) => document.querySelectorAll('.ai-message').length > expectedCount,
     existingMessages,
-    { timeout: 30000 }
+    { timeout: testConfig.ui.connectionStatusTimeout }
   );
   
   // Get the latest AI message
@@ -48,14 +48,14 @@ async function askAnalyticsQuestion(page: Page, question: string): Promise<strin
 async function simulateTeacherLogin(page: Page, teacherName: string): Promise<{ teacherId: string, token: string }> {
   const teacherId = `teacher-${teacherName}-${Date.now()}`;
   await page.goto(`http://127.0.0.1:5001/teacher?e2e=true&teacherId=${teacherId}&teacherUsername=${teacherName}`);
-  await page.waitForLoadState('networkidle', { timeout: 30000 });
+  await page.waitForLoadState('networkidle', { timeout: testConfig.ui.connectionStatusTimeout });
   
   // Wait for the WebSocket to update the code from "LIVE" to a real 6-character code
-  await page.waitForSelector('#classroom-code-display', { timeout: 30000 });
+  await page.waitForSelector('#classroom-code-display', { timeout: testConfig.ui.elementVisibilityTimeout });
   await page.waitForFunction(() => {
     const element = document.querySelector('#classroom-code-display');
     return element && element.textContent && element.textContent !== 'LIVE' && element.textContent.length === 6;
-  }, { timeout: 30000 });
+  }, { timeout: testConfig.ui.connectionStatusTimeout });
   
   const teacherData = {
     id: teacherId,

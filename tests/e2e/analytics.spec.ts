@@ -29,7 +29,7 @@ test.describe('Analytics Page', () => {
     await page.goto(getAnalyticsURL());
     
     // Wait for the page to be fully loaded by checking for the main heading
-    await page.waitForSelector('h1', { timeout: 10000 });
+    await page.waitForSelector('h1', { timeout: testConfig.ui.elementVisibilityTimeout });
     
     // Check page title and main elements - make the regex more flexible
     await expect(page).toHaveTitle(/AI Voice Translator Analytics/);
@@ -38,7 +38,7 @@ test.describe('Analytics Page', () => {
     await expect(page.locator('h1')).toContainText('AI Voice Translator Analytics');
     
     // Wait for the Analytics Assistant section to be visible
-    await page.waitForSelector('h3:has-text("Analytics Assistant")', { timeout: 5000 });
+    await page.waitForSelector('h3:has-text("Analytics Assistant")', { timeout: testConfig.ui.elementVisibilityTimeout });
     await expect(page.getByRole('heading', { name: '🤖 Analytics Assistant' })).toBeVisible();
     
     // Check for input elements

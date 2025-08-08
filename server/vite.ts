@@ -123,6 +123,18 @@ export async function setupVite(app: express.Express): Promise<void> {
           }
         });
 
+        // Also support explicit .html paths in dev
+        app.get('/teacher.html', async (req, res, next) => {
+          try {
+            const html = await fsPromises.readFile(teacherHtml, 'utf-8');
+            const transformed = await vite!.transformIndexHtml(req.originalUrl, html);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
+          } catch (e: any) {
+            logger.error(`[VITE DEV] Error serving /teacher.html (fallback): ${e.message}`);
+            return next(e);
+          }
+        });
+
         app.get('/student', async (req, res, next) => {
           try {
             const html = await fsPromises.readFile(studentHtml, 'utf-8');
@@ -130,6 +142,17 @@ export async function setupVite(app: express.Express): Promise<void> {
             res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
           } catch (e: any) {
             logger.error(`[VITE DEV] Error serving /student (fallback): ${e.message}`);
+            return next(e);
+          }
+        });
+
+        app.get('/student.html', async (req, res, next) => {
+          try {
+            const html = await fsPromises.readFile(studentHtml, 'utf-8');
+            const transformed = await vite!.transformIndexHtml(req.originalUrl, html);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
+          } catch (e: any) {
+            logger.error(`[VITE DEV] Error serving /student.html (fallback): ${e.message}`);
             return next(e);
           }
         });

@@ -39,7 +39,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev:test",
-    url: `http://127.0.0.1:5001/teacher`,
+    url: `http://127.0.0.1:5001/api/health`,
     // reuseExistingServer is not supported in latest Playwright config
     cwd: process.cwd(),
     timeout: 90000,

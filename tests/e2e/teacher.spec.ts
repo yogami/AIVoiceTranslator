@@ -688,7 +688,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // Student selects Spanish
         await studentPage.selectOption('#language-dropdown', 'es-ES');
         // Assuming the #selected-language display updates like: "Selected: 🇪🇸 Spanish (Spain)"
-        await expect(studentPage.locator('#selected-language')).toContainText('Selected: 🇪🇸 Spanish (Spain)', { timeout: 2000 });
+        await expect(studentPage.locator('#selected-language')).toContainText('Selected: 🇪🇸 Spanish (Spain)', { timeout: testConfig.ui.elementVisibilityTimeout });
 
         // Student connects
         await studentPage.click('#connect-btn');
@@ -708,7 +708,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         const studentTranslationDisplay = studentPage.locator('#translation-display');
         
         // Check that the "waiting" message is gone and something appears
-        await expect(studentTranslationDisplay).not.toContainText('Waiting for teacher to start speaking...', { timeout: 15000 });
+        await expect(studentTranslationDisplay).not.toContainText('Waiting for teacher to start speaking...', { timeout: testConfig.ui.connectionStatusTimeout });
         
         // Students receive translated text, not original. Check for Spanish translation
         // The translation could vary slightly, so check for key parts

@@ -75,6 +75,28 @@ export async function startServer(app: express.Express): Promise<Server> {
   // Parse JSON in request body
   app.use(express.json());
 
+  // In E2E test mode, set up direct HTML routes to serve client pages without relying on Vite routing
+  if (process.env.E2E_TEST_MODE === 'true') {
+    try {
+      const clientRoot = path.resolve(process.cwd(), 'client');
+      const teacherHtml = path.resolve(clientRoot, 'teacher.html');
+      const studentHtml = path.resolve(clientRoot, 'public', 'student.html');
+      const analyticsHtml = path.resolve(clientRoot, 'analytics.html');
+
+      app.get(['/teacher', '/teacher.html'], (_req, res) => {
+        res.sendFile(teacherHtml);
+      });
+      app.get(['/student', '/student.html'], (_req, res) => {
+        res.sendFile(studentHtml);
+      });
+      app.get(['/analytics', '/analytics.html'], (_req, res) => {
+        res.sendFile(analyticsHtml);
+      });
+    } catch (e) {
+      logger.warn(`[E2E_TEST_MODE] Failed to configure direct HTML routes: ${(e as Error).message}`);
+    }
+  }
+
   // Dynamically determine Vite dev server port
   let vitePort = process.env.VITE_PORT || '3006'; // Default port as string
   const vitePortFilePath = path.resolve('/app', '.vite_dev_server_port');

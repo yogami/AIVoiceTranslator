@@ -27,7 +27,7 @@ async function askAnalyticsQuestion(page: any, question: string): Promise<string
   await page.click('#askButton');
   
   // Wait for response with longer timeout for database queries
-  await page.waitForSelector('#analyticsResponse', { state: 'visible', timeout: 15000 });
+  await page.waitForSelector('#analyticsResponse', { state: 'visible', timeout: testConfig.ui.connectionStatusTimeout });
   
   const response = await page.locator('#analyticsResponse').textContent();
   return response || '';
@@ -57,7 +57,7 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
   await page.waitForLoadState('networkidle');
   
   // Wait for classroom code to appear
-  await page.waitForSelector('#classroomCode', { timeout: 10000 });
+  await page.waitForSelector('#classroomCode', { timeout: testConfig.ui.elementVisibilityTimeout });
   
   const classroomCode = await page.locator('#classroomCode').textContent();
   return classroomCode || '';
