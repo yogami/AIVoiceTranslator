@@ -225,6 +225,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 const response = await fetch(`/api/sessions/${sessionId}/status`);
 
                 if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn('[DEBUG] Session status 404 - likely before session persisted; suppressing UI error');
+                        return null;
+                    }
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
 
@@ -238,10 +242,15 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     throw new Error(data.message || 'Failed to fetch session status');
                 }
             } catch (error) {
-                // Only display error if sessionId is present and not first load
+                // Only display error for non-404 HTTP errors
                 if (sessionId) {
+                    const message = (error && error.message) ? error.message : '';
+                    if (message.includes('HTTP 404')) {
+                        console.warn('[DEBUG] Suppressing 404 status error after first load');
+                        return null;
+                    }
                     console.error('[DEBUG] Error refreshing session status:', error);
-                    uiUpdater.updateStatus(`Failed to refresh status: ${error.message}`, 'error');
+                    uiUpdater.updateStatus(`Failed to refresh status: ${message}`, 'error');
                 } else {
                     // Suppress error message on first load
                     console.warn('[DEBUG] Suppressed status error on first load:', error);
