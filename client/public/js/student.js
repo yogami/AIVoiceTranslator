@@ -221,6 +221,7 @@
                         appState.isConnected = false;
                     } else {
                         // Successful join: clear any error message and show default waiting message
+                        uiUpdater.updateConnectionStatus(true);
                         if (domElements.translationDisplay) {
                             domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                         }
