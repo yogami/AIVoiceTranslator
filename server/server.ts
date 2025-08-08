@@ -126,13 +126,15 @@ export async function startServer(app: express.Express): Promise<Server> {
 
   const httpServer = createServer(app);
   
-  // Use the working WebSocketServer instead of the problematic communication service
-  const { WebSocketServer } = await import('./interface-adapters/websocket/WebSocketServer');
-  const wsServer = new WebSocketServer(httpServer, storage);
-  logger.info('[INIT] WebSocket server started.');
+  // Initialize transport via factory (WebSocket by default, WebRTC optional via env)
+  const { createRealtimeTransport } = await import('./realtime/RealtimeTransportFactory');
+  const transport = createRealtimeTransport(httpServer, storage);
+  await transport.start(httpServer);
+  logger.info(`[INIT] Realtime transport started using: ${process.env.REALTIME_TRANSPORT || 'websocket'}`);
   
-  // Pass the cleanup service managed by WebSocketServer into routes if needed
-  const apiRoutes = createApiRoutes(storage, wsServer, wsServer.getSessionCleanupService?.());
+  // Pass the cleanup service if available on transport (legacy adapter exposes it via underlying server)
+  const cleanupService = (transport as any).legacy?.getSessionCleanupService?.() || undefined;
+  const apiRoutes = createApiRoutes(storage, transport, cleanupService);
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 
