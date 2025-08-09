@@ -70,6 +70,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         mediaRecorder: null, // MediaRecorder for audio capture
         audioChunks: [], // Store audio chunks
         sessionId: null, // Session ID for audio streaming
+        chosenMimeType: undefined, // Selected MediaRecorder MIME type
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -208,6 +209,37 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 lastUpdatedElement.style.display = 'block';
                 lastUpdatedTimeElement.textContent = new Date().toLocaleTimeString();
             }
+        }
+    };
+
+    // Cross-platform helpers (encapsulate environment-specific logic)
+    const platform = {
+        isIOSWebKit: function() {
+            const ua = navigator.userAgent || navigator.vendor || window.opera;
+            // iOS devices use WebKit across Safari/Chrome; detect via iPhone/iPad and WebKit
+            const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+            const isWebKit = /WebKit/.test(ua);
+            return isIOS && isWebKit;
+        },
+        selectSupportedAudioMimeType: function() {
+            // Ordered by typical availability across platforms
+            const candidates = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4;codecs=mp4a.40.2', // iOS Safari commonly supports AAC in MP4
+                'audio/ogg;codecs=opus',
+                'audio/ogg'
+            ];
+            for (const t of candidates) {
+                try {
+                    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) {
+                        return t;
+                    }
+                } catch (_) {
+                    // continue
+                }
+            }
+            return undefined; // let browser choose default
         }
     };
 
@@ -463,10 +495,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         setup: async function() {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                
-                // Create MediaRecorder for audio capture
-                const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
-                appState.mediaRecorder = new MediaRecorder(stream, { mimeType });
+                // Create MediaRecorder for audio capture with clean fallback strategy
+                const chosen = platform.selectSupportedAudioMimeType();
+                const options = chosen ? { mimeType: chosen } : undefined;
+                appState.chosenMimeType = chosen;
+                appState.mediaRecorder = new MediaRecorder(stream, options);
                 
                 let isFirstChunk = true;
                 
@@ -485,7 +518,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 appState.mediaRecorder.onstop = () => {
                     // Send final chunk when recording stops
                     if (appState.audioChunks.length > 0) {
-                        const audioBlob = new Blob(appState.audioChunks, { type: mimeType });
+                        const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
+                        const audioBlob = new Blob(appState.audioChunks, { type: blobType });
                         webSocketHandler.sendAudioChunk(audioBlob, false, true);
                     }
                     appState.audioChunks = [];
@@ -502,7 +536,12 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         startRecording: function() {
             if (appState.mediaRecorder && appState.mediaRecorder.state === 'inactive') {
                 appState.audioChunks = [];
-                appState.mediaRecorder.start(100); // Capture in 100ms chunks for low latency
+                // On iOS WebKit, timeslice often does not emit chunks; start without timeslice
+                if (platform.isIOSWebKit()) {
+                    appState.mediaRecorder.start();
+                } else {
+                    appState.mediaRecorder.start(100); // Capture in 100ms chunks for low latency
+                }
                 console.log('Started audio recording');
             }
         },
@@ -653,7 +692,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         if (domElements.recordButton) {
             domElements.recordButton.addEventListener('click', () => speechHandler.toggle()); // Call speechHandler.toggle
         }
-        
+        // Inform user about device limitations if applicable
+        if (platform.isIOSWebKit() && domElements.statusDisplay) {
+            domElements.statusDisplay.insertAdjacentText('afterbegin', 'Note: Live audio streaming may be limited on this device; audio is sent when you stop recording. ');
+        }
+
         webSocketHandler.connect();
         speechHandler.setup(); // Call speechHandler.setup
     });

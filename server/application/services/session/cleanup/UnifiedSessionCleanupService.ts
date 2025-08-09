@@ -141,11 +141,60 @@ export class UnifiedSessionCleanupService {
         });
       }
 
+      // After DB cleanup, ensure in-memory classroom codes for ended sessions are pruned
+      try {
+        await this.pruneExpiredClassroomCodes();
+      } catch (pruneError) {
+        logger.error('[UnifiedCleanup] Failed to prune expired classroom codes:', pruneError);
+      }
+
       return result;
     } catch (error) {
       logger.error('Error during SOLID cleanup:', error);
       result.duration = Date.now() - startTime;
       return result;
+    }
+  }
+
+  /**
+   * Remove classroom codes from memory for sessions that are no longer active
+   */
+  private async pruneExpiredClassroomCodes(): Promise<void> {
+    try {
+      // Build a quick lookup for codes → sessionId
+      const codeToSessionId: Array<{ code: string; sessionId: string }> = [];
+      for (const [code, session] of this.classroomSessionsMap.entries()) {
+        if (session?.sessionId) {
+          codeToSessionId.push({ code, sessionId: session.sessionId });
+        }
+      }
+      if (codeToSessionId.length === 0) return;
+
+      // Query DB for inactive sessions matching those sessionIds
+      // Note: Small cardinality expected; simple iterative check is acceptable
+      const codesToDelete: string[] = [];
+      for (const { code, sessionId } of codeToSessionId) {
+        try {
+          const res = await db.select().from(sessions).where(eq(sessions.sessionId, sessionId)).limit(1);
+          const row = res[0];
+          if (!row || row.isActive === false || row.endTime) {
+            codesToDelete.push(code);
+          }
+        } catch (e) {
+          // On DB error, be conservative and skip deletion for this code
+          logger.warn('[UnifiedCleanup] Skipping code prune due to DB error', { code, sessionId, error: (e as Error)?.message });
+        }
+      }
+
+      // Delete codes from in-memory map
+      if (codesToDelete.length > 0) {
+        for (const code of codesToDelete) {
+          this.classroomSessionsMap.delete(code);
+        }
+        logger.info(`[UnifiedCleanup] Pruned ${codesToDelete.length} classroom codes for ended/inactive sessions`);
+      }
+    } catch (error) {
+      logger.error('[UnifiedCleanup] Error while pruning expired classroom codes:', error);
     }
   }
 
