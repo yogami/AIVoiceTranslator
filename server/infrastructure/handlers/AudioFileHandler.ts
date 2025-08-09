@@ -113,6 +113,7 @@ export class AudioFileHandler {
       else if (mt.includes('ogg')) extension = '.ogg';
       else if (mt.includes('wav') || mt.includes('pcm')) extension = '.wav';
       else if (mt.includes('mp3') || mt.includes('mpeg')) extension = '.mp3';
+      else if (mt.includes('mp4') || mt.includes('m4a') || mt.includes('aac')) extension = '.m4a';
     }
     const timestamp = options.preserveTimestamp ? Date.now() : Date.now() + Math.random();
     

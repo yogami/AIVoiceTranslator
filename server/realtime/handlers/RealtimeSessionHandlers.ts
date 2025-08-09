@@ -12,6 +12,14 @@ export function registerRealtimeSessionHandlers(service: RealTimeCommunicationSe
     const sessionId = (message?.sessionId as string) || ctx.sessionId;
     registry.set(ctx.connectionId, { role: role as any, languageCode, sessionId });
   });
+
+  // Allow explicit session joining: { type: 'join_session', sessionId }
+  service.registerHandler('join_session', async (ctx, message: any) => {
+    const current = registry.get(ctx.connectionId) || {};
+    const sessionId = (message?.sessionId as string) || ctx.sessionId;
+    if (!sessionId) return;
+    registry.set(ctx.connectionId, { ...current, sessionId });
+  });
 }
 
 

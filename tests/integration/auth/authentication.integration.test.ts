@@ -13,7 +13,7 @@ import request from 'supertest';
 import express from 'express';
 import { createApiRoutes } from '../../../server/routes';
 import { setupIsolatedTest, cleanupIsolatedTest } from '../../utils/test-database-isolation';
-import { UnifiedSessionCleanupService } from '../../../server/services/session/cleanup/UnifiedSessionCleanupService.js';
+import { UnifiedSessionCleanupService } from '../../../server/application/services/session/cleanup/UnifiedSessionCleanupService.js';
 import logger from '../../../server/logger';
 import jwt from 'jsonwebtoken';
 import { DatabaseStorage } from '../../../server/database-storage';

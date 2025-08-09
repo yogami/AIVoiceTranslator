@@ -2,13 +2,13 @@
 describe('Tier Switch Logic Permutations', () => {
   it('should use ElevenLabs TTS for real API call when auto is set and API key is valid', async () => {
     // Remove any mock for ElevenLabsTTSService to allow real API call
-    vi.unmock('../../server/services/tts/ElevenLabsTTSService');
+    vi.unmock('../../server/infrastructure/external-services/tts/ElevenLabsTTSService');
     // Remove fetch mock for this test only
     // Remove fetch mock for this test only
     process.env.TTS_SERVICE_TYPE = 'auto';
     process.env.ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'your-real-elevenlabs-api-key';
     // Use a real message and language
-    const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
+    const ttsServiceFactory = await import('../../server/infrastructure/factories/TTSServiceFactory');
     const ttsService = ttsServiceFactory.getTTSService();
     let result, error;
     try {
@@ -27,11 +27,11 @@ describe('Tier Switch Logic Permutations', () => {
   });
   it('should use ElevenLabs TTS for real API call when auto is set and API key is valid', async () => {
     // Remove any mock for ElevenLabsTTSService to allow real API call
-    vi.unmock('../../server/services/tts/ElevenLabsTTSService');
+    vi.unmock('../../server/infrastructure/external-services/tts/ElevenLabsTTSService');
     process.env.TTS_SERVICE_TYPE = 'auto';
     process.env.ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || 'your-real-elevenlabs-api-key';
     // Use a real message and language
-    const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
+    const ttsServiceFactory = await import('../../server/infrastructure/factories/TTSServiceFactory');
     const ttsService = ttsServiceFactory.getTTSService();
     let result, error;
     try {
@@ -51,7 +51,7 @@ describe('Tier Switch Logic Permutations', () => {
     vi.restoreAllMocks();
     global.fetch = vi.fn();
     // Mock Whisper.cpp fallback service
-    vi.mock('../../server/services/stttranscription/WhisperCppTranscriptionService', () => ({
+    vi.mock('../../server/infrastructure/external-services/speech/WhisperCppTranscriptionService', () => ({
       WhisperCppSTTTranscriptionService: class {
         async transcribe(audioBuffer: Buffer, opts: any) {
           return 'mock whisper transcript';
@@ -59,7 +59,7 @@ describe('Tier Switch Logic Permutations', () => {
       }
     }));
     // Mock BrowserTTSService to simulate error for fallback error propagation tests
-    vi.mock('../../server/services/tts/BrowserTTSService', () => ({
+    vi.mock('../../server/infrastructure/external-services/tts/BrowserTTSService', () => ({
       BrowserTTSService: class {
         async synthesize(text: string, opts: any) {
           // Simulate error for specific test cases
@@ -158,7 +158,7 @@ describe('Tier Switch Logic Permutations', () => {
 
       // Mock STT and TTS service factories
       const sttService = new AutoFallbackSTTService();
-      const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
+      const ttsServiceFactory = await import('../../server/infrastructure/factories/TTSServiceFactory');
       const ttsService = ttsServiceFactory.getTTSService();
 
       // Mock API responses

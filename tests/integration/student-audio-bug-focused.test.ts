@@ -47,7 +47,7 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
           0x44,0xAC,0x00,0x00, 0x88,0x58,0x01,0x00, 0x02,0x00, 0x10,0x00,
           0x64,0x61,0x74,0x61, 0x00,0x00,0x00,0x00
         ]);
-        const data = Buffer.alloc(6400, 0); // ~0.2s
+        const data = Buffer.alloc(32000, 0); // ~1.0s to satisfy min length in CI
         return Buffer.concat([header, data]);
       })();
     
@@ -121,7 +121,7 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
           0x44,0xAC,0x00,0x00, 0x88,0x58,0x01,0x00, 0x02,0x00, 0x10,0x00,
           0x64,0x61,0x74,0x61, 0x00,0x00,0x00,0x00
         ]);
-        const data = Buffer.alloc(6400, 0); // ~0.2s
+        const data = Buffer.alloc(32000, 0); // ~1.0s to satisfy min length in CI
         return Buffer.concat([header, data]);
       })();
       const result = await speechOrchestrator.processAudioPipeline(

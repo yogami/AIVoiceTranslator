@@ -151,16 +151,14 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
   } else {
     await page.waitForLoadState('domcontentloaded');
   }
-  
-  const teacherData = await page.evaluate(() => {
-    const teacherUser = localStorage.getItem('teacherUser');
-    const token = localStorage.getItem('teacherToken');
-    return teacherUser ? { user: JSON.parse(teacherUser), token } : null;
-  });
-  
+  // Stabilize page to avoid evaluate context destruction and verify teacher UI
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await page.waitForSelector('#classroom-code-display', { timeout: testConfig.ui.elementVisibilityTimeout });
+
+  // Return a deterministic identity based on provided teacherName; token not needed by tests
   return {
-    teacherId: teacherData?.user?.id || `teacher-${Date.now()}`,
-    token: teacherData?.token || 'mock-token'
+    teacherId: teacherName,
+    token: 'ui-login'
   };
 }
 

@@ -637,7 +637,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (appState.isRecording) this.start(); // Call internal start method
                 };
             } else {
-                uiUpdater.updateStatus('Speech recognition not supported in this browser');
+                // Do not block recording if SpeechRecognition is unavailable (e.g., iOS Safari)
+                console.warn('[teacher.js] Speech recognition not supported; falling back to server-side transcription only.');
+                uiUpdater.updateStatus('Recording without on-device speech recognition');
             }
         },
 
@@ -657,23 +659,24 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         start: function() {
-            if (!appState.recognition) {
-                uiUpdater.updateStatus('Speech recognition not available');
-                return;
-            }
             appState.isRecording = true;
-            appState.recognition.lang = domElements.languageSelect ? domElements.languageSelect.value : appState.selectedLanguage;
+            // Try to start recognition if available, but do not require it
+            try {
+                if (appState.recognition) {
+                    appState.recognition.lang = domElements.languageSelect ? domElements.languageSelect.value : appState.selectedLanguage;
+                    appState.recognition.start();
+                }
+            } catch (e) {
+                console.warn('Speech recognition start failed; continuing with audio-only recording:', e);
+            }
             
             try {
-                // Start speech recognition
-                appState.recognition.start();
-                // Start audio recording
+                // Always start audio capture for server-side transcription
                 audioHandler.startRecording();
-                
                 uiUpdater.setRecordButtonToRecording();
-                uiUpdater.updateStatus('Recording... Speak naturally');
+                uiUpdater.updateStatus('Recording...');
             } catch (e) {
-                console.error('Error starting recording:', e);
+                console.error('Error starting audio recording:', e);
                 uiUpdater.updateStatus('Error starting recording.');
                 appState.isRecording = false; // Reset state
             }
@@ -683,9 +686,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             appState.isRecording = false;
             
             // Stop speech recognition
-            if (appState.recognition) {
-                appState.recognition.stop();
-            }
+            try {
+                if (appState.recognition) {
+                    appState.recognition.stop();
+                }
+            } catch (_) { /* no-op */ }
             
             // Stop audio recording
             audioHandler.stopRecording();
