@@ -111,10 +111,10 @@ describe('Sessions API Integration Tests', () => {
       }
       return undefined;
     })();
-    const teacherSessionMsg = messages.find(m => m.type === 'connection');
     expect(classroomMsg?.code).toMatch(/^[A-Z0-9]{6}$/);
     classCode = classroomMsg.code;
-    sessionId = teacherSessionMsg?.sessionId || sessionId;
+    // Use the sessionId from the classroom message to ensure we query the active WS session
+    sessionId = classroomMsg.sessionId || sessionId;
 
     // Step 2: Connect first student (Spanish)
     const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
@@ -242,7 +242,8 @@ describe('Sessions API Integration Tests', () => {
       }
       return undefined;
     })();
-    sessionId = (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
+    // Prefer sessionId from classroom message when available
+    sessionId = (classroomMsg?.sessionId) || (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -280,7 +281,7 @@ describe('Sessions API Integration Tests', () => {
       }
       return undefined;
     })();
-    sessionId = (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
+    sessionId = (classroomMsg?.sessionId) || (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
     const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);
     await new Promise((resolve) => student1Ws.on('open', resolve));
