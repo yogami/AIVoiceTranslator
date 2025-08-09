@@ -21,38 +21,11 @@ describe('Sessions API Integration Tests', () => {
     // Create storage and WebSocket server
     storage = new DatabaseStorage();
 
-    // Create Express app with sessions routes
+    // Create Express app
     app = express();
     app.use(express.json());
-    
-    // Mock active session provider that works with the actual WebSocket server
-    const mockActiveSessionProvider = {
-      getSessionStats: vi.fn().mockImplementation((sessionId: string) => {
-        // Get connections from the actual WebSocket server
-        const allConnections = Array.from(wsServer.getConnections());
-        
-        // Filter connections for this session and get their details
-        const sessionConnections = allConnections.filter((conn: any) => conn.sessionId === sessionId);
-        const languages = sessionConnections
-          .filter((conn: any) => conn.role === 'student')
-          .map((conn: any) => conn.language)
-          .filter(Boolean);
-        
-        return {
-          connections: sessionConnections,
-          languages: languages,
-          totalConnections: sessionConnections.length
-        };
-      }),
-      getActiveTeacherCount: vi.fn().mockReturnValue(0),
-      getActiveStudentCount: vi.fn().mockReturnValue(0),
-      getActiveSessionsCount: vi.fn().mockReturnValue(0)
-    };
 
-    const apiRoutes = createApiRoutes(storage, wsServer as any, undefined);
-    app.use('/api', apiRoutes);
-
-    // Start HTTP server
+    // Start HTTP server early, then attach WebSocketServer, then mount routes with wsServer
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, () => {
@@ -63,6 +36,10 @@ describe('Sessions API Integration Tests', () => {
 
     // Create WebSocket server with the HTTP server
     wsServer = new WebSocketServer(server, storage);
+
+    // Now mount API routes with the real wsServer (active session provider)
+    const apiRoutes = createApiRoutes(storage, wsServer as any, undefined);
+    app.use('/api', apiRoutes);
 
     // Create a unique test session using timestamp to avoid duplicates
     sessionId = `test-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
