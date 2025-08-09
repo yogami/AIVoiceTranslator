@@ -183,10 +183,16 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       const teacherSessionActive = await checkTeacherSessionActive(page);
       expect(teacherSessionActive).toBe(false);
       
-      // Step 7: Verify student can no longer join
+      // Step 7: Verify student can no longer join (real join attempt)
       const newStudentPage = await context.newPage();
-      const newJoinResult = await simulateStudentJoin(newStudentPage, classroomCode);
-      expect(newJoinResult.success).toBe(false);
+      await newStudentPage.goto(getStudentURL(classroomCode));
+      await newStudentPage.waitForLoadState('networkidle');
+      await newStudentPage.selectOption('#language-dropdown', { index: 1 });
+      await newStudentPage.click('#connect-btn');
+      // Expect either an explicit error or connection to remain disconnected
+      const errorCount = await newStudentPage.locator('.error-message, .session-expired').count();
+      const statusText = await newStudentPage.locator('#connection-status span').textContent().catch(() => '');
+      expect(errorCount > 0 || /disconnected/i.test(statusText || '')).toBe(true);
       
       await studentPage.close();
       await newStudentPage.close();
