@@ -80,6 +80,7 @@ export async function startServer(app: express.Express): Promise<Server> {
     try {
       const clientRoot = path.resolve(process.cwd(), 'client');
       const teacherHtml = path.resolve(clientRoot, 'teacher.html');
+      const teacherLoginHtml = path.resolve(clientRoot, 'teacher-login.html');
       const studentHtml = path.resolve(clientRoot, 'public', 'student.html');
       const analyticsHtml = path.resolve(clientRoot, 'analytics.html');
 
@@ -89,6 +90,9 @@ export async function startServer(app: express.Express): Promise<Server> {
 
       app.get(['/teacher', '/teacher.html'], (_req, res) => {
         res.sendFile(teacherHtml);
+      });
+      app.get(['/teacher-login', '/teacher-login.html'], (_req, res) => {
+        res.sendFile(teacherLoginHtml);
       });
       app.get(['/student', '/student.html'], (_req, res) => {
         res.sendFile(studentHtml);

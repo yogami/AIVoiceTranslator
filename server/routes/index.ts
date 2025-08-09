@@ -50,7 +50,8 @@ export function createApiRoutes(
   router.use('/', createLanguageRoutes(storage));
   router.use('/', createTranslationRoutes(storage));
   router.use('/', createTranscriptRoutes(storage));
-  router.use('/', createSessionRoutes(storage, activeSessionProvider));
+  // sessions routes accept optional cleanupService; cast to avoid type mismatch from previous signature
+  router.use('/', createSessionRoutes(storage, activeSessionProvider, sessionCleanupService as any));
   
   // Auth routes (existing)
   router.use('/auth', authRoutes);

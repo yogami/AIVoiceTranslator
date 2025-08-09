@@ -1,6 +1,6 @@
 import logger from '../../../../../logger';
 import { config } from '../../../../../config';
-import { eq, and, lt } from 'drizzle-orm';
+import { eq, and, lt, or, isNull } from 'drizzle-orm';
 import { sessions } from '../../../../../../shared/schema';
 import { db } from '../../../../../db';
 import { ISessionCleanupStrategy, CleanupResult } from '../ISessionCleanupStrategy';
@@ -37,7 +37,13 @@ export class InactiveSessionCleanupStrategy implements ISessionCleanupStrategy {
         .where(
           and(
             eq(sessions.isActive, true),
-            lt(sessions.lastActivityAt, staleThreshold)
+            or(
+              lt(sessions.lastActivityAt, staleThreshold),
+              and(
+                isNull(sessions.lastActivityAt),
+                lt(sessions.startTime, staleThreshold)
+              )
+            )
           )
         );
 
@@ -69,7 +75,13 @@ export class InactiveSessionCleanupStrategy implements ISessionCleanupStrategy {
         .where(
           and(
             eq(sessions.isActive, true),
-            lt(sessions.lastActivityAt, staleThreshold)
+            or(
+              lt(sessions.lastActivityAt, staleThreshold),
+              and(
+                isNull(sessions.lastActivityAt),
+                lt(sessions.startTime, staleThreshold)
+              )
+            )
           )
         );
 
