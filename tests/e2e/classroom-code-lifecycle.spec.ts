@@ -468,19 +468,17 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
       expect(expiredJoinResult.success).toBe(false);
       
       // Verify that server closed connection or showed error for expired code
-      const isExpectedExpiredError = expiredJoinResult.connectionClosed || 
-                                   (expiredJoinResult.errorMessage && 
-                                    expiredJoinResult.errorMessage.toLowerCase().includes('expired'));
-      expect(isExpectedExpiredError).toBe(true);
+      const expiredMsg = expiredJoinResult.errorMessage || '';
+      const expiredHasExactMessage = /classroom session expired or invalid/i.test(expiredMsg);
+      expect(expiredHasExactMessage || expiredJoinResult.connectionClosed === true).toBe(true);
       
       // Step 5: Verify expired code cannot be used (second attempt)
       const secondExpiredJoinResult = await simulateStudentJoinWithInvalidCode(newStudentPage, classroomCode);
       expect(secondExpiredJoinResult.success).toBe(false);
       
-      const isExpectedSecondError = secondExpiredJoinResult.connectionClosed || 
-                                  (secondExpiredJoinResult.errorMessage && 
-                                   secondExpiredJoinResult.errorMessage.match(/expired|invalid|not found/i));
-      expect(isExpectedSecondError).toBe(true);
+      const secondMsg = secondExpiredJoinResult.errorMessage || '';
+      const secondHasExactMessage = /classroom session expired or invalid/i.test(secondMsg);
+      expect(secondHasExactMessage || secondExpiredJoinResult.connectionClosed === true).toBe(true);
       
       await studentPage.close();
       await newStudentPage.close();
@@ -521,10 +519,9 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
         expect(joinResult.success).toBe(false);
         
         // Verify server closed connection or showed error for expired code
-        const isExpectedCleanupError = joinResult.connectionClosed || 
-                                     (joinResult.errorMessage && 
-                                      joinResult.errorMessage.match(/expired|invalid|not found|connection|closed/i));
-        expect(isExpectedCleanupError).toBe(true);
+        const cleanupMsg = joinResult.errorMessage || '';
+        const cleanupHasExactMessage = /classroom session expired or invalid/i.test(cleanupMsg);
+        expect(cleanupHasExactMessage || joinResult.connectionClosed === true).toBe(true);
         
         await studentPage.close();
       }
@@ -629,8 +626,8 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
         expect(analyticsResponse).not.toContain(invalidCode);
         
         // Step 4: Additional validation - either shows session data or error (both are acceptable)
-        const hasSessionData = analyticsResponse.toLowerCase().match(/session|statistics|total|active|teacher|student|classroom/);
-        const hasError = analyticsResponse.toLowerCase().includes('error') || analyticsResponse.toLowerCase().includes('try again');
+        const hasSessionData = /session|statistics|total|active|teacher|student|classroom/i.test(analyticsResponse);
+        const hasError = /error|try again/i.test(analyticsResponse);
         
         // We expect either session data (showing no invalid code) or an error response
         expect(hasSessionData || hasError).toBe(true);
@@ -723,10 +720,9 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
       expect(finalJoinResult.success).toBe(false);
       
       // Verify server closed connection or showed error for expired code
-      const isExpectedFinalError = finalJoinResult.connectionClosed || 
-                                 (finalJoinResult.errorMessage && 
-                                  finalJoinResult.errorMessage.match(/expired|invalid|not found|connection|closed/i));
-      expect(isExpectedFinalError).toBe(true);
+      const finalMsg = finalJoinResult.errorMessage || '';
+      const finalHasExactMessage = /classroom session expired or invalid/i.test(finalMsg);
+      expect(finalHasExactMessage || finalJoinResult.connectionClosed === true).toBe(true);
       
       await studentPage.close();
       await finalStudentPage.close();

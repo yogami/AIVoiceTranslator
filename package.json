@@ -30,6 +30,8 @@
     "test:integration": "NODE_ENV=test TEST_MODE=integration TEST_ISOLATION=true npx dotenv-cli -f .env.test --override -- vitest run tests/integration --config test-config/vitest/vitest.unified.config.mjs",
     "lint": "eslint . --fix --config eslint.config.cjs",
     "test:e2e": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:5001 npx playwright test --config=test-config/playwright.config.ts",
+    "test:e2e:reuse": "DISABLE_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5001 npx playwright test --config=test-config/playwright.config.ts",
+    "test:e2e:staging": "DISABLE_WEB_SERVER=1 PLAYWRIGHT_BASE_URL=$PLAYWRIGHT_BASE_URL npx playwright test --config=test-config/playwright.config.ts",
     "test:e2e:ui": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:5001 npx playwright test --ui --config=test-config/playwright.config.ts",
     "test:e2e:debug": "PWDEBUG=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:5001 npx playwright test --config=test-config/playwright.config.ts"
   },

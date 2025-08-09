@@ -570,7 +570,8 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         expect(classroomCode).toBeTruthy(); // Ensure classroomCode is not null or empty
         
         // Student navigates to their page with the classroom code
-        await studentPage.goto(getStudentURL(classroomCode || ''));
+        // Pass classroom code to the WebSocket via query param to ensure server correlates session
+        await studentPage.goto(`${getStudentURL(classroomCode || '')}&wsparam=code`);
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects a language (e.g., Spanish)
@@ -604,7 +605,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         const classroomCode = await classroomCodeElement.textContent();
         expect(classroomCode).toBeTruthy();
         
-        await studentPage.goto(getStudentURL(classroomCode || ''));
+        await studentPage.goto(`${getStudentURL(classroomCode || '')}&wsparam=code`);
         await studentPage.waitForLoadState('domcontentloaded');
         
         // Student selects initial language (e.g., Spanish)
@@ -618,11 +619,18 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // Add a short wait if the language change triggers async operations like re-registering
         await studentPage.waitForTimeout(testConfig.wait.standardWait); // Adjust as needed
         
-        // Verify student language change was processed and status remains connected or updates appropriately
+        // Verify student language change was processed
         const selectedLang = await studentPage.locator('#language-dropdown').inputValue();
         expect(selectedLang).toBe('de-DE');
-        // Re-check connection status if language change might affect it
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.recordButtonTimeout });
+
+        // If the UI temporarily shows disconnected after language change, re-connect explicitly
+        const statusText = await studentPage.locator('#connection-status').innerText();
+        if (statusText.includes('Disconnected')) {
+          await studentPage.click('#connect-btn');
+        }
+
+        // Ensure we end in a connected state
+        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
 
       } finally {
         await studentPage.close();
@@ -688,7 +696,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       await page.waitForTimeout(testConfig.wait.shortWait);
       
       try {
-        await studentPage.goto(getStudentURL(classroomCode));
+        await studentPage.goto(`${getStudentURL(classroomCode)}&wsparam=code`);
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects Spanish

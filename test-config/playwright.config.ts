@@ -14,6 +14,9 @@ import { testConfig } from "../tests/e2e/helpers/test-timeouts.js";
  * Playwright Configuration - Currently set up for manual server startup.
  * @see https://playwright.dev/docs/test-configuration
  */
+// Allow CI/CD (or local) to point tests at an already running environment and skip starting a web server
+const disableWebServer = process.env.DISABLE_WEB_SERVER === "1";
+
 export default defineConfig({
   testDir: "../tests/e2e",
   fullyParallel: false, // Disable parallel execution to avoid DB conflicts during seeding
@@ -46,22 +49,24 @@ export default defineConfig({
     //   use: { ...devices['Desktop Safari'] },
     // },
   ],
-  webServer: {
-    command: "npm run dev:test",
-    url: `http://127.0.0.1:5001/api/health`,
-    // reuseExistingServer is not supported in latest Playwright config
-    cwd: process.cwd(),
-    timeout: testConfig.playwright.serverStartupTimeout,
-    env: {
-      ...process.env,
-      NODE_ENV: "development",
-      E2E_TEST_MODE: "true",
-      LOG_LEVEL: "warn",
-      PORT: "5001",
-      HOST: "127.0.0.1",
-      ANALYTICS_PASSWORD: ""
-    },
-  },
+  webServer: disableWebServer
+    ? undefined
+    : {
+        command: "npm run dev:test",
+        url: `http://127.0.0.1:5001/api/health`,
+        reuseExistingServer: true,
+        cwd: process.cwd(),
+        timeout: testConfig.playwright.serverStartupTimeout,
+        env: {
+          ...process.env,
+          NODE_ENV: "development",
+          E2E_TEST_MODE: "true",
+          LOG_LEVEL: "warn",
+          PORT: "5001",
+          HOST: "127.0.0.1",
+          ANALYTICS_PASSWORD: "",
+        },
+      },
   /* Global setup to ensure test environment */
 });
 

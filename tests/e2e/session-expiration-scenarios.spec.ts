@@ -1,43 +1,12 @@
 /**
- * Session Expiration Scenarios// Helper function to simulate teacher login
-// Helper function to simulate student joining session
-async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ success: boolean, errorMessage?: string }> {
-  await page.goto(getStudentURL(classroomCode));
-  await page.waitForLoadState('networkidle');
-  
-  // Check for error message
-  const errorElement = page.locator('.error-message');
-  const errorCount = await errorElement.count();
-  
-  if (errorCount > 0) {
-    const errorMessage = await errorElement.textContent();
-    return { success: false, errorMessage: errorMessage || 'Unknown error' };
-  }
-  
-  return { success: true };
-}imulateTeacherLogin(page: any, teacherName: string): Promise<{ teacherId: string, token: string }> {
-  await page.goto(getTeacherURL('e2e=true'));
-  await page.waitForLoadState('networkidle');
-  
-  // The teacher page should load directly without separate login
-  // Extract teacher info from the page or generate test data
-  const teacherData = {
-    id: `teacher-${teacherName}-${Date.now()}`,
-    token: 'mock-token'
-  };
-  
-  return {
-    teacherId: teacherData.id,
-    token: teacherData.token
-  };
-}hese tests cover the MEDIUM PRIORITY missing scenarios from the session lifecycle documentation:
- * 1. Session expires while teacher is still connected
- * 2. Session expires while students are still connected  
- * 3. Cleanup timer removes expired sessions from memory
- * 4. Memory vs database state consistency during expiration
- * 5. Student-teacher interaction during expiration events
- * 
- * All tests use UI emulation with analytics validation
+ * Session Expiration Scenarios E2E Tests
+ *
+ * Medium priority coverage for session lifecycle:
+ * 1) Expiration while teacher connected
+ * 2) Expiration while students connected
+ * 3) Cleanup removes expired sessions from memory
+ * 4) DB/memory consistency
+ * 5) UI updates on expiration
  */
 
 import { test, expect } from '@playwright/test';
@@ -76,20 +45,45 @@ async function askAnalyticsQuestion(page: any, question: string): Promise<string
 
 // Helper function to simulate teacher login
 async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ teacherId: string, token: string }> {
+  // Ensure the teacher exists (idempotent)
+  try {
+    await page.request.post('/api/auth/register', {
+      data: { username: teacherName, password: 'teacher123' },
+    });
+  } catch {
+    // Ignore errors (e.g., user already exists)
+  }
+
+  // Perform real login via the UI
   await page.goto('/teacher-login');
+  await page.waitForLoadState('domcontentloaded');
+  // If the dev route didn't resolve, try explicit .html path
+  if (!(await page.locator('#auth-form').first().isVisible({ timeout: 1000 }).catch(() => false))) {
+    await page.goto('/teacher-login.html');
+    await page.waitForLoadState('domcontentloaded');
+  }
+  // Assert form is present; on failure, surface HTML for diagnostics
+  const formVisible = await page.locator('#auth-form').first().isVisible({ timeout: 2000 }).catch(() => false);
+  if (!formVisible) {
+    const html = await page.content();
+    console.error('Login page did not render expected form. Page HTML:\n', html.slice(0, 2000));
+    throw new Error('Teacher login form not found on /teacher-login');
+  }
+
   await page.fill('#username', teacherName);
   await page.fill('#password', 'teacher123');
-  await page.click('#loginButton');
-  
+  // The login page uses #submit-btn for both login and registration
+  await page.click('#submit-btn');
   await page.waitForURL('/teacher');
-  
+
   const teacherData = await page.evaluate(() => {
     const teacherUser = localStorage.getItem('teacherUser');
-    return teacherUser ? JSON.parse(teacherUser) : null;
+    const token = localStorage.getItem('teacherToken');
+    return teacherUser ? { user: JSON.parse(teacherUser), token } : null;
   });
-  
+
   return {
-    teacherId: teacherData?.id || `teacher-${Date.now()}`,
+    teacherId: teacherData?.user?.id || `teacher-${Date.now()}`,
     token: teacherData?.token || 'mock-token'
   };
 }
@@ -107,7 +101,7 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
 
 // Helper function to simulate student joining session
 async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ success: boolean, errorMessage?: string }> {
-  await page.goto(`/student/${classroomCode}`);
+  await page.goto(getStudentURL(classroomCode));
   await page.waitForLoadState('networkidle');
   
   // Check for error message
@@ -132,17 +126,24 @@ async function checkTeacherSessionActive(page: any): Promise<boolean> {
   return activeIndicators > 0;
 }
 
-// Helper function to simulate session aging through analytics
+// Helper function to let session timeouts elapse in test environment
 async function forceSessionExpiration(page: any, classroomCode: string, expirationType: 'general' | 'empty-teacher' | 'students-left') {
-  await navigateToAnalytics(page);
-  
-  const expirationCommands = {
-    'general': `Force expire session with classroom code "${classroomCode}" by setting its last activity to 91 minutes ago (beyond general 90-minute timeout)`,
-    'empty-teacher': `Force expire session with classroom code "${classroomCode}" by setting its start time to 11 minutes ago with no students (beyond empty teacher 10-minute timeout)`,
-    'students-left': `Force expire session with classroom code "${classroomCode}" by setting all students disconnected 11 minutes ago (beyond students-left 10-minute timeout)`
+  const toNumber = (v: any, d: number) => {
+    const n = parseInt(String(v ?? ''), 10);
+    return Number.isFinite(n) ? n : d;
   };
-  
-  await askAnalyticsQuestion(page, expirationCommands[expirationType]);
+  const staleMs = toNumber(process.env.SESSION_STALE_TIMEOUT_MS, 90 * 60 * 1000);
+  const emptyTeacherMs = toNumber(process.env.SESSION_EMPTY_TEACHER_TIMEOUT_MS, 10 * 60 * 1000);
+  const studentsLeftMs = toNumber(process.env.SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS, 10 * 60 * 1000);
+  const cleanupMs = toNumber(process.env.SESSION_CLEANUP_INTERVAL_MS, 2 * 60 * 1000);
+
+  let base = staleMs;
+  if (expirationType === 'empty-teacher') base = emptyTeacherMs;
+  if (expirationType === 'students-left') base = studentsLeftMs;
+
+  // Wait for timeout + cleanup sweep + small buffer
+  const waitMs = Math.max(base + cleanupMs + 500, 1500);
+  await page.waitForTimeout(waitMs);
 }
 
 test.describe('Session Expiration Scenarios E2E Tests', () => {

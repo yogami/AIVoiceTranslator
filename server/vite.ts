@@ -109,6 +109,7 @@ export async function setupVite(app: express.Express): Promise<void> {
       try {
         const clientRoot = path.resolve(process.cwd(), 'client');
         const teacherHtml = path.resolve(clientRoot, 'teacher.html');
+        const teacherLoginHtml = path.resolve(clientRoot, 'teacher-login.html');
         const studentHtml = path.resolve(clientRoot, 'public/student.html');
         const analyticsHtml = path.resolve(clientRoot, 'analytics.html');
 
@@ -142,6 +143,18 @@ export async function setupVite(app: express.Express): Promise<void> {
             res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
           } catch (e: any) {
             logger.error(`[VITE DEV] Error serving /student (fallback): ${e.message}`);
+            return next(e);
+          }
+        });
+
+        // Explicit teacher-login route (fallback in dev)
+        app.get('/teacher-login', async (req, res, next) => {
+          try {
+            const html = await fsPromises.readFile(teacherLoginHtml, 'utf-8');
+            const transformed = await vite!.transformIndexHtml(req.originalUrl, html);
+            res.status(200).set({ 'Content-Type': 'text/html' }).end(transformed);
+          } catch (e: any) {
+            logger.error(`[VITE DEV] Error serving /teacher-login (fallback): ${e.message}`);
             return next(e);
           }
         });

@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import { testConfig } from './helpers/test-timeouts';
-import { testConfig } from './helpers/test-timeouts.js';
 import { getTeacherURL } from './helpers/test-config.js';
 
 test('teacher page loads and registers over websocket', async ({ page }) => {
