@@ -335,8 +335,23 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       // Step 3: Verify session has students (deterministic)
       const sId = await waitForSessionIdByClassCode(page, classroomCode, 15000);
       expect(sId).toBeTruthy();
-      const stRes = await page.request.get(`/api/sessions/${sId}/status`);
-      const stJson = await stRes.json();
+      // Fetch session status with a small retry to avoid race with DB persistence
+      async function fetchStatus(sessionId: string, attempts = 3) {
+        for (let i = 0; i < attempts; i++) {
+          const res = await page.request.get(`/api/sessions/${sessionId}/status`);
+          const ct = res.headers()['content-type'] || '';
+          if (ct.includes('application/json')) {
+            return await res.json();
+          }
+          // Not JSON yet (possibly HTML fallback) → wait and retry
+          await page.waitForTimeout(200);
+        }
+        // Last attempt: return text for diagnostics
+        const lastRes = await page.request.get(`/api/sessions/${sessionId}/status`);
+        const body = await lastRes.text();
+        throw new Error(`Expected JSON from /api/sessions/${sessionId}/status but got: ${body.slice(0, 200)}`);
+      }
+      const stJson = await fetchStatus(sId);
       expect(stJson?.success).toBe(true);
       expect(stJson?.data?.connectedStudents ?? -1).toBe(2);
       

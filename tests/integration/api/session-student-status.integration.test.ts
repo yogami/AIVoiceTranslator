@@ -184,8 +184,17 @@ describe('Sessions API Integration Tests', () => {
     // Wait for student registration
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Step 5: Call the sessions API
-    const response = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+    // Step 5: Call the sessions API (retry briefly while wsServer indexes connections)
+    const response = await (async () => {
+      const deadline = Date.now() + 1000;
+      let last: any;
+      while (Date.now() < deadline) {
+        last = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+        if (last.ok) return last;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return last;
+    })();
     expect(response.ok).toBe(true);
 
     const data = await response.json();
@@ -320,8 +329,17 @@ describe('Sessions API Integration Tests', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Verify initial state
-    let response = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+    // Verify initial state (retry loop)
+    let response = await (async () => {
+      const deadline = Date.now() + 1000;
+      let last: any;
+      while (Date.now() < deadline) {
+        last = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+        if (last.ok) return last;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return last;
+    })();
     let data = await response.json();
     expect(data.data.connectedStudents).toBe(2);
     expect(data.data.languages).toHaveLength(2);
