@@ -21,6 +21,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Force single worker to ensure database isolation
   reporter: process.env.CI ? "dot" : "html",
+  globalSetup: "./global-setup.ts",
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://${process.env.HOST || "127.0.0.1"}:${process.env.PORT || "5001"}`,
     trace: "on-first-retry",
@@ -50,7 +51,7 @@ export default defineConfig({
     url: `http://127.0.0.1:5001/api/health`,
     // reuseExistingServer is not supported in latest Playwright config
     cwd: process.cwd(),
-    timeout: 90000,
+    timeout: testConfig.playwright.serverStartupTimeout,
     env: {
       ...process.env,
       NODE_ENV: "development",

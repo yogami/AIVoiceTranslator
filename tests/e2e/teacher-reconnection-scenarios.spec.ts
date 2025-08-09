@@ -12,7 +12,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { testConfig } from './helpers/test-timeouts.js';
+import { testConfig } from './helpers/test-timeouts';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 
 // Helper function to navigate to analytics page

@@ -12,6 +12,7 @@
  */
 
 import { test, expect, Page } from '@playwright/test';
+import { testConfig } from './helpers/test-timeouts';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 import { config } from '../../server/config';
 

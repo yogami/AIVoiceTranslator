@@ -41,6 +41,7 @@ async function simulateStudentJoin(page: any, classroomCode: string): Promise<{ 
  */
 
 import { test, expect } from '@playwright/test';
+import { testConfig } from './helpers/test-timeouts';
 import { getTeacherURL, getStudentURL, getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 

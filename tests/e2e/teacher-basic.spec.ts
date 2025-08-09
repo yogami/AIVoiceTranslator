@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { testConfig } from './helpers/test-timeouts';
 import { testConfig } from './helpers/test-timeouts.js';
 import { getTeacherURL } from './helpers/test-config.js';
 
