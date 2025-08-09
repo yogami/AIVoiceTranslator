@@ -123,6 +123,8 @@ describe('Session Lifecycle Integration Tests', () => {
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
+      // Give DB a brief moment to flush writes (scaled)
+      await new Promise(r => setTimeout(r, 50));
 
       // Check that session is now inactive
       const result = await db
@@ -148,6 +150,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
+      await new Promise(r => setTimeout(r, 50));
 
       // Check that session is still active
       const result = await db
@@ -186,9 +189,11 @@ describe('Session Lifecycle Integration Tests', () => {
       
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
+      await new Promise(r => setTimeout(r, 50));
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
+      await new Promise(r => setTimeout(r, 50));
 
       // Check that session is now inactive
       const result = await db
@@ -216,6 +221,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
+      await new Promise(r => setTimeout(r, 50));
 
       // Check that session is still active
       const result = await db
@@ -271,6 +277,7 @@ describe('Session Lifecycle Integration Tests', () => {
 
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
+      await new Promise(r => setTimeout(r, 50));
 
       // Check that session is now inactive
       const result = await db

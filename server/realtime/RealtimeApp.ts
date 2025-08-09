@@ -9,6 +9,7 @@ import { RealtimeSessionRegistry } from './session/RealtimeSessionRegistry';
 import { registerRealtimeSessionHandlers } from './handlers/RealtimeSessionHandlers';
 import { registerRealtimeTranslationHandler, type RealtimeTranslationDependencies } from './handlers/RealtimeTranslationHandler';
 import { registerRealtimeSignalingHandler } from './handlers/RealtimeSignalingHandler';
+import { InMemorySignalingStore } from './signaling/InMemorySignalingStore';
 
 /**
  * RealtimeApp wires a protocol-agnostic dispatcher onto the chosen transport,
@@ -26,6 +27,7 @@ export class RealtimeApp {
   private readonly svc: RealTimeCommunicationService;
   private readonly options?: RealtimeAppOptions;
   private readonly sessionRegistry = new RealtimeSessionRegistry();
+  private readonly signalingStore = new InMemorySignalingStore();
 
   constructor(transport: IRealtimeTransport, options?: RealtimeAppOptions) {
     this.transport = transport;
@@ -40,7 +42,7 @@ export class RealtimeApp {
     registerRegisterHandler(this.svc);
     registerRealtimeSessionHandlers(this.svc, this.sessionRegistry);
     // Signaling relay for future WebRTC transport (safe no-op for WS clients)
-    registerRealtimeSignalingHandler(this.svc, this.sessionRegistry);
+    registerRealtimeSignalingHandler(this.svc, this.sessionRegistry, this.signalingStore);
     if (this.options?.audioDeps) {
       registerRealtimeAudioHandler(this.svc, this.options.audioDeps);
     }

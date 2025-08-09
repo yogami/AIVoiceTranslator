@@ -1,5 +1,6 @@
 import type { RealTimeCommunicationService } from '../RealTimeCommunicationService';
 import { RealtimeSessionRegistry } from '../session/RealtimeSessionRegistry';
+import { InMemorySignalingStore } from '../signaling/InMemorySignalingStore';
 
 /**
  * RealtimeSignalingHandler (protocol-agnostic)
@@ -16,7 +17,8 @@ import { RealtimeSessionRegistry } from '../session/RealtimeSessionRegistry';
  */
 export function registerRealtimeSignalingHandler(
   service: RealTimeCommunicationService,
-  registry: RealtimeSessionRegistry
+  registry: RealtimeSessionRegistry,
+  store?: InMemorySignalingStore
 ): void {
   const ensureSession = (ctx: any, msg: any): string | null => {
     return (msg?.sessionId as string) || ctx.sessionId || registry.get(ctx.connectionId)?.sessionId || null;
@@ -26,6 +28,8 @@ export function registerRealtimeSignalingHandler(
     const sessionId = ensureSession(ctx, message);
     if (!sessionId) return;
     const sender = service.getMessageSender();
+    // persist
+    store?.setOffer(sessionId, ctx.connectionId, message?.sdp);
     await sender.broadcastToSession(sessionId, { type: 'webrtc_offer', sdp: message?.sdp, from: ctx.connectionId });
   });
 
@@ -33,6 +37,7 @@ export function registerRealtimeSignalingHandler(
     const sessionId = ensureSession(ctx, message);
     if (!sessionId) return;
     const sender = service.getMessageSender();
+    store?.addAnswer(sessionId, ctx.connectionId, message?.sdp);
     await sender.broadcastToSession(sessionId, { type: 'webrtc_answer', sdp: message?.sdp, from: ctx.connectionId });
   });
 
@@ -40,7 +45,17 @@ export function registerRealtimeSignalingHandler(
     const sessionId = ensureSession(ctx, message);
     if (!sessionId) return;
     const sender = service.getMessageSender();
+    store?.addIceCandidate(sessionId, ctx.connectionId, message?.candidate);
     await sender.broadcastToSession(sessionId, { type: 'webrtc_ice_candidate', candidate: message?.candidate, from: ctx.connectionId });
+  });
+
+  // Allow a client to request current signaling state for the session
+  service.registerHandler('webrtc_sync', async (ctx, message: any) => {
+    const sessionId = ensureSession(ctx, message);
+    if (!sessionId || !store) return;
+    const state = store.get(sessionId) || { answers: [], ice: [] };
+    const sender = service.getMessageSender();
+    await sender.send(ctx.connectionId, { type: 'webrtc_sync', state });
   });
 }
 

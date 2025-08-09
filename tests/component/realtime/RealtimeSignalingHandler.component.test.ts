@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { RealTimeCommunicationService } from '../../../server/realtime/RealTimeCommunicationService';
 import { RealtimeSessionRegistry } from '../../../server/realtime/session/RealtimeSessionRegistry';
 import { registerRealtimeSignalingHandler } from '../../../server/realtime/handlers/RealtimeSignalingHandler';
+import { InMemorySignalingStore } from '../../../server/realtime/signaling/InMemorySignalingStore';
 
 class FakeTransport {
   messageCbs: any[] = [];
@@ -22,8 +23,9 @@ describe('RealtimeSignalingHandler', () => {
     const transport = new FakeTransport();
     const svc = new RealTimeCommunicationService(transport as any);
     const registry = new RealtimeSessionRegistry();
+    const store = new InMemorySignalingStore();
     registry.set('c1', { sessionId: 'S1' });
-    registerRealtimeSignalingHandler(svc, registry);
+    registerRealtimeSignalingHandler(svc, registry, store);
     svc.start();
 
     const asEvent = (obj: any) => ({ data: JSON.stringify(obj) });
@@ -32,6 +34,10 @@ describe('RealtimeSignalingHandler', () => {
     transport.messageCbs.forEach(cb => cb({ connectionId: 'c1' }, asEvent({ type: 'webrtc_ice_candidate', sessionId: 'S1', candidate: { c: 1 } })));
     expect(transport.broadcasts.length).toBe(3);
     expect(transport.broadcasts[0][0]).toBe('S1');
+    const state = store.get('S1')!;
+    expect(state.offer).toBeDefined();
+    expect(state.answers.length).toBe(1);
+    expect(state.ice.length).toBe(1);
   });
 });
 

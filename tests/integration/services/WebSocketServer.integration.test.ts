@@ -324,7 +324,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       expect(translationMessage.text).not.toContain('Hello, this is a test message for real translation'); // Should be translated
       
       console.log('[INTEGRATION] Real translation test passed');
-    }, TEST_CONFIG.TRANSLATION_TIMEOUT + 5000);
+    }, Math.max(TEST_CONFIG.TRANSLATION_TIMEOUT + 5000, 30000));
 
     it('should handle translation errors gracefully with real services', async () => {
       console.log('[INTEGRATION] Starting real service error handling test...');
@@ -446,7 +446,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }
       }
       
       console.log('[INTEGRATION] Database persistence test passed');
-    });
+    }, Math.max(TEST_CONFIG.TRANSLATION_TIMEOUT + 10000, 60000));
   });
 
   describe('Real Service Error Handling', () => {

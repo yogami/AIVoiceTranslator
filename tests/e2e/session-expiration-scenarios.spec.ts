@@ -148,7 +148,12 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
   await page.waitForURL(/\/teacher\b/, { timeout: 5000 }).catch(() => undefined);
   if (!/\/teacher\b/.test(page.url())) {
     // Navigate with e2e flags so teacher.js bypasses strict auth in test mode and emits code quickly
-    await page.goto(getTeacherURL(`e2e=true&teacherUsername=${encodeURIComponent(teacherName)}`), { waitUntil: 'domcontentloaded' });
+    await page.goto(
+      getTeacherURL(
+        `e2e=true&teacherId=${encodeURIComponent(teacherName)}&teacherUsername=${encodeURIComponent(teacherName)}`
+      ),
+      { waitUntil: 'domcontentloaded' }
+    );
   } else {
     await page.waitForLoadState('domcontentloaded');
   }
@@ -177,17 +182,35 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
       if (!el) return false;
       const txt = (el.textContent || '').trim();
       return /^[A-Z0-9]{6}$/.test(txt);
-    }, { timeout: testConfig.ui.classroomCodeTimeout });
+    }, { timeout: Math.min(testConfig.ui.classroomCodeTimeout, 6000) });
     const classroomCode = await page.locator('#classroom-code-display').textContent();
     return (classroomCode || '').trim();
   } catch {
-    // Deterministic fallback: query active sessions API
-    const res = await page.request.get('/api/sessions/active');
-    if (res.ok()) {
-      const json = await res.json();
-      const sessions = json?.data?.activeSessions || [];
-      const first = sessions.find((s: any) => s.classCode && /^[A-Z0-9]{6}$/.test((s.classCode || '').trim()));
-      if (first) return first.classCode.trim();
+    // Deterministic fallback: poll active sessions API for a short window
+    const deadline = Date.now() + 6000;
+    while (Date.now() < deadline) {
+      // UI-based fallback: parse student URL text if present
+      try {
+        const studentUrlText = await page.locator('#studentUrl').textContent({ timeout: 500 }).catch(() => null);
+        const urlText = (studentUrlText || '').trim();
+        const m = urlText.match(/code=([A-Z0-9]{6})/);
+        if (m && m[1]) return m[1];
+      } catch (_) {
+        // ignore and continue
+      }
+
+      const res = await page.request.get('/api/sessions/active', { timeout: 1000 }).catch(() => null);
+      if (res && res.ok()) {
+        try {
+          const json = await res.json();
+          const sessions = json?.data?.activeSessions || [];
+          const first = sessions.find((s: any) => s.classCode && /^[A-Z0-9]{6}$/.test((s.classCode || '').trim()));
+          if (first) return first.classCode.trim();
+        } catch (_) {
+          // ignore parse errors and retry
+        }
+      }
+      await page.waitForTimeout(300);
     }
     throw new Error('Failed to obtain classroom code from UI and API fallback');
   }
