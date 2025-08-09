@@ -99,7 +99,7 @@ describe('Tier Switch Logic Permutations', () => {
     process.env.OPENAI_API_KEY = 'test-key';
 
     // Mock ElevenLabs TTS failure
-    const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
+    const ttsServiceFactory = await import('../../server/infrastructure/factories/TTSServiceFactory');
     const ttsService = ttsServiceFactory.getTTSService();
     (global.fetch as any).mockResolvedValueOnce({ ok: false, status: 500, text: () => Promise.resolve('Server Error') });
     const result = await ttsService.synthesize('Test message', { language: 'en', voice: 'female' });
@@ -119,7 +119,7 @@ describe('Tier Switch Logic Permutations', () => {
 
     // Mock OpenAI STT and ElevenLabs TTS failure
     const sttService = new AutoFallbackSTTService();
-    const ttsServiceFactory = await import('../../server/services/tts/TTSServiceFactory');
+    const ttsServiceFactory = await import('../../server/infrastructure/factories/TTSServiceFactory');
     const ttsService = ttsServiceFactory.getTTSService();
     (global.fetch as any).mockResolvedValueOnce({ ok: false, status: 429, text: () => Promise.resolve('Rate limit') });
     (global.fetch as any).mockResolvedValueOnce({ ok: false, status: 500, text: () => Promise.resolve('Server Error') });

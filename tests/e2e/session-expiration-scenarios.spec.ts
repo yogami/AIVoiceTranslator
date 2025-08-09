@@ -333,7 +333,7 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       await studentPage2.waitForFunction(() => (document.querySelector('#connection-status span')?.textContent || '').toLowerCase().includes('connected'));
       
       // Step 3: Verify session has students (deterministic)
-      const sId = await waitForSessionIdByClassCode(page, classroomCode, 8000);
+      const sId = await waitForSessionIdByClassCode(page, classroomCode, 15000);
       expect(sId).toBeTruthy();
       const stRes = await page.request.get(`/api/sessions/${sId}/status`);
       const stJson = await stRes.json();

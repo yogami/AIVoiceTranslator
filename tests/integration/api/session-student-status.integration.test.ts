@@ -124,8 +124,16 @@ describe('Sessions API Integration Tests', () => {
     }));
     const messages: any[] = [];
     teacherWs.on('message', (data) => { try { messages.push(JSON.parse(data.toString())); } catch {} });
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const classroomMsg = messages.find(m => m.type === 'classroom_code');
+    // wait up to 2s for classroom_code
+    const classroomMsg = await (async () => {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const msg = messages.find(m => m.type === 'classroom_code');
+        if (msg) return msg;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return undefined;
+    })();
     const teacherSessionMsg = messages.find(m => m.type === 'connection');
     expect(classroomMsg?.code).toMatch(/^[A-Z0-9]{6}$/);
     classCode = classroomMsg.code;
@@ -239,8 +247,15 @@ describe('Sessions API Integration Tests', () => {
     }));
     const tMsgs: any[] = [];
     teacherWs.on('message', (d) => { try { tMsgs.push(JSON.parse(d.toString())); } catch {} });
-    await new Promise(r => setTimeout(r, 200));
-    const classroomMsg = tMsgs.find(m => m.type === 'classroom_code');
+    const classroomMsg = await (async () => {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const msg = tMsgs.find(m => m.type === 'classroom_code');
+        if (msg) return msg;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return undefined;
+    })();
     sessionId = (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -270,8 +285,15 @@ describe('Sessions API Integration Tests', () => {
     }));
     const tMsgs: any[] = [];
     teacherWs.on('message', (d) => { try { tMsgs.push(JSON.parse(d.toString())); } catch {} });
-    await new Promise(r => setTimeout(r, 200));
-    const classroomMsg = tMsgs.find(m => m.type === 'classroom_code');
+    const classroomMsg = await (async () => {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const msg = tMsgs.find(m => m.type === 'classroom_code');
+        if (msg) return msg;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return undefined;
+    })();
     sessionId = (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
     const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);

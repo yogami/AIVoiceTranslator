@@ -429,6 +429,17 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.status === 'connected' && data.sessionId) {
                         appState.sessionId = data.sessionId;
                         console.log('Session ID received on connection:', appState.sessionId); // Original log for line 176
+                        // Notify backend of session join for protocol-agnostic layer (if enabled)
+                        try {
+                            const joinMsg = { type: 'join_session', sessionId: appState.sessionId };
+                            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                                appState.rtc.sendJSON(joinMsg);
+                            } else if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                                appState.ws.send(JSON.stringify(joinMsg));
+                            }
+                        } catch (e) {
+                            console.warn('[DEBUG] teacher.js: Failed to send join_session message:', e);
+                        }
                     }
                     break;
 
