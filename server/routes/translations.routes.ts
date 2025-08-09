@@ -7,7 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler, ApiError } from '../middleware/error-handler.middleware';
 import { validateRequiredFields, parseLimit } from '../middleware/validation.middleware';
-import { TranslationRoutesService } from '../services/TranslationRoutesService';
+import { TranslationRoutesService } from '../services/translation/TranslationRoutesService';
 import { IStorage } from '../storage.interface';
 
 export function createTranslationRoutes(storage: IStorage): Router {

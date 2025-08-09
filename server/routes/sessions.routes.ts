@@ -84,6 +84,9 @@ export function createSessionRoutes(
 
     // Get session from database (may be missing briefly during initial WS registration)
     const session = await storage.getSessionById(sessionId);
+    if (!session) {
+      throw new ApiError(404, 'Session not found');
+    }
 
     // Check if activeSessionProvider has the _connectionManager getter
     if (!activeSessionProvider || typeof (activeSessionProvider as any)._connectionManager !== 'object') {
@@ -114,7 +117,7 @@ export function createSessionRoutes(
       success: true,
       data: {
         sessionId,
-        classCode: session ? session.classCode : null,
+        classCode: session.classCode,
         connectedStudents: connectionStats.connections.length,
         languages: languageStats,
         lastUpdated: new Date().toISOString()

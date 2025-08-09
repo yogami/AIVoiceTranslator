@@ -219,8 +219,9 @@ describe('End-to-End TTS Orchestrator Integration', { timeout: 45000 }, () => {
     }
   }
 
-  it('should use ElevenLabs TTS when all flags are auto', async () => {
-    await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: 'elevenlabs', simulateTTSFailure: false, simulateSTTFailure: false });
+  it('should use Local or Browser TTS when all flags are auto', async () => {
+    // In our cost-optimized auto flow, local/browser come before paid tiers
+    await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: '', simulateTTSFailure: false, simulateSTTFailure: false });
   });
 
   it('should use OpenAI TTS when ttsFlag is openai', async () => {
@@ -231,11 +232,11 @@ describe('End-to-End TTS Orchestrator Integration', { timeout: 45000 }, () => {
     await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'browser', expectTTS: 'browser', simulateTTSFailure: false, simulateSTTFailure: false });
   });
 
-  it('should fallback to OpenAI TTS when ElevenLabs fails', async () => {
-    await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: 'openai', simulateTTSFailure: true, simulateSTTFailure: false });
+  it('should fallback to Browser/OpenAI TTS when paid service fails', async () => {
+    await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: '', simulateTTSFailure: true, simulateSTTFailure: false });
   });
 
-  it('should fallback to Browser TTS when both ElevenLabs and OpenAI fail', async () => {
+  it('should fallback to Browser TTS when all paid tiers fail', async () => {
     // Simulate both failures by chaining two mocks
     let callCount = 0;
     global.fetch = async () => {
@@ -275,11 +276,11 @@ describe('End-to-End TTS Orchestrator Integration', { timeout: 45000 }, () => {
         formData: async () => new FormData(),
       } as unknown as Response;
     };
-    await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: 'browser', simulateTTSFailure: false, simulateSTTFailure: false });
+    await runE2ETest({ sttFlag: 'auto', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: '', simulateTTSFailure: false, simulateSTTFailure: false });
   });
 
   it('should use Whisper.cpp STT when sttFlag is whispercpp', async () => {
-    await runE2ETest({ sttFlag: 'whispercpp', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: 'elevenlabs', simulateTTSFailure: false, simulateSTTFailure: false });
+    await runE2ETest({ sttFlag: 'whispercpp', translationFlag: 'auto', ttsFlag: 'auto', expectTTS: '', simulateTTSFailure: false, simulateSTTFailure: false });
   });
 
   it('should use OpenAI STT and ElevenLabs TTS when flags are openai and elevenlabs', async () => {

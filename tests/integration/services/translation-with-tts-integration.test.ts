@@ -9,10 +9,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SpeechPipelineOrchestrator } from '../../../server/services/SpeechPipelineOrchestrator.js';
-import { getTTSService } from '../../../server/services/tts/TTSServiceFactory.js';
-import { getSTTTranscriptionService } from '../../../server/services/stttranscription/TranscriptionServiceFactory.js';
-import { getTranslationService } from '../../../server/services/translation/TranslationServiceFactory.js';
+import { SpeechPipelineOrchestrator } from '../../../server/application/services/SpeechPipelineOrchestrator.js';
+import { getTTSService } from '../../../server/infrastructure/factories/TTSServiceFactory.js';
+import { getSTTTranscriptionService } from '../../../server/infrastructure/factories/STTServiceFactory.js';
+import { getTranslationService } from '../../../server/infrastructure/factories/TranslationServiceFactory.js';
 import * as dotenv from 'dotenv';
 import path from 'path';
 
@@ -56,7 +56,7 @@ describe('Translation with TTS Integration', () => {
         return;
       }
 
-      const result = await speechPipelineOrchestrator.process(
+      const result = await speechPipelineOrchestrator.processAudioPipeline(
         Buffer.from('dummy audio'),
         'en-US',
         'es-ES'
@@ -78,8 +78,8 @@ describe('Translation with TTS Integration', () => {
       const results = await Promise.all(
         languages.map(async lang => {
           try {
-            // Use process with dummy audio since translateText might not exist
-            const result = await speechPipelineOrchestrator.process(
+            // Use processAudioPipeline with dummy audio
+              const result = await speechPipelineOrchestrator.processAudioPipeline(
               Buffer.from('dummy audio for hello world'),
               'en-US',
               lang
@@ -117,7 +117,7 @@ describe('Translation with TTS Integration', () => {
       try {
         // First call - not cached
         const start1 = Date.now();
-        const result1 = await speechPipelineOrchestrator.process(
+        const result1 = await speechPipelineOrchestrator.processAudioPipeline(
           dummyAudio,
           sourceLanguage,
           targetLanguage
@@ -126,7 +126,7 @@ describe('Translation with TTS Integration', () => {
 
         // Second call - should be cached
         const start2 = Date.now();
-        const result2 = await speechPipelineOrchestrator.process(
+        const result2 = await speechPipelineOrchestrator.processAudioPipeline(
           dummyAudio,
           sourceLanguage,
           targetLanguage
@@ -152,7 +152,7 @@ describe('Translation with TTS Integration', () => {
       const invalidBuffer = Buffer.from('invalid audio data');
       
       try {
-        await speechPipelineOrchestrator.process(
+        await speechPipelineOrchestrator.processAudioPipeline(
           invalidBuffer,
           'invalid-lang',
           'es-ES'
@@ -171,7 +171,7 @@ describe('Translation with TTS Integration', () => {
       }
 
       // Generate TTS through the translation service
-      const result = await speechPipelineOrchestrator.process(
+      const result = await speechPipelineOrchestrator.processAudioPipeline(
         Buffer.from('dummy audio for TTS test'),
         'en-US',
         'en-US' // Same language to just test TTS

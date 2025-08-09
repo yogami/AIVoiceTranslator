@@ -92,9 +92,20 @@ describe('🚨 CRITICAL: Student Audio Delivery Bug', () => {
 
     // Process the transcription (this should trigger translation and TTS)
     await transcriptionService.processTranscription(
-      mockStudentWs as any,
-      teacherTranscriptionMessage,
-      mockLatencyTracking
+      {
+        text: teacherTranscriptionMessage.text,
+        teacherLanguage: 'en-US',
+        sessionId: 'test-session-123',
+        studentConnections: [mockStudentWs as any],
+        studentLanguages: ['es-ES'],
+        startTime: Date.now(),
+        latencyTracking: mockLatencyTracking
+      },
+      {
+        getClientSettings: () => ({}),
+        getLanguage: () => 'es-ES',
+        getSessionId: () => 'test-session-123'
+      }
     );
 
     console.log('🚨 [CRITICAL TEST] Checking student received messages...');
@@ -152,17 +163,19 @@ describe('🚨 CRITICAL: Student Audio Delivery Bug', () => {
     };
 
     await transcriptionService.processTranscription(
-      mockStudentWs as any,
       {
-        type: 'transcription' as const,
         text: 'Good morning',
-        timestamp: Date.now(),
-        isFinal: true
+        teacherLanguage: 'en-US',
+        sessionId: 'test-session-456',
+        studentConnections: [mockStudentWs as any],
+        studentLanguages: ['fr-FR'],
+        startTime: Date.now(),
+        latencyTracking: { start: Date.now(), components: { preparation: 0, translation: 0, tts: 0, processing: 0 } }
       },
       {
-        start: Date.now(),
-        components: { preparation: 0, translation: 0, tts: 0, processing: 0 },
-        end: Date.now()
+        getClientSettings: () => ({}),
+        getLanguage: () => 'fr-FR',
+        getSessionId: () => 'test-session-456'
       }
     );
 

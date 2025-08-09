@@ -13,6 +13,7 @@ import { OpenAITranslationService } from '../external-services/translation/OpenA
 import { DeepSeekTranslationService } from '../external-services/translation/DeepSeekTranslationService';
 import { MyMemoryTranslationService } from '../external-services/translation/MyMemoryTranslationService';
 import { AutoFallbackTranslationService, createDeepSeekFirstAutoFallbackTranslationService } from '../external-services/translation/AutoFallbackTranslationService';
+import { LocalTranslationService } from '../external-services/translation/LocalTranslationService';
 import { OpenAI } from 'openai';
 
 // Service tier enumeration for consistency
@@ -85,8 +86,7 @@ export class TranslationServiceFactory implements ITranslationServiceFactory {
 
       case TranslationServiceTier.OFFLINE: {
         console.log('[TranslationFactory] Creating Tier 4 (Offline): Local Translation');
-        // For now, fallback to MyMemory. In production, implement offline translation
-        service = new MyMemoryTranslationService();
+        service = new LocalTranslationService();
         break;
       }
 

@@ -50,8 +50,9 @@ async function getActiveSessionsSummary(page: any): Promise<{ activeSessions: Ar
 }
 
 async function getSessionIdByClassCode(page: any, classroomCode: string): Promise<string | null> {
+  const normalizedCode = (classroomCode || '').trim();
   const data = await getActiveSessionsSummary(page);
-  const match = (data.activeSessions || []).find((s: any) => s.classCode === classroomCode);
+  const match = (data.activeSessions || []).find((s: any) => (s.classCode || '').trim() === normalizedCode);
   return match ? match.sessionId : null;
 }
 
@@ -141,7 +142,15 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
   await page.fill('#password', 'teacher123');
   // The login page uses #submit-btn for both login and registration
   await page.click('#submit-btn');
-  await page.waitForURL('/teacher');
+  // Prefer detecting successful login via localStorage token to avoid brittle redirect timing
+  await page.waitForFunction(() => !!localStorage.getItem('teacherToken'), { timeout: 5000 }).catch(() => undefined);
+  // Let natural redirect complete; only navigate if needed to avoid double-navigation races
+  await page.waitForURL(/\/teacher\b/, { timeout: 5000 }).catch(() => undefined);
+  if (!/\/teacher\b/.test(page.url())) {
+    await page.goto('/teacher', { waitUntil: 'domcontentloaded' });
+  } else {
+    await page.waitForLoadState('domcontentloaded');
+  }
   
   const teacherData = await page.evaluate(() => {
     const teacherUser = localStorage.getItem('teacherUser');
@@ -161,9 +170,17 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
   await page.waitForLoadState('networkidle');
   
   await page.waitForSelector('#classroom-code-display', { timeout: testConfig.ui.elementVisibilityTimeout });
-  
+
+  // Wait until a real 6-char code is rendered (avoid placeholders like 'LIVE')
+  await page.waitForFunction(() => {
+    const el = document.querySelector('#classroom-code-display');
+    if (!el) return false;
+    const txt = (el.textContent || '').trim();
+    return /^[A-Z0-9]{6}$/.test(txt);
+  }, { timeout: Math.max(testConfig.ui.connectionStatusTimeout, 5000) });
+
   const classroomCode = await page.locator('#classroom-code-display').textContent();
-  return classroomCode || '';
+  return (classroomCode || '').trim();
 }
 
 // Helper function to simulate student joining session
@@ -299,15 +316,26 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       const { teacherId } = await simulateTeacherLogin(page, 'students-left-teacher');
       const classroomCode = await getClassroomCodeFromTeacherPage(page);
       
-      // Step 2: Students join
+      // Step 2: Students join (real connections)
       const studentPage1 = await context.newPage();
       const studentPage2 = await context.newPage();
       
-      await simulateStudentJoin(studentPage1, classroomCode);
-      await simulateStudentJoin(studentPage2, classroomCode);
+      // Student 1 connect
+      await studentPage1.goto(getStudentURL(classroomCode));
+      await studentPage1.waitForLoadState('networkidle');
+      await studentPage1.selectOption('#language-dropdown', { index: 1 });
+      await studentPage1.click('#connect-btn');
+      await studentPage1.waitForFunction(() => (document.querySelector('#connection-status span')?.textContent || '').toLowerCase().includes('connected'));
+
+      // Student 2 connect
+      await studentPage2.goto(getStudentURL(classroomCode));
+      await studentPage2.waitForLoadState('networkidle');
+      await studentPage2.selectOption('#language-dropdown', { index: 1 });
+      await studentPage2.click('#connect-btn');
+      await studentPage2.waitForFunction(() => (document.querySelector('#connection-status span')?.textContent || '').toLowerCase().includes('connected'));
       
       // Step 3: Verify session has students (deterministic)
-      const sId = await getSessionIdByClassCode(page, classroomCode);
+      const sId = await waitForSessionIdByClassCode(page, classroomCode, 8000);
       expect(sId).toBeTruthy();
       const stRes = await page.request.get(`/api/sessions/${sId}/status`);
       const stJson = await stRes.json();
@@ -395,7 +423,7 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       // Step 2: Verify all sessions are active (deterministic)
       const allClassroomCodes = sessionData.map(s => s.classroomCode);
       const initialSummary = await getActiveSessionsSummary(page);
-      const activeCount = (initialSummary.activeSessions || []).filter(s => allClassroomCodes.includes(s.classCode)).length;
+      const activeCount = (initialSummary.activeSessions || []).filter(s => allClassroomCodes.includes(s.classCode ?? '')).length;
       expect(activeCount).toBe(3);
       
       // Step 3: Force expiration of all sessions
@@ -408,7 +436,7 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       
       // Step 5: Verify expired sessions are removed from active summary
       const afterSummary = await getActiveSessionsSummary(page);
-      const afterActive = (afterSummary.activeSessions || []).filter(s => allClassroomCodes.includes(s.classCode)).length;
+      const afterActive = (afterSummary.activeSessions || []).filter(s => allClassroomCodes.includes(s.classCode ?? '')).length;
       expect(afterActive).toBe(0);
       
       // Step 6: Verify memory cleanup is complete

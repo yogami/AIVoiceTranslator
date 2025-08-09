@@ -253,11 +253,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
   }
   return response;
 };
-import { VoiceIsolationService } from '../../server/services/audio/VoiceIsolationService';
-import { AutoFallbackSTTService } from '../../server/services/stttranscription/AutoFallbackSTTService';
+import { VoiceIsolationService } from '../../server/infrastructure/external-services/audio/VoiceIsolationService';
+import { AutoFallbackSTTService } from '../../server/infrastructure/external-services/speech/AutoFallbackSTTService';
 import { CulturalContextService } from '../../server/services/translation/CulturalContextService';
-import { ElevenLabsEmotionControlService as EmotionControlService } from '../../server/services/tts/EmotionControlService';
-import { getTranslationService } from '../../server/services/translation/TranslationServiceFactory';
+import { ElevenLabsEmotionControlService as EmotionControlService } from '../../server/infrastructure/external-services/tts/EmotionControlService';
+import { getTranslationService } from '../../server/infrastructure/factories/TranslationServiceFactory';
 
 // Create test audio buffer
 function createTestAudioBuffer(): Buffer {

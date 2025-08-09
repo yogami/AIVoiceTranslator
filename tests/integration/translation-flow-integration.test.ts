@@ -14,10 +14,10 @@ import WebSocket from 'ws';
 import { createServer, Server } from 'http';
 import express from 'express';
 import { WebSocketServer as WSServer } from 'ws';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { WebSocketServer } from '../../server/interface-adapters/websocket/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
 import { TestDatabaseManager } from '../utils/TestDatabaseManager';
-import { SpeechPipelineOrchestrator } from '../../server/services/SpeechPipelineOrchestrator';
+import { SpeechPipelineOrchestrator } from '../../server/application/services/SpeechPipelineOrchestrator';
 import { setupTestIsolation } from '../../test-config/test-isolation';
 import { initTestDatabase, closeDatabaseConnection } from '../setup/db-setup';
 

@@ -11,7 +11,7 @@
 import logger from '../../logger';
 import type { IStorage } from '../../storage.interface';
 import type { SpeechPipelineOrchestrator } from '../../application/services/SpeechPipelineOrchestrator';
-import type { WebSocketClient } from '../websocket/ConnectionManager';
+import type { WebSocketClient } from '../../interface-adapters/websocket/websocket-services/ConnectionManager';
 
 export interface TranscriptionProcessingRequest {
   text: string;
@@ -61,7 +61,7 @@ export class TranscriptionBusinessService {
     } = request;
 
     logger.info('Processing transcription:', { 
-      text: text.substring(0, 100), 
+      text: (text || '').substring(0, 100), 
       teacherLanguage, 
       sessionId, 
       studentCount: studentConnections.length,

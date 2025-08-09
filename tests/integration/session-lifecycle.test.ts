@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { UnifiedSessionCleanupService } from '../../server/services/session/cleanup/UnifiedSessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../server/application/services/session/cleanup/UnifiedSessionCleanupService';
 import { config } from '../../server/config';
 import { db } from '../../server/db';
 import { sessions } from '../../shared/schema';

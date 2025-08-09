@@ -135,6 +135,15 @@ export async function startServer(app: express.Express): Promise<Server> {
   const transport = createRealtimeTransport(httpServer, storage);
   await transport.start(httpServer);
   logger.info(`[INIT] Realtime transport started using: ${process.env.REALTIME_TRANSPORT || 'websocket'}`);
+  // Optionally enable protocol-agnostic app on top of transport (flagged)
+  try {
+    const { WebSocketRealtimeAppAdapter } = await import('./realtime/WebSocketRealtimeAppAdapter');
+    const appAdapter = new WebSocketRealtimeAppAdapter(transport);
+    appAdapter.enableIfFlagged();
+    (transport as any).__appAdapter = appAdapter; // allow cleanup in tests
+  } catch (e) {
+    logger.warn(`[INIT] Realtime app adapter not initialized: ${(e as Error).message}`);
+  }
   
   // Pass the cleanup service if available on transport (legacy adapter exposes it via underlying server)
   const cleanupService = (transport as any).legacy?.getSessionCleanupService?.() || undefined;

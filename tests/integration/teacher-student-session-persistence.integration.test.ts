@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import WebSocket from 'ws';
 import { createServer, Server } from 'http';
 import express from 'express';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { WebSocketServer } from '../../server/interface-adapters/websocket/WebSocketServer';
 import { createApiRoutes } from '../../server/routes';
 import { setupTestIsolation, getCurrentTestContext } from '../../test-config/test-isolation';
-import { UnifiedSessionCleanupService } from '../../server/services/session/cleanup/UnifiedSessionCleanupService';
+import { UnifiedSessionCleanupService } from '../../server/application/services/session/cleanup/UnifiedSessionCleanupService';
 import { DatabaseStorage } from '../../server/database-storage';
 import { initTestDatabase, closeDatabaseConnection } from '../setup/db-setup';
 import logger from '../../server/logger';

@@ -18,12 +18,12 @@ function createSimpleAudioBuffer(): Buffer {
     0x02, 0x00, 0x10, 0x00, // align, bits
     0x64, 0x61, 0x74, 0x61, // data chunk
     0x00, 0x00, 0x00, 0x00  // data size
-  ].concat(new Array(1024).fill(0))); // Some audio data
+  ].concat(new Array(6400).fill(0))); // ~0.2s mono PCM @16kHz
 }
 
 // Create test orchestrator instances
 function createTestOrchestrator() {
-  return SpeechPipelineOrchestrator.createWithDefaultServices();
+  return SpeechPipelineOrchestrator.createWithFreeTierServices();
 }
 
 function createTestOrchestratorWithSpecificTTS(ttsType: string) {
@@ -35,6 +35,9 @@ function createTestOrchestratorWithSpecificTTS(ttsType: string) {
 }
 
 function createTestOrchestratorWithStorage() {
+  process.env.STT_SERVICE_TYPE = 'whispercpp';
+  process.env.TRANSLATION_SERVICE_TYPE = 'auto-deepseek-first';
+  process.env.TTS_SERVICE_TYPE = 'local';
   return SpeechPipelineOrchestrator.createWithDefaultServices();
 }
 
@@ -42,6 +45,10 @@ describe('SpeechPipelineOrchestrator - Successful Path Validation', () => {
   let cleanup: (() => Promise<void>) | undefined;
 
   beforeEach(async () => {
+    process.env.STT_SERVICE_TYPE = 'whispercpp';
+    process.env.TTS_SERVICE_TYPE = 'local';
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ELEVENLABS_API_KEY;
     const testId = `speech-orchestrator-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     cleanup = async () => {
       const { cleanupIsolatedTest } = await import('../utils/test-database-isolation.js');
@@ -115,8 +122,8 @@ describe('SpeechPipelineOrchestrator - Successful Path Validation', () => {
       expect(result.audioResult).toBeDefined();
     }, 45000);
 
-    it('should handle different TTS service types successfully', async () => {
-      const ttsTypes = ['auto', 'openai', 'elevenlabs', 'browser'];
+    it('should handle different TTS service types successfully (skip premium without keys)', async () => {
+      const ttsTypes = ['auto', 'openai', 'browser'].concat(process.env.ELEVENLABS_API_KEY ? ['elevenlabs'] : []);
       
       for (const ttsType of ttsTypes) {
         const orchestrator = createTestOrchestratorWithSpecificTTS(ttsType);

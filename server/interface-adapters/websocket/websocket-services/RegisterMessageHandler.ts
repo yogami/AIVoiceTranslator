@@ -318,23 +318,31 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
         logger.info('Using existing session for teacher:', { sessionId });
       }
       
-      // Generate classroom code for this session
-      console.log(`🔍 DEBUG: About to generate classroom code for sessionId: ${sessionId}`);
-      classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
-      
-      // Store the classroom code in the database if this is a new session or if it's not already stored
-      if (sessionId && classroomCode) {
-        try {
-          const currentSession = await context.storage.getSessionById(sessionId);
-          if (currentSession && !currentSession.classCode) {
-            await context.webSocketServer.storageSessionManager.updateSession(sessionId, {
-              classCode: classroomCode
-            });
-            logger.info(`Stored classroom code ${classroomCode} for session ${sessionId}`);
+      // Determine classroom code for this session to keep DB and in-memory in sync
+      try {
+        const currentSession = await context.storage.getSessionById(sessionId);
+        if (currentSession && currentSession.classCode) {
+          // Prefer the code already stored in DB and ensure it exists in memory
+          classroomCode = currentSession.classCode;
+          try {
+            context.webSocketServer.classroomSessionManager.restoreClassroomSession(currentSession.classCode, sessionId);
+            logger.info(`Restored classroom code ${currentSession.classCode} for session ${sessionId}`);
+          } catch (e: any) {
+            logger.warn('Failed to restore classroom session; generating fresh mapping', { sessionId, classCode: currentSession.classCode, error: e?.message });
+            // As a fallback, generate (will map to same sessionId) but keep DB code authoritative
+            context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
           }
-        } catch (error: any) {
-          logger.error('Error storing classroom code:', { error, sessionId, classroomCode });
+        } else {
+          // No code stored yet - generate and persist
+          logger.info(`No classroom code in DB for session ${sessionId}. Generating new code.`);
+          classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
+          await context.webSocketServer.storageSessionManager.updateSession(sessionId, { classCode: classroomCode });
+          logger.info(`Stored new classroom code ${classroomCode} for session ${sessionId}`);
         }
+      } catch (error: any) {
+        logger.error('Error determining/storing classroom code:', { error, sessionId });
+        // Absolute fallback: generate a code to proceed (may cause mismatch, but avoids breaking the flow)
+        classroomCode = context.webSocketServer.classroomSessionManager.generateClassroomCode(sessionId);
       }
       
     } catch (error: any) {

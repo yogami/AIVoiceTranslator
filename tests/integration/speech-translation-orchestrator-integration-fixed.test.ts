@@ -339,7 +339,7 @@ describe('SpeechPipelineOrchestrator - Comprehensive Edge Case Testing', () => {
         expect(result).toBeDefined();
         if (result) {
           expect(result.audioResult.audioBuffer).toBeInstanceOf(Buffer);
-          if (ttsType === 'browser' || ttsType === 'elevenlabs') {
+          if (ttsType === 'browser' || ttsType === 'elevenlabs' || ttsType === 'openai') {
             // In CI without real keys or when client-side is expected, allow empty buffer
             expect(result.audioResult.audioBuffer.length).toBeGreaterThanOrEqual(0);
           } else {

@@ -3,8 +3,8 @@ import { createServer } from 'http';
 import { AddressInfo } from 'net';
 import WebSocket from 'ws';
 import express from 'express';
-import { createSessionRoutes } from '../../../server/routes/sessions.routes';
-import { WebSocketServer } from '../../../server/services/WebSocketServer';
+import { createApiRoutes } from '../../../server/routes/index';
+import { WebSocketServer } from '../../../server/interface-adapters/websocket/WebSocketServer';
 import { DatabaseStorage } from '../../../server/database-storage';
 import type { IStorage } from '../../../server/storage.interface';
 
@@ -49,7 +49,8 @@ describe('Sessions API Integration Tests', () => {
       getActiveSessionsCount: vi.fn().mockReturnValue(0)
     };
 
-    app.use('/api/sessions', createSessionRoutes(storage, mockActiveSessionProvider));
+    const apiRoutes = createApiRoutes(storage, wsServer as any, undefined);
+    app.use('/api', apiRoutes);
 
     // Start HTTP server
     server = createServer(app);
@@ -109,7 +110,7 @@ describe('Sessions API Integration Tests', () => {
   }, 10000); // 10 second timeout for the entire cleanup
 
   it('should return correct language breakdown when students join in different languages', async () => {
-    // Step 1: Connect teacher
+    // Step 1: Connect teacher and register to create a real session with classroom code
     const teacherWs = new WebSocket(`ws://localhost:${serverPort}`);
     await new Promise((resolve) => teacherWs.on('open', resolve));
 
@@ -117,21 +118,27 @@ describe('Sessions API Integration Tests', () => {
     teacherWs.send(JSON.stringify({
       type: 'register',
       role: 'teacher',
-      sessionId,
+      languageCode: 'en-US',
+      name: 'Teacher',
       userId: 'teacher-1'
     }));
-
-    // Wait for teacher registration
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const messages: any[] = [];
+    teacherWs.on('message', (data) => { try { messages.push(JSON.parse(data.toString())); } catch {} });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const classroomMsg = messages.find(m => m.type === 'classroom_code');
+    const teacherSessionMsg = messages.find(m => m.type === 'connection');
+    expect(classroomMsg?.code).toMatch(/^[A-Z0-9]{6}$/);
+    classCode = classroomMsg.code;
+    sessionId = teacherSessionMsg?.sessionId || sessionId;
 
     // Step 2: Connect first student (Spanish)
-    const student1Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
     await new Promise((resolve) => student1Ws.on('open', resolve));
 
     student1Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classCode,
       userId: 'student-1',
       language: 'es'
     }));
@@ -140,13 +147,13 @@ describe('Sessions API Integration Tests', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Step 3: Connect second student (French)
-    const student2Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student2Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
     await new Promise((resolve) => student2Ws.on('open', resolve));
 
     student2Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classCode,
       userId: 'student-2',
       language: 'fr'
     }));
@@ -155,13 +162,13 @@ describe('Sessions API Integration Tests', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Step 4: Connect third student (Spanish - same as first)
-    const student3Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student3Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
     await new Promise((resolve) => student3Ws.on('open', resolve));
 
     student3Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classCode,
       userId: 'student-3',
       language: 'es'
     }));
@@ -220,16 +227,21 @@ describe('Sessions API Integration Tests', () => {
   });
 
   it('should return empty languages array when no students are connected', async () => {
-    // Connect only teacher
+    // Connect only teacher to create session and code
     const teacherWs = new WebSocket(`ws://localhost:${serverPort}`);
     await new Promise((resolve) => teacherWs.on('open', resolve));
 
     teacherWs.send(JSON.stringify({
       type: 'register',
       role: 'teacher',
-      sessionId,
-      userId: 'teacher-1'
+      languageCode: 'en-US',
+      name: 'Teacher'
     }));
+    const tMsgs: any[] = [];
+    teacherWs.on('message', (d) => { try { tMsgs.push(JSON.parse(d.toString())); } catch {} });
+    await new Promise(r => setTimeout(r, 200));
+    const classroomMsg = tMsgs.find(m => m.type === 'classroom_code');
+    sessionId = (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -246,35 +258,40 @@ describe('Sessions API Integration Tests', () => {
   });
 
   it('should update language breakdown when students disconnect', async () => {
-    // Connect teacher and two students
+    // Connect teacher and two students via classroom code
     const teacherWs = new WebSocket(`ws://localhost:${serverPort}`);
     await new Promise((resolve) => teacherWs.on('open', resolve));
 
     teacherWs.send(JSON.stringify({
       type: 'register',
       role: 'teacher',
-      sessionId,
-      userId: 'teacher-1'
+      languageCode: 'en-US',
+      name: 'Teacher'
     }));
+    const tMsgs: any[] = [];
+    teacherWs.on('message', (d) => { try { tMsgs.push(JSON.parse(d.toString())); } catch {} });
+    await new Promise(r => setTimeout(r, 200));
+    const classroomMsg = tMsgs.find(m => m.type === 'classroom_code');
+    sessionId = (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
-    const student1Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);
     await new Promise((resolve) => student1Ws.on('open', resolve));
 
     student1Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classroomMsg.code,
       userId: 'student-1',
       language: 'es'
     }));
-
-    const student2Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    
+    const student2Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);
     await new Promise((resolve) => student2Ws.on('open', resolve));
 
     student2Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classroomMsg.code,
       userId: 'student-2',
       language: 'fr'
     }));

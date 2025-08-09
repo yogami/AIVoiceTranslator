@@ -4,7 +4,7 @@ import { AddressInfo } from 'net';
 import WebSocket from 'ws';
 import express from 'express';
 import { createSessionRoutes } from '../../server/routes/sessions.routes';
-import { WebSocketServer } from '../../server/services/WebSocketServer';
+import { WebSocketServer } from '../../server/interface-adapters/websocket/WebSocketServer';
 import { DatabaseStorage } from '../../server/database-storage';
 import { IStorage } from '../../server/storage.interface';
 
@@ -26,7 +26,6 @@ describe('Sessions API Integration Tests', () => {
     app.use(express.json());
     
     // We'll pass the real WebSocketServer as the activeSessionProvider
-
 
     // Start HTTP server
     server = createServer(app);

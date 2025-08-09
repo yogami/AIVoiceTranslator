@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getSTTTranscriptionService } from '../../server/services/stttranscription/TranscriptionServiceFactory';
+import { getSTTTranscriptionService } from '../../server/infrastructure/factories/STTServiceFactory';
 import { Buffer } from 'buffer';
 
 // Create test helper function

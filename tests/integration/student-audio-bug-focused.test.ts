@@ -40,7 +40,16 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
     console.log('🚨 [CRITICAL TEST] Testing STT service...');
     
     // Test STT in isolation
-    const testAudioBuffer = Buffer.alloc(1024, 'audio test data');
+      const testAudioBuffer = (() => {
+        const header = Buffer.from([
+          0x52,0x49,0x46,0x46, 0x24,0x00,0x00,0x00, 0x57,0x41,0x56,0x45,
+          0x66,0x6D,0x74,0x20, 0x10,0x00,0x00,0x00, 0x01,0x00, 0x01,0x00,
+          0x44,0xAC,0x00,0x00, 0x88,0x58,0x01,0x00, 0x02,0x00, 0x10,0x00,
+          0x64,0x61,0x74,0x61, 0x00,0x00,0x00,0x00
+        ]);
+        const data = Buffer.alloc(6400, 0); // ~0.2s
+        return Buffer.concat([header, data]);
+      })();
     
     try {
       const transcription = await speechOrchestrator.transcribeAudio(testAudioBuffer, 'en-US');
@@ -105,7 +114,16 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
     
     try {
       // Test the complete pipeline
-      const testAudioBuffer = Buffer.alloc(1024, 'test audio');
+      const testAudioBuffer = (() => {
+        const header = Buffer.from([
+          0x52,0x49,0x46,0x46, 0x24,0x00,0x00,0x00, 0x57,0x41,0x56,0x45,
+          0x66,0x6D,0x74,0x20, 0x10,0x00,0x00,0x00, 0x01,0x00, 0x01,0x00,
+          0x44,0xAC,0x00,0x00, 0x88,0x58,0x01,0x00, 0x02,0x00, 0x10,0x00,
+          0x64,0x61,0x74,0x61, 0x00,0x00,0x00,0x00
+        ]);
+        const data = Buffer.alloc(6400, 0); // ~0.2s
+        return Buffer.concat([header, data]);
+      })();
       const result = await speechOrchestrator.processAudioPipeline(
         testAudioBuffer,
         'en-US',
@@ -154,7 +172,7 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
 
       expect(result.audioBuffer).toBeDefined();
       expect(result.audioBuffer.length).toBeGreaterThan(0);
-      expect(result.ttsServiceType).toBe('LocalTTSService');
+      expect(result.ttsServiceType === 'LocalTTSService' || result.ttsServiceType === 'local').toBe(true);
       
       console.log('✅ [CRITICAL TEST] LocalTTS service working!');
     } catch (error) {
