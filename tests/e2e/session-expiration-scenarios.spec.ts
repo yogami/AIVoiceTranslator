@@ -147,7 +147,8 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
   // Let natural redirect complete; only navigate if needed to avoid double-navigation races
   await page.waitForURL(/\/teacher\b/, { timeout: 5000 }).catch(() => undefined);
   if (!/\/teacher\b/.test(page.url())) {
-    await page.goto('/teacher', { waitUntil: 'domcontentloaded' });
+    // Navigate with e2e flags so teacher.js bypasses strict auth in test mode and emits code quickly
+    await page.goto(getTeacherURL(`e2e=true&teacherUsername=${encodeURIComponent(teacherName)}`), { waitUntil: 'domcontentloaded' });
   } else {
     await page.waitForLoadState('domcontentloaded');
   }

@@ -125,7 +125,7 @@ describe('Sessions API Integration Tests', () => {
       role: 'student',
       classroomCode: classCode,
       userId: 'student-1',
-      language: 'es'
+      languageCode: 'es-ES'
     }));
 
     // Wait for student registration
@@ -140,7 +140,7 @@ describe('Sessions API Integration Tests', () => {
       role: 'student',
       classroomCode: classCode,
       userId: 'student-2',
-      language: 'fr'
+      languageCode: 'fr-FR'
     }));
 
     // Wait for student registration
@@ -155,7 +155,7 @@ describe('Sessions API Integration Tests', () => {
       role: 'student',
       classroomCode: classCode,
       userId: 'student-3',
-      language: 'es'
+      languageCode: 'es-ES'
     }));
 
     // Wait for student registration
@@ -192,19 +192,19 @@ describe('Sessions API Integration Tests', () => {
     expect(data.data.languages).toHaveLength(2);
     
     // Find Spanish and French entries
-    const spanishEntry = data.data.languages.find((lang: any) => lang.languageCode === 'es');
-    const frenchEntry = data.data.languages.find((lang: any) => lang.languageCode === 'fr');
+    const spanishEntry = data.data.languages.find((lang: any) => lang.languageCode === 'es-ES');
+    const frenchEntry = data.data.languages.find((lang: any) => lang.languageCode === 'fr-FR');
 
     expect(spanishEntry).toMatchObject({
-      languageCode: 'es',
-      languageName: 'Spanish',
+      languageCode: 'es-ES',
+      languageName: 'Spanish (Spain)',
       studentCount: 2,
       percentage: 66.7
     });
 
     expect(frenchEntry).toMatchObject({
-      languageCode: 'fr',
-      languageName: 'French',
+      languageCode: 'fr-FR',
+      languageName: 'French (France)',
       studentCount: 1,
       percentage: 33.3
     });
@@ -291,7 +291,7 @@ describe('Sessions API Integration Tests', () => {
       role: 'student',
       classroomCode: classroomMsg.code,
       userId: 'student-1',
-      language: 'es'
+      languageCode: 'es-ES'
     }));
     
     const student2Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);
@@ -302,7 +302,7 @@ describe('Sessions API Integration Tests', () => {
       role: 'student',
       classroomCode: classroomMsg.code,
       userId: 'student-2',
-      language: 'fr'
+      languageCode: 'fr-FR'
     }));
 
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -333,8 +333,8 @@ describe('Sessions API Integration Tests', () => {
     expect(data.data.connectedStudents).toBe(1);
     expect(data.data.languages).toHaveLength(1);
     expect(data.data.languages[0]).toMatchObject({
-      languageCode: 'es',
-      languageName: 'Spanish',
+      languageCode: 'es-ES',
+      languageName: 'Spanish (Spain)',
       studentCount: 1,
       percentage: 100.0
     });
