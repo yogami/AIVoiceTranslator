@@ -4,7 +4,11 @@ import type { IRealtimeTransport } from './IRealtimeTransport';
 import { WebSocketTransportAdapter } from './WebSocketTransportAdapter';
 
 export function createRealtimeTransport(server: HttpServer, storage: IStorage): IRealtimeTransport {
-  const transport = (process.env.REALTIME_TRANSPORT || 'websocket').toLowerCase();
+  const transport = (
+    process.env.REALTIME_TRANSPORT ||
+    process.env.COMMUNICATION_PROTOCOL ||
+    'websocket'
+  ).toLowerCase();
   switch (transport) {
     case 'webrtc':
       // Placeholder: will be implemented in a follow-up

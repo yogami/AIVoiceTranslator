@@ -64,6 +64,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     console.log('[DEBUG] teacher.js: IIFE executed.');
     const appState = {
         ws: null,
+        rtc: null,
         isRecording: false,
         recognition: null, // webkitSpeechRecognition instance
         selectedLanguage: 'en-US', // Default language, will be updated from DOM
@@ -311,48 +312,85 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             uiUpdater.updateStatus('Connecting to server at ' + wsUrl + '...');
             
             try {
-                appState.ws = new WebSocket(wsUrl);
-                console.log('[DEBUG] teacher.js: WebSocket object created for URL:', wsUrl);
+                if (window.RealtimeClientFactory) {
+                    appState.rtc = window.RealtimeClientFactory.create({ wsUrl, wsCtor: WebSocket });
+                }
+                appState.ws = appState.rtc ? null : new WebSocket(wsUrl);
+                console.log('[DEBUG] teacher.js: WebSocket/RealtimeClient created for URL:', wsUrl);
             } catch (e) {
                 console.error('[DEBUG] teacher.js: Error creating WebSocket object:', e);
                 uiUpdater.updateStatus('Error creating WebSocket connection: ' + e.message, 'error');
                 return;
             }
             
-            appState.ws.onopen = () => {
-                console.log('[DEBUG] teacher.js: WebSocket onopen event fired.');
-                uiUpdater.updateStatus('Connected to server');
-                // Registration is now typically triggered by server's 'connection' message or explicitly
-                // Let's explicitly call register after connection for teacher
-                this.register(); 
-            };
-            appState.ws.onmessage = (event) => {
-                console.log('[DEBUG] teacher.js: WebSocket onmessage event fired. Data:', event.data);
-                this.handleMessage(event);
-            }; // Use arrow function or .bind for correct 'this'
-            appState.ws.onclose = (event) => {
-                console.log('[DEBUG] teacher.js: WebSocket onclose event fired. Was clean:', event.wasClean, 'Code:', event.code, 'Reason:', event.reason);
-                
-                // Only reconnect for unexpected disconnections, not for duplicate sessions
-                // Code 1000 = normal closure, Code 1001 = going away, Code 1006 = abnormal closure
-                const shouldReconnect = !event.wasClean && event.code !== 1000 && event.code !== 1001;
-                
-                if (shouldReconnect && viteWsUrlFromWindow) {
-                    uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
-                    setTimeout(() => this.connect(), 5000);
-                } else {
+            if (appState.rtc) {
+                appState.rtc.onOpen(() => {
+                    console.log('[DEBUG] teacher.js: RealtimeClient onopen event fired.');
+                    uiUpdater.updateStatus('Connected to server');
+                    this.register();
+                });
+                appState.rtc.onMessage((event) => {
+                    console.log('[DEBUG] teacher.js: RealtimeClient onmessage event fired. Data:', event.data);
+                    this.handleMessage(event);
+                });
+                appState.rtc.onClose((event) => {
+                    console.log('[DEBUG] teacher.js: RealtimeClient onclose event fired.');
                     uiUpdater.updateStatus('Disconnected from server');
-                    console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
-                }
-            };
-            appState.ws.onerror = (error) => {
-                console.error('[DEBUG] teacher.js: WebSocket onerror event fired:', error);
-                uiUpdater.updateStatus('WebSocket connection error.', 'error');
-            };
+                    setTimeout(() => this.connect(), 5000);
+                });
+                appState.rtc.onError((error) => {
+                    console.error('[DEBUG] teacher.js: RealtimeClient onerror event fired:', error);
+                    uiUpdater.updateStatus('Connection error.', 'error');
+                });
+                appState.rtc.connect(wsUrl);
+            } else if (appState.ws) {
+                appState.ws.onopen = () => {
+                    console.log('[DEBUG] teacher.js: WebSocket onopen event fired.');
+                    uiUpdater.updateStatus('Connected to server');
+                    this.register(); 
+                };
+                appState.ws.onmessage = (event) => {
+                    console.log('[DEBUG] teacher.js: WebSocket onmessage event fired. Data:', event.data);
+                    this.handleMessage(event);
+                }; // Use arrow function or .bind for correct 'this'
+                appState.ws.onclose = (event) => {
+                    console.log('[DEBUG] teacher.js: WebSocket onclose event fired. Was clean:', event.wasClean, 'Code:', event.code, 'Reason:', event.reason);
+                    
+                    // Only reconnect for unexpected disconnections, not for duplicate sessions
+                    // Code 1000 = normal closure, Code 1001 = going away, Code 1006 = abnormal closure
+                    const shouldReconnect = !event.wasClean && event.code !== 1000 && event.code !== 1001;
+                    
+                    if (shouldReconnect && viteWsUrlFromWindow) {
+                        uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                        setTimeout(() => this.connect(), 5000);
+                    } else {
+                        uiUpdater.updateStatus('Disconnected from server');
+                        console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
+                    }
+                };
+                appState.ws.onerror = (error) => {
+                    console.error('[DEBUG] teacher.js: WebSocket onerror event fired:', error);
+                    uiUpdater.updateStatus('WebSocket connection error.', 'error');
+                };
+            }
         },
 
         register: function() {
             console.log('[DEBUG] teacher.js: webSocketHandler.register called.');
+            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                const teacherUser = JSON.parse(localStorage.getItem('teacherUser') || '{}');
+                const teacherId = teacherUser.id ? teacherUser.id.toString() : null;
+                if (!teacherId) {
+                    console.error('[DEBUG] teacher.js: No teacherId available, redirecting to login');
+                    uiUpdater.updateStatus('Authentication error: No teacher ID found', 'error');
+                    localStorage.removeItem('teacherToken');
+                    localStorage.removeItem('teacherUser');
+                    window.location.href = '/teacher-login';
+                    return;
+                }
+                appState.rtc.registerTeacher(teacherId, appState.selectedLanguage);
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 // Get authenticated teacher info from localStorage
                 const teacherUser = JSON.parse(localStorage.getItem('teacherUser') || '{}');
@@ -459,6 +497,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendTranscription: function(text) {
+            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                appState.rtc.sendTranscription(text);
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 const message = { type: 'transcription', text: text, timestamp: Date.now(), isFinal: true };
                 appState.ws.send(JSON.stringify(message));
@@ -466,6 +508,15 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendAudioChunk: function(audioData, isFirstChunk = false, isFinalChunk = false) {
+            if (appState.sessionId && appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Audio = reader.result.split(',')[1];
+                    appState.rtc.sendAudioChunk(appState.sessionId, base64Audio, isFirstChunk, isFinalChunk, appState.selectedLanguage);
+                };
+                reader.readAsDataURL(audioData);
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.sessionId) {
                 const reader = new FileReader();
                 reader.onloadend = () => {
@@ -485,6 +536,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendPong: function() {
+            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                appState.rtc.sendPong();
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 appState.ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
             }
@@ -659,9 +714,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 localStorage.removeItem('teacherUser');
                 
                 // Close WebSocket connection
-                if (appState.ws) {
-                    appState.ws.close();
-                }
+                if (appState.rtc && appState.rtc.close) { appState.rtc.close(); }
+                if (appState.ws) { appState.ws.close(); }
                 
                 // Redirect to login page
                 window.location.href = '/teacher-login';

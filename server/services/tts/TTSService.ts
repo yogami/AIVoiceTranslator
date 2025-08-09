@@ -25,7 +25,7 @@ export interface ITTSService {
   ): Promise<TTSResult>;
 }
 
-import { TTSServiceFactory } from './TTSServiceFactory';
+import { TTSServiceFactory } from '../../infrastructure/factories/TTSServiceFactory';
 
 export class TTSService {
   private service: ITTSService;
@@ -64,8 +64,7 @@ export class TTSService {
   }
 }
 
-export { TTSServiceFactory, getTTSService } from './TTSServiceFactory';
-export { ElevenLabsTTSService } from './ElevenLabsTTSService';
-export { BrowserTTSService } from './BrowserTTSService';
-export { OpenAITTSService } from './OpenAITTSService';
-export { AutoFallbackTTSService } from './TTSServiceFactory';
+export { TTSServiceFactory, getTTSService } from '../../infrastructure/factories/TTSServiceFactory';
+export { ElevenLabsTTSService } from '../../infrastructure/external-services/tts/ElevenLabsTTSService';
+export { BrowserTTSService } from '../../infrastructure/external-services/tts/BrowserTTSService';
+export { OpenAITTSService } from '../../infrastructure/external-services/tts/OpenAITTSService';

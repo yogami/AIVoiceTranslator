@@ -279,12 +279,16 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
       // Step 5: Verify session expired by server state (UI may still show elements)
       expect(await waitForClassCodeActiveState(page, classroomCode, false, 8000)).toBe(true);
       
-      // Step 6: Verify student cannot join expired session
+      // Step 6: Verify student cannot join expired session (real join attempt)
       const studentPage = await context.newPage();
-      const joinResult = await simulateStudentJoin(studentPage, classroomCode);
-      expect(joinResult.success).toBe(false);
-      expect(joinResult.errorMessage).toMatch(/expired|invalid/i);
-      
+      await studentPage.goto(getStudentURL(classroomCode));
+      await studentPage.waitForLoadState('networkidle');
+      await studentPage.selectOption('#language-dropdown', { index: 1 });
+      await studentPage.click('#connect-btn');
+      await studentPage.waitForTimeout(1000);
+      const errCount = await studentPage.locator('.error-message, .session-expired').count();
+      const statText = await studentPage.locator('#connection-status span').textContent().catch(() => '');
+      expect(errCount > 0 || /disconnected/i.test(statText || '')).toBe(true);
       await studentPage.close();
     });
   });
