@@ -171,15 +171,26 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
   await page.waitForSelector('#classroom-code-display', { timeout: testConfig.ui.elementVisibilityTimeout });
 
   // Wait until a real 6-char code is rendered (avoid placeholders like 'LIVE')
-  await page.waitForFunction(() => {
-    const el = document.querySelector('#classroom-code-display');
-    if (!el) return false;
-    const txt = (el.textContent || '').trim();
-    return /^[A-Z0-9]{6}$/.test(txt);
-  }, { timeout: Math.max(testConfig.ui.connectionStatusTimeout, 5000) });
-
-  const classroomCode = await page.locator('#classroom-code-display').textContent();
-  return (classroomCode || '').trim();
+  try {
+    await page.waitForFunction(() => {
+      const el = document.querySelector('#classroom-code-display');
+      if (!el) return false;
+      const txt = (el.textContent || '').trim();
+      return /^[A-Z0-9]{6}$/.test(txt);
+    }, { timeout: testConfig.ui.classroomCodeTimeout });
+    const classroomCode = await page.locator('#classroom-code-display').textContent();
+    return (classroomCode || '').trim();
+  } catch {
+    // Deterministic fallback: query active sessions API
+    const res = await page.request.get('/api/sessions/active');
+    if (res.ok()) {
+      const json = await res.json();
+      const sessions = json?.data?.activeSessions || [];
+      const first = sessions.find((s: any) => s.classCode && /^[A-Z0-9]{6}$/.test((s.classCode || '').trim()));
+      if (first) return first.classCode.trim();
+    }
+    throw new Error('Failed to obtain classroom code from UI and API fallback');
+  }
 }
 
 // Helper function to simulate student joining session

@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'http';
 import type { IStorage } from '../storage.interface';
 import type { IRealtimeTransport } from './IRealtimeTransport';
 import { WebSocketTransportAdapter } from './WebSocketTransportAdapter';
+import { WebRTCTransportAdapter } from './WebRTCTransportAdapter';
 
 export function createRealtimeTransport(server: HttpServer, storage: IStorage): IRealtimeTransport {
   const transport = (
@@ -11,9 +12,11 @@ export function createRealtimeTransport(server: HttpServer, storage: IStorage): 
   ).toLowerCase();
   switch (transport) {
     case 'webrtc':
-      // Placeholder: will be implemented in a follow-up
-      // For now, fall back to WebSocket with a console notice
-      console.warn('[RealtimeTransport] WebRTC transport not yet implemented; falling back to WebSocket');
+      if (process.env.REALTIME_WEBRTC_ALLOW_EXPERIMENT === '1') {
+        console.warn('[RealtimeTransport] Using experimental WebRTC transport');
+        return new WebRTCTransportAdapter();
+      }
+      console.warn('[RealtimeTransport] WebRTC transport not enabled; falling back to WebSocket');
       return new WebSocketTransportAdapter(server, storage);
     case 'websocket':
     default:

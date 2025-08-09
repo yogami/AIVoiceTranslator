@@ -146,5 +146,22 @@
     </div>
 
     <script src="js/student.js" defer></script>
+    <script>
+      // Minimal signaling stubs for future WebRTC path (optional; no-op if WS only)
+      window.realtimeSignaling = {
+        sendOffer: function(sessionId, sdp) {
+          const msg = { type: 'webrtc_offer', sessionId, sdp };
+          try { window.appState?.ws?.send?.(JSON.stringify(msg)); } catch {}
+        },
+        sendAnswer: function(sessionId, sdp) {
+          const msg = { type: 'webrtc_answer', sessionId, sdp };
+          try { window.appState?.ws?.send?.(JSON.stringify(msg)); } catch {}
+        },
+        sendIce: function(sessionId, candidate) {
+          const msg = { type: 'webrtc_ice_candidate', sessionId, candidate };
+          try { window.appState?.ws?.send?.(JSON.stringify(msg)); } catch {}
+        }
+      };
+    </script>
 </body>
 </html>

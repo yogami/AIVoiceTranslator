@@ -49,8 +49,22 @@ describe('RealtimeTransportFactory gating', () => {
     expect((transport as any).__mock).toBe(true);
   });
 
-  it('falls back to WebSocket and warns when REALTIME_TRANSPORT=webrtc', async () => {
+  it('falls back to WebSocket and warns when REALTIME_TRANSPORT=webrtc (experiment disabled)', async () => {
     process.env.REALTIME_TRANSPORT = 'webrtc';
+    delete process.env.REALTIME_WEBRTC_ALLOW_EXPERIMENT;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const createRealtimeTransport = await importFactory();
+    const transport = createRealtimeTransport({} as any, {} as any);
+    // Should be WebSocketTransportAdapter mock
+    expect((transport as any).__mock).toBe(true);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('respects COMMUNICATION_PROTOCOL alias when set to webrtc (experiment disabled)', async () => {
+    delete process.env.REALTIME_TRANSPORT;
+    delete process.env.REALTIME_WEBRTC_ALLOW_EXPERIMENT;
+    process.env.COMMUNICATION_PROTOCOL = 'webrtc';
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const createRealtimeTransport = await importFactory();
     const transport = createRealtimeTransport({} as any, {} as any);
@@ -59,15 +73,14 @@ describe('RealtimeTransportFactory gating', () => {
     warnSpy.mockRestore();
   });
 
-  it('respects COMMUNICATION_PROTOCOL alias when set to webrtc', async () => {
-    delete process.env.REALTIME_TRANSPORT;
-    process.env.COMMUNICATION_PROTOCOL = 'webrtc';
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const createRealtimeTransport = await importFactory();
+  it('returns WebRTC transport when enabled via REALTIME_WEBRTC_ALLOW_EXPERIMENT=1', async () => {
+    process.env.REALTIME_TRANSPORT = 'webrtc';
+    process.env.REALTIME_WEBRTC_ALLOW_EXPERIMENT = '1';
+    // Unmock adapter import to validate class existence
+    vi.resetModules();
+    const { createRealtimeTransport } = await import('../../../server/realtime/RealtimeTransportFactory');
     const transport = createRealtimeTransport({} as any, {} as any);
-    expect((transport as any).__mock).toBe(true);
-    expect(warnSpy).toHaveBeenCalled();
-    warnSpy.mockRestore();
+    expect(transport.constructor.name).toBe('WebRTCTransportAdapter');
   });
 });
 

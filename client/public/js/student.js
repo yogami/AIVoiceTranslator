@@ -279,6 +279,12 @@
                         }
                     }
                     break;
+                case 'webrtc_offer':
+                case 'webrtc_answer':
+                case 'webrtc_ice_candidate':
+                    // Placeholder handling for future WebRTC path
+                    console.log('[DEBUG] Signaling message received:', data.type);
+                    break;
                 default:
                     if (data.type !== 'ping' && data.type !== 'pong') {
                     console.log('Student received unknown message type:', data.type, data);
