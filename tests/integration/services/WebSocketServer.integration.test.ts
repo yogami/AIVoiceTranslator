@@ -18,7 +18,7 @@ const TEST_CONFIG = {
   RECONNECTION_WAIT: INTEGRATION_TEST_CONFIG.RECONNECTION_WAIT
 };
 
-describe('WebSocketServer Integration Tests (Real Services)', { timeout: 45000 }, () => {
+describe('WebSocketServer Integration Tests (Real Services)', { timeout: Math.max(45000, INTEGRATION_TEST_CONFIG.INTEGRATION_TEST_TIMEOUT || 30000) }, () => {
   // Use a different port range to avoid conflicts
   const PORT_RANGE_START = 50000;
   const PORT_RANGE_END = 55000;

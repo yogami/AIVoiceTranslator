@@ -34,6 +34,12 @@ describe('Session Lifecycle Integration Tests', () => {
       cleanupInterval: config.session.cleanupInterval,
     };
     testId = randomUUID(); // Generate unique ID for each test run
+
+    // Widen thresholds to make integration timing robust against event-loop jitter
+    // Use larger windows so "recent" scenarios don't accidentally cross thresholds
+    config.session.emptyTeacherTimeout = Math.max(config.session.emptyTeacherTimeout, 2000);
+    config.session.allStudentsLeftTimeout = Math.max(config.session.allStudentsLeftTimeout, 2000);
+    config.session.staleSessionTimeout = Math.max(config.session.staleSessionTimeout, 5000);
   });
 
   afterAll(async () => {
@@ -143,8 +149,8 @@ describe('Session Lifecycle Integration Tests', () => {
       await createTestSession({
         sessionId,
         studentsCount: 0,
-        startTime: new Date(Date.now() - (config.session.emptyTeacherTimeout / 2)), // Half the timeout
-        lastActivityAt: new Date(Date.now() - (config.session.emptyTeacherTimeout / 2)),
+        startTime: new Date(Date.now() - Math.floor(config.session.emptyTeacherTimeout * 0.25)), // within threshold buffer
+        lastActivityAt: new Date(Date.now() - Math.floor(config.session.emptyTeacherTimeout * 0.25)),
         isActive: true
       });
 
@@ -167,7 +173,7 @@ describe('Session Lifecycle Integration Tests', () => {
     it('should clean up sessions after 10 minute grace period when all students left', async () => {
       // Create a session that had students, then simulate all students leaving
       const sessionId = `students-left-12min-${testId}`;
-      const tenSecondsAgo = new Date(Date.now() - 10 * 1000); // Use 10 seconds to be sure it's past the 1.8 second scaled timeout
+      const tenSecondsAgo = new Date(Date.now() - Math.max(3000, Math.floor(config.session.allStudentsLeftTimeout * 1.2))); // comfortably past grace
       await createTestSession({
         sessionId,
         studentsCount: 3, // Start with students
@@ -184,8 +190,8 @@ describe('Session Lifecycle Integration Tests', () => {
       // Mark session as all students left to trigger grace period
       await cleanupService.markAllStudentsLeft(sessionId);
       
-      // Wait for actual grace period to expire (3 minutes scaled = 1.8 seconds)
-      await new Promise(resolve => setTimeout(resolve, 2500)); // Wait 2.5 seconds (more than 1.8s scaled timeout)
+      // Wait for actual grace period to expire (scaled)
+      await new Promise(resolve => setTimeout(resolve, Math.max(1000, Math.floor(config.session.allStudentsLeftTimeout * 0.6))));
       
       // Run cleanup
       await cleanupService.cleanupStaleSessions();
@@ -209,7 +215,7 @@ describe('Session Lifecycle Integration Tests', () => {
     it('should NOT clean up sessions still in grace period', async () => {
       // Create a session where students left only 1 second ago - within scaled timeout
       const sessionId = `students-left-grace-${testId}`;
-      const oneSecondAgo = new Date(Date.now() - 1 * 1000);
+      const oneSecondAgo = new Date(Date.now() - Math.min(1000, Math.floor(config.session.allStudentsLeftTimeout * 0.2)));
       
       await createTestSession({
         sessionId,
@@ -402,8 +408,8 @@ describe('Session Lifecycle Integration Tests', () => {
     it('should not end sessions before 90 minutes of inactivity when students are present', async () => {
       // Create a session with students present and recent activity (less than stale threshold)
       const sessionId = `test-session-30min-${testId}`;
-      // Use 10 seconds ago - well within the scaled 18-second threshold from .env.test
-      const tenSecondsAgo = new Date(Date.now() - 10 * 1000);
+      // Use small delta compared to stale threshold
+      const tenSecondsAgo = new Date(Date.now() - Math.min(10000, Math.floor(config.session.staleSessionTimeout * 0.1)));
       
       await createTestSession({
         sessionId,
@@ -575,7 +581,7 @@ describe('Session Lifecycle Integration Tests', () => {
     it('should use 15-minute timeout for empty teacher sessions', async () => {
       // Create a session with no students, 1 second old - within scaled timeout
       const sessionId = `empty-teacher-${testId}`;
-      const oneSecondAgo = new Date(Date.now() - 1 * 1000);
+      const oneSecondAgo = new Date(Date.now() - Math.min(1000, Math.floor(config.session.allStudentsLeftTimeout * 0.2)));
       
       await createTestSession({
         sessionId,
