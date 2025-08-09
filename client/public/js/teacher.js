@@ -434,8 +434,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                             const joinMsg = { type: 'join_session', sessionId: appState.sessionId };
                             if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
                                 appState.rtc.sendJSON(joinMsg);
+                                appState.rtc.sendJSON({ type: 'webrtc_sync', sessionId: appState.sessionId });
                             } else if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                                 appState.ws.send(JSON.stringify(joinMsg));
+                                appState.ws.send(JSON.stringify({ type: 'webrtc_sync', sessionId: appState.sessionId }));
                             }
                         } catch (e) {
                             console.warn('[DEBUG] teacher.js: Failed to send join_session message:', e);

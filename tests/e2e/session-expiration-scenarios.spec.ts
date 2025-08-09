@@ -386,7 +386,7 @@ test.describe('Session Expiration Scenarios E2E Tests', () => {
         const body = await lastRes.text();
         throw new Error(`Expected JSON from /api/sessions/${sessionId}/status but got: ${body.slice(0, 200)}`);
       }
-      const stJson = await fetchStatus(sId);
+      const stJson = await fetchStatus(sId as string);
       expect(stJson?.success).toBe(true);
       expect(stJson?.data?.connectedStudents ?? -1).toBe(2);
       

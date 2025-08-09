@@ -17,6 +17,14 @@ import { testConfig } from "../tests/e2e/helpers/test-timeouts.js";
 // Allow CI/CD (or local) to point tests at an already running environment and skip starting a web server
 const disableWebServer = process.env.DISABLE_WEB_SERVER === "1";
 
+// Provide default, SHORT session timing envs for the test runner process itself
+// This keeps E2E specs' process.env reads consistent with the webServer settings below
+process.env.SESSION_STALE_TIMEOUT_MS = process.env.SESSION_STALE_TIMEOUT_MS || String(10 * 1000);
+process.env.SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS = process.env.SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS || String(5 * 1000);
+process.env.SESSION_EMPTY_TEACHER_TIMEOUT_MS = process.env.SESSION_EMPTY_TEACHER_TIMEOUT_MS || String(5 * 1000);
+process.env.SESSION_CLEANUP_INTERVAL_MS = process.env.SESSION_CLEANUP_INTERVAL_MS || String(2 * 1000);
+process.env.TEACHER_RECONNECTION_GRACE_PERIOD_MS = process.env.TEACHER_RECONNECTION_GRACE_PERIOD_MS || String(5 * 1000);
+
 export default defineConfig({
   testDir: "../tests/e2e",
   fullyParallel: false, // Disable parallel execution to avoid DB conflicts during seeding
@@ -65,6 +73,12 @@ export default defineConfig({
           PORT: "5001",
           HOST: "127.0.0.1",
           ANALYTICS_PASSWORD: "",
+          // Short session lifecycle timings for fast, deterministic E2E expiry
+          SESSION_STALE_TIMEOUT_MS: process.env.SESSION_STALE_TIMEOUT_MS || String(10 * 1000),
+          SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS: process.env.SESSION_ALL_STUDENTS_LEFT_TIMEOUT_MS || String(5 * 1000),
+          SESSION_EMPTY_TEACHER_TIMEOUT_MS: process.env.SESSION_EMPTY_TEACHER_TIMEOUT_MS || String(5 * 1000),
+          SESSION_CLEANUP_INTERVAL_MS: process.env.SESSION_CLEANUP_INTERVAL_MS || String(2 * 1000),
+          TEACHER_RECONNECTION_GRACE_PERIOD_MS: process.env.TEACHER_RECONNECTION_GRACE_PERIOD_MS || String(5 * 1000),
         },
       },
   /* Global setup to ensure test environment */
