@@ -1,6 +1,7 @@
 import { ITranslationService } from './translation.interfaces';
 import { OpenAITranslationService } from './OpenAITranslationService';
 import { MyMemoryTranslationService } from './MyMemoryTranslationService';
+import { DeepSeekTranslationService } from './DeepSeekTranslationService';
 import { OpenAI } from 'openai';
 
 export class AutoFallbackTranslationService implements ITranslationService {
@@ -54,5 +55,22 @@ export function createAutoFallbackTranslationService(): ITranslationService {
     };
   }
   
+  return new AutoFallbackTranslationService(primaryService, fallbackService);
+}
+
+// New: DeepSeek-first 2-tier auto service (opt-in) without changing existing default behavior
+export function createDeepSeekFirstAutoFallbackTranslationService(): ITranslationService {
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  let primaryService: ITranslationService = new DeepSeekTranslationService();
+  let fallbackService: ITranslationService;
+
+  if (openaiApiKey) {
+    const openai = new OpenAI({ apiKey: openaiApiKey });
+    fallbackService = new OpenAITranslationService(openai);
+  } else {
+    // If OpenAI is not available, fall back to MyMemory as last resort
+    fallbackService = new MyMemoryTranslationService();
+  }
+
   return new AutoFallbackTranslationService(primaryService, fallbackService);
 }

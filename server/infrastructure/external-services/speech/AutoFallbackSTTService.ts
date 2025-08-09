@@ -1,10 +1,10 @@
 /**
- * 3-Tier Auto-Fallback STT Service (COST-OPTIMIZED)
+  * 3-Tier Auto-Fallback STT Service (COST-OPTIMIZED: FREE → PAID → EXPENSIVE)
  * 
  * Implements automatic fallback across three speech-to-text services:
- * 1. Whisper.cpp (primary) - FREE local model processing
- * 2. OpenAI STT (secondary) - PAID high-quality cloud transcription
- * 3. ElevenLabs STT (final fallback) - EXPENSIVE alternative cloud transcription
+  * 1. Whisper.cpp (primary) - FREE local model processing
+  * 2. OpenAI STT (secondary) - PAID high-quality cloud transcription
+  * 3. ElevenLabs STT (final fallback) - EXPENSIVE alternative cloud transcription (kept at bottom)
  * 
  * Features circuit breaker pattern with exponential backoff for robust error handling.
  * Prioritizes free services to minimize API costs.

@@ -39,7 +39,7 @@ Configure with `STT_SERVICE_TYPE` environment variable:
 
 **Default:** `auto` (uses all tiers with automatic fallback)
 
-**Fallback Order:** OpenAI → ElevenLabs → Deepgram → Enhanced Whisper → Basic Whisper
+**Fallback Order:** Whisper (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE)
 
 ### 🌐 Translation Service Tiers
 
@@ -72,7 +72,7 @@ Configure with `TTS_SERVICE_TYPE` environment variable:
 
 **Default:** `auto` (uses all tiers with automatic fallback)
 
-**Fallback Order:** ElevenLabs → OpenAI → Local → Browser → Silent
+**Fallback Order:** Local (FREE) → Browser (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE) → Silent
 
 ## 🎚️ Configuration Examples
 

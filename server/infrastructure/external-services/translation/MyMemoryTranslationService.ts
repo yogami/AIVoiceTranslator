@@ -113,6 +113,11 @@ export class MyMemoryTranslationService implements ITranslationService {
       q: text,
       langpair: `${sourceLang}|${targetLang}`
     });
+    // Identify requests to improve free-tier limits if user email is provided
+    const accountEmail = process.env.MYMEMORY_EMAIL;
+    if (accountEmail && accountEmail.includes('@')) {
+      params.set('de', accountEmail);
+    }
     
     return `${this.baseUrl}?${params.toString()}`;
   }

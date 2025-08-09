@@ -10,7 +10,7 @@ The application uses three main environment variables to control which service i
 - `openai` - OpenAI Whisper API (Premium, requires OPENAI_API_KEY)
 - `elevenlabs` - ElevenLabs STT API (Premium, requires ELEVENLABS_API_KEY)
 - `whispercpp` - Local Whisper.cpp (✅ **FREE**, no API key required) **[TESTED & VERIFIED]**
-- `auto` - Auto-fallback: OpenAI → ElevenLabs → Whisper.cpp (Default)
+- `auto` - Auto-fallback: Whisper (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE) (Default)
 
 ### Translation Service: `TRANSLATION_SERVICE_TYPE`
 - `openai` - OpenAI Translation (Premium, requires OPENAI_API_KEY)
@@ -22,7 +22,7 @@ The application uses three main environment variables to control which service i
 - `openai` - OpenAI TTS (Premium, requires OPENAI_API_KEY)
 - `local` - Local eSpeak-NG TTS (✅ **RECOMMENDED FREE**, no API key required) **[NEWLY ADDED & TESTED]**
 - `browser` - Browser Web Speech API (✅ **FREE**, client-side, basic quality)
-- `auto` - Auto-fallback: ElevenLabs → OpenAI → Local → Browser (Default)
+- `auto` - Auto-fallback: Local (FREE) → Browser (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE) (Default)
 
 ## 🆕 **NEW: Enhanced FREE Tier Configuration**
 

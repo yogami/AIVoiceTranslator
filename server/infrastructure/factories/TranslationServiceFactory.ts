@@ -12,7 +12,7 @@ import { ITranslationService } from '../../services/translation/translation.inte
 import { OpenAITranslationService } from '../external-services/translation/OpenAITranslationService';
 import { DeepSeekTranslationService } from '../external-services/translation/DeepSeekTranslationService';
 import { MyMemoryTranslationService } from '../external-services/translation/MyMemoryTranslationService';
-import { AutoFallbackTranslationService } from '../external-services/translation/AutoFallbackTranslationService';
+import { AutoFallbackTranslationService, createDeepSeekFirstAutoFallbackTranslationService } from '../external-services/translation/AutoFallbackTranslationService';
 import { OpenAI } from 'openai';
 
 // Service tier enumeration for consistency
@@ -21,7 +21,8 @@ export enum TranslationServiceTier {
   HIGH_QUALITY_FREE = 'free-hq', // Tier 2: DeepSeek (free, high quality)
   BASIC_FREE = 'free-basic',     // Tier 3: MyMemory (free, basic)
   OFFLINE = 'offline',           // Tier 4: Local/Offline (no network)
-  AUTO = 'auto'                  // Auto-fallback through all tiers
+  AUTO = 'auto',                 // Auto-fallback through all tiers (existing MyMemory-first behavior)
+  AUTO_DEEPSEEK_FIRST = 'auto-deepseek-first' // New: Opt-in DeepSeek-first auto mode
 }
 
 interface ITranslationServiceFactory {
@@ -93,6 +94,11 @@ export class TranslationServiceFactory implements ITranslationServiceFactory {
       default: {
         console.log('[TranslationFactory] Creating 4-tier auto-fallback: OpenAI → DeepSeek → MyMemory → Offline');
         service = this.createAutoFallbackService();
+        break;
+      }
+      case TranslationServiceTier.AUTO_DEEPSEEK_FIRST: {
+        console.log('[TranslationFactory] Creating DeepSeek-first auto-fallback: DeepSeek (FREE) → OpenAI (PAID) → MyMemory (FREE)');
+        service = createDeepSeekFirstAutoFallbackTranslationService();
         break;
       }
     }
@@ -175,6 +181,9 @@ export class TranslationServiceFactory implements ITranslationServiceFactory {
       case 'offline':
       case 'local':
         return TranslationServiceTier.OFFLINE;
+      
+      case 'auto-deepseek-first':
+        return TranslationServiceTier.AUTO_DEEPSEEK_FIRST;
       
       case 'auto':
       default:

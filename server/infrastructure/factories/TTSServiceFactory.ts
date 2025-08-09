@@ -278,7 +278,7 @@ export class TTSServiceFactory implements ITTSServiceFactory {
 
       case TTSServiceTier.AUTO:
       default: {
-        console.log('[TTSFactory] Creating 4-tier auto-fallback: Premium → Local → Browser → Silent');
+        console.log('[TTSFactory] Creating 4-tier auto-fallback: Local (FREE) → Browser (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE)');
         service = this.createAutoFallbackService();
         break;
       }
