@@ -10,10 +10,9 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
   }
 
   async handle(message: AudioMessageToServer, context: MessageHandlerContext): Promise<void> {
-    // If client streams chunks, ignore non-final chunks to avoid log/API spam
-    if (typeof (message as any).isFinalChunk !== 'undefined' && !(message as any).isFinalChunk) {
-      return;
-    }
+    // Feature-flagged interim transcription (teacher-only). Default: ignore non-final chunks.
+    const isStreamingChunk = typeof (message as any).isFinalChunk !== 'undefined' && !(message as any).isFinalChunk;
+    const allowInterim = process.env.FEATURE_SERVER_INTERIM_TRANSCRIPTION === '1';
 
     try {
       const role = context.connectionManager.getRole(context.ws);
@@ -29,6 +28,15 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
       return;
     }
     
+    // Handle interim (non-final) chunks: teacher-only text updates, no translation/TTS
+    if (isStreamingChunk) {
+      if (!allowInterim) {
+        return;
+      }
+      await this.processInterimTeacherAudio(context, message.data);
+      return;
+    }
+
     // Process audio data
     if (message.data) {
       await this.processTeacherAudio(context, message.data);
@@ -116,6 +124,49 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
       }
     } catch (error) {
       logger.error('Error processing teacher audio:', { error });
+    }
+  }
+
+  /**
+   * Process interim (non-final) audio from teacher for teacher-only live text updates
+   * No translation/TTS; throttled to avoid spam. Feature flagged by FEATURE_SERVER_INTERIM_TRANSCRIPTION.
+   */
+  private async processInterimTeacherAudio(context: MessageHandlerContext, audioData: string): Promise<void> {
+    // Basic validation
+    if (!audioData || audioData.length < config.session.minAudioDataLength) {
+      return;
+    }
+    try {
+      const sessionId = context.connectionManager.getSessionId(context.ws);
+      if (!sessionId) return;
+      // Throttle per-connection interim updates (default 400ms)
+      const throttleMs = parseInt(process.env.FEATURE_INTERIM_THROTTLE_MS || '400', 10);
+      const now = Date.now();
+      const lastAt = (context.ws as any).__lastInterimAt || 0;
+      if (now - lastAt < throttleMs) return;
+      (context.ws as any).__lastInterimAt = now;
+
+      const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';
+      const audioBuffer = Buffer.from(audioData, 'base64');
+      if (audioBuffer.length < config.session.minAudioBufferLength) return;
+
+      if (!context.speechPipelineOrchestrator) return;
+      const text = await context.speechPipelineOrchestrator.transcribeAudio(audioBuffer, teacherLanguage);
+      if (!text || !text.trim()) return;
+      // Send teacher-only interim text
+      try {
+        const interimMsg = {
+          type: 'transcription',
+          text,
+          isFinal: false,
+          timestamp: now
+        } as any;
+        context.ws.send(JSON.stringify(interimMsg));
+      } catch (e) {
+        logger.debug('[AudioMessageHandler] Failed to send interim transcription to teacher', { error: e });
+      }
+    } catch (error) {
+      logger.debug('[AudioMessageHandler] Interim processing error', { error });
     }
   }
 }
