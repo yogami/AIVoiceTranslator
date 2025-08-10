@@ -21,11 +21,12 @@
         console.log('[student.html] Runtime config - API URL:', window.VITE_API_URL, 'WS URL:', window.VITE_WS_URL);
     </script>
     <script>
-      // UI V2 toggle via ?ui2=1
+      // UI V2 toggle via ?ui2=1; alias ?u12=1 for convenience
       (function(){
         try {
           const url = new URL(window.location.href);
-          if (url.searchParams.get('ui2') === '1') {
+          const enable = url.searchParams.get('ui2') === '1' || url.searchParams.get('u12') === '1';
+          if (enable) {
             window.UI_V2 = '1';
             document.addEventListener('DOMContentLoaded', function(){
               document.body.classList.add('ui-v2');
