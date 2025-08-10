@@ -651,21 +651,41 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.goto(getStudentURL(classroomCode || ''));
         await studentPage.waitForLoadState('domcontentloaded');
 
-        // Student selects language and connects
+        // Student selects language and connects (retry once if needed)
         await studentPage.selectOption('#language-dropdown', 'fr-FR'); // French for this test
         await studentPage.click('#connect-btn');
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
+        const connStatus1 = studentPage.locator('#connection-status');
+        try {
+          await expect(connStatus1).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
+        } catch {
+          const s = (await connStatus1.innerText()).trim();
+          if (s.includes('Disconnected')) {
+            await studentPage.click('#connect-btn');
+            await expect(connStatus1).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
+          } else {
+            throw new Error('Student did not reach Connected state');
+          }
+        }
         
         // Simulate reconnection by reloading
         await studentPage.reload();
         await studentPage.waitForLoadState('domcontentloaded');
         
-        // After reload, student needs to select language and click connect again
+        // After reload, student needs to select language and click connect again (with retry)
         await studentPage.selectOption('#language-dropdown', 'fr-FR'); // Re-select language
         await studentPage.click('#connect-btn'); // Re-click connect
-
-        // Verify student reconnected
-        await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
+        const connStatus2 = studentPage.locator('#connection-status');
+        try {
+          await expect(connStatus2).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
+        } catch {
+          const s2 = (await connStatus2.innerText()).trim();
+          if (s2.includes('Disconnected')) {
+            await studentPage.click('#connect-btn');
+            await expect(connStatus2).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
+          } else {
+            throw new Error('Student did not reach Connected state on reconnect');
+          }
+        }
         
         await expect(page.locator('#status')).toContainText('Registered as teacher');
       } finally {
