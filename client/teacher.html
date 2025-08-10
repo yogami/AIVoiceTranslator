@@ -114,6 +114,7 @@
             <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
                 <button id="copyLinkBtn" style="padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer;">Copy Link</button>
                 <button id="shareLinkBtn" style="padding:8px 12px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer;">Share</button>
+                <button id="showQrBtn" style="padding:8px 12px; background:#111827; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Show QR</button>
             </div>
             <div id="qr-code"></div>
         </div>
@@ -260,6 +261,7 @@
       document.addEventListener('DOMContentLoaded', function(){
         const copyBtn = document.getElementById('copyLinkBtn');
         const shareBtn = document.getElementById('shareLinkBtn');
+        const showQrBtn = document.getElementById('showQrBtn');
         const urlSpan = document.getElementById('studentUrl');
         function getLink(){ return (urlSpan && urlSpan.textContent) ? urlSpan.textContent.trim() : window.location.origin + '/student'; }
         if (copyBtn) {
@@ -276,6 +278,41 @@
               try { await navigator.clipboard.writeText(link); shareBtn.textContent = 'Link Copied'; setTimeout(()=> shareBtn.textContent='Share', 1500);} catch(_){}
             }
           });
+        }
+
+        // UI V2: QR modal toggle
+        const isUi2 = document.body.classList.contains('ui-v2');
+        if (isUi2 && showQrBtn) {
+          showQrBtn.style.display = 'inline-block';
+          let modal = document.querySelector('.qr-modal');
+          if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'qr-modal';
+            modal.innerHTML = `
+              <div class="qr-dialog" role="dialog" aria-modal="true">
+                <button class="qr-close" aria-label="Close">×</button>
+                <h3>Student QR</h3>
+                <div id="qr-modal-body" style="display:flex; justify-content:center; padding:8px;"></div>
+              </div>`;
+            document.body.appendChild(modal);
+          }
+          const open = () => {
+            try {
+              const link = getLink();
+              const body = modal.querySelector('#qr-modal-body');
+              body.innerHTML = '';
+              if (window.QRCode) {
+                new QRCode(body, { text: link, width: 180, height: 180 });
+              } else {
+                const p = document.createElement('p'); p.textContent = link; body.appendChild(p);
+              }
+              modal.classList.add('open');
+            } catch(_) { modal.classList.add('open'); }
+          };
+          const close = () => modal.classList.remove('open');
+          showQrBtn.addEventListener('click', open);
+          modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+          modal.querySelector('.qr-close').addEventListener('click', close);
         }
       });
     </script>

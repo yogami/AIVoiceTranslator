@@ -18,6 +18,42 @@ body.ui-v2 #recordButton.recording { box-shadow: 0 0 0 4px rgba(231,76,60,0.15);
 body.ui-v2 .status { border-radius: 999px; padding: 8px 12px; }
 body.ui-v2 .classroom-info { background: #eef6ff; border-color: #93c5fd; }
 body.ui-v2 .classroom-code { color: #1d4ed8; }
+
+/* Hide inline QR in UI V2; use modal instead */
+body.ui-v2 #qr-code { display: none !important; }
+
+/* QR Modal (UI V2 only) */
+body.ui-v2 .qr-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+body.ui-v2 .qr-modal.open { display: flex; }
+body.ui-v2 .qr-dialog {
+    background: #fff;
+    padding: 16px;
+    border-radius: 8px;
+    width: 280px;
+    max-width: 90%;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+body.ui-v2 .qr-dialog h3 { margin: 0 0 12px 0; font-size: 16px; color: #111827; }
+body.ui-v2 .qr-close {
+    appearance: none;
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    color: #6b7280;
+}
 .container {
     background: white;
     padding: 30px;
