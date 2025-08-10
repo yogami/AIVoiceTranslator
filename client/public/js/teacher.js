@@ -76,6 +76,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
+    // Expose minimal state for RTC experiment helper
+    try { window.appState = appState; } catch (_) {}
+
     const domElements = {
         languageSelect: null,
         classroomInfo: null,
@@ -449,6 +452,16 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                                 });
                             }, 1000); // Small delay to allow for any initial student connections
                         }
+
+                        // Auto-start experimental WebRTC offer if enabled
+                        if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment && appState.sessionId) {
+                            try {
+                                uiUpdater.updateStatus('Starting WebRTC experiment...');
+                                window.RTCExperiment.startOffer(appState.sessionId);
+                            } catch (e) {
+                                console.warn('[RTCExperiment] startOffer failed', e);
+                            }
+                        }
                     } else {
                         const errorMessage = 'Registration failed: ' + (data.message || (data.data ? JSON.stringify(data.data) : 'Unknown reason'));
                         uiUpdater.updateStatus(errorMessage, 'error');
@@ -473,6 +486,18 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 case 'error':
                     console.error('Error message from server:', data.message || data);
                     uiUpdater.updateStatus('Error: ' + (data.message || JSON.stringify(data)), 'error');
+                    break;
+
+                case 'webrtc_answer':
+                    if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment) {
+                        try { window.RTCExperiment.applyServerAnswer(data.sdp); } catch (e) { console.warn('[RTCExperiment] applyServerAnswer failed', e); }
+                    }
+                    break;
+
+                case 'webrtc_ice_candidate':
+                    if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment) {
+                        try { window.RTCExperiment.addServerIce(data.candidate); } catch (e) { console.warn('[RTCExperiment] addServerIce failed', e); }
+                    }
                     break;
 
                 case 'ping':

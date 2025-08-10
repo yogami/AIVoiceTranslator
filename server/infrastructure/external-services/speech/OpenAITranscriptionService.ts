@@ -58,18 +58,6 @@ export class OpenAISTTTranscriptionService implements ISTTTranscriptionService {
     if (buffer.toString('ascii', 0, 3) === 'ID3' || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0)) {
       return 'audio/mpeg';
     }
-    // MP4/AAC (ftyp* box commonly at 4..8)
-    // Look for 'ftyp' box within first 16 bytes
-    for (let i = 0; i < Math.min(16, buffer.length - 3); i++) {
-      if (
-        buffer[i] === 0x66 && // f
-        buffer[i + 1] === 0x74 && // t
-        buffer[i + 2] === 0x79 && // y
-        buffer[i + 3] === 0x70 // p
-      ) {
-        return 'audio/mp4';
-      }
-    }
     return undefined;
   }
 

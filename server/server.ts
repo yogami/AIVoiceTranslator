@@ -11,7 +11,9 @@ import path from 'path';
 import logger from './logger';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { config, validateConfig } from './config'; // Assuming config is imported and validated
-import { createApiRoutes, apiErrorHandler } from './routes'; // Revert to original single routes file
+// Use modular routes that include session endpoints
+import { createApiRoutes } from './routes/index';
+import { apiErrorHandler } from './middleware/error-handler.middleware';
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
 // import { createTranslationService } from './services/communication'; // Removed problematic import
@@ -147,7 +149,9 @@ export async function startServer(app: express.Express): Promise<Server> {
   
   // Pass the cleanup service if available on transport (legacy adapter exposes it via underlying server)
   const cleanupService = (transport as any).legacy?.getSessionCleanupService?.() || undefined;
-  const apiRoutes = createApiRoutes(storage, transport, cleanupService);
+  // Prefer the underlying WebSocket server (legacy) for routes that need connection manager access
+  const activeProvider: any = (transport as any).legacy || transport;
+  const apiRoutes = createApiRoutes(storage, activeProvider, cleanupService);
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 

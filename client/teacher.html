@@ -16,6 +16,15 @@
             window.VITE_WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
         }
         console.log('[teacher.html] Runtime config - API URL:', window.VITE_API_URL, 'WS URL:', window.VITE_WS_URL);
+
+        // Enable experimental RTC via URL flag ?rtc=1
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('rtc') === '1') {
+                window.RTC_EXPERIMENT = '1';
+                console.log('[teacher.html] RTC experiment enabled via URL');
+            }
+        } catch (_) {}
     </script>
     
     <!-- Authentication Check -->
@@ -218,6 +227,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="/js/services/realtimeClient.js"></script>
+    <script src="/js/services/rtcExperiment.js"></script>
     <script src="/js/teacher.js" defer></script>
 </body>
 </html>

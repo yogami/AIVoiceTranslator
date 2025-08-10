@@ -19,7 +19,7 @@ export class PeerManager {
     }
   }
 
-  async handleOffer(sessionId: string, offerSdp: any): Promise<string | null> {
+  async handleOffer(sessionId: string, offerSdp: any): Promise<any | null> {
     const ok = await this.ensureWrtc();
     if (!ok) return null;
     const RTCPeerConnection = this.wrtc.RTCPeerConnection;
@@ -32,7 +32,10 @@ export class PeerManager {
     };
     // Create a simple data channel for demo
     pc.createDataChannel('data');
-    await pc.setRemoteDescription(new this.wrtc.RTCSessionDescription(offerSdp));
+    const remoteDesc = typeof offerSdp === 'string'
+      ? new this.wrtc.RTCSessionDescription({ type: 'offer', sdp: offerSdp })
+      : new this.wrtc.RTCSessionDescription(offerSdp);
+    await pc.setRemoteDescription(remoteDesc);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     return answer.sdp ? { type: 'answer', sdp: answer.sdp } as any : (answer as any);
