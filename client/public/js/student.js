@@ -12,6 +12,7 @@
         connectionStatus: null,
         translationDisplay: null,
         connectButton: null,
+        proxyConnectButton: null,
         languageDropdown: null,
         selectedLanguageDisplay: null,
         playButton: null,
@@ -78,6 +79,11 @@
                 domElements.connectButton.textContent = 'Disconnect';
                 domElements.connectButton.className = 'connected';
                 domElements.connectButton.disabled = false;
+                if (domElements.proxyConnectButton) {
+                    domElements.proxyConnectButton.textContent = 'Disconnect';
+                    domElements.proxyConnectButton.classList.add('connected');
+                    domElements.proxyConnectButton.disabled = false;
+                }
             } else {
                 domElements.connectionStatus.className = 'status disconnected';
                 if (indicator) indicator.className = 'indicator disconnected';
@@ -86,6 +92,11 @@
                 domElements.connectButton.className = '';
                 domElements.connectButton.disabled = !appState.selectedLanguage;
                 domElements.playButton.disabled = true;
+                if (domElements.proxyConnectButton) {
+                    domElements.proxyConnectButton.textContent = 'Connect to Session';
+                    domElements.proxyConnectButton.classList.remove('connected');
+                    domElements.proxyConnectButton.disabled = !appState.selectedLanguage;
+                }
             }
         },
 
@@ -309,6 +320,7 @@
         domElements.connectionStatus = document.getElementById('connection-status');
         domElements.translationDisplay = document.getElementById('translation-display');
         domElements.connectButton = document.getElementById('connect-btn');
+        domElements.proxyConnectButton = document.getElementById('connect-proxy');
         domElements.languageDropdown = document.getElementById('language-dropdown');
         domElements.selectedLanguageDisplay = document.getElementById('selected-language');
         domElements.playButton = document.getElementById('play-button');
@@ -334,6 +346,7 @@
         // Do NOT auto-connect. Wait for user to select language and click connect.
         autoSelectFirstLanguage();
         if (domElements.connectButton) domElements.connectButton.disabled = false;
+        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
         // No auto-connect or auto-register here. Only connect on button click.
     });
 
@@ -357,6 +370,7 @@
                 appState.selectedLanguage = selectedOption.value;
                 uiUpdater.updateSelectedLanguageDisplay(selectedOption.textContent);
                 if (domElements.connectButton) domElements.connectButton.disabled = false;
+                if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
                 if (appState.selectedLanguage && appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.isConnected) {
                     console.log('Language changed while connected - re-registering with server');
                     webSocketHandler.register(appState.classroomCode); // Call new handler
@@ -365,6 +379,7 @@
                 appState.selectedLanguage = null;
                 uiUpdater.updateSelectedLanguageDisplay(null);
                 if (domElements.connectButton) domElements.connectButton.disabled = true;
+                if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
             }
         });
     }
