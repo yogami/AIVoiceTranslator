@@ -1,13 +1,13 @@
 /**
-  * 3-Tier Auto-Fallback STT Service (COST-OPTIMIZED: FREE → PAID → EXPENSIVE)
+  * 3-Tier Auto-Fallback STT Service (QUALITY-OPTIMIZED: OPENAI → ELEVENLABS → WHISPER)
  * 
  * Implements automatic fallback across three speech-to-text services:
-  * 1. Whisper.cpp (primary) - FREE local model processing
-  * 2. OpenAI STT (secondary) - PAID high-quality cloud transcription
-  * 3. ElevenLabs STT (final fallback) - EXPENSIVE alternative cloud transcription (kept at bottom)
+ * 1. OpenAI STT (primary) - PAID high-quality cloud transcription
+ * 2. ElevenLabs STT (secondary) - Alternative cloud STT service (paid)
+ * 3. Whisper.cpp (final fallback) - Local model processing (free)
  * 
  * Features circuit breaker pattern with exponential backoff for robust error handling.
- * Prioritizes free services to minimize API costs.
+ * Prioritizes quality (OpenAI-first) by default; gracefully degrades when keys are missing.
  */
 
 import { ISTTTranscriptionService } from '../../../services/translation/translation.interfaces';
@@ -41,35 +41,31 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
 
   private async initializeServices(): Promise<void> {
     try {
-      // REORDERED: FREE SERVICES FIRST
-      // Initialize primary service (Whisper.cpp - FREE)
-      try {
-        const { WhisperCppSTTTranscriptionService } = await import('./WhisperCppTranscriptionService');
-        this.primaryService = new WhisperCppSTTTranscriptionService();
-        console.log('[AutoFallback STT] Primary service (Whisper.cpp FREE) initialized');
-      } catch (error) {
-        console.warn('[AutoFallback STT] Failed to initialize Whisper.cpp service:', error);
-      }
-
-      // Initialize secondary service (OpenAI - PAID)
+      // QUALITY-OPTIMIZED ORDER: OpenAI → ElevenLabs → Whisper.cpp
+      // Initialize primary service (OpenAI - PAID)
       const openaiApiKey = process.env.OPENAI_API_KEY;
       if (openaiApiKey) {
         try {
           const { OpenAI } = await import('openai');
           const openai = new OpenAI({ apiKey: openaiApiKey });
-          this.secondaryService = new OpenAISTTTranscriptionService(openai);
-          console.log('[AutoFallback STT] Secondary service (OpenAI PAID) initialized');
+          this.primaryService = new OpenAISTTTranscriptionService(openai);
+          console.log('[AutoFallback STT] Primary service (OpenAI PAID) initialized');
         } catch (error) {
           console.warn('[AutoFallback STT] Failed to initialize OpenAI service:', error);
         }
       }
 
-      // Initialize final fallback service (ElevenLabs - EXPENSIVE) - lazy loaded
+      // Initialize secondary service (ElevenLabs - PAID)
       const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
       if (elevenLabsApiKey) {
-        console.log('[AutoFallback STT] Final fallback service (ElevenLabs EXPENSIVE) will be loaded when needed');
-        
-        // Initialize voice isolation service if ElevenLabs API key is available
+        try {
+          this.secondaryService = new ElevenLabsSTTService(elevenLabsApiKey);
+          console.log('[AutoFallback STT] Secondary service (ElevenLabs PAID) initialized');
+        } catch (error) {
+          console.warn('[AutoFallback STT] Failed to initialize ElevenLabs service:', error);
+        }
+
+        // Initialize voice isolation service when ElevenLabs key is present (optional enhancement)
         try {
           this.voiceIsolationService = new VoiceIsolationService();
           console.log('[AutoFallback STT] Voice isolation service initialized for enhanced accuracy');
@@ -78,7 +74,16 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
         }
       }
 
-      console.log('[AutoFallback STT] 3-tier service initialized: Whisper.cpp (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE)');
+      // Final fallback: Whisper.cpp (FREE)
+      try {
+        const { WhisperCppSTTTranscriptionService } = await import('./WhisperCppTranscriptionService');
+        this.finalFallbackService = new WhisperCppSTTTranscriptionService();
+        console.log('[AutoFallback STT] Final fallback service (Whisper.cpp FREE) ready');
+      } catch (error) {
+        console.warn('[AutoFallback STT] Whisper.cpp fallback unavailable:', error);
+      }
+
+      console.log('[AutoFallback STT] 3-tier service initialized: OpenAI (PAID) → ElevenLabs (PAID) → Whisper.cpp (FREE)');
     } catch (error) {
       console.error('[AutoFallback STT] Error during service initialization:', error);
     }
@@ -86,18 +91,11 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
 
   private async getFinalFallbackService(): Promise<ISTTTranscriptionService> {
     if (!this.finalFallbackService) {
-      const elevenLabsApiKey = process.env.ELEVENLABS_API_KEY;
-      if (elevenLabsApiKey) {
-        this.finalFallbackService = new ElevenLabsSTTService(elevenLabsApiKey);
-        console.log('[AutoFallback STT] Final fallback service (ElevenLabs EXPENSIVE) loaded');
-      } else {
-        // If no ElevenLabs key, fallback to Whisper.cpp again
-        const { WhisperCppSTTTranscriptionService } = await import('./WhisperCppTranscriptionService');
-        this.finalFallbackService = new WhisperCppSTTTranscriptionService();
-        console.log('[AutoFallback STT] Final fallback service (Whisper.cpp backup) loaded');
-      }
+      // Final fallback is Whisper.cpp by default
+      const { WhisperCppSTTTranscriptionService } = await import('./WhisperCppTranscriptionService');
+      this.finalFallbackService = new WhisperCppSTTTranscriptionService();
+      console.log('[AutoFallback STT] Final fallback service (Whisper.cpp FREE) loaded');
     }
-    // TypeScript: this.finalFallbackService is guaranteed to be set here
     return this.finalFallbackService!;
   }
 
@@ -111,12 +109,12 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
     const language = sourceLanguage || 'en';
     // Apply voice isolation to improve STT accuracy across all services
     // Voice isolation will only be applied for Whisper.cpp fallback
-    // Try primary service (Whisper.cpp FREE)
+    // Try primary service (OpenAI PAID)
     const shouldTryPrimary = this.shouldTryPrimary();
-    console.log('[AutoFallback STT] shouldTryPrimary():', shouldTryPrimary, 'primaryService:', !!this.primaryService, 'isPrimaryDown:', this.isPrimaryDown);
+    console.log('[AutoFallback STT] shouldTryPrimary():', shouldTryPrimary, 'primaryService(OpenAI):', !!this.primaryService, 'isPrimaryDown:', this.isPrimaryDown);
     if (shouldTryPrimary) {
       try {
-        console.log('[AutoFallback STT] Attempting primary service (Whisper.cpp FREE)');
+        console.log('[AutoFallback STT] Attempting primary service (OpenAI PAID)');
         const result = await this.primaryService!.transcribe(audioBuffer, language);
         // Reset failure count on success
         if (this.primaryFailureCount > 0) {
@@ -124,22 +122,22 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
           this.primaryFailureCount = 0;
           this.isPrimaryDown = false;
         }
-        console.log('[AutoFallback STT] Primary service (Whisper.cpp) succeeded');
+        console.log('[AutoFallback STT] Primary service (OpenAI) succeeded');
         return result;
       } catch (error) {
-        console.error('[AutoFallback STT] Primary service (Whisper.cpp) failed:', error instanceof Error ? error.message : error);
+        console.error('[AutoFallback STT] Primary service (OpenAI) failed:', error instanceof Error ? error.message : error);
         // Handle circuit breaker logic
         if (this.isPrimaryAPIError(error)) {
           this.handlePrimaryFailure();
         }
       }
     }
-    // Try secondary service (OpenAI PAID)
+    // Try secondary service (ElevenLabs PAID)
     const shouldTrySecondary = this.shouldTrySecondary();
-    console.log('[AutoFallback STT] shouldTrySecondary():', shouldTrySecondary, 'secondaryService:', !!this.secondaryService, 'isSecondaryDown:', this.isSecondaryDown);
+    console.log('[AutoFallback STT] shouldTrySecondary():', shouldTrySecondary, 'secondaryService(ElevenLabs):', !!this.secondaryService, 'isSecondaryDown:', this.isSecondaryDown);
     if (shouldTrySecondary) {
       try {
-        console.log('[AutoFallback STT] Attempting secondary service (OpenAI PAID)');
+        console.log('[AutoFallback STT] Attempting secondary service (ElevenLabs PAID)');
         const result = await this.secondaryService!.transcribe(audioBuffer, language);
         // Reset failure count on success
         if (this.secondaryFailureCount > 0) {
@@ -147,7 +145,7 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
           this.secondaryFailureCount = 0;
           this.isSecondaryDown = false;
         }
-        console.log('[AutoFallback STT] Secondary service (OpenAI) succeeded');
+        console.log('[AutoFallback STT] Secondary service (ElevenLabs) succeeded');
         return result;
       } catch (error) {
         console.error('[AutoFallback STT] Secondary service failed:', error instanceof Error ? error.message : error);
@@ -157,9 +155,9 @@ export class AutoFallbackSTTService implements ISTTTranscriptionService {
         }
       }
     }
-    // Use final fallback service (ElevenLabs EXPENSIVE) with voice isolation
+    // Use final fallback service (Whisper.cpp FREE) with optional voice isolation
     try {
-      console.log('[AutoFallback STT] Using final fallback service (ElevenLabs EXPENSIVE)');
+      console.log('[AutoFallback STT] Using final fallback service (Whisper.cpp FREE)');
       let processedAudioBuffer = audioBuffer;
       if (this.voiceIsolationService?.isAvailable()) {
         try {

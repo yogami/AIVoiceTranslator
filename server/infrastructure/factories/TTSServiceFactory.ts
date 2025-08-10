@@ -1,12 +1,12 @@
 /**
- * TTS Service Factory with Cost-Optimized 4-Tier Architecture  
+ * TTS Service Factory with Quality-Optimized 4-Tier Architecture  
  * Implements SOLID principles with Strategy and Factory patterns
  * 
- * COST-OPTIMIZED ORDER (FREE FIRST):
- * Tier 1 (FREE): Local eSpeak-NG - Excellent quality, local processing
- * Tier 2 (FREE): Browser TTS - Good quality, client-side processing  
- * Tier 3 (PAID): OpenAI TTS - Highest quality, moderate API cost
- * Tier 4 (EXPENSIVE): ElevenLabs TTS - Premium quality, high API cost
+ * QUALITY-OPTIMIZED ORDER (OPENAI FIRST):
+ * Tier 1 (PAID): OpenAI TTS - Highest quality
+ * Tier 2 (PAID): ElevenLabs TTS - Premium quality
+ * Tier 3 (FREE): Local eSpeak-NG - Good quality, local processing
+ * Tier 4 (FREE): Browser TTS - Client-side processing
  */
 
 import { ITTSService, TTSResult } from '../../services/tts/TTSService';
@@ -278,7 +278,7 @@ export class TTSServiceFactory implements ITTSServiceFactory {
 
       case TTSServiceTier.AUTO:
       default: {
-        console.log('[TTSFactory] Creating 4-tier auto-fallback: Local (FREE) → Browser (FREE) → OpenAI (PAID) → ElevenLabs (EXPENSIVE)');
+        console.log('[TTSFactory] Creating 4-tier auto-fallback: OpenAI (PAID) → ElevenLabs (PAID) → Local (FREE) → Browser (FREE)');
         service = this.createAutoFallbackService();
         break;
       }
@@ -292,52 +292,49 @@ export class TTSServiceFactory implements ITTSServiceFactory {
   private static createAutoFallbackService(): ITTSService {
     const hasElevenLabs = !!process.env.ELEVENLABS_API_KEY;
     const hasOpenAI = !!process.env.OPENAI_API_KEY;
-    
+
     // Create service chain based on available credentials
     let primaryService: ITTSService | null = null;
     let secondaryService: ITTSService | null = null;
     let tertiaryService: ITTSService | null = null;
     let finalFallbackService: ITTSService;
 
-    // REORDERED: FREE SERVICES FIRST
-    // Primary: Local TTS (FREE)
-    try {
-      primaryService = new LocalTTSService();
-      console.log('[TTSFactory] Tier 1 (FREE) available: Local TTS');
-    } catch (error) {
-      console.warn('[TTSFactory] Free Local TTS tier unavailable:', error instanceof Error ? error.message : error);
-    }
-
-    // Secondary: Browser TTS (FREE)
-    try {
-      secondaryService = new BrowserTTSService();
-      console.log('[TTSFactory] Tier 2 (FREE) available: Browser TTS');
-    } catch (error) {
-      console.warn('[TTSFactory] Free Browser TTS tier unavailable:', error instanceof Error ? error.message : error);
-    }
-
-    // Tertiary: OpenAI TTS (PAID)
+    // Primary: OpenAI (PAID)
     try {
       if (hasOpenAI) {
-        tertiaryService = new OpenAITTSService();
-        console.log('[TTSFactory] Tier 3 (PAID) available: OpenAI TTS');
+        primaryService = new OpenAITTSService();
+        console.log('[TTSFactory] Tier 1 (PAID) available: OpenAI TTS');
       }
     } catch (error) {
-      console.warn('[TTSFactory] OpenAI TTS tier unavailable:', error instanceof Error ? error.message : error);
+      console.warn('[TTSFactory] OpenAI TTS primary unavailable:', error instanceof Error ? error.message : error);
     }
 
-    // Final Fallback: ElevenLabs TTS (EXPENSIVE)
+    // Secondary: ElevenLabs (PAID)
     try {
       if (hasElevenLabs) {
-        finalFallbackService = new ElevenLabsTTSService(process.env.ELEVENLABS_API_KEY!);
-        console.log('[TTSFactory] Tier 4 (EXPENSIVE) available: ElevenLabs TTS');
-      } else {
-        finalFallbackService = new BrowserTTSService();
-        console.log('[TTSFactory] Tier 4 (Fallback) available: Browser TTS');
+        secondaryService = new ElevenLabsTTSService(process.env.ELEVENLABS_API_KEY!);
+        console.log('[TTSFactory] Tier 2 (PAID) available: ElevenLabs TTS');
       }
     } catch (error) {
-      console.warn('[TTSFactory] Final fallback tier unavailable:', error instanceof Error ? error.message : error);
-      finalFallbackService = new BrowserTTSService(); // Always provide fallback
+      console.warn('[TTSFactory] ElevenLabs TTS secondary unavailable:', error instanceof Error ? error.message : error);
+    }
+
+    // Tertiary: Local TTS (FREE)
+    try {
+      tertiaryService = new LocalTTSService();
+      console.log('[TTSFactory] Tier 3 (FREE) available: Local TTS');
+    } catch (error) {
+      console.warn('[TTSFactory] Local TTS tertiary unavailable:', error instanceof Error ? error.message : error);
+    }
+
+    // Final Fallback: Browser TTS (FREE)
+    try {
+      finalFallbackService = new BrowserTTSService();
+      console.log('[TTSFactory] Tier 4 (FREE) available: Browser TTS');
+    } catch (error) {
+      console.warn('[TTSFactory] Browser TTS final fallback unavailable:', error instanceof Error ? error.message : error);
+      // As a last resort, provide a dummy service
+      finalFallbackService = new BrowserTTSService();
     }
 
     // Create 4-tier fallback chain

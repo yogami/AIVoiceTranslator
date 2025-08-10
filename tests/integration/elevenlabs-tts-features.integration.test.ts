@@ -2,7 +2,7 @@
  * ElevenLabs TTS Features Integration Tests
  *
  * Verifies that advanced ElevenLabs TTS features (emotion control, cultural adaptation, emphasis) work as expected
- * in the auto-fallback pipeline. Also ensures fallback order is correct: ElevenLabs → OpenAI → Browser TTS.
+ * in the auto-fallback pipeline. Also ensures fallback order is correct: OpenAI → ElevenLabs → Browser TTS.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
