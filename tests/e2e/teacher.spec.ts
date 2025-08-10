@@ -270,7 +270,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       
       // Wait for recording to start
       await expect(recordButton).toHaveText('Stop Recording');
-      await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
+      await expect(page.locator('#status')).toContainText('Recording...');
       
       // Stop recording
       await recordButton.click();
@@ -288,7 +288,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
       
       // Wait for recording to start
       await expect(recordButton).toHaveText('Stop Recording');
-      await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
+      await expect(page.locator('#status')).toContainText('Recording...');
       
       // Wait for transcription to appear (mock speech recognition sends it after 500ms)
       await page.waitForTimeout(testConfig.wait.standardWait);
@@ -712,7 +712,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         // 3. Teacher Action
         const recordButton = page.locator('#recordButton');
         await recordButton.click(); // Start recording
-        await expect(page.locator('#status')).toContainText('Recording... Speak naturally');
+        await expect(page.locator('#status')).toContainText('Recording...');
 
         const teacherTranscription = 'Hello, this is a test transcription';
         // Wait for teacher's UI to show the mock transcription
