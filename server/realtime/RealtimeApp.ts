@@ -9,6 +9,7 @@ import { RealtimeSessionRegistry } from './session/RealtimeSessionRegistry';
 import { registerRealtimeSessionHandlers } from './handlers/RealtimeSessionHandlers';
 import { registerRealtimeTranslationHandler, type RealtimeTranslationDependencies } from './handlers/RealtimeTranslationHandler';
 import { registerRealtimeSignalingHandler } from './handlers/RealtimeSignalingHandler';
+import { PeerManager } from './webrtc/PeerManager';
 import { InMemorySignalingStore } from './signaling/InMemorySignalingStore';
 
 /**
@@ -28,6 +29,7 @@ export class RealtimeApp {
   private readonly options?: RealtimeAppOptions;
   private readonly sessionRegistry = new RealtimeSessionRegistry();
   private readonly signalingStore = new InMemorySignalingStore();
+  private peerManager?: PeerManager;
 
   constructor(transport: IRealtimeTransport, options?: RealtimeAppOptions) {
     this.transport = transport;
@@ -42,7 +44,13 @@ export class RealtimeApp {
     registerRegisterHandler(this.svc);
     registerRealtimeSessionHandlers(this.svc, this.sessionRegistry);
     // Signaling relay for future WebRTC transport (safe no-op for WS clients)
-    registerRealtimeSignalingHandler(this.svc, this.sessionRegistry, this.signalingStore);
+    if (process.env.REALTIME_WEBRTC_ALLOW_EXPERIMENT === '1') {
+      const sender = this.svc.getMessageSender();
+      this.peerManager = new PeerManager(this.signalingStore, async (sessionId, candidate) => {
+        await sender.broadcastToSession(sessionId, { type: 'webrtc_ice_candidate', candidate, from: 'server' });
+      });
+    }
+    registerRealtimeSignalingHandler(this.svc, this.sessionRegistry, this.signalingStore, this.peerManager);
     if (this.options?.audioDeps) {
       registerRealtimeAudioHandler(this.svc, this.options.audioDeps);
     }

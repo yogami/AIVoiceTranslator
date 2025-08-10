@@ -259,7 +259,7 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: Math.ma
 
     it('should perform real translation when API keys are available', async () => {
       // Skip if no API keys
-      if (!process.env.OPENAI_API_KEY) {
+      if (!process.env.OPENAI_API_KEY || /^sk-test|^invalid|test-placeholder/.test(process.env.OPENAI_API_KEY)) {
         console.log('[INTEGRATION] Skipping real translation test - no OpenAI API key');
         return;
       }
@@ -321,7 +321,8 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: Math.ma
       
       // Real translation should not contain mock markers
       expect(translationMessage.text).not.toContain('[MOCK-');
-      expect(translationMessage.text).not.toContain('Hello, this is a test message for real translation'); // Should be translated
+      // Should be translated; allow provider prefix but not raw original text
+      expect(translationMessage.text.replace(/^\[[^\]]+\]\s*/, '')).not.toContain('Hello, this is a test message for real translation');
       
       console.log('[INTEGRATION] Real translation test passed');
     }, Math.max(TEST_CONFIG.TRANSLATION_TIMEOUT + 5000, 30000));

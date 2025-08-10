@@ -225,6 +225,16 @@
                         if (domElements.translationDisplay) {
                             domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                         }
+                        // Inform backend of session for protocol-agnostic path and request signaling sync
+                        try {
+                            const sessionId = data.sessionId;
+                            if (sessionId && appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                                appState.ws.send(JSON.stringify({ type: 'join_session', sessionId }));
+                                appState.ws.send(JSON.stringify({ type: 'webrtc_sync', sessionId }));
+                            }
+                        } catch (e) {
+                            console.warn('[DEBUG] student.js: Failed to send join_session/webrtc_sync:', e);
+                        }
                     }
                     break;
                 case 'register':

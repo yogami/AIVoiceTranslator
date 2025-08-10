@@ -28,6 +28,8 @@ describe('WebSocketRealtimeAppAdapter integration flag', () => {
     const express = (await import('express')).default;
     const { startServer } = await import('../../../server/server');
     const app = express();
+    // Bind to an ephemeral port to avoid EADDRINUSE in CI
+    process.env.PORT = '0';
     const server = await startServer(app);
     // We only assert that startup succeeded; close server
     await new Promise<void>((resolve) => server.close(() => resolve()));

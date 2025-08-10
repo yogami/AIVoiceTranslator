@@ -6,7 +6,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SpeechPipelineOrchestrator } from '../../server/application/services/SpeechPipelineOrchestrator';
 
-describe('🎵 AUDIO BUG FIX: End-to-End Pipeline with OpenAI', () => {
+const hasRealOpenAI = !!process.env._REAL_OPENAI_API_KEY || (!!process.env.OPENAI_API_KEY && !/^sk-test|^invalid|test-placeholder/.test(process.env.OPENAI_API_KEY));
+
+describe.runIf(hasRealOpenAI)('🎵 AUDIO BUG FIX: End-to-End Pipeline with OpenAI', () => {
   let speechOrchestrator: SpeechPipelineOrchestrator;
 
   beforeEach(async () => {

@@ -1,6 +1,7 @@
 import type { RealTimeCommunicationService } from '../RealTimeCommunicationService';
 import { RealtimeSessionRegistry } from '../session/RealtimeSessionRegistry';
 import { InMemorySignalingStore } from '../signaling/InMemorySignalingStore';
+import type { PeerManager } from '../webrtc/PeerManager';
 
 /**
  * RealtimeSignalingHandler (protocol-agnostic)
@@ -18,7 +19,8 @@ import { InMemorySignalingStore } from '../signaling/InMemorySignalingStore';
 export function registerRealtimeSignalingHandler(
   service: RealTimeCommunicationService,
   registry: RealtimeSessionRegistry,
-  store?: InMemorySignalingStore
+  store?: InMemorySignalingStore,
+  peerManager?: PeerManager
 ): void {
   const ensureSession = (ctx: any, msg: any): string | null => {
     return (msg?.sessionId as string) || ctx.sessionId || registry.get(ctx.connectionId)?.sessionId || null;
@@ -31,6 +33,17 @@ export function registerRealtimeSignalingHandler(
     // persist
     store?.setOffer(sessionId, ctx.connectionId, message?.sdp);
     await sender.broadcastToSession(sessionId, { type: 'webrtc_offer', sdp: message?.sdp, from: ctx.connectionId });
+    // If experimental PeerManager is available, auto-generate answer
+    if (peerManager) {
+      try {
+        const answer = await peerManager.handleOffer(sessionId, message?.sdp);
+        if (answer) {
+          await sender.broadcastToSession(sessionId, { type: 'webrtc_answer', sdp: answer, from: 'server' });
+        }
+      } catch {
+        // ignore errors in experimental path
+      }
+    }
   });
 
   service.registerHandler('webrtc_answer', async (ctx, message: any) => {
@@ -47,6 +60,9 @@ export function registerRealtimeSignalingHandler(
     const sender = service.getMessageSender();
     store?.addIceCandidate(sessionId, ctx.connectionId, message?.candidate);
     await sender.broadcastToSession(sessionId, { type: 'webrtc_ice_candidate', candidate: message?.candidate, from: ctx.connectionId });
+    if (peerManager) {
+      try { await peerManager.addRemoteIce(sessionId, message?.candidate); } catch {}
+    }
   });
 
   // Allow a client to request current signaling state for the session
