@@ -591,20 +591,17 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     const audioHandler = {
         setup: async function() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                        sampleRate: 48000,
-                        channelCount: 1
-                    }
-                });
+                const iOS = platform.isIOSWebKit();
+                const constraints = iOS
+                  ? { audio: true } // Broad constraint for iOS Safari compatibility
+                  : { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 } };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 // Create MediaRecorder for audio capture with clean fallback strategy
                 const chosen = platform.selectSupportedAudioMimeType();
                 const options = chosen ? { mimeType: chosen } : undefined;
                 appState.chosenMimeType = chosen;
-                appState.mediaRecorder = new MediaRecorder(stream, options);
+                // On iOS, prefer default constructor without options to avoid NotSupportedError
+                appState.mediaRecorder = platform.isIOSWebKit() ? new MediaRecorder(stream) : new MediaRecorder(stream, options);
                 console.log('[DEBUG] MediaRecorder created. chosenMimeType=', chosen, 'actual=', appState.mediaRecorder.mimeType);
                 
                 let isFirstChunk = true;
@@ -622,8 +619,17 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 };
                 
                 appState.mediaRecorder.onstop = () => {
-                    // By default, do not send a final audio blob on stop to prevent replay/duplicates.
-                    // To opt-in (for testing), set window.SEND_AUDIO_STREAMING='1' and window.CLIENT_STT_TO_SERVER_ENABLED='1'.
+                    // iOS WebKit fallback: MediaRecorder does not stream reliably; send final blob on stop.
+                    if (platform.isIOSWebKit() && appState.audioChunks.length > 0) {
+                        const blobTypeIOS = appState.chosenMimeType || 'audio/mp4;codecs=mp4a.40.2';
+                        const audioBlobIOS = new Blob(appState.audioChunks, { type: blobTypeIOS });
+                        console.log('[DEBUG] [iOS Fallback] Final audio blob size(bytes)=', audioBlobIOS.size, 'type=', blobTypeIOS);
+                        uiUpdater.updateStatus('Sending final audio for transcription...');
+                        webSocketHandler.sendAudioChunk(audioBlobIOS, false, true);
+                        appState.audioChunks = [];
+                        return;
+                    }
+                    // Default: do not send final blob to avoid replay/duplicates unless explicitly enabled.
                     if (window.SEND_AUDIO_STREAMING === '1' && window.CLIENT_STT_TO_SERVER_ENABLED === '1' && appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
@@ -647,9 +653,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 appState.audioChunks = [];
                 // On iOS WebKit, timeslice often does not emit chunks; start without timeslice
                 if (platform.isIOSWebKit()) {
-                    appState.mediaRecorder.start();
+                    appState.mediaRecorder.start(); // iOS: timeslice often ignored; rely on onstop final blob
                 } else {
-                    appState.mediaRecorder.start(100); // Capture in 100ms chunks for low latency
+                    appState.mediaRecorder.start(200); // Slightly larger slice for stability on Android/desktop
                 }
                 console.log('Started audio recording');
             }
