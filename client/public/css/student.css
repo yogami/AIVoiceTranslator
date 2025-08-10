@@ -314,6 +314,11 @@ body.ui-v2 #volume-control {
     width: 100%;
 }
 
+/* Hide bottom classic connect row when using UI V2 (proxy button at top) */
+body.ui-v2 .controls:not(.ui-v2-top-connect) {
+    display: none;
+}
+
 /* Compact header row combining code + status */
 body.ui-v2 #connection-status {
     display: flex;
