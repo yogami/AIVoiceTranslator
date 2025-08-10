@@ -310,7 +310,18 @@ export class WebSocketServer implements IActiveSessionProvider {
     
     try {
       await this.processMessage(ws, data, messageContext);
-      await this.updateActivityIfNeeded(ws, messageContext.type);
+      // Only update activity for audio when session is stable (has a DB-backed session)
+      if (messageContext.type === 'audio') {
+        const sid = this.connectionManager.getSessionId(ws);
+        if (!sid) return;
+        // Throttle activity updates for audio to avoid excessive DB writes
+        const now = Date.now();
+        if (!this.shouldUpdateActivity(ws, now)) return;
+        await this.updateSessionActivity(sid);
+        this.markActivityUpdated(ws, now);
+      } else {
+        await this.updateActivityIfNeeded(ws, messageContext.type);
+      }
     } catch (error) {
       logger.error('Message handling error:', { error, type: messageContext.type, sessionId: messageContext.sessionId });
     }
@@ -325,7 +336,7 @@ export class WebSocketServer implements IActiveSessionProvider {
       const type = messageData.type || 'unknown';
       
       // Log non-ping/pong messages for debugging
-      if (type !== 'ping' && type !== 'pong') {
+      if (type !== 'ping' && type !== 'pong' && type !== 'audio') {
         const sessionId = messageData.sessionId || 'none';
         logger.debug('Handling message', { type, sessionId });
         return { type, sessionId };

@@ -474,6 +474,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.code) {
                         uiUpdater.displayClassroomCode(data.code, data.expiresAt); // Implied by line 54 log
                     }
+                    // If server migrated us to an existing session, it will include sessionId here.
+                    if (data.sessionId) {
+                        console.log('[DEBUG] Updating sessionId from classroom_code:', data.sessionId);
+                        appState.sessionId = data.sessionId;
+                    }
                     break;
 
                 case 'transcription': 

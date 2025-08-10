@@ -188,11 +188,8 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           // Reuse the existing session
           logger.info(`[TEACHER_RECONNECT] Teacher reconnecting to existing session with teacherId: ${existingSession.sessionId}`);
           
-          // End the new session that was just created
-          const cleanupService = context.webSocketServer.getSessionCleanupService();
-          if (cleanupService) {
-            await cleanupService.endSession(sessionId, 'Duplicate session - teacher reconnected to existing with teacherId');
-          }
+          // Do NOT end the just-created session here; it would close this live connection.
+          // We simply migrate this connection to the existing session id and proceed.
           
           // Use the existing session instead
           sessionId = existingSession.sessionId;
@@ -255,11 +252,7 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             // Reuse the existing session
             logger.info(`Teacher reconnecting to existing recent session: ${existingSession.sessionId}`);
             
-            // End the new session that was just created
-            const cleanupService = context.webSocketServer.getSessionCleanupService();
-            if (cleanupService) {
-              await cleanupService.endSession(sessionId, 'Duplicate session - teacher reconnected to existing');
-            }
+            // Do NOT end the just-created session here; keep this connection alive and migrate it.
             
             // Use the existing session instead
             sessionId = existingSession.sessionId;
