@@ -122,15 +122,24 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
     // Ignore errors (e.g., user already exists)
   }
 
-  // Perform real login via the UI
+  // Fast path: navigate directly to teacher page with E2E flags
+  const directUrl = getTeacherURL(
+    `e2e=true&teacherId=${encodeURIComponent(teacherName)}&teacherUsername=${encodeURIComponent(teacherName)}`
+  );
+  await page.goto(directUrl, { waitUntil: 'domcontentloaded' });
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  const teacherUiVisible = await page.locator('#classroom-code-display').first().isVisible({ timeout: testConfig.ui.elementVisibilityTimeout }).catch(() => false);
+  if (teacherUiVisible) {
+    return { teacherId: teacherName, token: 'ui-login' };
+  }
+
+  // Fallback: perform UI login flow
   await page.goto('/teacher-login');
   await page.waitForLoadState('domcontentloaded');
-  // If the dev route didn't resolve, try explicit .html path
   if (!(await page.locator('#auth-form').first().isVisible({ timeout: 1000 }).catch(() => false))) {
     await page.goto('/teacher-login.html');
     await page.waitForLoadState('domcontentloaded');
   }
-  // Assert form is present; on failure, surface HTML for diagnostics
   const formVisible = await page.locator('#auth-form').first().isVisible({ timeout: 2000 }).catch(() => false);
   if (!formVisible) {
     const html = await page.content();
@@ -140,32 +149,18 @@ async function simulateTeacherLogin(page: any, teacherName: string): Promise<{ t
 
   await page.fill('#username', teacherName);
   await page.fill('#password', 'teacher123');
-  // The login page uses #submit-btn for both login and registration
   await page.click('#submit-btn');
-  // Prefer detecting successful login via localStorage token to avoid brittle redirect timing
   await page.waitForFunction(() => !!localStorage.getItem('teacherToken'), { timeout: 5000 }).catch(() => undefined);
-  // Let natural redirect complete; only navigate if needed to avoid double-navigation races
   await page.waitForURL(/\/teacher\b/, { timeout: 5000 }).catch(() => undefined);
   if (!/\/teacher\b/.test(page.url())) {
-    // Navigate with e2e flags so teacher.js bypasses strict auth in test mode and emits code quickly
-    await page.goto(
-      getTeacherURL(
-        `e2e=true&teacherId=${encodeURIComponent(teacherName)}&teacherUsername=${encodeURIComponent(teacherName)}`
-      ),
-      { waitUntil: 'domcontentloaded' }
-    );
+    await page.goto(directUrl, { waitUntil: 'domcontentloaded' });
   } else {
     await page.waitForLoadState('domcontentloaded');
   }
-  // Stabilize page to avoid evaluate context destruction and verify teacher UI
   await page.waitForLoadState('networkidle').catch(() => undefined);
   await page.waitForSelector('#classroom-code-display', { timeout: testConfig.ui.elementVisibilityTimeout });
 
-  // Return a deterministic identity based on provided teacherName; token not needed by tests
-  return {
-    teacherId: teacherName,
-    token: 'ui-login'
-  };
+  return { teacherId: teacherName, token: 'ui-login' };
 }
 
 // Helper function to get classroom code from teacher page
@@ -182,12 +177,12 @@ async function getClassroomCodeFromTeacherPage(page: any): Promise<string> {
       if (!el) return false;
       const txt = (el.textContent || '').trim();
       return /^[A-Z0-9]{6}$/.test(txt);
-    }, { timeout: Math.min(testConfig.ui.classroomCodeTimeout, 6000) });
+    }, { timeout: testConfig.ui.classroomCodeTimeout });
     const classroomCode = await page.locator('#classroom-code-display').textContent();
     return (classroomCode || '').trim();
   } catch {
     // Deterministic fallback: poll active sessions API for a short window
-    const deadline = Date.now() + 6000;
+    const deadline = Date.now() + testConfig.ui.classroomCodeTimeout;
     while (Date.now() < deadline) {
       // UI-based fallback: parse student URL text if present
       try {

@@ -474,6 +474,7 @@
     // Expose for testing/mocking if needed
     if (typeof window !== 'undefined') {
         window.handleWebSocketMessage = (data) => webSocketHandler.handleMessage({data: JSON.stringify(data)}); // Adapt if test calls with object
+        window.appState = appState;
     }
 
 })(); // End of IIFE
