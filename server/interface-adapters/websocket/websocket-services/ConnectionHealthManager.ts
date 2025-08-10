@@ -35,9 +35,12 @@ export class ConnectionHealthManager {
         client.isAlive = false;
         client.ping();
         
-        // Also send a JSON ping message for clients that don't handle ping frames
+        // Also send a JSON ping message less aggressively to avoid flooding clients
+        // Only send if the connection appears open and not overwhelmed
         try {
-          client.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          if (client.readyState === 1 /* OPEN */) {
+            client.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          }
         } catch (error) {
           // Ignore send errors - connection might be closing
           logger.debug('Failed to send ping message, connection might be closing');

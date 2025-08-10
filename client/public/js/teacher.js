@@ -358,7 +358,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     
                     // Only reconnect for unexpected disconnections, not for duplicate sessions
                     // Code 1000 = normal closure, Code 1001 = going away, Code 1006 = abnormal closure
-                    const shouldReconnect = !event.wasClean && event.code !== 1000 && event.code !== 1001;
+                    // Do NOT reconnect on policy violation/normal close codes often used by server for cleanup (e.g., 1008)
+                    const nonReconnectCodes = new Set([1000, 1001, 1008]);
+                    const shouldReconnect = !event.wasClean && !nonReconnectCodes.has(event.code);
                     
                     if (shouldReconnect && viteWsUrlFromWindow) {
                         uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
@@ -429,19 +431,6 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.status === 'connected' && data.sessionId) {
                         appState.sessionId = data.sessionId;
                         console.log('Session ID received on connection:', appState.sessionId); // Original log for line 176
-                        // Notify backend of session join for protocol-agnostic layer (if enabled)
-                        try {
-                            const joinMsg = { type: 'join_session', sessionId: appState.sessionId };
-                            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
-                                appState.rtc.sendJSON(joinMsg);
-                                appState.rtc.sendJSON({ type: 'webrtc_sync', sessionId: appState.sessionId });
-                            } else if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
-                                appState.ws.send(JSON.stringify(joinMsg));
-                                appState.ws.send(JSON.stringify({ type: 'webrtc_sync', sessionId: appState.sessionId }));
-                            }
-                        } catch (e) {
-                            console.warn('[DEBUG] teacher.js: Failed to send join_session message:', e);
-                        }
                     }
                     break;
 
