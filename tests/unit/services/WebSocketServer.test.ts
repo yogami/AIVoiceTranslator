@@ -80,9 +80,7 @@ vi.mock('../../../server/services/websocket/SessionService', () => ({
   }))
 }));
 
-vi.mock('../../../server/services/websocket/TranslationOrchestrator', () => ({
-  TranslationOrchestrator: vi.fn().mockImplementation(() => ({}))
-}));
+// Legacy TranslationOrchestrator removed - now using SpeechPipelineOrchestrator
 
 vi.mock('../../../server/services/websocket/ClassroomSessionManager', () => {
   // Shared sessions map across all mock instances to ensure uniqueness
@@ -850,6 +848,22 @@ vi.mock('../../../server/config', () => ({
     server: {
       host: 'localhost',
       port: 3000
+    },
+    session: {
+      veryShortSessionThreshold: 5000,
+      staleSessionTimeout: 5400000,
+      allStudentsLeftTimeout: 600000,
+      emptyTeacherTimeout: 900000,
+      cleanupInterval: 120000,
+      classroomCodeExpiration: 7200000,
+      classroomCodeCleanupInterval: 900000,
+      healthCheckInterval: 30000,
+      teacherReconnectionGracePeriod: 300000,
+      minAudioDataLength: 100,
+      minAudioBufferLength: 100,
+      sessionExpiredMessageDelay: 1000,
+      invalidClassroomMessageDelay: 200,
+      logTextPreviewLength: 100
     }
   }
 }));
@@ -877,7 +891,7 @@ vi.mock('../../../server/services/SessionLifecycleService', () => ({
   }))
 }));
 
-vi.mock('../../../server/services/SessionCleanupService', () => ({
+vi.mock('../../../server/services/session/SessionCleanupService', () => ({
   SessionCleanupService: vi.fn().mockImplementation(() => ({
     start: vi.fn(),
     stop: vi.fn(),
@@ -2946,7 +2960,7 @@ describe('WebSocketServer', () => {
       // Verify all services were recreated with new storage
       expect((webSocketServer as any).storage).toBe(newStorage);
       expect((webSocketServer as any).sessionService).toBeDefined();
-      expect((webSocketServer as any).translationOrchestrator).toBeDefined();
+      expect((webSocketServer as any).speechPipelineOrchestrator).toBeDefined();
       expect((webSocketServer as any).storageSessionManager).toBeDefined();
       expect((webSocketServer as any).sessionLifecycleService).toBeDefined();
     });

@@ -5,9 +5,10 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { asyncHandler, ApiError } from '../middleware/error-handler.middleware.js';
-import { IStorage } from '../storage.interface.js';
-import { IActiveSessionProvider } from '../services/IActiveSessionProvider.js';
+import { asyncHandler, ApiError } from '../middleware/error-handler.middleware';
+import { IStorage } from '../storage.interface';
+import { IActiveSessionProvider } from '../application/services/session/IActiveSessionProvider';
+import { UnifiedSessionCleanupService } from '../application/services/session/cleanup/UnifiedSessionCleanupService';
 
 // Language name mapping for display
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -65,7 +66,8 @@ interface SessionStatusResponse {
 
 export function createSessionRoutes(
   storage: IStorage,
-  activeSessionProvider: IActiveSessionProvider
+  activeSessionProvider: IActiveSessionProvider,
+  cleanupService?: UnifiedSessionCleanupService
 ): Router {
   const router = Router();
 
@@ -80,7 +82,7 @@ export function createSessionRoutes(
       throw new ApiError(400, 'Session ID is required');
     }
 
-    // Get session from database
+    // Get session from database (may be missing briefly during initial WS registration)
     const session = await storage.getSessionById(sessionId);
     if (!session) {
       throw new ApiError(404, 'Session not found');
@@ -112,7 +114,7 @@ export function createSessionRoutes(
     });
 
     const response: SessionStatusResponse = {
-      success: true,  
+      success: true,
       data: {
         sessionId,
         classCode: session.classCode,
@@ -171,6 +173,18 @@ export function createSessionRoutes(
   // Register routes
   router.get('/sessions/:sessionId/status', getSessionStatus);
   router.get('/sessions/active', getActiveSessions);
+
+  // Test-only: Force cleanup trigger endpoint guarded by test env
+  router.post('/sessions/cleanup-now', asyncHandler(async (_req: Request, res: Response) => {
+    if (process.env.NODE_ENV !== 'test' && process.env.E2E_TEST_MODE !== 'true') {
+      throw new ApiError(403, 'Forbidden');
+    }
+    if (!cleanupService) {
+      return res.json({ success: true, cleaned: 0, note: 'cleanup service not available' });
+    }
+    const result = await cleanupService.forceCleanup();
+    res.json({ success: true, cleaned: result.totalCleaned });
+  }));
 
   return router;
 }

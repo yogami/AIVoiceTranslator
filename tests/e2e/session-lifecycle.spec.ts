@@ -1,5 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { testConfig } from './helpers/test-timeouts.js';
 import { getAnalyticsURL } from './helpers/test-config';
 import { seedRealisticTestData, clearDiagnosticData } from './test-data-utils';
 
@@ -24,8 +25,8 @@ test.describe('Session Lifecycle E2E Tests', () => {
     await page.goto(getAnalyticsURL());
     
     // Wait for page to load
-    await page.waitForSelector('h1', { timeout: 10000 });
-    await page.waitForSelector('#questionInput', { timeout: 5000 });
+    await page.waitForSelector('h1', { timeout: testConfig.ui.elementVisibilityTimeout });
+    await page.waitForSelector('#questionInput', { timeout: testConfig.ui.elementVisibilityTimeout });
     
     // Query for session creation information
     await page.fill('#questionInput', 'How many sessions were created in the last hour?');
@@ -48,7 +49,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
     await page.goto(getAnalyticsURL());
     
     // Wait for page to load
-    await page.waitForSelector('#questionInput', { timeout: 5000 });
+    await page.waitForSelector('#questionInput', { timeout: testConfig.ui.elementVisibilityTimeout });
     
     // Query for session cleanup information
     await page.fill('#questionInput', 'What sessions need cleanup and how many were cleaned up recently?');
@@ -68,7 +69,7 @@ test.describe('Session Lifecycle E2E Tests', () => {
     await page.goto(getAnalyticsURL());
     
     // Wait for page to load
-    await page.waitForSelector('#questionInput', { timeout: 5000 });
+    await page.waitForSelector('#questionInput', { timeout: testConfig.ui.elementVisibilityTimeout });
     
     // Simulate a conversation about session lifecycle
     const conversation = [

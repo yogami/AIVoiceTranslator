@@ -42,3 +42,7 @@ backup/
 test-results/
 cleanup.sh
 .env.test
+
+# Large binaries (history cleaned)
+models/whisper/**
+playwright-report/**

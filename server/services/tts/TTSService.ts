@@ -1,10 +1,31 @@
-/**
- * Main TTS Service Interface
- * Provides a unified interface for all TTS services with auto-fallback support
- */
 
-import { TTSServiceFactory } from './TTSServiceFactory.js';
-import { ITTSService } from './ElevenLabsTTSService.js';
+
+// Unified TTS result type
+export type TTSResult = {
+  audioBuffer: Buffer;
+  audioUrl?: string;
+  error?: string | { name: string; message: string };
+  ttsServiceType: string;
+  // Client-side synthesis properties (for browser TTS)
+  clientSideText?: string;
+  clientSideLanguage?: string;
+};
+
+// Main TTS Service Interface
+export interface ITTSService {
+  synthesize(
+    text: string,
+    options?: {
+      language?: string;
+      voice?: string;
+      speed?: number;
+      preserveEmotions?: boolean;
+      emotionContext?: any;
+    }
+  ): Promise<TTSResult>;
+}
+
+import { TTSServiceFactory } from '../../infrastructure/factories/TTSServiceFactory';
 
 export class TTSService {
   private service: ITTSService;
@@ -16,12 +37,21 @@ export class TTSService {
     console.log(`[TTSService] Initialized with type: ${serviceType}`);
   }
 
-  public async synthesize(text: string, options: { language?: string; voice?: string } = {}): Promise<{ audioBuffer?: Buffer; audioUrl?: string; error?: string }> {
+  public async synthesize(
+    text: string,
+    options: {
+      language?: string;
+      voice?: string;
+      speed?: number;
+      preserveEmotions?: boolean;
+      emotionContext?: any;
+    } = {}
+  ): Promise<TTSResult> {
     try {
       return await this.service.synthesize(text, options);
     } catch (error) {
       console.error('[TTSService] Synthesis failed:', error);
-      throw error;
+      return { audioBuffer: Buffer.alloc(0), error: error instanceof Error ? error.message : String(error), ttsServiceType: this.serviceType };
     }
   }
 
@@ -34,9 +64,7 @@ export class TTSService {
   }
 }
 
-export type { ITTSService };
-export { TTSServiceFactory, getTTSService } from './TTSServiceFactory.js';
-export { ElevenLabsTTSService } from './ElevenLabsTTSService.js';
-export { BrowserTTSService } from './BrowserTTSService.js';
-export { OpenAITTSService } from './OpenAITTSService.js';
-export { AutoFallbackTTSService } from './TTSServiceFactory.js';
+export { TTSServiceFactory, getTTSService } from '../../infrastructure/factories/TTSServiceFactory';
+export { ElevenLabsTTSService } from '../../infrastructure/external-services/tts/ElevenLabsTTSService';
+export { BrowserTTSService } from '../../infrastructure/external-services/tts/BrowserTTSService';
+export { OpenAITTSService } from '../../infrastructure/external-services/tts/OpenAITTSService';

@@ -36,7 +36,7 @@ if (content.includes('getTranscriptionService()') || content.includes('Transcrip
 
 // Check factory implementation
 console.log('\n🏭 Checking TranscriptionServiceFactory implementation...');
-const factoryPath = path.join(__dirname, '../server/services/transcription/TranscriptionServiceFactory.ts');
+const factoryPath = path.join(__dirname, '../server/services/stttranscription/TranscriptionServiceFactory.ts');
 if (fs.existsSync(factoryPath)) {
   const factoryContent = fs.readFileSync(factoryPath, 'utf8');
   

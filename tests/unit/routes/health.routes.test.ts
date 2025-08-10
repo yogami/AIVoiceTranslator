@@ -5,9 +5,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { createHealthRoutes } from '../../../server/routes/health.routes.js';
-import { IStorage } from '../../../server/storage.interface.js';
-import { IActiveSessionProvider } from '../../../server/services/IActiveSessionProvider.js';
+import { createHealthRoutes } from '../../../server/routes/health.routes';
+import { IStorage } from '../../../server/storage.interface';
+import { IActiveSessionProvider } from '../../../server/services/session/IActiveSessionProvider';
 
 // Mock dependencies
 const mockStorage: IStorage = {

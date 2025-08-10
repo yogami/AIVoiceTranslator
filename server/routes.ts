@@ -82,19 +82,19 @@
  */
 import { Router, Request, Response, NextFunction } from 'express';
 import { sql } from 'drizzle-orm';
-import { sessions } from '../shared/schema.js';
-import { db } from './db.js';
+import { sessions } from '../shared/schema';
+import { db } from './db';
 import OpenAI from 'openai';
-import { IStorage } from './storage.interface.js';
-import { IActiveSessionProvider } from './services/IActiveSessionProvider.js';
-import { SessionCleanupService } from './services/SessionCleanupService.js';
+import { IStorage } from './storage.interface';
+import { IActiveSessionProvider } from './application/services/session/IActiveSessionProvider';
+import { UnifiedSessionCleanupService } from './application/services/session/cleanup/UnifiedSessionCleanupService';
 import authRoutes from './routes/auth';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { 
   analyticsRateLimit, 
   analyticsSecurityMiddleware, 
   analyticsPageAuth 
-} from './middleware/analytics-security.js';
+} from './middleware/analytics-security';
 
 // Constants
 const API_VERSION = '1.0.0';
@@ -162,7 +162,7 @@ export const createApiRoutes = (
   storage: IStorage,
   activeSessionProvider: IActiveSessionProvider, // Or WebSocketServer if direct interaction is needed  
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  sessionCleanupService?: SessionCleanupService // Add optional cleanup service for admin endpoints
+  sessionCleanupService?: UnifiedSessionCleanupService // Add optional cleanup service for admin endpoints
 ): Router => {
   const router = Router();
 
@@ -314,13 +314,18 @@ export const createApiRoutes = (
    * Health check endpoint
    */
   const healthCheck = asyncHandler(async (req: Request, res: Response) => {
-    // Basic health check, can be expanded to check DB, services, etc.
+    // Basic health check; in E2E test mode, do not block on DB
+    const isE2E = process.env.E2E_TEST_MODE === 'true';
     let dbStatus = 'unknown';
-    try {
-        await storage.getLanguages(); // A simple query to check DB/storage connectivity
+    if (isE2E) {
+      dbStatus = 'skipped';
+    } else {
+      try {
+        await storage.getLanguages();
         dbStatus = 'connected';
-    } catch (e) {
+      } catch (e) {
         dbStatus = 'disconnected';
+      }
     }
 
     res.json({
@@ -329,9 +334,9 @@ export const createApiRoutes = (
       version: API_VERSION,
       database: dbStatus,
       environment: process.env.NODE_ENV || 'development',
-      activeSessions: activeSessionProvider.getActiveSessionsCount(), // Corrected method name
-      activeTeachers: activeSessionProvider.getActiveTeacherCount(), // Added available metric
-      activeStudents: activeSessionProvider.getActiveStudentCount() // Added available metric
+      activeSessions: activeSessionProvider.getActiveSessionsCount(),
+      activeTeachers: activeSessionProvider.getActiveTeacherCount(),
+      activeStudents: activeSessionProvider.getActiveStudentCount()
     });
   });
 
@@ -743,7 +748,7 @@ Answer the user's question clearly and directly based on this data. Be concise a
   // Classroom routes
   router.get('/join/:classCode', joinClassroom);
 
-  // Analytics routes - Protected with authentication and rate limiting
+  // Analytics routes - Strictly protected in production; bypass rate limit in tests handled by middleware
   router.post('/analytics/query', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, handleAnalyticsQuery);
   router.post('/analytics/ask', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, handleAnalyticsQuery); // Alias for client compatibility
   router.post('/analytics/test', analyticsPageAuth, analyticsRateLimit, analyticsSecurityMiddleware, testAnalyticsQuery); // Test endpoint

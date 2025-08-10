@@ -3,8 +3,8 @@ import { createServer } from 'http';
 import { AddressInfo } from 'net';
 import WebSocket from 'ws';
 import express from 'express';
-import { createSessionRoutes } from '../../../server/routes/sessions.routes';
-import { WebSocketServer } from '../../../server/services/WebSocketServer';
+import { createApiRoutes } from '../../../server/routes/index';
+import { WebSocketServer } from '../../../server/interface-adapters/websocket/WebSocketServer';
 import { DatabaseStorage } from '../../../server/database-storage';
 import type { IStorage } from '../../../server/storage.interface';
 
@@ -21,37 +21,11 @@ describe('Sessions API Integration Tests', () => {
     // Create storage and WebSocket server
     storage = new DatabaseStorage();
 
-    // Create Express app with sessions routes
+    // Create Express app
     app = express();
     app.use(express.json());
-    
-    // Mock active session provider that works with the actual WebSocket server
-    const mockActiveSessionProvider = {
-      getSessionStats: vi.fn().mockImplementation((sessionId: string) => {
-        // Get connections from the actual WebSocket server
-        const allConnections = Array.from(wsServer.getConnections());
-        
-        // Filter connections for this session and get their details
-        const sessionConnections = allConnections.filter((conn: any) => conn.sessionId === sessionId);
-        const languages = sessionConnections
-          .filter((conn: any) => conn.role === 'student')
-          .map((conn: any) => conn.language)
-          .filter(Boolean);
-        
-        return {
-          connections: sessionConnections,
-          languages: languages,
-          totalConnections: sessionConnections.length
-        };
-      }),
-      getActiveTeacherCount: vi.fn().mockReturnValue(0),
-      getActiveStudentCount: vi.fn().mockReturnValue(0),
-      getActiveSessionsCount: vi.fn().mockReturnValue(0)
-    };
 
-    app.use('/api/sessions', createSessionRoutes(storage, mockActiveSessionProvider));
-
-    // Start HTTP server
+    // Start HTTP server early, then attach WebSocketServer, then mount routes with wsServer
     server = createServer(app);
     await new Promise<void>((resolve) => {
       server.listen(0, () => {
@@ -63,13 +37,18 @@ describe('Sessions API Integration Tests', () => {
     // Create WebSocket server with the HTTP server
     wsServer = new WebSocketServer(server, storage);
 
-    // Create a test session
-    sessionId = 'test-session-123';
+    // Now mount API routes with the real wsServer (active session provider)
+    const apiRoutes = createApiRoutes(storage, wsServer as any, undefined);
+    app.use('/api', apiRoutes);
+
+    // Create a unique test session using timestamp to avoid duplicates
+    sessionId = `test-session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     classCode = 'ABC123';
     await storage.createSession({
       sessionId,
       classCode,
       teacherId: 'teacher-1',
+      teacherLanguage: 'en',
       isActive: true,
       startTime: new Date(),
       lastActivityAt: new Date()
@@ -77,14 +56,38 @@ describe('Sessions API Integration Tests', () => {
   });
 
   afterEach(async () => {
-    wsServer.close();
-    await new Promise<void>((resolve) => {
-      server.close(() => resolve());
-    });
-  });
+    try {
+      // Clean up the session first
+      if (sessionId) {
+        await storage.endSession(sessionId);
+      }
+    } catch (error) {
+      // Ignore cleanup errors
+    }
+
+    try {
+      // Close WebSocket server if it has a close method
+      if (wsServer && typeof wsServer.close === 'function') {
+        wsServer.close();
+      }
+    } catch (error) {
+      // Ignore WebSocket cleanup errors
+    }
+
+    // Close HTTP server with timeout
+    if (server) {
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => resolve(), 5000); // 5 second timeout
+        server.close(() => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    }
+  }, 10000); // 10 second timeout for the entire cleanup
 
   it('should return correct language breakdown when students join in different languages', async () => {
-    // Step 1: Connect teacher
+    // Step 1: Connect teacher and register to create a real session with classroom code
     const teacherWs = new WebSocket(`ws://localhost:${serverPort}`);
     await new Promise((resolve) => teacherWs.on('open', resolve));
 
@@ -92,60 +95,83 @@ describe('Sessions API Integration Tests', () => {
     teacherWs.send(JSON.stringify({
       type: 'register',
       role: 'teacher',
-      sessionId,
+      languageCode: 'en-US',
+      name: 'Teacher',
       userId: 'teacher-1'
     }));
-
-    // Wait for teacher registration
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const messages: any[] = [];
+    teacherWs.on('message', (data) => { try { messages.push(JSON.parse(data.toString())); } catch {} });
+    // wait up to 2s for classroom_code
+    const classroomMsg = await (async () => {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const msg = messages.find(m => m.type === 'classroom_code');
+        if (msg) return msg;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return undefined;
+    })();
+    expect(classroomMsg?.code).toMatch(/^[A-Z0-9]{6}$/);
+    classCode = classroomMsg.code;
+    // Use the sessionId from the classroom message to ensure we query the active WS session
+    sessionId = classroomMsg.sessionId || sessionId;
 
     // Step 2: Connect first student (Spanish)
-    const student1Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
     await new Promise((resolve) => student1Ws.on('open', resolve));
 
     student1Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classCode,
       userId: 'student-1',
-      language: 'es'
+      languageCode: 'es-ES'
     }));
 
     // Wait for student registration
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Step 3: Connect second student (French)
-    const student2Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student2Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
     await new Promise((resolve) => student2Ws.on('open', resolve));
 
     student2Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classCode,
       userId: 'student-2',
-      language: 'fr'
+      languageCode: 'fr-FR'
     }));
 
     // Wait for student registration
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Step 4: Connect third student (Spanish - same as first)
-    const student3Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student3Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classCode}`);
     await new Promise((resolve) => student3Ws.on('open', resolve));
 
     student3Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classCode,
       userId: 'student-3',
-      language: 'es'
+      languageCode: 'es-ES'
     }));
 
     // Wait for student registration
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Step 5: Call the sessions API
-    const response = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+    // Step 5: Call the sessions API (retry briefly while wsServer indexes connections)
+    const response = await (async () => {
+      const deadline = Date.now() + 1000;
+      let last: any;
+      while (Date.now() < deadline) {
+        last = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+        if (last.ok) return last;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return last;
+    })();
     expect(response.ok).toBe(true);
 
     const data = await response.json();
@@ -166,19 +192,19 @@ describe('Sessions API Integration Tests', () => {
     expect(data.data.languages).toHaveLength(2);
     
     // Find Spanish and French entries
-    const spanishEntry = data.data.languages.find((lang: any) => lang.languageCode === 'es');
-    const frenchEntry = data.data.languages.find((lang: any) => lang.languageCode === 'fr');
+    const spanishEntry = data.data.languages.find((lang: any) => lang.languageCode === 'es-ES');
+    const frenchEntry = data.data.languages.find((lang: any) => lang.languageCode === 'fr-FR');
 
     expect(spanishEntry).toMatchObject({
-      languageCode: 'es',
-      languageName: 'Spanish',
+      languageCode: 'es-ES',
+      languageName: 'Spanish (Spain)',
       studentCount: 2,
       percentage: 66.7
     });
 
     expect(frenchEntry).toMatchObject({
-      languageCode: 'fr',
-      languageName: 'French',
+      languageCode: 'fr-FR',
+      languageName: 'French (France)',
       studentCount: 1,
       percentage: 33.3
     });
@@ -195,16 +221,29 @@ describe('Sessions API Integration Tests', () => {
   });
 
   it('should return empty languages array when no students are connected', async () => {
-    // Connect only teacher
+    // Connect only teacher to create session and code
     const teacherWs = new WebSocket(`ws://localhost:${serverPort}`);
     await new Promise((resolve) => teacherWs.on('open', resolve));
 
     teacherWs.send(JSON.stringify({
       type: 'register',
       role: 'teacher',
-      sessionId,
-      userId: 'teacher-1'
+      languageCode: 'en-US',
+      name: 'Teacher'
     }));
+    const tMsgs: any[] = [];
+    teacherWs.on('message', (d) => { try { tMsgs.push(JSON.parse(d.toString())); } catch {} });
+    const classroomMsg = await (async () => {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const msg = tMsgs.find(m => m.type === 'classroom_code');
+        if (msg) return msg;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return undefined;
+    })();
+    // Prefer sessionId from classroom message when available
+    sessionId = (classroomMsg?.sessionId) || (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -221,43 +260,64 @@ describe('Sessions API Integration Tests', () => {
   });
 
   it('should update language breakdown when students disconnect', async () => {
-    // Connect teacher and two students
+    // Connect teacher and two students via classroom code
     const teacherWs = new WebSocket(`ws://localhost:${serverPort}`);
     await new Promise((resolve) => teacherWs.on('open', resolve));
 
     teacherWs.send(JSON.stringify({
       type: 'register',
       role: 'teacher',
-      sessionId,
-      userId: 'teacher-1'
+      languageCode: 'en-US',
+      name: 'Teacher'
     }));
+    const tMsgs: any[] = [];
+    teacherWs.on('message', (d) => { try { tMsgs.push(JSON.parse(d.toString())); } catch {} });
+    const classroomMsg = await (async () => {
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        const msg = tMsgs.find(m => m.type === 'classroom_code');
+        if (msg) return msg;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return undefined;
+    })();
+    sessionId = (classroomMsg?.sessionId) || (tMsgs.find(m => m.type === 'connection')?.sessionId) || sessionId;
 
-    const student1Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    const student1Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);
     await new Promise((resolve) => student1Ws.on('open', resolve));
 
     student1Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classroomMsg.code,
       userId: 'student-1',
-      language: 'es'
+      languageCode: 'es-ES'
     }));
-
-    const student2Ws = new WebSocket(`ws://localhost:${serverPort}`);
+    
+    const student2Ws = new WebSocket(`ws://localhost:${serverPort}?code=${classroomMsg.code}`);
     await new Promise((resolve) => student2Ws.on('open', resolve));
 
     student2Ws.send(JSON.stringify({
       type: 'register',
       role: 'student',
-      sessionId,
+      classroomCode: classroomMsg.code,
       userId: 'student-2',
-      language: 'fr'
+      languageCode: 'fr-FR'
     }));
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Verify initial state
-    let response = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+    // Verify initial state (retry loop)
+    let response = await (async () => {
+      const deadline = Date.now() + 1000;
+      let last: any;
+      while (Date.now() < deadline) {
+        last = await fetch(`http://localhost:${serverPort}/api/sessions/${sessionId}/status`);
+        if (last.ok) return last;
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return last;
+    })();
     let data = await response.json();
     expect(data.data.connectedStudents).toBe(2);
     expect(data.data.languages).toHaveLength(2);
@@ -273,8 +333,8 @@ describe('Sessions API Integration Tests', () => {
     expect(data.data.connectedStudents).toBe(1);
     expect(data.data.languages).toHaveLength(1);
     expect(data.data.languages[0]).toMatchObject({
-      languageCode: 'es',
-      languageName: 'Spanish',
+      languageCode: 'es-ES',
+      languageName: 'Spanish (Spain)',
       studentCount: 1,
       percentage: 100.0
     });

@@ -15,6 +15,7 @@ interface TestConfig {
     elementVisibilityTimeout: number;
     connectionStatusTimeout: number;
     teacherRegistrationTimeout: number;
+    classroomCodeTimeout: number;
     recordButtonTimeout: number;
     speechRecognitionUnavailableTimeout: number;
   };
@@ -76,7 +77,16 @@ function scaleForTest(productionValue: number): number {
   const scalingFactor = getTestScalingFactor();
   const scaled = Math.round(productionValue * scalingFactor);
   // Ensure minimum timing values for test stability
-  return Math.max(scaled, 150); // At least 150ms for E2E test stability
+  // Increase the minimum to reduce UI flakiness in CI/E2E
+  return Math.max(scaled, 500); // At least 500ms for E2E test stability
+}
+
+/**
+ * Scale with a custom floor to avoid unrealistically low timeouts
+ */
+function scaleForTestMin(productionValue: number, minMs: number): number {
+  const scaled = scaleForTest(productionValue);
+  return Math.max(scaled, minMs);
 }
 
 /**
@@ -89,31 +99,43 @@ export const testConfig: TestConfig = {
     ),
   },
   ui: {
-    elementVisibilityTimeout: scaleForTest(
-      getEnvNumber('TEST_ELEMENT_VISIBILITY_TIMEOUT_MS', 10000)
+    elementVisibilityTimeout: scaleForTestMin(
+      getEnvNumber('TEST_ELEMENT_VISIBILITY_TIMEOUT_MS', 15000),
+      1500
     ),
-    connectionStatusTimeout: scaleForTest(
-      getEnvNumber('TEST_CONNECTION_STATUS_TIMEOUT_MS', 10000)
+    connectionStatusTimeout: scaleForTestMin(
+      getEnvNumber('TEST_CONNECTION_STATUS_TIMEOUT_MS', 30000),
+      8000
     ),
-    teacherRegistrationTimeout: scaleForTest(
-      getEnvNumber('TEST_TEACHER_REGISTRATION_TIMEOUT_MS', 10000)
+    teacherRegistrationTimeout: scaleForTestMin(
+      getEnvNumber('TEST_TEACHER_REGISTRATION_TIMEOUT_MS', 30000),
+      10000
     ),
-    recordButtonTimeout: scaleForTest(
-      getEnvNumber('TEST_RECORD_BUTTON_TIMEOUT_MS', 5000)
+    classroomCodeTimeout: scaleForTestMin(
+      getEnvNumber('TEST_CLASSROOM_CODE_TIMEOUT_MS', 30000),
+      10000
     ),
-    speechRecognitionUnavailableTimeout: scaleForTest(
-      getEnvNumber('TEST_SPEECH_RECOGNITION_UNAVAILABLE_TIMEOUT_MS', 3000)
+    recordButtonTimeout: scaleForTestMin(
+      getEnvNumber('TEST_RECORD_BUTTON_TIMEOUT_MS', 5000),
+      2000
+    ),
+    speechRecognitionUnavailableTimeout: scaleForTestMin(
+      getEnvNumber('TEST_SPEECH_RECOGNITION_UNAVAILABLE_TIMEOUT_MS', 3000),
+      1000
     ),
   },
   wait: {
-    shortWait: scaleForTest(
-      getEnvNumber('TEST_SHORT_WAIT_MS', 1000)
+    shortWait: scaleForTestMin(
+      getEnvNumber('TEST_SHORT_WAIT_MS', 500),
+      250
     ),
-    standardWait: scaleForTest(
-      getEnvNumber('TEST_STANDARD_WAIT_MS', 1000)
+    standardWait: scaleForTestMin(
+      getEnvNumber('TEST_STANDARD_WAIT_MS', 1000),
+      600
     ),
-    adjustableWait: scaleForTest(
-      getEnvNumber('TEST_ADJUSTABLE_WAIT_MS', 1500)
+    adjustableWait: scaleForTestMin(
+      getEnvNumber('TEST_ADJUSTABLE_WAIT_MS', 1500),
+      1000
     ),
   },
   mock: {

@@ -11,11 +11,13 @@ import path from 'path';
 import logger from './logger';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { config, validateConfig } from './config'; // Assuming config is imported and validated
-import { createApiRoutes, apiErrorHandler } from './routes.js'; // Revert to original single routes file
+// Use modular routes that include session endpoints
+import { createApiRoutes } from './routes/index';
+import { apiErrorHandler } from './middleware/error-handler.middleware';
 import { type IStorage } from './storage.interface';
 import { DatabaseStorage } from './database-storage';
-import { WebSocketServer } from './services/WebSocketServer';
-import { SessionCleanupService } from './services/SessionCleanupService';
+// import { createTranslationService } from './services/communication'; // Removed problematic import
+// Cleanup service is managed inside WebSocketServer; avoid duplicate initialization here
 import fs from 'fs'; // Added fs import
 // Ensure setupVite and serveStatic are imported from your vite.ts
 import { setupVite, serveStatic } from './vite';
@@ -75,6 +77,36 @@ export async function startServer(app: express.Express): Promise<Server> {
   // Parse JSON in request body
   app.use(express.json());
 
+  // In E2E test mode, set up direct HTML routes to serve client pages without relying on Vite routing
+  if (process.env.E2E_TEST_MODE === 'true') {
+    try {
+      const clientRoot = path.resolve(process.cwd(), 'client');
+      const teacherHtml = path.resolve(clientRoot, 'teacher.html');
+      const teacherLoginHtml = path.resolve(clientRoot, 'teacher-login.html');
+      const studentHtml = path.resolve(clientRoot, 'public', 'student.html');
+      const analyticsHtml = path.resolve(clientRoot, 'analytics.html');
+
+      // Serve static assets directly to avoid relying on Vite in E2E
+      app.use('/css', express.static(path.join(clientRoot, 'css')));
+      app.use('/js', express.static(path.join(clientRoot, 'public', 'js')));
+
+      app.get(['/teacher', '/teacher.html'], (_req, res) => {
+        res.sendFile(teacherHtml);
+      });
+      app.get(['/teacher-login', '/teacher-login.html'], (_req, res) => {
+        res.sendFile(teacherLoginHtml);
+      });
+      app.get(['/student', '/student.html'], (_req, res) => {
+        res.sendFile(studentHtml);
+      });
+      app.get(['/analytics', '/analytics.html'], (_req, res) => {
+        res.sendFile(analyticsHtml);
+      });
+    } catch (e) {
+      logger.warn(`[E2E_TEST_MODE] Failed to configure direct HTML routes: ${(e as Error).message}`);
+    }
+  }
+
   // Dynamically determine Vite dev server port
   let vitePort = process.env.VITE_PORT || '3006'; // Default port as string
   const vitePortFilePath = path.resolve('/app', '.vite_dev_server_port');
@@ -99,25 +131,27 @@ export async function startServer(app: express.Express): Promise<Server> {
   logger.info('[INIT] Using database storage.');
 
   const httpServer = createServer(app);
-  const wss = new WebSocketServer(httpServer, storage);
   
-  // Initialize session cleanup service
-  const cleanupService = new SessionCleanupService();
-  cleanupService.start();
-  logger.info('[INIT] Session cleanup service started.');
+  // Initialize transport via factory (WebSocket by default, WebRTC optional via env)
+  const { createRealtimeTransport } = await import('./realtime/RealtimeTransportFactory');
+  const transport = createRealtimeTransport(httpServer, storage);
+  await transport.start(httpServer);
+  logger.info(`[INIT] Realtime transport started using: ${process.env.REALTIME_TRANSPORT || 'websocket'}`);
+  // Optionally enable protocol-agnostic app on top of transport (flagged)
+  try {
+    const { WebSocketRealtimeAppAdapter } = await import('./realtime/WebSocketRealtimeAppAdapter');
+    const appAdapter = new WebSocketRealtimeAppAdapter(transport);
+    appAdapter.enableIfFlagged();
+    (transport as any).__appAdapter = appAdapter; // allow cleanup in tests
+  } catch (e) {
+    logger.warn(`[INIT] Realtime app adapter not initialized: ${(e as Error).message}`);
+  }
   
-  // Gracefully shutdown cleanup service when server shuts down
-  process.on('SIGTERM', () => {
-    logger.info('SIGTERM received, shutting down gracefully...');
-    cleanupService.stop();
-  });
-  
-  process.on('SIGINT', () => {
-    logger.info('SIGINT received, shutting down gracefully...');
-    cleanupService.stop();
-  });
-
-  const apiRoutes = createApiRoutes(storage, wss, cleanupService);
+  // Pass the cleanup service if available on transport (legacy adapter exposes it via underlying server)
+  const cleanupService = (transport as any).legacy?.getSessionCleanupService?.() || undefined;
+  // Prefer the underlying WebSocket server (legacy) for routes that need connection manager access
+  const activeProvider: any = (transport as any).legacy || transport;
+  const apiRoutes = createApiRoutes(storage, activeProvider, cleanupService);
   app.use('/api', apiRoutes);
   app.use('/api', apiErrorHandler); // Ensure this is after API routes
 

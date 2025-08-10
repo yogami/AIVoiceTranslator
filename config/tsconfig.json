@@ -21,7 +21,7 @@
       "@services/*": ["../server/services/*"],
       "@helpers/*": ["../server/services/helpers/*"],
       "@managers/*": ["../server/services/managers/*"],
-      "@transcription/*": ["../server/services/transcription/*"],
+      "@stttranscription/*": ["../server/services/stttranscription/*"],
       "@textToSpeech/*": ["../server/services/textToSpeech/*"],
       "@processors/*": ["../server/services/processors/*"],
       "@handlers/*": ["../server/services/handlers/*"],

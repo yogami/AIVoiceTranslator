@@ -96,6 +96,12 @@ Add an alternative translation flow where teachers can manually control when tra
 
 ## Technical Implementation Analysis
 
+
+---
+**ARCHITECTURE NOTE (July 2025):**
+Currently, only 'transcription' messages from the client trigger the translation pipeline on the server. For this manual/queued translation feature, it is recommended to introduce a new 'translate' message type and handler. This will allow the teacher (or client) to explicitly request translation and delivery of specific segments, decoupled from real-time speech events. See TODO in `TranscriptionMessageHandler.ts` for more context.
+---
+
 ### 1. Feature Flag System
 
 #### Environment Configuration

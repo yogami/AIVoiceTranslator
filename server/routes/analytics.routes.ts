@@ -5,15 +5,15 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { asyncHandler, ApiError } from '../middleware/error-handler.middleware.js';
-import { AnalyticsService } from '../services/AnalyticsService.js';
+import { asyncHandler, ApiError } from '../middleware/error-handler.middleware';
+import { AnalyticsService } from '../services/AnalyticsService';
 import { 
   analyticsRateLimit, 
   analyticsSecurityMiddleware, 
   analyticsPageAuth 
-} from '../middleware/analytics-security.js';
-import { db } from '../db.js';
-import { sessions } from '../../shared/schema.js';
+} from '../middleware/analytics-security';
+import { db } from '../db';
+import { sessions } from '../../shared/schema';
 import { sql } from 'drizzle-orm';
 
 export function createAnalyticsRoutes(): Router {
@@ -84,24 +84,25 @@ export function createAnalyticsRoutes(): Router {
   });
 
   // Register routes with security middleware
+  // Enforce auth first, then rate limit and input validation
   router.post('/analytics/query', 
+    analyticsPageAuth,
     analyticsRateLimit, 
     analyticsSecurityMiddleware, 
-    analyticsPageAuth, 
     handleAnalyticsQuery
   );
   
   router.post('/analytics/ask', 
+    analyticsPageAuth,
     analyticsRateLimit, 
     analyticsSecurityMiddleware, 
-    analyticsPageAuth, 
     handleAnalyticsQuery
   ); // Alias for client compatibility
   
   router.post('/analytics/test', 
+    analyticsPageAuth,
     analyticsRateLimit, 
     analyticsSecurityMiddleware, 
-    analyticsPageAuth, 
     testAnalyticsQuery
   ); // Test endpoint
   

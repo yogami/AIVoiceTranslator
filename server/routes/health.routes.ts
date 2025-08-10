@@ -5,9 +5,9 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { IStorage } from '../storage.interface.js';
-import { IActiveSessionProvider } from '../services/IActiveSessionProvider.js';
-import { asyncHandler } from '../middleware/error-handler.middleware.js';
+import { IStorage } from '../storage.interface';
+import { IActiveSessionProvider } from '../application/services/session/IActiveSessionProvider';
+import { asyncHandler } from '../middleware/error-handler.middleware';
 
 // Constants
 const API_VERSION = '1.0.0';

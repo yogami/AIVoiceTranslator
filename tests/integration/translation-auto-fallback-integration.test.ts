@@ -8,9 +8,9 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getTranslationService } from '../../server/services/translation/TranslationServiceFactory.js';
-import { MyMemoryTranslationService } from '../../server/services/translation/MyMemoryTranslationService.js';
-import { OpenAITranslationService } from '../../server/services/TranslationService.js';
+import { getTranslationService } from '../../server/infrastructure/factories/TranslationServiceFactory';
+import { MyMemoryTranslationService } from '../../server/infrastructure/external-services/translation/MyMemoryTranslationService';
+import { OpenAITranslationService } from '../../server/infrastructure/external-services/translation/OpenAITranslationService';
 import { OpenAI } from 'openai';
 
 // Create test helper function

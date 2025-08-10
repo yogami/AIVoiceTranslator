@@ -147,7 +147,7 @@ describe('TTS Auto-Fallback Integration', () => {
   });
 
   it('should verify OpenAI TTS service can be instantiated', async () => {
-    const { OpenAITTSService } = await import('../../server/services/tts/OpenAITTSService.js');
+    const { OpenAITTSService } = await import('../../server/infrastructure/external-services/tts/OpenAITTSService');
     const openaiService = new OpenAITTSService();
     expect(openaiService).toBeDefined();
     expect(openaiService.constructor.name).toBe('OpenAITTSService');
@@ -155,7 +155,7 @@ describe('TTS Auto-Fallback Integration', () => {
   });
 
   it('should verify ElevenLabs service can be instantiated', async () => {
-    const { ElevenLabsTTSService } = await import('../../server/services/tts/ElevenLabsTTSService.js');
+    const { ElevenLabsTTSService } = await import('../../server/infrastructure/external-services/tts/ElevenLabsTTSService');
     const elevenLabsService = new ElevenLabsTTSService('test-key');
     expect(elevenLabsService).toBeDefined();
     expect(elevenLabsService.constructor.name).toBe('ElevenLabsTTSService');
@@ -246,7 +246,7 @@ describe('TTS Auto-Fallback Integration', () => {
     
     const results = await Promise.all(promises);
     expect(results).toHaveLength(3);
-    results.forEach(result => {
+results.forEach((result: any) => {
       expect(result).toBeDefined();
     });
   });

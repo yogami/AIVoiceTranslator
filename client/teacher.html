@@ -7,6 +7,25 @@
     <link rel="stylesheet" href="/css/teacher.css"> <!-- Changed path here -->
     <!-- Load runtime-config.ts. Vite will process client/src/runtime-config.ts -->
     <script type="module" src="/src/runtime-config.ts"></script>
+    <!-- Fallback runtime config for E2E/dev when Vite transform is not active -->
+    <script>
+        if (!window.VITE_API_URL) {
+            window.VITE_API_URL = `${window.location.protocol}//${window.location.host}`;
+        }
+        if (!window.VITE_WS_URL) {
+            window.VITE_WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+        }
+        console.log('[teacher.html] Runtime config - API URL:', window.VITE_API_URL, 'WS URL:', window.VITE_WS_URL);
+
+        // Enable experimental RTC via URL flag ?rtc=1
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('rtc') === '1') {
+                window.RTC_EXPERIMENT = '1';
+                console.log('[teacher.html] RTC experiment enabled via URL');
+            }
+        } catch (_) {}
+    </script>
     
     <!-- Authentication Check -->
     <script>
@@ -207,6 +226,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script src="/js/services/realtimeClient.js"></script>
+    <script src="/js/services/rtcExperiment.js"></script>
     <script src="/js/teacher.js" defer></script>
 </body>
 </html>

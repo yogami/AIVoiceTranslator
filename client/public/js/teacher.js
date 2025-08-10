@@ -64,6 +64,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     console.log('[DEBUG] teacher.js: IIFE executed.');
     const appState = {
         ws: null,
+        rtc: null,
         isRecording: false,
         recognition: null, // webkitSpeechRecognition instance
         selectedLanguage: 'en-US', // Default language, will be updated from DOM
@@ -71,8 +72,12 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         audioChunks: [], // Store audio chunks
         sessionId: null, // Session ID for audio streaming
         chosenMimeType: undefined, // Selected MediaRecorder MIME type
+        mediaReady: false, // Whether microphone has been initialized (iOS needs user gesture)
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
+
+    // Expose minimal state for RTC experiment helper
+    try { window.appState = appState; } catch (_) {}
 
     const domElements = {
         languageSelect: null,
@@ -247,21 +252,26 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     const sessionStatusService = {
         async refreshStatus(sessionId) {
             if (!sessionId) {
-                console.error('[DEBUG] refreshStatus: No session ID provided');
+                // Don't display error if no sessionId (likely first page load)
+                console.warn('[DEBUG] refreshStatus: No session ID provided');
                 return null;
             }
-            
+
             try {
                 console.log('[DEBUG] Fetching session status for:', sessionId);
                 const response = await fetch(`/api/sessions/${sessionId}/status`);
-                
+
                 if (!response.ok) {
+                    if (response.status === 404) {
+                        console.warn('[DEBUG] Session status 404 - likely before session persisted; suppressing UI error');
+                        return null;
+                    }
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
+
                 const data = await response.json();
                 console.log('[DEBUG] Session status response:', data);
-                
+
                 if (data.success) {
                     uiUpdater.updateSessionStatus(data.data);
                     return data.data;
@@ -269,8 +279,19 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     throw new Error(data.message || 'Failed to fetch session status');
                 }
             } catch (error) {
-                console.error('[DEBUG] Error refreshing session status:', error);
-                uiUpdater.updateStatus(`Failed to refresh status: ${error.message}`, 'error');
+                // Only display error for non-404 HTTP errors
+                if (sessionId) {
+                    const message = (error && error.message) ? error.message : '';
+                    if (message.includes('HTTP 404')) {
+                        console.warn('[DEBUG] Suppressing 404 status error after first load');
+                        return null;
+                    }
+                    console.error('[DEBUG] Error refreshing session status:', error);
+                    uiUpdater.updateStatus(`Failed to refresh status: ${message}`, 'error');
+                } else {
+                    // Suppress error message on first load
+                    console.warn('[DEBUG] Suppressed status error on first load:', error);
+                }
                 return null;
             }
         }
@@ -295,48 +316,87 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             uiUpdater.updateStatus('Connecting to server at ' + wsUrl + '...');
             
             try {
-                appState.ws = new WebSocket(wsUrl);
-                console.log('[DEBUG] teacher.js: WebSocket object created for URL:', wsUrl);
+                if (window.RealtimeClientFactory) {
+                    appState.rtc = window.RealtimeClientFactory.create({ wsUrl, wsCtor: WebSocket });
+                }
+                appState.ws = appState.rtc ? null : new WebSocket(wsUrl);
+                console.log('[DEBUG] teacher.js: WebSocket/RealtimeClient created for URL:', wsUrl);
             } catch (e) {
                 console.error('[DEBUG] teacher.js: Error creating WebSocket object:', e);
                 uiUpdater.updateStatus('Error creating WebSocket connection: ' + e.message, 'error');
                 return;
             }
             
-            appState.ws.onopen = () => {
-                console.log('[DEBUG] teacher.js: WebSocket onopen event fired.');
-                uiUpdater.updateStatus('Connected to server');
-                // Registration is now typically triggered by server's 'connection' message or explicitly
-                // Let's explicitly call register after connection for teacher
-                this.register(); 
-            };
-            appState.ws.onmessage = (event) => {
-                console.log('[DEBUG] teacher.js: WebSocket onmessage event fired. Data:', event.data);
-                this.handleMessage(event);
-            }; // Use arrow function or .bind for correct 'this'
-            appState.ws.onclose = (event) => {
-                console.log('[DEBUG] teacher.js: WebSocket onclose event fired. Was clean:', event.wasClean, 'Code:', event.code, 'Reason:', event.reason);
-                
-                // Only reconnect for unexpected disconnections, not for duplicate sessions
-                // Code 1000 = normal closure, Code 1001 = going away, Code 1006 = abnormal closure
-                const shouldReconnect = !event.wasClean && event.code !== 1000 && event.code !== 1001;
-                
-                if (shouldReconnect && viteWsUrlFromWindow) {
-                    uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
-                    setTimeout(() => this.connect(), 5000);
-                } else {
+            if (appState.rtc) {
+                appState.rtc.onOpen(() => {
+                    console.log('[DEBUG] teacher.js: RealtimeClient onopen event fired.');
+                    uiUpdater.updateStatus('Connected to server');
+                    this.register();
+                });
+                appState.rtc.onMessage((event) => {
+                    console.log('[DEBUG] teacher.js: RealtimeClient onmessage event fired. Data:', event.data);
+                    this.handleMessage(event);
+                });
+                appState.rtc.onClose((event) => {
+                    console.log('[DEBUG] teacher.js: RealtimeClient onclose event fired.');
                     uiUpdater.updateStatus('Disconnected from server');
-                    console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
-                }
-            };
-            appState.ws.onerror = (error) => {
-                console.error('[DEBUG] teacher.js: WebSocket onerror event fired:', error);
-                uiUpdater.updateStatus('WebSocket connection error.', 'error');
-            };
+                    setTimeout(() => this.connect(), 5000);
+                });
+                appState.rtc.onError((error) => {
+                    console.error('[DEBUG] teacher.js: RealtimeClient onerror event fired:', error);
+                    uiUpdater.updateStatus('Connection error.', 'error');
+                });
+                appState.rtc.connect(wsUrl);
+            } else if (appState.ws) {
+                appState.ws.onopen = () => {
+                    console.log('[DEBUG] teacher.js: WebSocket onopen event fired.');
+                    uiUpdater.updateStatus('Connected to server');
+                    this.register(); 
+                };
+                appState.ws.onmessage = (event) => {
+                    console.log('[DEBUG] teacher.js: WebSocket onmessage event fired. Data:', event.data);
+                    this.handleMessage(event);
+                }; // Use arrow function or .bind for correct 'this'
+                appState.ws.onclose = (event) => {
+                    console.log('[DEBUG] teacher.js: WebSocket onclose event fired. Was clean:', event.wasClean, 'Code:', event.code, 'Reason:', event.reason);
+                    
+                    // Only reconnect for unexpected disconnections, not for duplicate sessions
+                    // Code 1000 = normal closure, Code 1001 = going away, Code 1006 = abnormal closure
+                    // Do NOT reconnect on policy violation/normal close codes often used by server for cleanup (e.g., 1008)
+                    const nonReconnectCodes = new Set([1000, 1001, 1008]);
+                    const shouldReconnect = !event.wasClean && !nonReconnectCodes.has(event.code);
+                    
+                    if (shouldReconnect && viteWsUrlFromWindow) {
+                        uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                        setTimeout(() => this.connect(), 5000);
+                    } else {
+                        uiUpdater.updateStatus('Disconnected from server');
+                        console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
+                    }
+                };
+                appState.ws.onerror = (error) => {
+                    console.error('[DEBUG] teacher.js: WebSocket onerror event fired:', error);
+                    uiUpdater.updateStatus('WebSocket connection error.', 'error');
+                };
+            }
         },
 
         register: function() {
             console.log('[DEBUG] teacher.js: webSocketHandler.register called.');
+            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                const teacherUser = JSON.parse(localStorage.getItem('teacherUser') || '{}');
+                const teacherId = teacherUser.id ? teacherUser.id.toString() : null;
+                if (!teacherId) {
+                    console.error('[DEBUG] teacher.js: No teacherId available, redirecting to login');
+                    uiUpdater.updateStatus('Authentication error: No teacher ID found', 'error');
+                    localStorage.removeItem('teacherToken');
+                    localStorage.removeItem('teacherUser');
+                    window.location.href = '/teacher-login';
+                    return;
+                }
+                appState.rtc.registerTeacher(teacherId, appState.selectedLanguage);
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 // Get authenticated teacher info from localStorage
                 const teacherUser = JSON.parse(localStorage.getItem('teacherUser') || '{}');
@@ -392,6 +452,16 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                                 });
                             }, 1000); // Small delay to allow for any initial student connections
                         }
+
+                        // Auto-start experimental WebRTC offer if enabled
+                        if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment && appState.sessionId) {
+                            try {
+                                uiUpdater.updateStatus('Starting WebRTC experiment...');
+                                window.RTCExperiment.startOffer(appState.sessionId);
+                            } catch (e) {
+                                console.warn('[RTCExperiment] startOffer failed', e);
+                            }
+                        }
                     } else {
                         const errorMessage = 'Registration failed: ' + (data.message || (data.data ? JSON.stringify(data.data) : 'Unknown reason'));
                         uiUpdater.updateStatus(errorMessage, 'error');
@@ -416,6 +486,18 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 case 'error':
                     console.error('Error message from server:', data.message || data);
                     uiUpdater.updateStatus('Error: ' + (data.message || JSON.stringify(data)), 'error');
+                    break;
+
+                case 'webrtc_answer':
+                    if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment) {
+                        try { window.RTCExperiment.applyServerAnswer(data.sdp); } catch (e) { console.warn('[RTCExperiment] applyServerAnswer failed', e); }
+                    }
+                    break;
+
+                case 'webrtc_ice_candidate':
+                    if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment) {
+                        try { window.RTCExperiment.addServerIce(data.candidate); } catch (e) { console.warn('[RTCExperiment] addServerIce failed', e); }
+                    }
                     break;
 
                 case 'ping':
@@ -443,6 +525,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendTranscription: function(text) {
+            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                appState.rtc.sendTranscription(text);
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 const message = { type: 'transcription', text: text, timestamp: Date.now(), isFinal: true };
                 appState.ws.send(JSON.stringify(message));
@@ -450,6 +536,15 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendAudioChunk: function(audioData, isFirstChunk = false, isFinalChunk = false) {
+            if (appState.sessionId && appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const base64Audio = reader.result.split(',')[1];
+                    appState.rtc.sendAudioChunk(appState.sessionId, base64Audio, isFirstChunk, isFinalChunk, appState.selectedLanguage);
+                };
+                reader.readAsDataURL(audioData);
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.sessionId) {
                 const reader = new FileReader();
                 reader.onloadend = () => {
@@ -469,6 +564,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendPong: function() {
+            if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                appState.rtc.sendPong();
+                return;
+            }
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                 appState.ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
             }
@@ -478,12 +577,21 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     const audioHandler = {
         setup: async function() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 48000,
+                        channelCount: 1
+                    }
+                });
                 // Create MediaRecorder for audio capture with clean fallback strategy
                 const chosen = platform.selectSupportedAudioMimeType();
                 const options = chosen ? { mimeType: chosen } : undefined;
                 appState.chosenMimeType = chosen;
                 appState.mediaRecorder = new MediaRecorder(stream, options);
+                console.log('[DEBUG] MediaRecorder created. chosenMimeType=', chosen, 'actual=', appState.mediaRecorder.mimeType);
                 
                 let isFirstChunk = true;
                 
@@ -504,6 +612,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
+                        console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
+                        uiUpdater.updateStatus('Sending final audio for transcription...');
                         webSocketHandler.sendAudioChunk(audioBlob, false, true);
                     }
                     appState.audioChunks = [];
@@ -566,7 +676,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (appState.isRecording) this.start(); // Call internal start method
                 };
             } else {
-                uiUpdater.updateStatus('Speech recognition not supported in this browser');
+                // Do not block recording if SpeechRecognition is unavailable (e.g., iOS Safari)
+                console.warn('[teacher.js] Speech recognition not supported; falling back to server-side transcription only.');
+                uiUpdater.updateStatus('Recording without on-device speech recognition');
             }
         },
 
@@ -586,23 +698,24 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         start: function() {
-            if (!appState.recognition) {
-                uiUpdater.updateStatus('Speech recognition not available');
-                return;
-            }
             appState.isRecording = true;
-            appState.recognition.lang = domElements.languageSelect ? domElements.languageSelect.value : appState.selectedLanguage;
+            // Try to start recognition if available, but do not require it
+            try {
+                if (appState.recognition) {
+                    appState.recognition.lang = domElements.languageSelect ? domElements.languageSelect.value : appState.selectedLanguage;
+                    appState.recognition.start();
+                }
+            } catch (e) {
+                console.warn('Speech recognition start failed; continuing with audio-only recording:', e);
+            }
             
             try {
-                // Start speech recognition
-                appState.recognition.start();
-                // Start audio recording
+                // Always start audio capture for server-side transcription
                 audioHandler.startRecording();
-                
                 uiUpdater.setRecordButtonToRecording();
-                uiUpdater.updateStatus('Recording... Speak naturally');
+                uiUpdater.updateStatus('Recording...');
             } catch (e) {
-                console.error('Error starting recording:', e);
+                console.error('Error starting audio recording:', e);
                 uiUpdater.updateStatus('Error starting recording.');
                 appState.isRecording = false; // Reset state
             }
@@ -612,9 +725,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             appState.isRecording = false;
             
             // Stop speech recognition
-            if (appState.recognition) {
-                appState.recognition.stop();
-            }
+            try {
+                if (appState.recognition) {
+                    appState.recognition.stop();
+                }
+            } catch (_) { /* no-op */ }
             
             // Stop audio recording
             audioHandler.stopRecording();
@@ -643,9 +758,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 localStorage.removeItem('teacherUser');
                 
                 // Close WebSocket connection
-                if (appState.ws) {
-                    appState.ws.close();
-                }
+                if (appState.rtc && appState.rtc.close) { appState.rtc.close(); }
+                if (appState.ws) { appState.ws.close(); }
                 
                 // Redirect to login page
                 window.location.href = '/teacher-login';
@@ -674,7 +788,13 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         }
         
         if (domElements.recordButton) {
-            domElements.recordButton.addEventListener('click', () => speechHandler.toggle()); // Call speechHandler.toggle
+            domElements.recordButton.addEventListener('click', async () => {
+                if (platform.isIOSWebKit() && !appState.mediaRecorder) {
+                    const ok = await audioHandler.setup();
+                    appState.mediaReady = !!ok;
+                }
+                speechHandler.toggle();
+            });
         }
         // Inform user about device limitations if applicable
         if (platform.isIOSWebKit() && domElements.statusDisplay) {

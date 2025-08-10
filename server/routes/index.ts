@@ -5,39 +5,41 @@
  */
 
 import { Router } from 'express';
-import { IStorage } from '../storage.interface.js';
-import { IActiveSessionProvider } from '../services/IActiveSessionProvider.js';
-import { SessionCleanupService } from '../services/SessionCleanupService.js';
+import { DatabaseStorage } from '../database-storage';
+import { IStorage } from '../storage.interface';
+import { IActiveSessionProvider } from '../application/services/session/IActiveSessionProvider';
+import { UnifiedSessionCleanupService } from '../application/services/session/cleanup/UnifiedSessionCleanupService';
 // Business logic services
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { AnalyticsService } from '../services/AnalyticsService.js';
+import { AnalyticsService } from '../services/AnalyticsService';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { LanguageService } from '../services/LanguageService.js';
+import { LanguageService } from '../services/LanguageService';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { TranslationRoutesService } from '../services/TranslationRoutesService.js';
+import { TranslationRoutesService } from '../services/translation/TranslationRoutesService';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { TranscriptService } from '../services/TranscriptService.js';
+import { TranscriptService } from '../services/stttranscription/TranscriptService';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const sessionCleanupService = new SessionCleanupService();
+const storage = new DatabaseStorage();
+const classroomSessionsMap = new Map(); // Empty map for routes context
+const sessionCleanupService = new UnifiedSessionCleanupService(storage, classroomSessionsMap);
 
 // Import route modules
-import { createHealthRoutes } from './health.routes.js';
-import { createClassroomRoutes } from './classroom.routes.js';
-import { createAnalyticsRoutes } from './analytics.routes.js';
-import { createLanguageRoutes } from './languages.routes.js';
-import { createTranslationRoutes } from './translations.routes.js';
-import { createTranscriptRoutes } from './transcripts.routes.js';
-import { createSessionRoutes } from './sessions.routes.js';
-import authRoutes from './auth.js';
+import { createHealthRoutes } from './health.routes';
+import { createClassroomRoutes } from './classroom.routes';
+import { createAnalyticsRoutes } from './analytics.routes';
+import { createLanguageRoutes } from './languages.routes';
+import { createTranslationRoutes } from './translations.routes';
+import { createTranscriptRoutes } from './transcripts.routes';
+import { createSessionRoutes } from './sessions.routes';
+import authRoutes from './auth';
 
 // Import error handling
-import { apiErrorHandler } from '../middleware/error-handler.middleware.js';
+import { apiErrorHandler } from '../middleware/error-handler.middleware';
 
 export function createApiRoutes(
   storage: IStorage,
   activeSessionProvider: IActiveSessionProvider,
-  sessionCleanupService?: SessionCleanupService
+  sessionCleanupService?: UnifiedSessionCleanupService
 ): Router {
   const router = Router();
 
@@ -48,7 +50,8 @@ export function createApiRoutes(
   router.use('/', createLanguageRoutes(storage));
   router.use('/', createTranslationRoutes(storage));
   router.use('/', createTranscriptRoutes(storage));
-  router.use('/', createSessionRoutes(storage, activeSessionProvider));
+  // sessions routes accept optional cleanupService; cast to avoid type mismatch from previous signature
+  router.use('/', createSessionRoutes(storage, activeSessionProvider, sessionCleanupService as any));
   
   // Auth routes (existing)
   router.use('/auth', authRoutes);

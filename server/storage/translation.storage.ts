@@ -127,9 +127,9 @@ export class DbTranslationStorage implements ITranslationStorage {
       // Enhanced error logging
       console.error('DbTranslationStorage.createTranslation: Database insertion failed:', {
         error,
-        errorMessage: error.message,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         errorCode: error.code,
-        errorStack: error.stack,
         translation,
         translationKeys: Object.keys(translation)
       });

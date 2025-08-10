@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { AutoFallbackSTTService } from '../../server/services/transcription/AutoFallbackSTTService.js';
+import { AutoFallbackSTTService } from '../../server/services/stttranscription/AutoFallbackSTTService';
 
 // Create test audio buffer
 function createTestAudioBuffer(size: number = 1024): Buffer {
@@ -105,7 +105,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       
       // The transcribe call will fail due to mock STT services, but we can verify voice isolation was attempted
       try {
-        await service.transcribe(audioBuffer, { language: 'en' });
+        await service.transcribe(audioBuffer, 'en');
       } catch (error) {
         // Expected failure due to mock STT services
         expect(error).toBeDefined();
@@ -138,7 +138,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       });
       
       try {
-        await service.transcribe(audioBuffer, { language: 'en' });
+        await service.transcribe(audioBuffer, 'en');
       } catch (error) {
         // Expected failure due to mock STT services
         expect(error).toBeDefined();
@@ -167,7 +167,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       (global.fetch as any).mockRejectedValueOnce(new Error('Network timeout'));
       
       try {
-        await service.transcribe(audioBuffer, { language: 'en' });
+        await service.transcribe(audioBuffer, 'en');
       } catch (error) {
         // Expected failure due to mock STT services, not voice isolation
         expect(error).toBeDefined();
@@ -190,7 +190,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       const emptyBuffer = Buffer.alloc(0);
       
       try {
-        await service.transcribe(emptyBuffer, { language: 'en' });
+        await service.transcribe(emptyBuffer, 'en');
       } catch (error) {
         // Should fail due to empty buffer validation, not due to voice isolation
         expect(error instanceof Error ? error.message : '').toContain('Audio buffer is required and cannot be empty');
@@ -217,7 +217,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       });
       
       try {
-        await service.transcribe(originalBuffer, { language: 'en' });
+        await service.transcribe(originalBuffer, 'en');
       } catch (error) {
         // Expected failure due to mock STT services
         expect(error).toBeDefined();
@@ -257,7 +257,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
         });
         
         try {
-          await service.transcribe(originalBuffer, { language: 'en' });
+          await service.transcribe(originalBuffer, 'en');
         } catch (error) {
           // Expected failure, but voice isolation should have been attempted
           expect(error).toBeDefined();
@@ -294,7 +294,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       
       // All STT services will fail in test environment, but enhanced audio should be used
       try {
-        await service.transcribe(audioBuffer, { language: 'en' });
+        await service.transcribe(audioBuffer, 'en');
       } catch (error) {
         // Expected failure due to mock services
         expect(error).toBeDefined();
@@ -331,7 +331,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       const attempts = [];
       for (let i = 0; i < 3; i++) {
         try {
-          await service.transcribe(audioBuffer, { language: 'en' });
+          await service.transcribe(audioBuffer, 'en');
         } catch (error) {
           attempts.push(error);
         }
@@ -367,7 +367,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
         });
         
         try {
-          await service.transcribe(audioBuffer, { language });
+          await service.transcribe(audioBuffer, language);
         } catch (error) {
           // Expected failure due to mock STT services
           expect(error).toBeDefined();
@@ -406,7 +406,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
         });
         
         try {
-          await service.transcribe(audioBuffer, { language: test.language });
+          await service.transcribe(audioBuffer, test.language);
         } catch (error) {
           // Expected failure
           expect(error).toBeDefined();
@@ -446,7 +446,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       });
       
       const promises = audioBuffers.map((buffer, index) => 
-        service.transcribe(buffer, { language: 'en' }).catch(error => ({
+        service.transcribe(buffer, 'en').catch(error => ({
           index,
           error: error instanceof Error ? error.message : String(error)
         }))
@@ -485,7 +485,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       });
       
       try {
-        await service.transcribe(largeBuffer, { language: 'en' });
+        await service.transcribe(largeBuffer, 'en');
       } catch (error) {
         // Expected failure, but should handle large buffer
         expect(error).toBeDefined();
@@ -517,7 +517,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
         });
         
         try {
-          await service.transcribe(audioBuffer, { language: 'en' });
+          await service.transcribe(audioBuffer, 'en');
         } catch (error) {
           // Expected failure
           expect(error).toBeDefined();
@@ -557,7 +557,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       // Make multiple requests
       for (let i = 0; i < 3; i++) {
         try {
-          await service.transcribe(audioBuffer, { language: 'en' });
+          await service.transcribe(audioBuffer, 'en');
         } catch (error) {
           // Expected STT failures
           expect(error).toBeDefined();
@@ -585,7 +585,7 @@ describe('Enhanced STT with Voice Isolation Component Tests', () => {
       const audioBuffer = createTestAudioBuffer(1024);
       
       try {
-        await service.transcribe(audioBuffer, { language: 'en' });
+        await service.transcribe(audioBuffer, 'en');
       } catch (error) {
         // Should fail due to mock STT services, not due to missing voice isolation
         expect(error).toBeDefined();

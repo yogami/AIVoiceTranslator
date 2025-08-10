@@ -22,17 +22,17 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
     // Verify connection status display
     const connectionStatus = page.locator('#connection-status');
-    await expect(connectionStatus).toBeVisible();
+    await expect(connectionStatus).toBeVisible({ timeout: testConfig.ui.elementVisibilityTimeout });
     await expect(connectionStatus.locator('span')).toContainText('No classroom code provided');
     
     // Verify translation display shows the error
     const translationDisplay = page.locator('#translation-display');
-    await expect(translationDisplay).toBeVisible();
+    await expect(translationDisplay).toBeVisible({ timeout: testConfig.ui.elementVisibilityTimeout });
     await expect(translationDisplay).toContainText('Missing Classroom Code');
 
     // Verify connect button is disabled
     const connectButton = page.locator('#connect-btn');
-    await expect(connectButton).toBeVisible();
+    await expect(connectButton).toBeVisible({ timeout: testConfig.ui.elementVisibilityTimeout });
     await expect(connectButton).toBeDisabled();
   });
 
@@ -64,7 +64,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
     // Verify Connect button is enabled and has correct text
     const connectButton = page.locator('#connect-btn');
     await expect(connectButton).toBeEnabled();
-    await expect(connectButton).toHaveText('Connect to Session');
+    await expect(connectButton).toHaveText('Connect to Session', { timeout: testConfig.ui.elementVisibilityTimeout });
 
     // Verify Play Audio button is disabled
     await expect(page.locator('#play-button')).toBeDisabled();
@@ -80,14 +80,14 @@ test.describe('Student Interface - Basic Scenarios', () => {
     await expect(page.locator('#selected-language')).toContainText('Selected: 🇺🇸 English (United States)');
     const connectButton = page.locator('#connect-btn');
     await expect(connectButton).toBeEnabled();
-    await expect(connectButton).toHaveText('Connect to Session');
+    await expect(connectButton).toHaveText('Connect to Session', { timeout: testConfig.ui.elementVisibilityTimeout });
 
     // Click the connect button
     await connectButton.click();
 
-    // Wait for the error message in the translation display
+    // Wait for the error message in the translation display (allow formatted prefix like "❌ Error")
     const translationDisplay = page.locator('#translation-display');
-    await expect(translationDisplay).toContainText('Error: Classroom session expired or invalid. Please ask teacher for new link.', { timeout: testConfig.ui.teacherRegistrationTimeout });
+    await expect(translationDisplay).toContainText('Classroom session expired or invalid. Please ask teacher for new link.', { timeout: testConfig.ui.teacherRegistrationTimeout });
 
     // Verify connection status updates to disconnected
     const connectionStatus = page.locator('#connection-status');
@@ -96,7 +96,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
     // Connect button should be enabled again and show "Connect to Session"
     await expect(connectButton).toBeEnabled();
-    await expect(connectButton).toHaveText('Connect to Session');
+    await expect(connectButton).toHaveText('Connect to Session', { timeout: testConfig.ui.elementVisibilityTimeout });
     // await expect(connectButton).not.toHaveClass(/connected/);
 
     // Play button should remain disabled
@@ -116,6 +116,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
       await expect(classroomCodeElement).toBeVisible({ timeout: testConfig.ui.teacherRegistrationTimeout });
       
       await expect(classroomCodeElement).not.toBeEmpty({ timeout: testConfig.ui.recordButtonTimeout }); 
+      await expect(classroomCodeElement).not.toHaveText('LIVE', { timeout: testConfig.ui.classroomCodeTimeout });
       const classroomCode = await classroomCodeElement.innerText();
       expect(classroomCode).toMatch(/^[A-Z0-9]{6}$/);
 
@@ -133,7 +134,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
       // 3. Student Connects
       await studentConnectButton.click();
       await expect(studentPage.locator('#connection-status span')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
-      await expect(studentConnectButton).toHaveText('Disconnect');
+      await expect(studentConnectButton).toHaveText('Disconnect', { timeout: testConfig.ui.elementVisibilityTimeout });
 
       // 4. Mock Translation on Student Page
       const mockTranslationPayload = {

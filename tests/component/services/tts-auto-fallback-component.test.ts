@@ -19,7 +19,7 @@ describe('TTS Auto-Fallback Component Tests', () => {
     process.env.ELEVENLABS_API_KEY = 'test-key';
     process.env.TTS_SERVICE_TYPE = 'auto';    process.env.TTS_SERVICE_TYPE = 'auto';
     
-    const { getTTSService } = await import('../../../server/services/tts/TTSService.js');
+    const { getTTSService } = await import('../../../server/services/tts/TTSService');
     const service = getTTSService();
     
     // Test with a simple TTS request that should work with browser fallback
@@ -38,7 +38,7 @@ describe('TTS Auto-Fallback Component Tests', () => {
     process.env.ELEVENLABS_API_KEY = 'invalid-key-to-trigger-failure';
     process.env.TTS_SERVICE_TYPE = 'auto';    process.env.TTS_SERVICE_TYPE = 'auto';
     
-    const { getTTSService } = await import('../../../server/services/tts/TTSService.js');
+    const { getTTSService } = await import('../../../server/services/tts/TTSService');
     const service = getTTSService();
     
     // Test fallback behavior - this should use Browser TTS
@@ -55,7 +55,7 @@ describe('TTS Auto-Fallback Component Tests', () => {
   it('should handle rate limiting correctly', async () => {
     process.env.ELEVENLABS_API_KEY = 'test-key';
     process.env.TTS_SERVICE_TYPE = 'auto';    
-    const { getTTSService } = await import('../../../server/services/tts/TTSService.js');
+    const { getTTSService } = await import('../../../server/services/tts/TTSService');
     const service = getTTSService();
     
     try {

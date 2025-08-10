@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EmotionControlService, EmotionContext, EmotionalTTSOptions } from '../../server/services/tts/EmotionControlService.js';
+import { ElevenLabsEmotionControlService as EmotionControlService, EmotionContext, EmotionalTTSOptions } from '../../server/services/tts/EmotionControlService';
 
 describe('Emotion Control TTS Component Tests', () => {
   let originalApiKey: string | undefined;

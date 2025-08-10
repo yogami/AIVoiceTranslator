@@ -23,8 +23,8 @@ import express from 'express';
 import type { Express, Router } from 'express';
 import { createApiRoutes, apiErrorHandler } from '../../server/routes';
 import { type IStorage } from '../../server/storage.interface';
-import { type SessionCleanupService } from '../../server/services/SessionCleanupService';
-import { type IActiveSessionProvider } from '../../server/services/IActiveSessionProvider';
+import { type SessionCleanupService } from '../../server/services/session/SessionCleanupService';
+import { type IActiveSessionProvider } from '../../server/services/session/IActiveSessionProvider';
 import type { Language, Translation, Transcript, User, Session, InsertSession, InsertTranslation, InsertTranscript, InsertUser, InsertLanguage } from '../../shared/schema';
 
 // Mocks for dependencies
