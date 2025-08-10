@@ -369,12 +369,12 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     
                     if (shouldReconnect && viteWsUrlFromWindow) {
                         if (!appState.isRecording) {
-                            uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                        uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
                         }
                         setTimeout(() => this.connect(), 5000);
                     } else {
                         if (!appState.isRecording) {
-                            uiUpdater.updateStatus('Disconnected from server');
+                        uiUpdater.updateStatus('Disconnected from server');
                         }
                         console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
                     }
@@ -440,7 +440,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.status === 'connected' && data.sessionId) {
                         appState.sessionId = data.sessionId;
                         console.log('Session ID received on connection:', appState.sessionId); // Original log for line 176
-                        // Mark as potentially ready; final readiness after register success
+                        // Allow recording immediately once we have a sessionId
+                        appState.readyToRecord = true;
                     }
                     break;
 
