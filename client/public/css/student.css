@@ -296,6 +296,24 @@ button.hidden {
     overflow: hidden;
 }
 
+/* UI V2 enhancements, isolated behind body.ui-v2 */
+body.ui-v2 .ui-v2-top-connect button {
+    width: 100%;
+}
+body.ui-v2 .audio-controls {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-top: 8px;
+}
+body.ui-v2 #play-button {
+    width: 100%;
+    margin-bottom: 8px;
+}
+body.ui-v2 #volume-control {
+    width: 100%;
+}
+
 .category-header {
     background: #f8f9fa;
     padding: 15px;
