@@ -265,6 +265,8 @@ describe('WebSocketServer Integration Tests (Real Services)', { timeout: Math.ma
       }
 
       console.log('[INTEGRATION] Starting real translation test...');
+      // Force premium translator to avoid auto-fallback returning original text
+      process.env.TRANSLATION_SERVICE_TYPE = 'openai';
       
       // Setup teacher and student
       teacherClient = await createClient('/', 1);
