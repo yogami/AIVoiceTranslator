@@ -349,12 +349,24 @@ export class WebSocketServer implements IActiveSessionProvider {
    */
   private async updateActivityIfNeeded(ws: WebSocketClient, messageType: string): Promise<void> {
     const activityUpdateMessages = ['transcription', 'audio', 'settings'];
-    if (activityUpdateMessages.includes(messageType)) {
-      const sessionId = this.connectionManager.getSessionId(ws);
-      if (sessionId) {
-        await this.updateSessionActivity(sessionId);
+    if (!activityUpdateMessages.includes(messageType)) return;
+
+    const sessionId = this.connectionManager.getSessionId(ws);
+    if (!sessionId) return;
+
+    // Throttle very chatty 'audio' messages to avoid flooding logs/DB
+    if (messageType === 'audio') {
+      const now = Date.now();
+      if (!this.shouldUpdateActivity(ws, now)) {
+        return;
       }
+      await this.updateSessionActivity(sessionId);
+      this.markActivityUpdated(ws, now);
+      return;
     }
+
+    // For other meaningful messages, update immediately
+    await this.updateSessionActivity(sessionId);
   }
   
   /**
