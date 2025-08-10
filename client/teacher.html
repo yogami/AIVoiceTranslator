@@ -28,6 +28,10 @@
                 window.CLIENT_STT_TO_SERVER_ENABLED = '1';
                 console.log('[teacher.html] Client STT → server enabled via URL');
             }
+            if (url.searchParams.get('stream') === '1') {
+                window.SEND_AUDIO_STREAMING = '1';
+                console.log('[teacher.html] Audio streaming to server ENABLED via URL');
+            }
         } catch (_) {}
     </script>
     
@@ -230,8 +234,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script src="/js/services/realtimeClient.js?v=20250810-3"></script>
-    <script src="/js/services/rtcExperiment.js?v=20250810-3"></script>
-    <script src="/js/teacher.js?v=20250810-3" defer></script>
+    <script src="/js/services/realtimeClient.js?v=20250810-4"></script>
+    <script src="/js/services/rtcExperiment.js?v=20250810-4"></script>
+    <script src="/js/teacher.js?v=20250810-4" defer></script>
 </body>
 </html>

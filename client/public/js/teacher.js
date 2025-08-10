@@ -612,9 +612,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 appState.mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
                         appState.audioChunks.push(event.data);
-                        
-                        // Send audio chunk immediately for real-time processing
-                        if (appState.isRecording) {
+                        // Streaming of audio to server is disabled by default to avoid duplicate TTS.
+                        // Set window.SEND_AUDIO_STREAMING='1' to re-enable for experiments.
+                        if (appState.isRecording && window.SEND_AUDIO_STREAMING === '1') {
                             webSocketHandler.sendAudioChunk(event.data, isFirstChunk, false);
                             isFirstChunk = false;
                         }
@@ -622,20 +622,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 };
                 
                 appState.mediaRecorder.onstop = () => {
-                    // Send final chunk when recording stops
-                    if (appState.audioChunks.length > 0) {
+                    // By default, do not send a final audio blob on stop to prevent replay/duplicates.
+                    // To opt-in (for testing), set window.SEND_AUDIO_STREAMING='1' and window.CLIENT_STT_TO_SERVER_ENABLED='1'.
+                    if (window.SEND_AUDIO_STREAMING === '1' && window.CLIENT_STT_TO_SERVER_ENABLED === '1' && appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
                         console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
-                        // Avoid duplicate playback: if we already sent text via on-device recognition during this recording,
-                        // skip sending the final audio blob to the server unless explicitly enabled.
-                        const allowFinalBlob = window.CLIENT_STT_TO_SERVER_ENABLED === '1';
-                        if (!appState.sentTranscriptionThisRecording || allowFinalBlob) {
-                            uiUpdater.updateStatus('Sending final audio for transcription...');
-                            webSocketHandler.sendAudioChunk(audioBlob, false, true);
-                        } else {
-                            console.log('[DEBUG] Skipping final audio send to avoid duplicate playback (client transcription already sent).');
-                        }
+                        uiUpdater.updateStatus('Sending final audio for transcription...');
+                        webSocketHandler.sendAudioChunk(audioBlob, false, true);
                     }
                     appState.audioChunks = [];
                 };
