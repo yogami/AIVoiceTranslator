@@ -314,6 +314,26 @@ body.ui-v2 #volume-control {
     width: 100%;
 }
 
+/* Compact header row combining code + status */
+body.ui-v2 #connection-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+body.ui-v2 #classroom-code-badge {
+    background: #e3f2fd;
+    color: #0b63c5;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Compact label+dropdown row */
+body.ui-v2 .language-section h3 { display: inline-block; margin-right: 8px; margin-bottom: 0; }
+body.ui-v2 .language-selection { display: inline-block; width: calc(100% - 170px); vertical-align: middle; }
+
 .category-header {
     background: #f8f9fa;
     padding: 15px;

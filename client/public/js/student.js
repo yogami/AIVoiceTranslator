@@ -40,6 +40,16 @@
         },
 
         showJoiningClassroomInfo: function(classroomCode) {
+            // Classic UI: keep banner; UI V2: use compact badge in status row
+            const isUi2 = document.body.classList.contains('ui-v2');
+            if (isUi2) {
+                const badge = document.getElementById('classroom-code-badge');
+                if (badge) {
+                    badge.textContent = `Classroom: ${classroomCode}`;
+                    badge.style.display = 'inline-block';
+                }
+                return;
+            }
             const classroomInfo = document.createElement('div');
             classroomInfo.style.cssText = 'text-align: center; margin-bottom: 20px; padding: 10px; background: #e8f5e8; border-radius: 6px; border: 2px solid #28a745;';
             classroomInfo.innerHTML = `
