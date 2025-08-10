@@ -73,6 +73,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         sessionId: null, // Session ID for audio streaming
         chosenMimeType: undefined, // Selected MediaRecorder MIME type
         mediaReady: false, // Whether microphone has been initialized (iOS needs user gesture)
+        readyToRecord: false // True after WS connected, registered, and sessionId present
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -367,10 +368,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     const shouldReconnect = !event.wasClean && !nonReconnectCodes.has(event.code);
                     
                     if (shouldReconnect && viteWsUrlFromWindow) {
-                        uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                        if (!appState.isRecording) {
+                            uiUpdater.updateStatus('Disconnected from server. Attempting to reconnect...');
+                        }
                         setTimeout(() => this.connect(), 5000);
                     } else {
-                        uiUpdater.updateStatus('Disconnected from server');
+                        if (!appState.isRecording) {
+                            uiUpdater.updateStatus('Disconnected from server');
+                        }
                         console.log('[DEBUG] teacher.js: Not reconnecting - connection was closed normally or duplicate session detected');
                     }
                 };
@@ -435,6 +440,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.status === 'connected' && data.sessionId) {
                         appState.sessionId = data.sessionId;
                         console.log('Session ID received on connection:', appState.sessionId); // Original log for line 176
+                        // Mark as potentially ready; final readiness after register success
                     }
                     break;
 
@@ -443,6 +449,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.status === 'success') {
                         uiUpdater.updateStatus('Registered as teacher', 'success');
                         console.log('Teacher registration successful:', data);
+                        appState.readyToRecord = !!appState.sessionId;
                         
                         // Initial refresh of language breakdown after successful registration
                         if (appState.sessionId) {
@@ -478,6 +485,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (data.sessionId) {
                         console.log('[DEBUG] Updating sessionId from classroom_code:', data.sessionId);
                         appState.sessionId = data.sessionId;
+                        appState.readyToRecord = true;
                     }
                     break;
 
@@ -794,6 +802,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         
         if (domElements.recordButton) {
             domElements.recordButton.addEventListener('click', async () => {
+                // Prevent starting before we have a valid sessionId and completed registration
+                if (!appState.readyToRecord) {
+                    uiUpdater.updateStatus('Please wait... establishing session');
+                    return;
+                }
                 if (platform.isIOSWebKit() && !appState.mediaRecorder) {
                     const ok = await audioHandler.setup();
                     appState.mediaReady = !!ok;
