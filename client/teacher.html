@@ -81,6 +81,20 @@
             }
         }
     </script>
+    <script>
+        // UI V2 A/B toggle via ?ui2=1
+        (function () {
+          try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('ui2') === '1') {
+              window.UI_V2 = '1';
+              document.addEventListener('DOMContentLoaded', function(){
+                document.body.classList.add('ui-v2');
+              });
+            }
+          } catch (_) {}
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -96,7 +110,11 @@
         <div class="classroom-info" id="classroomInfo">
             <div>Classroom Code:</div>
             <div class="classroom-code" id="classroom-code-display">LIVE</div>
-            <div>Students can join at: <span id="studentUrl">Waiting for connection...</span></div>
+            <div style="word-break: break-all;">Students can join at: <span id="studentUrl">Waiting for connection...</span></div>
+            <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+                <button id="copyLinkBtn" style="padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer;">Copy Link</button>
+                <button id="shareLinkBtn" style="padding:8px 12px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer;">Share</button>
+            </div>
             <div id="qr-code"></div>
         </div>
         
@@ -237,5 +255,29 @@
     <script src="/js/services/realtimeClient.js?v=20250810-5"></script>
     <script src="/js/services/rtcExperiment.js?v=20250810-5"></script>
     <script src="/js/teacher.js?v=20250810-5" defer></script>
+    <script>
+      // Copy/Share helpers
+      document.addEventListener('DOMContentLoaded', function(){
+        const copyBtn = document.getElementById('copyLinkBtn');
+        const shareBtn = document.getElementById('shareLinkBtn');
+        const urlSpan = document.getElementById('studentUrl');
+        function getLink(){ return (urlSpan && urlSpan.textContent) ? urlSpan.textContent.trim() : window.location.origin + '/student'; }
+        if (copyBtn) {
+          copyBtn.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(getLink()); copyBtn.textContent = 'Copied!'; setTimeout(()=> copyBtn.textContent='Copy Link', 1500); } catch(_){}
+          });
+        }
+        if (shareBtn) {
+          shareBtn.addEventListener('click', async () => {
+            const link = getLink();
+            if (navigator.share) {
+              try { await navigator.share({ title: 'Join my class', text: 'Student link', url: link }); } catch(_){}
+            } else {
+              try { await navigator.clipboard.writeText(link); shareBtn.textContent = 'Link Copied'; setTimeout(()=> shareBtn.textContent='Share', 1500);} catch(_){}
+            }
+          });
+        }
+      });
+    </script>
 </body>
 </html>
