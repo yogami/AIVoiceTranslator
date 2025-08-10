@@ -319,7 +319,8 @@ export class WebSocketServer implements IActiveSessionProvider {
         if (!this.shouldUpdateActivity(ws, now)) return;
         await this.updateSessionActivity(sid);
         this.markActivityUpdated(ws, now);
-      } else {
+      } else if (messageContext.type !== 'register') {
+        // Avoid updating activity for immediate register ack which can race before persistence
         await this.updateActivityIfNeeded(ws, messageContext.type);
       }
     } catch (error) {
