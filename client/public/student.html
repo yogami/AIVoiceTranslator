@@ -45,12 +45,11 @@
             <span>Disconnected</span>
             <!-- UI V2 badge placeholder for classroom code -->
             <span id="classroom-code-badge" data-testid="student-classroom-badge" style="display:none;"></span>
+            <!-- UI V2 inline connect button -->
+            <button id="connect-proxy" data-testid="student-connect-proxy" style="display:none;">Connect</button>
         </div>
         
-        <!-- Top proxy connect button (UI V2 only) -->
-        <div class="controls ui-v2-top-connect" style="display:none; margin-top:12px;">
-            <button id="connect-proxy" data-testid="student-connect-proxy">Connect to Session</button>
-        </div>
+        <!-- (UI V2 uses inline connect button in status row) -->
 
         <!-- Language Selection -->
         <div class="language-section">
@@ -184,16 +183,13 @@
           try { window.appState?.ws?.send?.(JSON.stringify(msg)); } catch {}
         }
       };
-      // Wire UI V2 proxy button to original connect button
+      // Wire UI V2 inline proxy button to original connect button
       document.addEventListener('DOMContentLoaded', function(){
         if (document.body.classList.contains('ui-v2')) {
-          const topWrap = document.querySelector('.ui-v2-top-connect');
-          if (topWrap) topWrap.style.display = 'block';
           const proxy = document.getElementById('connect-proxy');
           const real = document.getElementById('connect-btn');
-          if (proxy && real) {
-            proxy.addEventListener('click', () => real.click());
-          }
+          if (proxy) proxy.style.display = 'inline-block';
+          if (proxy && real) proxy.addEventListener('click', () => real.click());
         }
       });
     </script>

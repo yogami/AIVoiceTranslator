@@ -339,6 +339,16 @@ body.ui-v2 #classroom-code-badge {
 body.ui-v2 .language-section h3 { display: inline-block; margin-right: 8px; margin-bottom: 0; }
 body.ui-v2 .language-selection { display: inline-block; width: calc(100% - 170px); vertical-align: middle; }
 
+/* Style inline connect button */
+body.ui-v2 #connect-proxy {
+    background: #4caf50;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
 .category-header {
     background: #f8f9fa;
     padding: 15px;
