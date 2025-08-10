@@ -310,19 +310,7 @@ export class WebSocketServer implements IActiveSessionProvider {
     
     try {
       await this.processMessage(ws, data, messageContext);
-      // Only update activity for audio when session is stable (has a DB-backed session)
-      if (messageContext.type === 'audio') {
-        const sid = this.connectionManager.getSessionId(ws);
-        if (!sid) return;
-        // Throttle activity updates for audio to avoid excessive DB writes
-        const now = Date.now();
-        if (!this.shouldUpdateActivity(ws, now)) return;
-        await this.updateSessionActivity(sid);
-        this.markActivityUpdated(ws, now);
-      } else if (messageContext.type !== 'register') {
-        // Avoid updating activity for immediate register ack which can race before persistence
-        await this.updateActivityIfNeeded(ws, messageContext.type);
-      }
+      await this.updateActivityIfNeeded(ws, messageContext.type);
     } catch (error) {
       logger.error('Message handling error:', { error, type: messageContext.type, sessionId: messageContext.sessionId });
     }

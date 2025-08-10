@@ -10,7 +10,10 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
   }
 
   async handle(message: AudioMessageToServer, context: MessageHandlerContext): Promise<void> {
-    // Process both streaming and final chunks; throttling happens downstream
+    // If client streams chunks, ignore non-final chunks to avoid log/API spam
+    if (typeof (message as any).isFinalChunk !== 'undefined' && !(message as any).isFinalChunk) {
+      return;
+    }
 
     try {
       const role = context.connectionManager.getRole(context.ws);
