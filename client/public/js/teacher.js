@@ -72,6 +72,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         audioChunks: [], // Store audio chunks
         sessionId: null, // Session ID for audio streaming
         chosenMimeType: undefined, // Selected MediaRecorder MIME type
+        mediaReady: false, // Whether microphone has been initialized (iOS needs user gesture)
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -551,12 +552,21 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
     const audioHandler = {
         setup: async function() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        sampleRate: 48000,
+                        channelCount: 1
+                    }
+                });
                 // Create MediaRecorder for audio capture with clean fallback strategy
                 const chosen = platform.selectSupportedAudioMimeType();
                 const options = chosen ? { mimeType: chosen } : undefined;
                 appState.chosenMimeType = chosen;
                 appState.mediaRecorder = new MediaRecorder(stream, options);
+                console.log('[DEBUG] MediaRecorder created. chosenMimeType=', chosen, 'actual=', appState.mediaRecorder.mimeType);
                 
                 let isFirstChunk = true;
                 
@@ -577,6 +587,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     if (appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
+                        console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
+                        uiUpdater.updateStatus('Sending final audio for transcription...');
                         webSocketHandler.sendAudioChunk(audioBlob, false, true);
                     }
                     appState.audioChunks = [];
@@ -751,7 +763,13 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         }
         
         if (domElements.recordButton) {
-            domElements.recordButton.addEventListener('click', () => speechHandler.toggle()); // Call speechHandler.toggle
+            domElements.recordButton.addEventListener('click', async () => {
+                if (platform.isIOSWebKit() && !appState.mediaRecorder) {
+                    const ok = await audioHandler.setup();
+                    appState.mediaReady = !!ok;
+                }
+                speechHandler.toggle();
+            });
         }
         // Inform user about device limitations if applicable
         if (platform.isIOSWebKit() && domElements.statusDisplay) {
