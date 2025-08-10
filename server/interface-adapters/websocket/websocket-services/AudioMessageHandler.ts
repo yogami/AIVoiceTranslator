@@ -84,22 +84,30 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
         
         // Now process the transcription through the business service
         // This will handle translation, TTS, and sending to students
-        const mockTranscriptionMessage = {
-          type: 'transcription' as const,
-          text: transcriptionResult,
-          timestamp: Date.now(),
-          isFinal: true
+        const sessionStudents = context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId);
+        const startTime = Date.now();
+        const clientProvider = {
+          getClientSettings: (ws: any) => context.connectionManager.getClientSettings(ws),
+          getLanguage: (ws: any) => context.connectionManager.getLanguage(ws),
+          getSessionId: (ws: any) => context.connectionManager.getSessionId(ws)
         };
-        
-        await transcriptionService.processTranscription(
-          context.ws,
-          mockTranscriptionMessage,
-          {
-            start: Date.now(),
-            components: {},
-            end: Date.now()
+        await transcriptionService.processTranscription({
+          text: transcriptionResult,
+          teacherLanguage,
+          sessionId,
+          studentConnections: sessionStudents.connections,
+          studentLanguages: Array.from(sessionStudents.languages),
+          startTime,
+          latencyTracking: {
+            start: startTime,
+            components: {
+              preparation: 0,
+              translation: 0,
+              tts: 0,
+              processing: 0
+            }
           }
-        );
+        }, clientProvider);
         
         logger.info(`[AudioMessageHandler] Audio processing pipeline completed successfully`);
         
