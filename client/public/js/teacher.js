@@ -683,8 +683,12 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         if (event.results[i].isFinal) finalTranscript += event.results[i][0].transcript;
                     }
                     if (finalTranscript) {
-                        // Send transcription for display purposes
-                        webSocketHandler.sendTranscription(finalTranscript);
+                        // If client intends to send final audio blob to server (clientstt=1),
+                        // avoid sending interim text to server to prevent real-time TTS.
+                        const disableServerRealtimeTTS = window.CLIENT_STT_TO_SERVER_ENABLED === '1';
+                        if (!disableServerRealtimeTTS) {
+                            webSocketHandler.sendTranscription(finalTranscript);
+                        }
                         // Display locally as well
                         uiUpdater.displayTranscription(finalTranscript, true);
                         // Mark that we already sent text for this recording to avoid double TTS on stop
