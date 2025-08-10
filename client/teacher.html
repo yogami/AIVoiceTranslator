@@ -24,6 +24,10 @@
                 window.RTC_EXPERIMENT = '1';
                 console.log('[teacher.html] RTC experiment enabled via URL');
             }
+            if (url.searchParams.get('clientstt') === '1' || url.searchParams.get('stt') === '1') {
+                window.CLIENT_STT_TO_SERVER_ENABLED = '1';
+                console.log('[teacher.html] Client STT → server enabled via URL');
+            }
         } catch (_) {}
     </script>
     
@@ -226,8 +230,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script src="/js/services/realtimeClient.js?v=20250810-2"></script>
-    <script src="/js/services/rtcExperiment.js?v=20250810-2"></script>
-    <script src="/js/teacher.js?v=20250810-2" defer></script>
+    <script src="/js/services/realtimeClient.js?v=20250810-3"></script>
+    <script src="/js/services/rtcExperiment.js?v=20250810-3"></script>
+    <script src="/js/teacher.js?v=20250810-3" defer></script>
 </body>
 </html>

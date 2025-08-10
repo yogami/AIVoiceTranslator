@@ -627,8 +627,15 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
                         console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
-                        uiUpdater.updateStatus('Sending final audio for transcription...');
-                        webSocketHandler.sendAudioChunk(audioBlob, false, true);
+                        // Avoid duplicate playback: if we already sent text via on-device recognition during this recording,
+                        // skip sending the final audio blob to the server unless explicitly enabled.
+                        const allowFinalBlob = window.CLIENT_STT_TO_SERVER_ENABLED === '1';
+                        if (!appState.sentTranscriptionThisRecording || allowFinalBlob) {
+                            uiUpdater.updateStatus('Sending final audio for transcription...');
+                            webSocketHandler.sendAudioChunk(audioBlob, false, true);
+                        } else {
+                            console.log('[DEBUG] Skipping final audio send to avoid duplicate playback (client transcription already sent).');
+                        }
                     }
                     appState.audioChunks = [];
                 };
@@ -680,6 +687,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         webSocketHandler.sendTranscription(finalTranscript);
                         // Display locally as well
                         uiUpdater.displayTranscription(finalTranscript, true);
+                        // Mark that we already sent text for this recording to avoid double TTS on stop
+                        appState.sentTranscriptionThisRecording = true;
                     }
                 };
                 appState.recognition.onerror = (event) => {
@@ -728,6 +737,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 audioHandler.startRecording();
                 uiUpdater.setRecordButtonToRecording();
                 uiUpdater.updateStatus('Recording...');
+                // Reset duplicate-guard flag for this recording
+                appState.sentTranscriptionThisRecording = false;
             } catch (e) {
                 console.error('Error starting audio recording:', e);
                 uiUpdater.updateStatus('Error starting recording.');
