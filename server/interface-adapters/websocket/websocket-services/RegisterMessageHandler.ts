@@ -203,8 +203,11 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
           context.connectionManager.updateSessionId(context.ws, existingSession.sessionId);
           
           // Update session activity to show teacher reconnected
-          if (cleanupService) {
+          {
+            const cleanupService = context.webSocketServer.getSessionCleanupService();
+            if (cleanupService) {
             await cleanupService.updateSessionActivity(sessionId);
+            }
           }
           
           // If the existing session has a stored classroom code, restore it to ClassroomSessionManager
@@ -266,8 +269,11 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             context.connectionManager.updateSessionId(context.ws, existingSession.sessionId);
             
             // Update session activity to show teacher reconnected
-            if (cleanupService) {
-              await cleanupService.updateSessionActivity(sessionId);
+            {
+              const cleanupService = context.webSocketServer.getSessionCleanupService();
+              if (cleanupService) {
+                await cleanupService.updateSessionActivity(sessionId);
+              }
             }
             
             // If the existing session has a stored classroom code, restore it to ClassroomSessionManager
