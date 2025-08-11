@@ -539,6 +539,13 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         },
 
         sendTranscription: function(text) {
+            // If manual mode flag present, do not auto-send transcriptions
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.get('manual') === '1') {
+                    return;
+                }
+            } catch(_) {}
             if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
                 appState.rtc.sendTranscription(text);
                 return;

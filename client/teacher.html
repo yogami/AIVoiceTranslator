@@ -118,6 +118,15 @@
             </div>
             <div id="qr-code"></div>
         </div>
+
+        <div id="manualControls" style="display:none; margin-top: 10px;">
+            <label for="manualText" style="display:block; margin-bottom: 6px;">Manual Translation Text</label>
+            <textarea id="manualText" rows="3" style="width:100%; max-width: 640px; margin-bottom: 6px;" placeholder="Type or paste text to send to students..."></textarea>
+            <div>
+                <button id="manualSendBtn">Send Translation</button>
+                <small style="margin-left:8px; color:#555;">Manual mode is active; automatic delivery is paused.</small>
+            </div>
+        </div>
         
         <div class="control-group">
             <label for="teacherLanguage">Your Language:</label>
@@ -256,6 +265,41 @@
     <script src="/js/services/realtimeClient.js?v=20250810-5"></script>
     <script src="/js/services/rtcExperiment.js?v=20250810-5"></script>
     <script src="/js/teacher.js?v=20250810-5" defer></script>
+    <script>
+      // Minimal manual-mode bootstrap via URL flag (?manual=1)
+      document.addEventListener('DOMContentLoaded', function() {
+        try {
+          const url = new URL(window.location.href);
+          const manual = url.searchParams.get('manual') === '1';
+          const manualControls = document.getElementById('manualControls');
+          if (manual && manualControls) {
+            manualControls.style.display = 'block';
+            // After WS connects, send settings to switch to manual
+            const trySendSettings = () => {
+              if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                window.appState.ws.send(JSON.stringify({ type: 'settings', settings: { translationMode: 'manual' } }));
+                return true;
+              }
+              return false;
+            };
+            // Retry a few times in case ws not ready yet
+            let attempts = 0; const iv = setInterval(() => { if (trySendSettings() || ++attempts > 30) clearInterval(iv); }, 200);
+
+            const btn = document.getElementById('manualSendBtn');
+            const ta = document.getElementById('manualText');
+            if (btn && ta) {
+              btn.addEventListener('click', () => {
+                const text = (ta.value || '').trim();
+                if (!text) return;
+                if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                  window.appState.ws.send(JSON.stringify({ type: 'send_translation', text }));
+                }
+              });
+            }
+          }
+        } catch(_) {}
+      });
+    </script>
     <script>
       // Copy/Share helpers
       document.addEventListener('DOMContentLoaded', function(){
