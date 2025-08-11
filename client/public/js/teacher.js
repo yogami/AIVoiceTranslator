@@ -74,7 +74,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         chosenMimeType: undefined, // Selected MediaRecorder MIME type
         mediaReady: false, // Whether microphone has been initialized (iOS needs user gesture)
         readyToRecord: false, // True after WS connected, registered, and sessionId present
-        lastSegmentBlob: null // Last recorded audio segment for manual send
+        lastSegmentBlob: null, // Last recorded audio segment for manual send
+        translationMode: 'auto' // 'auto' | 'manual' (UI toggle)
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -268,14 +269,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         }
     };
 
-    // Manual mode detection via URL param
+    // Manual mode detection (priority: UI state, fallback URL param)
     function isManualModeEnabled() {
-        try {
-            const url = new URL(window.location.href);
-            return url.searchParams.get('manual') === '1';
-        } catch (_) {
-            return false;
-        }
+        if (appState.translationMode === 'manual') return true;
+        try { const url = new URL(window.location.href); return url.searchParams.get('manual') === '1'; } catch (_) { return false; }
     }
 
     // Session Status Service for fetching language breakdown
@@ -903,6 +900,12 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 const sendSetting = (mode) => {
                     if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
                         appState.ws.send(JSON.stringify({ type: 'settings', settings: { translationMode: mode } }));
+                        appState.translationMode = mode;
+                        // Toggle UI sections for clarity (either/or)
+                        const manualControls = document.getElementById('manualControls');
+                        if (manualControls) manualControls.style.display = mode === 'manual' ? 'block' : 'none';
+                        const recordControls = document.getElementById('recordControls') || document.querySelector('.control-group');
+                        if (recordControls) recordControls.style.display = 'block'; // keep record controls in both
                     }
                 };
                 radios.forEach((r) => {
