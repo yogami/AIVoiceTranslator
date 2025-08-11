@@ -196,6 +196,7 @@ export async function startServer(app: express.Express): Promise<Server> {
     });
   });
 
+  // Use environment-provided host/port to stay aligned with Railway conventions
   const port = Number(process.env.PORT);
   const host = process.env.HOST;
 

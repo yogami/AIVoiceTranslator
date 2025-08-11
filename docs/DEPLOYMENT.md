@@ -33,8 +33,8 @@ Go to your Railway dashboard and set these environment variables:
 **Required:**
 - `OPENAI_API_KEY` - Your OpenAI API key
 - `SESSION_SECRET` - Generate a secure random string
-- `VITE_API_URL` - https://your-app-name.railway.app  
-- `VITE_WS_URL` - wss://your-app-name.railway.app
+ - `VITE_API_URL` - https://your-app-name.railway.app  
+ - `VITE_WS_URL` - wss://your-app-name.railway.app
 
 **Railway Auto-Generated:**
 - `DATABASE_URL` - Automatically set by Railway PostgreSQL
@@ -72,8 +72,8 @@ fly postgres attach <postgres-app-name>
 ```bash
 fly secrets set OPENAI_API_KEY=your-key-here
 fly secrets set SESSION_SECRET=your-session-secret
-fly secrets set VITE_API_URL=https://your-app.fly.dev
-fly secrets set VITE_WS_URL=wss://your-app.fly.dev
+railway variables set VITE_API_URL=https://your-app.railway.app
+railway variables set VITE_WS_URL=wss://your-app.railway.app
 ```
 
 ### Step 5: Deploy

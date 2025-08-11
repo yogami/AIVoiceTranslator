@@ -10,6 +10,9 @@ RUN apk add --no-cache \
     git \
     cmake \
     pkgconfig \
+    bash \
+    libc6-compat \
+    espeak-ng \
     && ln -sf python3 /usr/bin/python
 
 # Copy package files first for better caching
