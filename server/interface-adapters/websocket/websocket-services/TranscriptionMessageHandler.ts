@@ -15,6 +15,8 @@ import type { TranscriptionMessageToServer } from '../WebSocketTypes';
 import type { WebSocketClient } from './ConnectionManager';
 import { TranscriptionBusinessService, type ClientSettingsProvider } from '../../../services/transcription/TranscriptionBusinessService';
 import logger from '../../../logger';
+import { FeatureFlags } from '../../../application/services/config/FeatureFlags';
+import { TranslationModeService } from '../../../application/services/manual/TranslationModeService';
 
 export class TranscriptionMessageHandler implements IMessageHandler<TranscriptionMessageToServer> {
   getMessageType(): string {
@@ -28,10 +30,9 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
     });
     
     // If manual mode is enabled at feature level AND for this teacher, do not auto-send on transcription
-    if (process.env.FEATURE_MANUAL_TRANSLATION_CONTROL === '1') {
-      const settings = context.connectionManager.getClientSettings(context.ws) || {};
-      const role = context.connectionManager.getRole(context.ws);
-      if (role === 'teacher' && settings.translationMode === 'manual') {
+    if (FeatureFlags.MANUAL_TRANSLATION_CONTROL) {
+      const modeService = new TranslationModeService();
+      if (modeService.isManualModeForTeacher(context)) {
         logger.info('[ManualMode] Ignoring automatic transcription delivery while in manual mode');
         return;
       }

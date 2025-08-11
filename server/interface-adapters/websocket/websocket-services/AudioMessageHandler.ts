@@ -38,13 +38,17 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
     }
 
     // In manual mode, do not process audio for automatic delivery
-    if (process.env.FEATURE_MANUAL_TRANSLATION_CONTROL === '1') {
-      const settings = context.connectionManager.getClientSettings(context.ws) || {};
-      const role = context.connectionManager.getRole(context.ws);
-      if (role === 'teacher' && settings.translationMode === 'manual') {
-        return;
+    // Respect manual mode: do not process automatic audio delivery when active
+    try {
+      const { FeatureFlags } = await import('../../../application/services/config/FeatureFlags');
+      const { TranslationModeService } = await import('../../../application/services/manual/TranslationModeService');
+      if (FeatureFlags.MANUAL_TRANSLATION_CONTROL) {
+        const modeService = new TranslationModeService();
+        if (modeService.isManualModeForTeacher(context)) {
+          return;
+        }
       }
-    }
+    } catch (_) {}
 
     // Process audio data
     if (message.data) {

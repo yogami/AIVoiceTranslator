@@ -1,7 +1,7 @@
 import logger from '../../../logger';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { ManualSendTranslationMessageToServer } from '../WebSocketTypes';
-import { TranscriptionBusinessService, type ClientSettingsProvider } from '../../../services/transcription/TranscriptionBusinessService';
+import { ManualTranslationService } from '../../../application/services/manual/ManualTranslationService';
 
 export class ManualSendTranslationHandler implements IMessageHandler<ManualSendTranslationMessageToServer> {
   getMessageType(): string {
@@ -9,7 +9,8 @@ export class ManualSendTranslationHandler implements IMessageHandler<ManualSendT
   }
 
   async handle(message: ManualSendTranslationMessageToServer, context: MessageHandlerContext): Promise<void> {
-    if (process.env.FEATURE_MANUAL_TRANSLATION_CONTROL !== '1') {
+    const { FeatureFlags } = await import('../../../application/services/config/FeatureFlags');
+    if (!FeatureFlags.MANUAL_TRANSLATION_CONTROL) {
       // Feature disabled: ignore silently to avoid breaking clients
       return;
     }
@@ -26,46 +27,14 @@ export class ManualSendTranslationHandler implements IMessageHandler<ManualSendT
       return;
     }
 
-    if (!context.speechPipelineOrchestrator) {
-      throw new Error('SpeechPipelineOrchestrator not available in context');
-    }
-
-    const teacherLanguage = context.connectionManager.getLanguage(context.ws) || 'en-US';
-    const { connections: studentConnections, languages: studentLanguages } =
-      context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId);
-
     if (!message.text || !message.text.trim()) {
       logger.warn('[ManualMode] Empty text provided for manual send');
       return;
     }
 
-    const startTime = Date.now();
-    const latencyTracking = {
-      start: startTime,
-      components: { preparation: 0, translation: 0, tts: 0, processing: 0 }
-    };
-
-    const clientProvider: ClientSettingsProvider = {
-      getClientSettings: (ws: any) => context.connectionManager.getClientSettings(ws),
-      getLanguage: (ws: any) => context.connectionManager.getLanguage(ws),
-      getSessionId: (ws: any) => context.connectionManager.getSessionId(ws)
-    };
-
-    const transcriptionService = new TranscriptionBusinessService(
-      context.storage,
-      context.speechPipelineOrchestrator
-    );
-
     try {
-      await transcriptionService.processTranscription({
-        text: message.text,
-        teacherLanguage,
-        sessionId,
-        studentConnections,
-        studentLanguages: Array.from(studentLanguages),
-        startTime,
-        latencyTracking
-      }, clientProvider);
+      const service = new ManualTranslationService((ctx) => new (require('../../../services/transcription/TranscriptionBusinessService').TranscriptionBusinessService)(ctx.storage, ctx.speechPipelineOrchestrator));
+      await service.sendTextToStudents(message.text, context);
     } catch (error) {
       logger.error('[ManualMode] Failed to process manual translation', { error });
     }
