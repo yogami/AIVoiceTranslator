@@ -98,6 +98,24 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             if (domElements.statusDisplay) domElements.statusDisplay.textContent = message;
             // Potential: add/remove class based on type for styling errors, success, etc.
         },
+        toast: function(message, kind = 'info') {
+            try {
+                const el = document.createElement('div');
+                el.textContent = message;
+                el.style.position = 'fixed';
+                el.style.right = '16px';
+                el.style.bottom = '16px';
+                el.style.padding = '10px 14px';
+                el.style.borderRadius = '6px';
+                el.style.color = '#fff';
+                el.style.zIndex = '2000';
+                el.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+                el.style.background = kind === 'error' ? '#dc3545' : (kind === 'success' ? '#198754' : '#0d6efd');
+                document.body.appendChild(el);
+                setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 300ms'; }, 1600);
+                setTimeout(() => { el.remove(); }, 2000);
+            } catch (_) {}
+        },
 
         displayClassroomCode: function(code, expiresAt) {
             if (domElements.classroomCodeDisplay) domElements.classroomCodeDisplay.textContent = code;
@@ -521,6 +539,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 case 'webrtc_ice_candidate':
                     if (window.RTC_EXPERIMENT === '1' && window.RTCExperiment) {
                         try { window.RTCExperiment.addServerIce(data.candidate); } catch (e) { console.warn('[RTCExperiment] addServerIce failed', e); }
+                    }
+                    break;
+
+                case 'manual_send_ack':
+                    if (data.status === 'ok') {
+                        uiUpdater.toast('Sent to students', 'success');
+                    } else {
+                        uiUpdater.toast(data.message || 'Failed to send', 'error');
                     }
                     break;
 
