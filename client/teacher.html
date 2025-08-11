@@ -82,17 +82,12 @@
         }
     </script>
     <script>
-        // UI V2 A/B toggle via ?ui2=1
+        // Permanently enable UI V2 for teacher (ui2/u12 flags no longer required)
         (function () {
-          try {
-            const url = new URL(window.location.href);
-            if (url.searchParams.get('ui2') === '1') {
-              window.UI_V2 = '1';
-              document.addEventListener('DOMContentLoaded', function(){
-                document.body.classList.add('ui-v2');
-              });
-            }
-          } catch (_) {}
+          window.UI_V2 = '1';
+          document.addEventListener('DOMContentLoaded', function(){
+            document.body.classList.add('ui-v2');
+          });
         })();
     </script>
 </head>
