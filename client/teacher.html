@@ -272,7 +272,7 @@
       document.addEventListener('DOMContentLoaded', function() {
         try {
           const url = new URL(window.location.href);
-          const manual = true; // default to new UI toggle available always
+          const manual = url.searchParams.get('manual') === '1';
           const manualControls = document.getElementById('manualControls');
           if (manual && manualControls) {
             manualControls.style.display = 'block';

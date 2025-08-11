@@ -271,8 +271,9 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
     // Manual mode detection (priority: UI state, fallback URL param)
     function isManualModeEnabled() {
-        if (appState.translationMode === 'manual') return true;
-        try { const url = new URL(window.location.href); return url.searchParams.get('manual') === '1'; } catch (_) { return false; }
+        // Require URL flag to gate manual transmission feature visibility
+        try { const url = new URL(window.location.href); if (url.searchParams.get('manual') !== '1') return false; } catch (_) { return false; }
+        return appState.translationMode === 'manual';
     }
 
     // Session Status Service for fetching language breakdown
