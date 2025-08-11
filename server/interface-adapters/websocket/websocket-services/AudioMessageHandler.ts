@@ -37,6 +37,15 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
       return;
     }
 
+    // In manual mode, do not process audio for automatic delivery
+    if (process.env.FEATURE_MANUAL_TRANSLATION_CONTROL === '1') {
+      const settings = context.connectionManager.getClientSettings(context.ws) || {};
+      const role = context.connectionManager.getRole(context.ws);
+      if (role === 'teacher' && settings.translationMode === 'manual') {
+        return;
+      }
+    }
+
     // Process audio data
     if (message.data) {
       await this.processTeacherAudio(context, message.data);

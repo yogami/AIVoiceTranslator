@@ -6,6 +6,7 @@ export interface BaseWebSocketMessage {
 export interface ClientSettings {
   ttsServiceType?: string;
   useClientSpeech?: boolean; // Added this line
+  translationMode?: 'auto' | 'manual';
   // Add other potential client-specific settings here
 }
 
@@ -49,6 +50,11 @@ export interface SettingsMessageToServer extends BaseWebSocketMessage {
   type: 'settings';
   settings?: Partial<ClientSettings>;
   ttsServiceType?: string; // Kept for backward compatibility
+}
+
+export interface ManualSendTranslationMessageToServer extends BaseWebSocketMessage {
+  type: 'send_translation';
+  text: string;
 }
 
 export interface PingMessageToServer extends BaseWebSocketMessage {
@@ -177,6 +183,7 @@ export type WebSocketMessageToServer =
   | AudioMessageToServer
   | TTSRequestMessageToServer
   | SettingsMessageToServer
+  | ManualSendTranslationMessageToServer
   | PingMessageToServer
   | BaseWebSocketMessage; // Fallback for unknown types
 

@@ -37,6 +37,11 @@ export class SettingsMessageHandler implements IMessageHandler<SettingsMessageTo
         Object.assign(settings, message.settings);
       }
       
+      // Normalize translationMode default to 'auto' if not specified or invalid
+      if (settings.translationMode !== 'manual') {
+        settings.translationMode = 'auto';
+      }
+
       // Store updated settings
       context.connectionManager.setClientSettings(context.ws, settings);
       

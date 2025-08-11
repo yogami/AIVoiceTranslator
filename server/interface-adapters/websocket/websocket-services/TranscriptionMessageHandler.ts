@@ -27,6 +27,16 @@ export class TranscriptionMessageHandler implements IMessageHandler<Transcriptio
       text: message.text 
     });
     
+    // If manual mode is enabled at feature level AND for this teacher, do not auto-send on transcription
+    if (process.env.FEATURE_MANUAL_TRANSLATION_CONTROL === '1') {
+      const settings = context.connectionManager.getClientSettings(context.ws) || {};
+      const role = context.connectionManager.getRole(context.ws);
+      if (role === 'teacher' && settings.translationMode === 'manual') {
+        logger.info('[ManualMode] Ignoring automatic transcription delivery while in manual mode');
+        return;
+      }
+    }
+
     const role = context.connectionManager.getRole(context.ws);
     const sessionId = context.connectionManager.getSessionId(context.ws);
     

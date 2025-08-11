@@ -37,6 +37,7 @@ import { TranscriptionMessageHandler } from './websocket-services/TranscriptionM
 import { TTSRequestMessageHandler } from './websocket-services/TTSRequestMessageHandler';
 import { AudioMessageHandler } from './websocket-services/AudioMessageHandler';
 import { PongMessageHandler } from './websocket-services/PongMessageHandler';
+import { ManualSendTranslationHandler } from './websocket-services/ManualSendTranslationHandler';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -170,6 +171,7 @@ export class WebSocketServer implements IActiveSessionProvider {
     this.messageHandlerRegistry.register(new AudioMessageHandler());
     this.messageHandlerRegistry.register(new TTSRequestMessageHandler());
     this.messageHandlerRegistry.register(new PongMessageHandler());
+    this.messageHandlerRegistry.register(new ManualSendTranslationHandler());
     
     // Create message handler context with all required services
     const messageHandlerContext: Omit<MessageHandlerContext, 'ws'> = {
