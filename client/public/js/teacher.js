@@ -249,6 +249,16 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         }
     };
 
+    // Manual mode detection via URL param
+    function isManualModeEnabled() {
+        try {
+            const url = new URL(window.location.href);
+            return url.searchParams.get('manual') === '1';
+        } catch (_) {
+            return false;
+        }
+    }
+
     // Session Status Service for fetching language breakdown
     const sessionStatusService = {
         async refreshStatus(sessionId) {
@@ -618,7 +628,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         appState.audioChunks.push(event.data);
                         // Streaming of audio to server is disabled by default to avoid duplicate TTS.
                         // Set window.SEND_AUDIO_STREAMING='1' to re-enable for experiments.
-                        if (appState.isRecording && window.SEND_AUDIO_STREAMING === '1') {
+                        if (!isManualModeEnabled() && appState.isRecording && window.SEND_AUDIO_STREAMING === '1') {
                             webSocketHandler.sendAudioChunk(event.data, isFirstChunk, false);
                             isFirstChunk = false;
                         }
@@ -627,7 +637,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 
                 appState.mediaRecorder.onstop = () => {
                     // iOS WebKit fallback: MediaRecorder does not stream reliably; send final blob on stop.
-                    if (platform.isIOSWebKit() && appState.audioChunks.length > 0) {
+                    if (!isManualModeEnabled() && platform.isIOSWebKit() && appState.audioChunks.length > 0) {
                         const blobTypeIOS = appState.chosenMimeType || 'audio/mp4;codecs=mp4a.40.2';
                         const audioBlobIOS = new Blob(appState.audioChunks, { type: blobTypeIOS });
                         console.log('[DEBUG] [iOS Fallback] Final audio blob size(bytes)=', audioBlobIOS.size, 'type=', blobTypeIOS);
@@ -637,7 +647,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         return;
                     }
                     // Default: do not send final blob to avoid replay/duplicates unless explicitly enabled.
-                    if (window.SEND_AUDIO_STREAMING === '1' && window.CLIENT_STT_TO_SERVER_ENABLED === '1' && appState.audioChunks.length > 0) {
+                    if (!isManualModeEnabled() && window.SEND_AUDIO_STREAMING === '1' && window.CLIENT_STT_TO_SERVER_ENABLED === '1' && appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
                         console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
@@ -698,6 +708,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         }
                         // Display locally as well
                         uiUpdater.displayTranscription(finalTranscript, true);
+                        // In manual mode, populate the manual text area for review/send
+                        if (isManualModeEnabled()) {
+                            const ta = document.getElementById('manualText');
+                            if (ta) {
+                                const prev = ta.value.trim();
+                                ta.value = prev ? prev + '\n' + finalTranscript : finalTranscript;
+                            }
+                        }
                         // Mark that we already sent text for this recording to avoid double TTS on stop
                         appState.sentTranscriptionThisRecording = true;
                     }
