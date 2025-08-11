@@ -248,6 +248,16 @@
                     }
                     }
                     break;
+                case 'teacher_mode':
+                    // Show waiting hint if teacher switched to manual
+                    if (domElements.translationDisplay) {
+                        if (data.mode === 'manual') {
+                            domElements.translationDisplay.innerHTML = '<div style="color:#555;">⏳ Waiting for teacher to send…</div>';
+                        } else if (!appState.isConnected) {
+                            domElements.translationDisplay.innerHTML = '<div style="color:#333;">Waiting for teacher to start speaking...</div>';
+                        }
+                    }
+                    break;
                 case 'register':
                     break;
                 case 'translation':

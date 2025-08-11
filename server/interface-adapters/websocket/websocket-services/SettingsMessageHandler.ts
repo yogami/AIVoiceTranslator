@@ -45,17 +45,25 @@ export class SettingsMessageHandler implements IMessageHandler<SettingsMessageTo
       // Store updated settings
       context.connectionManager.setClientSettings(context.ws, settings);
       
-      // Send confirmation
-      const response: SettingsResponseToClient = {
-        type: 'settings',
-        status: 'success',
-        settings
-      };
-      
+      // Send confirmation + current teacher mode (for students UI hints)
+      const response: SettingsResponseToClient = { type: 'settings', status: 'success', settings };
+      const teacherModeMessage = { type: 'teacher_mode', mode: settings.translationMode } as const;
       try {
         context.ws.send(JSON.stringify(response));
       } catch (sendError) {
         logger.error('Error sending settings response:', sendError);
+      }
+      try {
+        // Broadcast teacher_mode to all students in same session
+        const sessionId = context.connectionManager.getSessionId(context.ws);
+        const { connections } = context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId);
+        connections.forEach((studentWs: any) => {
+          if (studentWs && studentWs.readyState === 1) {
+            studentWs.send(JSON.stringify(teacherModeMessage));
+          }
+        });
+      } catch (broadcastError) {
+        logger.error('Error broadcasting teacher_mode:', broadcastError);
       }
     } catch (error) {
       logger.error('Error handling settings message:', error);

@@ -149,6 +149,17 @@ export interface SettingsResponseToClient extends BaseWebSocketMessage {
   settings: ClientSettings;
 }
 
+export interface TeacherModeMessageToClient extends BaseWebSocketMessage {
+  type: 'teacher_mode';
+  mode: 'auto' | 'manual';
+}
+
+export interface ManualSendAckToClient extends BaseWebSocketMessage {
+  type: 'manual_send_ack';
+  status: 'ok' | 'error';
+  message?: string;
+}
+
 export interface PongMessageToClient extends BaseWebSocketMessage {
   type: 'pong';
   timestamp: number;
@@ -195,6 +206,8 @@ export type WebSocketMessageToClient =
   | TranslationMessageToClient
   | TTSResponseMessageToClient
   | SettingsResponseToClient
+  | TeacherModeMessageToClient
+  | ManualSendAckToClient
   | PongMessageToClient
   | ErrorMessageToClient
   | SessionExpiredMessageToClient

@@ -35,8 +35,11 @@ export class ManualSendTranslationHandler implements IMessageHandler<ManualSendT
     try {
       const service = new ManualTranslationService((ctx) => new (require('../../../services/transcription/TranscriptionBusinessService').TranscriptionBusinessService)(ctx.storage, ctx.speechPipelineOrchestrator));
       await service.sendTextToStudents(message.text, context);
+      // Acknowledge to teacher
+      try { context.ws.send(JSON.stringify({ type: 'manual_send_ack', status: 'ok' })); } catch(_){ }
     } catch (error) {
       logger.error('[ManualMode] Failed to process manual translation', { error });
+      try { context.ws.send(JSON.stringify({ type: 'manual_send_ack', status: 'error', message: 'Failed to send translation' })); } catch(_){ }
     }
   }
 }
