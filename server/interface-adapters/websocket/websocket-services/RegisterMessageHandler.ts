@@ -634,6 +634,18 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
             } catch (error) {
               logger.error('[DEBUG] Failed to send \'student_joined\' message to teacher:', { error });
             }
+
+            // If teacher is in manual mode, proactively inform the newly joined student
+            try {
+              const settings = context.connectionManager.getClientSettings(client) || {};
+              if (settings.translationMode === 'manual') {
+                try {
+                  ws.send(JSON.stringify({ type: 'teacher_mode', mode: 'manual' }));
+                } catch (_) {}
+              }
+            } catch (e) {
+              logger.warn('[Register] Failed to send teacher_mode to newly joined student', { error: e });
+            }
           }
         }
       });
