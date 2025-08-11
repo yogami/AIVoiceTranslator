@@ -99,7 +99,15 @@ Add an alternative translation flow where teachers can manually control when tra
 
 ---
 **ARCHITECTURE NOTE (July 2025):**
-Currently, only 'transcription' messages from the client trigger the translation pipeline on the server. For this manual/queued translation feature, it is recommended to introduce a new 'translate' message type and handler. This will allow the teacher (or client) to explicitly request translation and delivery of specific segments, decoupled from real-time speech events. See TODO in `TranscriptionMessageHandler.ts` for more context.
+Implemented behind feature flag using SOLID services:
+- FeatureFlags: centralizes env-based toggles
+- TranslationModeService: resolves whether manual mode is active for the teacher
+- ManualTranslationService: orchestrates targeted translation delivery on `send_translation`
+
+Server message additions:
+- Teacher → Server: `send_translation`
+- Server → Students: `teacher_mode`
+- Server → Teacher: `manual_send_ack`
 ---
 
 ### 1. Feature Flag System
@@ -109,9 +117,9 @@ Currently, only 'transcription' messages from the client trigger the translation
 // .env
 FEATURE_MANUAL_TRANSLATION_CONTROL=true
 
-// config/features.ts
-export const FEATURES = {
-  MANUAL_TRANSLATION_CONTROL: process.env.FEATURE_MANUAL_TRANSLATION_CONTROL === 'true'
+// server/application/services/config/FeatureFlags.ts
+export const FeatureFlags = {
+  MANUAL_TRANSLATION_CONTROL: process.env.FEATURE_MANUAL_TRANSLATION_CONTROL === '1'
 };
 ```
 
@@ -153,35 +161,13 @@ interface PendingTranslation {
 #### New Message Types
 ```typescript
 // Teacher → Server
-interface ManualModeMessage {
-  type: 'set_translation_mode';
-  mode: 'auto' | 'manual';
-}
-
-interface SendSegmentMessage {
-  type: 'send_audio_segment';
-  segmentId: string;
-  targetLanguages: string[];
-}
-
-interface SendAllSegmentsMessage {
-  type: 'send_all_segments';
-  targetLanguages: string[];
-}
+type ManualSendTranslation = { type: 'send_translation'; text: string };
 
 // Server → Students
-interface TranslationQueuedMessage {
-  type: 'translation_queued';
-  sequenceNumber: number;
-  estimatedDelay: number;
-}
+type TeacherModeMessage = { type: 'teacher_mode'; mode: 'auto' | 'manual' };
 
-interface TranslationSequenceMessage {
-  type: 'translation_delivered';
-  sequenceNumber: number;
-  translation: Translation;
-  isLastInSequence: boolean;
-}
+// Server → Teacher
+type ManualSendAck = { type: 'manual_send_ack'; status: 'ok' | 'error'; message?: string };
 ```
 
 ### 4. Backend Service Changes
