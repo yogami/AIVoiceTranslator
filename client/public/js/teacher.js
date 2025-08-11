@@ -855,6 +855,27 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 speechHandler.toggle();
             });
         }
+        // Wire translation mode toggle when manual UI is enabled
+        try {
+            const url = new URL(window.location.href);
+            const manual = url.searchParams.get('manual') === '1';
+            const modeGroup = document.getElementById('modeToggleGroup');
+            if (manual && modeGroup) {
+                const radios = modeGroup.querySelectorAll('input[name="mode"]');
+                const sendSetting = (mode) => {
+                    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                        appState.ws.send(JSON.stringify({ type: 'settings', settings: { translationMode: mode } }));
+                    }
+                };
+                radios.forEach((r) => {
+                    r.addEventListener('change', () => {
+                        if (r.checked) sendSetting(r.value);
+                    });
+                });
+                // Default to manual if manual flag is present
+                sendSetting('manual');
+            }
+        } catch(_) {}
         // Inform user about device limitations if applicable
         if (platform.isIOSWebKit() && domElements.statusDisplay) {
             domElements.statusDisplay.insertAdjacentText('afterbegin', 'Note: Live audio streaming may be limited on this device; audio is sent when you stop recording. ');

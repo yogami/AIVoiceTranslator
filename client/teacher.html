@@ -212,6 +212,13 @@
                 <option value="gl-ES">🏴󐁧󐁢󐁧󐁬󐁣󐁿 Galician (Spain)</option>
             </select>
         </div>
+
+        <!-- Translation Mode toggle (shown when ?manual=1 for minimal disruption) -->
+        <div class="control-group" id="modeToggleGroup" style="display:none; gap:10px; align-items:center;">
+            <label style="margin-right: 8px;">Translation Mode:</label>
+            <label><input type="radio" name="mode" value="auto" checked> Auto (Real-time)</label>
+            <label style="margin-left: 12px;"><input type="radio" name="mode" value="manual"> Manual Send</label>
+        </div>
         
         <div class="control-group">
             <button id="recordButton">Start Recording</button>

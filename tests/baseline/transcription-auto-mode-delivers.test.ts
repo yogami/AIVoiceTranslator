@@ -3,14 +3,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Mock the business service used by the handler so we can assert it's called
 vi.mock('../../server/services/transcription/TranscriptionBusinessService', async (orig) => {
   const mod = await orig();
-  return {
-    ...mod,
-    TranscriptionBusinessService: class {
-      constructor() {}
-      processTranscription = vi.fn(async () => {});
-      validateTranscriptionSource() { return { valid: true }; }
-    }
-  };
+  class MockTBS {
+    constructor() {}
+    processTranscription(_req?: any, _cp?: any) { return Promise.resolve(); }
+    validateTranscriptionSource() { return { valid: true }; }
+  }
+  return { ...mod, TranscriptionBusinessService: MockTBS };
 });
 
 // Import after mock
