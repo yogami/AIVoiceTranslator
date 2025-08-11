@@ -73,7 +73,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         sessionId: null, // Session ID for audio streaming
         chosenMimeType: undefined, // Selected MediaRecorder MIME type
         mediaReady: false, // Whether microphone has been initialized (iOS needs user gesture)
-        readyToRecord: false // True after WS connected, registered, and sessionId present
+        readyToRecord: false, // True after WS connected, registered, and sessionId present
+        lastSegmentBlob: null // Last recorded audio segment for manual send
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -592,7 +593,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             }
         },
 
-        sendAudioChunk: function(audioData, isFirstChunk = false, isFinalChunk = false) {
+        sendAudioChunk: function(audioData, isFirstChunk = false, isFinalChunk = false, isManual = false) {
             if (appState.sessionId && appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
                 const reader = new FileReader();
                 reader.onloadend = () => {
@@ -612,7 +613,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         data: base64Audio,
                         isFirstChunk: isFirstChunk,
                         isFinalChunk: isFinalChunk,
-                        language: appState.selectedLanguage
+                        language: appState.selectedLanguage,
+                        manual: !!isManual
                     };
                     appState.ws.send(JSON.stringify(message));
                 };
@@ -663,12 +665,18 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 
                 appState.mediaRecorder.onstop = () => {
                     // iOS WebKit fallback: MediaRecorder does not stream reliably; send final blob on stop.
-                    if (!isManualModeEnabled() && platform.isIOSWebKit() && appState.audioChunks.length > 0) {
+                    if (platform.isIOSWebKit() && appState.audioChunks.length > 0) {
                         const blobTypeIOS = appState.chosenMimeType || 'audio/mp4;codecs=mp4a.40.2';
                         const audioBlobIOS = new Blob(appState.audioChunks, { type: blobTypeIOS });
                         console.log('[DEBUG] [iOS Fallback] Final audio blob size(bytes)=', audioBlobIOS.size, 'type=', blobTypeIOS);
-                        uiUpdater.updateStatus('Sending final audio for transcription...');
-                        webSocketHandler.sendAudioChunk(audioBlobIOS, false, true);
+                        // In manual mode, store for later manual send; otherwise, send immediately (legacy behavior)
+                        if (isManualModeEnabled()) {
+                            appState.lastSegmentBlob = audioBlobIOS;
+                            uiUpdater.updateStatus('Ready to send last audio segment');
+                        } else {
+                            uiUpdater.updateStatus('Sending final audio for transcription...');
+                            webSocketHandler.sendAudioChunk(audioBlobIOS, false, true);
+                        }
                         appState.audioChunks = [];
                         return;
                     }
@@ -679,6 +687,10 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
                         uiUpdater.updateStatus('Sending final audio for transcription...');
                         webSocketHandler.sendAudioChunk(audioBlob, false, true);
+                    } else if (isManualModeEnabled() && appState.audioChunks.length > 0) {
+                        const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
+                        appState.lastSegmentBlob = new Blob(appState.audioChunks, { type: blobType });
+                        uiUpdater.updateStatus('Ready to send last audio segment');
                     }
                     appState.audioChunks = [];
                 };

@@ -120,10 +120,10 @@
         </div>
 
         <div id="manualControls" style="display:none; margin-top: 10px;">
-            <label for="manualText" style="display:block; margin-bottom: 6px;">Manual Translation Text</label>
-            <textarea id="manualText" rows="3" style="width:100%; max-width: 640px; margin-bottom: 6px;" placeholder="Type or paste text to send to students..."></textarea>
+            <label for="manualText" style="display:block; margin-bottom: 6px;">Review Text (from your last audio)</label>
+            <textarea id="manualText" rows="3" style="width:100%; max-width: 640px; margin-bottom: 6px;" placeholder="Your last spoken words will appear here for review..."></textarea>
             <div>
-                <button id="manualSendBtn">Send Translation</button>
+                <button id="manualSendBtn">Send Last Audio</button>
                 <small style="margin-left:8px; color:#555;">Manual mode is active; automatic delivery is paused.</small>
             </div>
         </div>
@@ -292,17 +292,33 @@
             // Retry a few times in case ws not ready yet
             let attempts = 0; const iv = setInterval(() => { if (trySendSettings() || ++attempts > 30) clearInterval(iv); }, 200);
 
-            const btn = document.getElementById('manualSendBtn');
-            const ta = document.getElementById('manualText');
-            if (btn && ta) {
-              btn.addEventListener('click', () => {
-                const text = (ta.value || '').trim();
-                if (!text) return;
-                if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
-                  window.appState.ws.send(JSON.stringify({ type: 'send_translation', text }));
-                }
-              });
-            }
+              const btn = document.getElementById('manualSendBtn');
+              if (btn) {
+                btn.addEventListener('click', () => {
+                  try {
+                    if (!window.appState || !window.appState.lastSegmentBlob) return;
+                    if (window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                      // Send stored audio as a manual final chunk
+                      const blob = window.appState.lastSegmentBlob;
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        const base64Audio = reader.result.split(',')[1];
+                        const message = {
+                          type: 'audio',
+                          sessionId: window.appState.sessionId,
+                          data: base64Audio,
+                          isFirstChunk: false,
+                          isFinalChunk: true,
+                          language: window.appState.selectedLanguage,
+                          manual: true
+                        };
+                        window.appState.ws.send(JSON.stringify(message));
+                      };
+                      reader.readAsDataURL(blob);
+                    }
+                  } catch (_) {}
+                });
+              }
           }
         } catch(_) {}
       });

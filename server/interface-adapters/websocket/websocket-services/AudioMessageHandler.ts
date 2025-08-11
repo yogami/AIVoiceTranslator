@@ -9,7 +9,7 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
     return 'audio';
   }
 
-  async handle(message: AudioMessageToServer, context: MessageHandlerContext): Promise<void> {
+  async handle(message: AudioMessageToServer & { manual?: boolean }, context: MessageHandlerContext): Promise<void> {
     // Feature-flagged interim transcription (teacher-only). Default: ignore non-final chunks.
     const isStreamingChunk = typeof (message as any).isFinalChunk !== 'undefined' && !(message as any).isFinalChunk;
     const allowInterim = process.env.FEATURE_SERVER_INTERIM_TRANSCRIPTION === '1';
@@ -44,7 +44,7 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
       const { TranslationModeService } = await import('../../../application/services/manual/TranslationModeService');
       if (FeatureFlags.MANUAL_TRANSLATION_CONTROL) {
         const modeService = new TranslationModeService();
-        if (modeService.isManualModeForTeacher(context)) {
+        if (modeService.isManualModeForTeacher(context) && !message.manual) {
           return;
         }
       }
