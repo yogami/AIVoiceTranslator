@@ -12,8 +12,6 @@ RUN apk add --no-cache \
     pkgconfig \
     bash \
     libc6-compat \
-    espeak-ng \
-    piper \
     && ln -sf python3 /usr/bin/python
 
 # Copy package files first for better caching
@@ -22,14 +20,15 @@ COPY package*.json ./
 # Install ALL dependencies (needed for build process)
 RUN npm ci
 
-# Piper models directory (can be mounted or baked in). Pre-bake essentials.
-ENV PIPER_MODELS_DIR=/app/piper_models
-RUN mkdir -p $PIPER_MODELS_DIR
-COPY scripts/fetch-piper-voices-build.sh ./scripts/fetch-piper-voices-build.sh
-RUN bash ./scripts/fetch-piper-voices-build.sh \
-      ar_JO-kareem-medium \
-      uk_UA-ukrainian-medium \
-      ckb_IQ-kurdish_central-medium || true
+# Local TTS tooling (espeak-ng/piper) disabled for demo build stability on Railway.
+# If you need local TTS, re-enable the following block with retries:
+# ENV PIPER_MODELS_DIR=/app/piper_models
+# RUN mkdir -p $PIPER_MODELS_DIR && apk add --no-cache espeak-ng piper curl || echo "[WARN] piper/espeak-ng not installed"
+# COPY scripts/fetch-piper-voices-build.sh ./scripts/fetch-piper-voices-build.sh
+# RUN bash ./scripts/fetch-piper-voices-build.sh \
+#       ar_JO-kareem-medium \
+#       uk_UA-ukrainian-medium \
+#       ckb_IQ-kurdish_central-medium || true
 
 # Copy source code and configuration files
 COPY . .
