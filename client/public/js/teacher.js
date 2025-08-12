@@ -74,6 +74,15 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             console.log('[DEBUG] URL flag clientstt=1 → enabled CLIENT_STT_TO_SERVER_ENABLED');
         }
     } catch (_) {}
+        // Auto-enable server streaming on devices without client STT to allow server-side transcription
+        try {
+            if (!('webkitSpeechRecognition' in window)) {
+                if (window.SEND_AUDIO_STREAMING !== '1') {
+                    window.SEND_AUDIO_STREAMING = '1';
+                    console.log('[DEBUG] Client STT not available → auto-enabled SEND_AUDIO_STREAMING for server transcription');
+                }
+            }
+        } catch(_) {}
     const appState = {
         ws: null,
         rtc: null,
