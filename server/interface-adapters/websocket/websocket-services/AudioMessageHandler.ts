@@ -89,7 +89,7 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
         context.speechPipelineOrchestrator
       );
       
-      try {
+        try {
         // First, transcribe the audio to get text
         const transcriptionResult = await context.speechPipelineOrchestrator.transcribeAudio(
           audioBuffer,
@@ -131,6 +131,19 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
         }, clientProvider);
         
         logger.info(`[AudioMessageHandler] Audio processing pipeline completed successfully`);
+
+          // New: echo final transcription back to the teacher so the teacher UI can display it
+          try {
+            const teacherEcho = {
+              type: 'transcription',
+              text: transcriptionResult,
+              isFinal: true,
+              timestamp: Date.now()
+            } as any;
+            context.ws.send(JSON.stringify(teacherEcho));
+          } catch (echoErr) {
+            logger.debug('[AudioMessageHandler] Failed to send final transcription echo to teacher', { error: echoErr });
+          }
         
       } catch (error) {
         logger.error('[AudioMessageHandler] Audio processing failed:', error);
