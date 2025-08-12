@@ -707,13 +707,25 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         appState.audioChunks = [];
                         return;
                     }
-                    // Default: do not send final blob to avoid replay/duplicates unless explicitly enabled.
+                    // Default behavior: when both flags are set, send final blob
                     if (!isManualModeEnabled() && window.SEND_AUDIO_STREAMING === '1' && window.CLIENT_STT_TO_SERVER_ENABLED === '1' && appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         const audioBlob = new Blob(appState.audioChunks, { type: blobType });
                         console.log('[DEBUG] Final audio blob size(bytes)=', audioBlob.size, 'type=', blobType);
                         uiUpdater.updateStatus('Sending final audio for transcription...');
                         webSocketHandler.sendAudioChunk(audioBlob, false, true);
+                        appState.audioChunks = [];
+                        return;
+                    }
+                    // New: If speech recognition is unavailable (common on many phones), send final blob by default
+                    if (!isManualModeEnabled() && appState.audioChunks.length > 0 && !('webkitSpeechRecognition' in window)) {
+                        const fallbackType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
+                        const finalBlob = new Blob(appState.audioChunks, { type: fallbackType });
+                        console.log('[DEBUG] [No Client STT] Final audio blob size(bytes)=', finalBlob.size, 'type=', fallbackType);
+                        uiUpdater.updateStatus('Sending final audio for transcription...');
+                        webSocketHandler.sendAudioChunk(finalBlob, false, true);
+                        appState.audioChunks = [];
+                        return;
                     } else if (isManualModeEnabled() && appState.audioChunks.length > 0) {
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         appState.lastSegmentBlob = new Blob(appState.audioChunks, { type: blobType });
