@@ -648,10 +648,26 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         setup: async function() {
             try {
                 const iOS = platform.isIOSWebKit();
-                const constraints = iOS
+                // Primary constraints (desktop/mobile capable)
+                let constraints = iOS
                   ? { audio: true } // Broad constraint for iOS Safari compatibility
                   : { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 48000, channelCount: 1 } };
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (primaryErr) {
+                    console.warn('[DEBUG] Primary getUserMedia failed, retrying with broad constraints:', primaryErr && primaryErr.name);
+                    // Fallback constraints for finicky mobile browsers
+                    constraints = { audio: true };
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    } catch (fallbackErr) {
+                        console.error('Error setting up audio capture (all attempts):', fallbackErr);
+                        uiUpdater.updateStatus('Microphone access failed. Please check site permissions and use HTTPS.', 'error');
+                        return false;
+                    }
+                }
                 // Create MediaRecorder for audio capture with clean fallback strategy
                 const chosen = platform.selectSupportedAudioMimeType();
                 const options = chosen ? { mimeType: chosen } : undefined;
