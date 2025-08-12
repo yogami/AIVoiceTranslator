@@ -13,7 +13,9 @@ import { ITTSService, TTSResult } from '../../services/tts/TTSService';
 import { ElevenLabsTTSService } from '../external-services/tts/ElevenLabsTTSService';
 import { OpenAITTSService } from '../external-services/tts/OpenAITTSService';
 import { LocalTTSService } from '../external-services/tts/LocalTTSService';
+import { PiperTTSService } from '../external-services/tts/PiperTTSService';
 import { BrowserTTSService } from '../external-services/tts/BrowserTTSService';
+import { SilentTTSService } from '../external-services/tts/SilentTTSService';
 
 // Service tier enumeration for consistency
 export enum TTSServiceTier {
@@ -259,8 +261,15 @@ export class TTSServiceFactory implements ITTSServiceFactory {
       }
 
       case TTSServiceTier.HIGH_QUALITY_FREE: {
-        console.log('[TTSFactory] Creating Tier 2 (High-Quality Free): Local eSpeak-NG TTS');
-        service = new LocalTTSService();
+        // Prefer Piper where available; fallback to Local eSpeak-NG to guarantee coverage
+        const piper = new PiperTTSService();
+        if (piper.isAvailable()) {
+          console.log('[TTSFactory] Creating Tier 2 (High-Quality Free): Piper TTS');
+          service = piper as unknown as ITTSService;
+        } else {
+          console.log('[TTSFactory] Piper not available; falling back to Local eSpeak-NG TTS');
+          service = new LocalTTSService();
+        }
         break;
       }
 
@@ -272,7 +281,7 @@ export class TTSServiceFactory implements ITTSServiceFactory {
 
       case TTSServiceTier.SILENT: {
         console.log('[TTSFactory] Creating Tier 4 (Silent): No audio output');
-        service = new BrowserTTSService(); // Placeholder - could implement SilentTTSService
+        service = new SilentTTSService();
         break;
       }
 

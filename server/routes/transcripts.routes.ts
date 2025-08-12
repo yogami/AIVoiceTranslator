@@ -7,7 +7,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler, ApiError } from '../middleware/error-handler.middleware.js';
 import { validateRequiredFields } from '../middleware/validation.middleware.js';
-import { TranscriptService } from '../services/stttranscription/TranscriptService';
+import { TranscriptService } from '../services/TranscriptService';
 import { IStorage } from '../storage.interface.js';
 
 export function createTranscriptRoutes(storage: IStorage): Router {

@@ -73,8 +73,9 @@ export class TranslationServiceFactory implements ITranslationServiceFactory {
       }
 
       case TranslationServiceTier.HIGH_QUALITY_FREE: {
-        console.log('[TranslationFactory] Creating Tier 2 (High-Quality Free): DeepSeek Translation');
-        service = new DeepSeekTranslationService();
+        // Switch to a real free provider (MyMemory) to avoid simulated tags
+        console.log('[TranslationFactory] Creating Tier 2 (High-Quality Free): MyMemory Translation (real API)');
+        service = new MyMemoryTranslationService();
         break;
       }
 

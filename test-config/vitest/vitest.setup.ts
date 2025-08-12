@@ -16,6 +16,21 @@ if (!process.env.OPENAI_API_KEY) {
 const testMode = process.env.TEST_MODE || "all";
 console.log(`[Vitest Setup] Test mode: ${testMode}`);
 
+// Force free tiers for integration/component tests; avoid premium APIs during tests
+if (testMode !== 'unit') {
+  process.env.STT_SERVICE_TYPE = process.env.STT_SERVICE_TYPE || 'free-enhanced';
+  process.env.TRANSLATION_SERVICE_TYPE = process.env.TRANSLATION_SERVICE_TYPE || 'free-basic';
+  process.env.TTS_SERVICE_TYPE = process.env.TTS_SERVICE_TYPE || 'free-hq';
+  // Disable premium keys to avoid importing cloud SDK paths
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.ELEVENLABS_API_KEY;
+  process.env.FEATURE_SERVER_INTERIM_TRANSCRIPTION = process.env.FEATURE_SERVER_INTERIM_TRANSCRIPTION || '0';
+  process.env.ENABLE_MAC_SAY_FALLBACK = '0';
+  // Enable manual translation control in tests so manual-mode suites pass
+  process.env.FEATURE_MANUAL_TRANSLATION_CONTROL = process.env.FEATURE_MANUAL_TRANSLATION_CONTROL || '1';
+  console.log('[Vitest Setup] Forcing free-tier services for tests');
+}
+
 // Initialize test isolation based on mode
 if (testMode !== "unit") {
   // Enable test isolation for component and integration tests
@@ -28,13 +43,23 @@ if (testMode !== "unit") {
 process.on("exit", () => {
   try {
     // Import WebSocketServer dynamically to avoid circular dependencies
-    const { WebSocketServer } = require("../../server/services/WebSocketServer");
+    let WebSocketServerModule: any = null;
+    try {
+      WebSocketServerModule = require("../../server/services/WebSocketServer");
+    } catch (_) {
+      try {
+        WebSocketServerModule = require("../../server/interface-adapters/websocket/WebSocketServer");
+      } catch (e) {
+        console.warn("[Test Cleanup] WebSocketServer module not found for cleanup");
+      }
+    }
+    const WebSocketServer = WebSocketServerModule?.WebSocketServer;
     if (WebSocketServer && typeof WebSocketServer.shutdownAll === "function") {
       WebSocketServer.shutdownAll();
     }
-  } catch (error) {
+  } catch (error: any) {
     // Ignore errors during cleanup - this is best effort
-    console.warn("[Test Cleanup] Error during WebSocketServer cleanup:", error.message);
+    console.warn("[Test Cleanup] Error during WebSocketServer cleanup:", error?.message || String(error));
   }
 });
 

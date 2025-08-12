@@ -8,6 +8,7 @@
 import logger from '../../logger';
 import { config } from '../../config';
 import { speechTranslationService } from '../TranslationService';
+import { AudioFormatConverter } from '../audio/AudioFormatConverter';
 import type { WebSocketClient } from './ConnectionManager';
 import type { 
   TranslationMessageToClient,
@@ -161,7 +162,7 @@ export class TranslationOrchestrator {
       try {
         const clientSettings = getClientSettings(studentWs) || {};
         const translation = translations.get(studentLanguage) || originalText;
-        const ttsServiceType = clientSettings.ttsServiceType || 'openai';
+        const ttsServiceType = clientSettings.ttsServiceType || process.env.TTS_SERVICE_TYPE || 'openai';
         const useClientSpeech = clientSettings.useClientSpeech === true;
         let audioData = '';
         let speechParams: { type: 'browser-speech'; text: string; languageCode: string; autoPlay: boolean; } | undefined;
@@ -174,11 +175,30 @@ export class TranslationOrchestrator {
           };
         } else {
           try {
-            const audioBuffer = await this.generateTTSAudio(
+            let audioBuffer = await this.generateTTSAudio(
               translation,
               studentLanguage,
               ttsServiceType
             );
+            // Normalize WAV payloads to MP3 for better browser compatibility (detect by RIFF header)
+            const isWav = audioBuffer && audioBuffer.length >= 4 && audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49 && audioBuffer[2] === 0x46 && audioBuffer[3] === 0x46;
+            if ((ttsServiceType === 'local' || isWav) && audioBuffer && audioBuffer.length > 0) {
+              try {
+                const mp3 = await AudioFormatConverter.wavToMp3(audioBuffer);
+                audioBuffer = mp3;
+                // Mark as mp3 for downstream hints
+                (ttsServiceType as any) = 'mp3';
+              } catch (_) {}
+            }
+            // Debug: log first bytes of outgoing audio to validate MP3/ID3 headers
+            try {
+              const head = audioBuffer?.subarray(0, 16) || Buffer.alloc(0);
+              const hex = Array.from(head).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+              const headerTag = head.length >= 3 && head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33
+                ? 'ID3'
+                : (head.length >= 2 && head[0] === 0xff && (head[1] & 0xe0) === 0xe0 ? 'MPEG' : 'OTHER');
+              logger.info('[TTS Debug] Outgoing audio header (websocket)', { ttsServiceType, headerTag, hex, bytes: audioBuffer?.length || 0 });
+            } catch {}
             audioData = audioBuffer ? audioBuffer.toString('base64') : '';
           } catch (error) {
             logger.error('Error generating TTS audio:', { error });
@@ -198,6 +218,7 @@ export class TranslationOrchestrator {
           sourceLanguage: sourceLanguage,
           targetLanguage: studentLanguage,
           ttsServiceType: ttsServiceType,
+          audioFormat: ttsServiceType === 'mp3' ? 'mp3' : (ttsServiceType === 'local' ? 'wav' : (ttsServiceType === 'browser' ? 'browser' : 'mp3')),
           latency: {
             total: totalLatency,
             serverCompleteTime: serverCompleteTime,

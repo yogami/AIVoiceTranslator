@@ -6,6 +6,11 @@
     <title>Student Interface - AIVoiceTranslator</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
     <link rel="stylesheet" href="css/student.css">
+    <!-- Modern font for a clean, Gen Z-friendly feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Theme selector removed; Modern is always applied -->
     <script>
         // Runtime configuration for student page
         // In production, these will be set by the server or build process
@@ -34,20 +39,17 @@
     <div class="container">
         <h1>🎧 Student Interface</h1>
         
-        <div id="connection-status" class="status disconnected">
-            <div class="indicator disconnected"></div>
-            <span>Disconnected</span>
-            <!-- UI V2 badge placeholder for classroom code -->
-            <span id="classroom-code-badge" data-testid="student-classroom-badge" style="display:none;"></span>
-            <!-- UI V2 inline connect button -->
-            <button id="connect-proxy" data-testid="student-connect-proxy" style="display:none;">Connect</button>
+        <!-- Clear intent: this page is for listening, not speaking -->
+        <div class="info-banner" role="note" aria-live="polite">
+            This page lets you <strong>listen to your teacher</strong> in your own language. You won’t send audio from here.
+            Choose your language below to start receiving live translations.
         </div>
         
         <!-- (UI V2 uses inline connect button in status row) -->
 
         <!-- Language Selection -->
-        <div class="language-section">
-            <h3>🌍 Select Your Language</h3>
+        <div class="language-section" id="language-step">
+            <h3>🌍 Select Your Language for Translations</h3>
             <div class="language-selection">
                 <select id="language-dropdown" class="language-dropdown">
                     <option value="">Choose your language...</option>
@@ -133,31 +135,43 @@
                     <option value="gl-ES">🏴󐁧󐁢󐁧󐁬󐁣󐁿 Galician (Spain)</option>
                 </select>
             </div>
-            
-            <div id="selected-language" style="margin-top: 15px; font-weight: bold; color: #2196f3;">
-                No language selected
-            </div>
+            <p class="helper-text">We’ll translate your teacher’s speech into the language you select.</p>
+            <div id="selected-language" style="margin-top: 10px; font-weight: bold; color: #2196f3;"></div>
+        </div>
+        
+        <!-- Connection Status and Inline Connect (shown only after language selection) -->
+        <div id="connection-status" class="status disconnected hidden">
+            <div class="indicator disconnected"></div>
+            <span>Disconnected</span>
+            <!-- UI V2 badge placeholder for classroom code -->
+            <span id="classroom-code-badge" data-testid="student-classroom-badge" style="display:none;"></span>
+            <!-- UI V2 inline connect button -->
+            <button id="connect-proxy" data-testid="student-connect-proxy" style="display:none;">Connect</button>
+        </div>
+        
+        <!-- Connection Controls (moved directly under language for guided flow) -->
+        <div class="controls hidden" id="connect-step">
+            <button id="connect-btn" data-testid="student-connect" disabled>Connect to Session</button>
+            <div style="margin-top:8px; font-size: 0.9rem; color: #666;">After selecting your language, click Connect to join your classroom.</div>
         </div>
         
         <!-- Translation Display -->
-        <div class="translation-container">
+        <div class="translation-container hidden" id="translation-step">
             <h3>📖 Live Translation</h3>
             <div id="translation-display" class="translation-box">
-                Waiting for teacher to start speaking...
+                
             </div>
+            <p class="helper-text">Translations will appear here when your teacher is speaking.</p>
         </div>
         
         <!-- Audio Controls -->
-        <div class="audio-controls">
-            <button id="play-button" data-testid="student-play" disabled>🔊 Play Audio</button>
-            <label for="volume-control">Volume:</label>
+        <div class="audio-controls hidden" id="audio-step">
+            <button id="play-button" data-testid="student-play" disabled>🔊 Play Translation Audio</button>
+            <label for="volume-control">Volume</label>
             <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.8">
+            <div class="helper-text" aria-live="polite">This plays the most recent translation audio. It doesn’t record your voice.</div>
         </div>
         
-        <!-- Connection Controls (original location, keep stable for e2e) -->
-        <div class="controls">
-            <button id="connect-btn" data-testid="student-connect">Connect to Session</button>
-        </div>
     </div>
 
     <script src="js/student.js" defer></script>

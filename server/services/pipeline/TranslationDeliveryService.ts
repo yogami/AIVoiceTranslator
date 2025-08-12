@@ -8,6 +8,7 @@ import type { ClientSettings, TranslationMessageToClient } from '../WebSocketTyp
 import type { ITTSService } from '../tts/TTSService';
 import { AudioEncodingService } from '../audio/AudioEncodingService';
 import logger from '../../logger';
+import { AudioFormatConverter } from '../audio/AudioFormatConverter';
 
 export interface DeliveryParams {
   studentWs: WebSocketClient;
@@ -155,10 +156,32 @@ export class TranslationDeliveryService {
       }
       
       // For other TTS services, encode the actual audio buffer
-      const audioData = this.audioEncodingService.encodeToBase64(ttsResult.audioBuffer || Buffer.alloc(0));
+      let outBuffer = ttsResult.audioBuffer || Buffer.alloc(0);
+      let outType = ttsResult.ttsServiceType || ttsServiceTypeFlag;
+      // Normalize WAV payloads to MP3 for better browser compatibility (detect by RIFF header)
+      const isWav = outBuffer.length >= 4 && outBuffer[0] === 0x52 && outBuffer[1] === 0x49 && outBuffer[2] === 0x46 && outBuffer[3] === 0x46;
+      if ((outType === 'local' || isWav) && outBuffer.length > 0) {
+        try {
+          const mp3 = await AudioFormatConverter.wavToMp3(outBuffer);
+          outBuffer = mp3;
+          outType = 'mp3';
+        } catch (convErr) {
+          logger.warn('WAV->MP3 conversion failed; sending original audio as-is', { error: convErr instanceof Error ? convErr.message : String(convErr) });
+        }
+      }
+      // Debug: log first bytes of outgoing audio to validate MP3/ID3 headers
+      try {
+        const head = outBuffer.subarray(0, 16);
+        const hex = Array.from(head).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+        const headerTag = head.length >= 3 && head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33
+          ? 'ID3'
+          : (head.length >= 2 && head[0] === 0xff && (head[1] & 0xe0) === 0xe0 ? 'MPEG' : 'OTHER');
+        logger.info('[TTS Debug] Outgoing audio header (pipeline)', { ttsServiceType: outType, headerTag, hex, bytes: outBuffer.length });
+      } catch {}
+      const audioData = this.audioEncodingService.encodeToBase64(outBuffer);
       return { 
         audioData, 
-        ttsServiceType: ttsResult.ttsServiceType || ttsServiceTypeFlag 
+        ttsServiceType: outType 
       };
     } catch (error) {
       logger.error('Error generating TTS audio:', {

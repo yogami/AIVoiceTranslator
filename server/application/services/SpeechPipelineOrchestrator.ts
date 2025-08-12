@@ -20,6 +20,7 @@ import { getTTSService } from '../../services/tts/TTSService';
 import type { ISTTTranscriptionService } from '../../services/translation/translation.interfaces';
 import type { ITranslationService } from '../../services/translation/translation.interfaces';
 import type { ITTSService, TTSResult } from '../../services/tts/TTSService';
+import { AudioFormatConverter } from '../../services/audio/AudioFormatConverter';
 
 // Pipeline configuration interface
 interface PipelineConfig {
@@ -198,7 +199,30 @@ export class SpeechPipelineOrchestrator {
    */
   async synthesizeSpeech(text: string, language: string, options: { voice?: string } = {}): Promise<TTSResult> {
     console.log('[SpeechPipelineOrchestrator] Synthesizing speech only');
-    return await this.ttsService.synthesize(text, { language, voice: options.voice });
+    const tts = await this.ttsService.synthesize(text, { language, voice: options.voice });
+    try {
+      const buf = tts.audioBuffer || Buffer.alloc(0);
+      const isWav = buf.length >= 4 && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46; // 'RIFF'
+      if ((tts.ttsServiceType === 'local' || isWav) && buf.length > 0) {
+        const mp3 = await AudioFormatConverter.wavToMp3(buf);
+        try {
+          const head = mp3.subarray(0, 16);
+          const hex = Array.from(head).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+          const headerTag = head.length >= 3 && head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33
+            ? 'ID3'
+            : (head.length >= 2 && head[0] === 0xff && (head[1] & 0xe0) === 0xe0 ? 'MPEG' : 'OTHER');
+          console.log('[TTS Debug] Outgoing audio header (orchestrator)', { ttsServiceType: 'mp3', headerTag, hex, bytes: mp3.length });
+        } catch {}
+        return {
+          audioBuffer: mp3,
+          audioUrl: undefined,
+          ttsServiceType: 'mp3'
+        };
+      }
+    } catch (e) {
+      console.warn('[SpeechPipelineOrchestrator] WAV->MP3 conversion failed, returning original buffer');
+    }
+    return tts;
   }
 
   /**

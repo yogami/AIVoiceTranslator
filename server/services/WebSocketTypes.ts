@@ -105,6 +105,7 @@ export interface TranslationMessageToClient extends BaseWebSocketMessage {
   sourceLanguage: string;
   targetLanguage: string;
   ttsServiceType: string; // Service used for this specific translation's TTS
+  audioFormat?: 'wav' | 'mp3' | 'browser';
   latency: {
     total: number;
     serverCompleteTime: number;

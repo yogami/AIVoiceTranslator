@@ -17,7 +17,7 @@ import { LanguageService } from '../services/LanguageService';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { TranslationRoutesService } from '../services/translation/TranslationRoutesService';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { TranscriptService } from '../services/stttranscription/TranscriptService';
+import { TranscriptService } from '../services/TranscriptService';
 
 const storage = new DatabaseStorage();
 const classroomSessionsMap = new Map(); // Empty map for routes context

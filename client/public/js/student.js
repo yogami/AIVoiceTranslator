@@ -3,9 +3,11 @@
         ws: null,
         selectedLanguage: null,
         currentAudioData: null,
+        currentAudioBlobUrl: null,
         currentBrowserTTS: null, // Store browser TTS utterance for replay
         isConnected: false,
-        classroomCode: null // Will get this from URL params
+        classroomCode: null, // Will get this from URL params
+        isClassroomCodeValid: null // null=unknown, 'valid' | 'invalid' after validation
     };
 
     const domElements = {
@@ -18,7 +20,11 @@
         playButton: null,
         volumeControl: null,
         container: null, // For inserting classroomInfo
-        h1Element: null // For inserting classroomInfo
+        h1Element: null, // For inserting classroomInfo
+        languageStep: null,
+        connectStep: null,
+        translationStep: null,
+        audioStep: null
     };
 
     const uiUpdater = {
@@ -28,6 +34,7 @@
                     <div class="indicator disconnected"></div>
                     <span>No classroom code provided</span>
                 `;
+                domElements.connectionStatus.classList.remove('hidden');
             }
             if (domElements.translationDisplay) {
                 domElements.translationDisplay.innerHTML = 
@@ -63,7 +70,24 @@
 
         updateSelectedLanguageDisplay: function(languageName) {
             if (domElements.selectedLanguageDisplay) {
-                domElements.selectedLanguageDisplay.textContent = languageName ? `Selected: ${languageName}` : 'No language selected';
+                domElements.selectedLanguageDisplay.textContent = languageName ? `Selected: ${languageName}` : '';
+            }
+            // Reveal connect step only after language chosen
+            if (domElements.connectStep) {
+                // Reveal connect if a language is chosen and the code is not confirmed invalid
+                if (languageName && appState.isClassroomCodeValid !== 'invalid') {
+                    domElements.connectStep.classList.remove('hidden');
+                    domElements.connectButton && (domElements.connectButton.disabled = false);
+                    domElements.proxyConnectButton && (domElements.proxyConnectButton.disabled = false);
+                } else {
+                    domElements.connectStep.classList.add('hidden');
+                }
+            }
+            // Hide later steps until connected (status row shown only after language selection)
+            if (!appState.isConnected) {
+                domElements.translationStep?.classList.add('hidden');
+                domElements.audioStep?.classList.add('hidden');
+                // connection status gating handled based on language selection below
             }
         },
 
@@ -84,6 +108,10 @@
                     domElements.proxyConnectButton.classList.add('connected');
                     domElements.proxyConnectButton.disabled = false;
                 }
+                // Reveal translation and audio steps when connected
+                domElements.translationStep?.classList.remove('hidden');
+                domElements.audioStep?.classList.remove('hidden');
+                domElements.connectionStatus?.classList.remove('hidden');
             } else {
                 domElements.connectionStatus.className = 'status disconnected';
                 if (indicator) indicator.className = 'indicator disconnected';
@@ -97,6 +125,10 @@
                     domElements.proxyConnectButton.classList.remove('connected');
                     domElements.proxyConnectButton.disabled = !appState.selectedLanguage;
                 }
+                // After disconnect, keep connect step visible but hide translation/audio
+                domElements.translationStep?.classList.add('hidden');
+                domElements.audioStep?.classList.add('hidden');
+                domElements.connectionStatus?.classList.remove('hidden');
             }
         },
 
@@ -141,13 +173,9 @@
                 return;
             }
             if (!appState.selectedLanguage) {
-                console.log('[DEBUG] No language selected, auto-selecting first option before WebSocket connect');
-                autoSelectFirstLanguage(); // This function should ensure appState.selectedLanguage is set
-            }
-            if (!appState.selectedLanguage) { // Fallback if autoSelect failed or wasn't possible
-                console.log('[DEBUG] Auto-select failed, using Spanish fallback');
-                appState.selectedLanguage = 'es'; 
-                uiUpdater.updateSelectedLanguageDisplay('Spanish (Default)');
+                console.warn('[DEBUG] No language selected; blocking connect');
+                uiUpdater.updateGeneralStatus('Select a language to continue.');
+                return;
             }
 
             console.log('[DEBUG] Selected language:', appState.selectedLanguage);
@@ -173,8 +201,9 @@
 
             appState.ws.onopen = () => {
                 console.log('[DEBUG] WebSocket connected to server.');
-                uiUpdater.updateConnectionStatus(true);
-                appState.isConnected = true;
+                // Defer marking connected until register success
+                uiUpdater.updateGeneralStatus('Connected to server, verifying classroom...');
+                appState.isConnected = false;
                 this.register(classroomCode);
             };
             appState.ws.onmessage = (event) => {
@@ -259,12 +288,39 @@
                     }
                     break;
                 case 'register':
+                    // Only mark connected on explicit success
+                    if (data.status === 'success') {
+                        uiUpdater.updateConnectionStatus(true);
+                        appState.isConnected = true;
+                        if (domElements.translationDisplay) {
+                            domElements.translationDisplay.innerHTML = '<div style="color:#333;">Waiting for teacher to start speaking...</div>';
+                        }
+                    } else {
+                        uiUpdater.updateConnectionStatus(false);
+                        appState.isConnected = false;
+                    }
                     break;
                 case 'translation':
                     uiUpdater.displayTranslation(data);
                     if (data.audioData) {
                         appState.currentAudioData = data.audioData;
+                        // Infer audio format if server did not provide it
+                        if (data.audioFormat) {
+                            appState.currentAudioFormat = data.audioFormat;
+                        } else if (typeof data.audioData === 'string') {
+                            if (data.audioData.startsWith('UklG')) { // 'RIFF' => WAV
+                                appState.currentAudioFormat = 'wav';
+                            } else if (data.audioData.startsWith('SUQz')) { // 'ID3' => MP3
+                                appState.currentAudioFormat = 'mp3';
+                            } else {
+                                appState.currentAudioFormat = 'mp3';
+                            }
+                        } else {
+                            appState.currentAudioFormat = 'mp3';
+                        }
                         if (domElements.playButton) domElements.playButton.disabled = false;
+
+                        // Always attempt to play server-provided audio first
                         
                         // Check if this is browser TTS instructions
                         try {
@@ -277,11 +333,11 @@
                                 speakWithBrowserTTS(parsedData.text, parsedData.languageCode, parsedData.autoPlay);
                             } else {
                                 // Regular audio data - play as before
-                                playAudio(data.audioData);
+                                playAudio(data.audioData, appState.currentAudioFormat);
                             }
                         } catch (e) {
                             // If decoding/parsing fails, treat as regular audio
-                            playAudio(data.audioData);
+                            playAudio(data.audioData, appState.currentAudioFormat);
                         }
                     }
                     break;
@@ -290,14 +346,21 @@
                     console.error('Received error from server:', data.message);
                     
                     // Show error message regardless of connection state for critical errors
-                    if (data.code === 'INVALID_CLASSROOM' || data.message?.includes('invalid') || data.message?.includes('expired')) {
+                    if (data.code === 'INVALID_CLASSROOM' || data.message?.toLowerCase().includes('invalid') || data.message?.toLowerCase().includes('expired') || data.message?.toLowerCase().includes('not found')) {
                         if (domElements.translationDisplay) {
                             domElements.translationDisplay.innerHTML = `<div style=\"color: red; text-align: center; padding: 20px;\">
                                 <h3>❌ Error</h3>
                                 <p>${data.message}</p>
                             </div>`;
                         }
-                        if (domElements.connectButton) domElements.connectButton.disabled = true;
+                        // Ensure UI remains disconnected (red) and allow reconnection attempt
+                        uiUpdater.updateConnectionStatus(false);
+                        appState.isConnected = false;
+                        if (domElements.connectButton) {
+                            domElements.connectButton.disabled = false;
+                            domElements.connectButton.textContent = 'Connect to Session';
+                            domElements.connectButton.className = '';
+                        }
                     } else if (appState.isConnected) {
                         // For other errors, only show if user has tried to connect
                         if (domElements.translationDisplay) {
@@ -337,6 +400,10 @@
         domElements.volumeControl = document.getElementById('volume-control');
         domElements.container = document.querySelector('.container');
         domElements.h1Element = document.querySelector('h1');
+        domElements.languageStep = document.getElementById('language-step');
+        domElements.connectStep = document.getElementById('connect-step');
+        domElements.translationStep = document.getElementById('translation-step');
+        domElements.audioStep = document.getElementById('audio-step');
 
         setupLanguageSelection();
 
@@ -353,24 +420,59 @@
 
         setupWebSocket();
 
-        // Do NOT auto-connect. Wait for user to select language and click connect.
-        autoSelectFirstLanguage();
-        if (domElements.connectButton) domElements.connectButton.disabled = false;
-        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
-        // No auto-connect or auto-register here. Only connect on button click.
+        // Initial step visibility: show only language step; status/connect appear after selection
+        domElements.connectionStatus?.classList.add('hidden');
+        domElements.translationStep?.classList.add('hidden');
+        domElements.audioStep?.classList.add('hidden');
+        domElements.connectStep?.classList.add('hidden');
+        if (domElements.connectButton) domElements.connectButton.disabled = true;
+        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
+
+        // Validate classroom code immediately so we can show early error or allow flow
+        validateClassroomCode(appState.classroomCode)
+            .then((status) => {
+                appState.isClassroomCodeValid = status;
+                if (status === 'invalid') {
+                    // Show immediate error UI
+                    if (domElements.translationDisplay) {
+                        domElements.translationDisplay.innerHTML = '<div style="color: red; text-align: center; padding: 20px;"><h3>❌ Error</h3><p>Classroom session expired or invalid. Please ask teacher for new link.</p></div>';
+                    }
+                    domElements.translationStep?.classList.remove('hidden');
+                    // Do NOT show status/connection bar when code is invalid
+                    // Keep connect hidden/disabled
+                    domElements.connectStep?.classList.add('hidden');
+                    if (domElements.connectButton) domElements.connectButton.disabled = true;
+                    if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
+                } else if (status === 'valid') {
+                    // If student already selected a language quickly, enable connect
+                    if (appState.selectedLanguage) {
+                        domElements.connectStep?.classList.remove('hidden');
+                        if (domElements.connectButton) domElements.connectButton.disabled = false;
+                        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
+                        domElements.connectionStatus?.classList.remove('hidden');
+                    }
+                } else {
+                    // Unknown - allow the guided flow and let the server enforce validity on connect
+                    if (appState.selectedLanguage) {
+                        domElements.connectStep?.classList.remove('hidden');
+                        if (domElements.connectButton) domElements.connectButton.disabled = false;
+                        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
+                        // Only show status when language is selected (handled in language selection)
+                    }
+                }
+            })
+            .catch(() => {
+                // Network issue: set unknown and allow connect after language; server will validate on register
+                appState.isClassroomCodeValid = null;
+                if (appState.selectedLanguage) {
+                    domElements.connectStep?.classList.remove('hidden');
+                    domElements.connectButton && (domElements.connectButton.disabled = false);
+                    domElements.proxyConnectButton && (domElements.proxyConnectButton.disabled = false);
+                }
+            });
     });
 
-    function autoSelectFirstLanguage() {
-        if (domElements.languageDropdown && !appState.selectedLanguage) {
-            const firstOption = domElements.languageDropdown.options[1]; 
-            if (firstOption) {
-                domElements.languageDropdown.value = firstOption.value;
-                appState.selectedLanguage = firstOption.value;
-                uiUpdater.updateSelectedLanguageDisplay(firstOption.textContent);
-                if (domElements.connectButton) domElements.connectButton.disabled = false;
-            }
-        }
-    }
+    function autoSelectFirstLanguage() { /* intentionally disabled for guided UX */ }
 
     function setupLanguageSelection() {
         if (!domElements.languageDropdown) return;
@@ -379,8 +481,13 @@
             if (selectedOption.value) {
                 appState.selectedLanguage = selectedOption.value;
                 uiUpdater.updateSelectedLanguageDisplay(selectedOption.textContent);
-                if (domElements.connectButton) domElements.connectButton.disabled = false;
-                if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
+                if (appState.isClassroomCodeValid !== 'invalid') {
+                    if (domElements.connectButton) domElements.connectButton.disabled = false;
+                    if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
+                    domElements.connectStep?.classList.remove('hidden');
+                    // Show status bar now that language is selected
+                    domElements.connectionStatus?.classList.remove('hidden');
+                }
                 if (appState.selectedLanguage && appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.isConnected) {
                     console.log('Language changed while connected - re-registering with server');
                     webSocketHandler.register(appState.classroomCode); // Call new handler
@@ -390,6 +497,7 @@
                 uiUpdater.updateSelectedLanguageDisplay(null);
                 if (domElements.connectButton) domElements.connectButton.disabled = true;
                 if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
+                domElements.connectStep?.classList.add('hidden');
             }
         });
     }
@@ -397,6 +505,20 @@
     function setupWebSocket() {
         if (domElements.connectButton) domElements.connectButton.addEventListener('click', toggleConnection);
         if (domElements.playButton) domElements.playButton.addEventListener('click', playCurrentAudio);
+        const dl = document.getElementById('download-audio');
+        if (dl) {
+            dl.addEventListener('click', function() {
+                try {
+                    if (!appState.currentAudioBlobUrl) return;
+                    const a = document.createElement('a');
+                    a.href = appState.currentAudioBlobUrl;
+                    a.download = 'tts.mp3';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => document.body.removeChild(a), 0);
+                } catch (e) { console.error('Download failed', e); }
+            });
+        }
     }
 
     function toggleConnection() {
@@ -405,22 +527,80 @@
             console.log('[DEBUG] Disconnecting...');
             webSocketHandler.disconnect();
         } else {
+            if (appState.isClassroomCodeValid === 'invalid') {
+                uiUpdater.updateGeneralStatus('Invalid classroom code.');
+                return;
+            }
+            if (!appState.selectedLanguage) {
+                uiUpdater.updateGeneralStatus('Select a language to continue.');
+                return;
+            }
             console.log('[DEBUG] Connecting with classroomCode:', appState.classroomCode);
             webSocketHandler.connect(appState.classroomCode);
         }
     }
 
-    function playAudio(audioBase64) {
+    async function validateClassroomCode(classroomCode) {
         try {
-            const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
-            if (domElements.volumeControl) audio.volume = domElements.volumeControl.value;
-            audio.onerror = function(e) { console.error('Audio play error:', e); };
+            const baseUrl = window.VITE_API_URL || '';
+            const res = await fetch(`${baseUrl}/api/sessions/active`, { credentials: 'same-origin' });
+            if (!res.ok) return false;
+            const json = await res.json();
+            const active = (json && json.data && Array.isArray(json.data.activeSessions)) ? json.data.activeSessions : [];
+            const isActive = active.some(s => (s.classCode || '').trim() === String(classroomCode || '').trim());
+            return isActive ? 'valid' : 'invalid';
+        } catch (e) {
+            console.error('Classroom validation failed:', e);
+            return null; // unknown
+        }
+    }
+
+    function playAudio(audioBase64, audioFormat = 'mp3') {
+        try {
+            const mime = audioFormat === 'wav' ? 'audio/wav' : 'audio/mpeg';
+            // Prefer Blob URL for better browser compatibility with larger payloads
+            const binary = atob(audioBase64);
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio();
+            audio.src = url;
+            appState.currentAudioBlobUrl = url;
+            // Ensure volume is a proper number in [0,1]
+            if (domElements.volumeControl) {
+                const vol = parseFloat(domElements.volumeControl.value);
+                audio.volume = Number.isFinite(vol) ? Math.max(0, Math.min(1, vol)) : 1;
+            } else {
+                audio.volume = 1;
+            }
+            audio.onerror = function(e) {
+                console.error('Audio play error (blob URL):', e);
+                // Fallback to data URI if blob URL fails
+                try {
+                    audio.src = `data:${mime};base64,${audioBase64}`;
+                    audio.load();
+                    audio.play().catch(err => {
+                        console.error('Audio play failed (data URI):', err);
+                        uiUpdater.showAudioErrorInDisplay();
+                    });
+                } catch (err2) {
+                    console.error('Audio fallback failed:', err2);
+                    uiUpdater.showAudioErrorInDisplay();
+                }
+            };
+            audio.oncanplay = function() { console.log('[Audio Debug] canplay, duration:', audio.duration); };
+            audio.onplay = function() { console.log('[Audio Debug] play started'); };
+            audio.onended = function() { try { URL.revokeObjectURL(url); } catch (_) {} };
+            audio.load();
             audio.play().catch(e => {
-                console.error('Audio play failed:', e);
+                console.error('Audio play failed (blob URL):', e);
                 uiUpdater.showAudioErrorInDisplay();
             });
         } catch (error) {
             console.error('Error creating audio:', error);
+            uiUpdater.showAudioErrorInDisplay();
         }
     }
 
@@ -485,6 +665,8 @@
         }
     }
 
+    // Removed silent-audio heuristic to prefer server audio playback consistently
+
     function playCurrentAudio() {
         if (appState.currentAudioData) {
             // Check if this is browser TTS instructions
@@ -497,11 +679,11 @@
                     speakWithBrowserTTS(parsedData.text, parsedData.languageCode, true);
                 } else {
                     // Regular audio data
-                    playAudio(appState.currentAudioData);
+                    playAudio(appState.currentAudioData, appState.currentAudioFormat || 'mp3');
                 }
             } catch (e) {
                 // If decoding/parsing fails, treat as regular audio
-                playAudio(appState.currentAudioData);
+                playAudio(appState.currentAudioData, appState.currentAudioFormat || 'mp3');
             }
         }
     }

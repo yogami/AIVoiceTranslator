@@ -13,6 +13,7 @@ import { OpenAISTTTranscriptionService } from '../external-services/speech/OpenA
 import { ElevenLabsSTTService } from '../external-services/speech/ElevenLabsSTTService';
 import { DeepgramSTTService } from '../external-services/speech/DeepgramSTTService';
 import { WhisperCppSTTTranscriptionService } from '../external-services/speech/WhisperCppTranscriptionService';
+import { EnhancedWhisperCppSTTService } from '../external-services/speech/EnhancedWhisperCppTranscriptionService';
 import { AutoFallbackSTTService } from '../external-services/speech/AutoFallbackSTTService';
 import { OpenAI } from 'openai';
 
@@ -82,15 +83,16 @@ export class STTServiceFactory implements ISTTServiceFactory {
       }
 
       case STTServiceTier.HIGH_QUALITY_FREE: {
-        console.log('[STTFactory] Creating Tier 2 (High-Quality Free): Deepgram Nova-2 STT');
-        service = new DeepgramSTTService();
+        // Temporarily prefer Enhanced Whisper.cpp (local, real) over simulated Deepgram
+        // Switch back to Deepgram when real API integration is available
+        console.log('[STTFactory] Creating Tier 2 (High-Quality Free): Enhanced Whisper.cpp STT');
+        service = new EnhancedWhisperCppSTTService();
         break;
       }
 
       case STTServiceTier.ENHANCED_FREE: {
         console.log('[STTFactory] Creating Tier 3 (Enhanced Free): Whisper.cpp + Voice Isolation');
-        // TODO: Create enhanced Whisper.cpp service with voice isolation
-        service = new WhisperCppSTTTranscriptionService();
+        service = new EnhancedWhisperCppSTTService();
         break;
       }
 

@@ -84,7 +84,8 @@ async function simulateStudentJoin(page: Page, classroomCode: string): Promise<{
   // Wait for initial page load
   await page.waitForTimeout(2000);
   
-  // Click the connect button to initiate the WebSocket connection
+  // Select a language then click connect to initiate the WebSocket connection (new UX)
+  await page.selectOption('#language-dropdown', { index: 1 });
   const connectButton = page.locator('#connect-btn');
   const connectButtonExists = await connectButton.isVisible();
   
@@ -182,7 +183,8 @@ async function simulateStudentJoinWithInvalidCode(page: Page, classroomCode: str
   // Wait for initial page load
   await page.waitForTimeout(2000);
   
-  // Click the connect button to initiate the WebSocket connection
+  // Select a language then click connect (new UX)
+  await page.selectOption('#language-dropdown', { index: 1 });
   const connectButton = page.locator('#connect-btn');
   const connectButtonExists = await connectButton.isVisible();
   
@@ -601,7 +603,9 @@ test.describe('Classroom Code Lifecycle E2E Tests', () => {
         const studentPage = await context.newPage();
         try {
           await studentPage.goto(`http://127.0.0.1:5001/student?code=${invalidCode}`);
-          await studentPage.waitForSelector('#connect-btn', { timeout: 5000 });
+          // New UX still requires language selection before connect
+          await studentPage.waitForSelector('#language-dropdown', { timeout: 5000 });
+          await studentPage.selectOption('#language-dropdown', { index: 1 });
           await studentPage.click('#connect-btn');
           await studentPage.waitForTimeout(2000); // Give server time to process and reject
         } catch (error) {

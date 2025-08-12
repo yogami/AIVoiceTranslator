@@ -160,10 +160,10 @@ export class TranscriptionBusinessService {
                 text: translation,   // Keep translated text as 'text'
                 translatedText: translation, // Also add as translatedText for compatibility
                 audioData: ttsResult.audioBuffer.toString('base64'),
+                audioFormat: ttsResult.ttsServiceType === 'local' ? 'wav' : 'mp3',
                 sourceLanguage: teacherLanguage,
                 targetLanguage: targetLanguage,
                 timestamp: Date.now(),
-                audioFormat: ttsResult.ttsServiceType === 'local' ? 'wav' : 'mp3',
                 ttsServiceType: ttsResult.ttsServiceType // Add the missing TTS service type
               };
 

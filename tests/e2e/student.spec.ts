@@ -20,7 +20,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
     await page.goto('http://127.0.0.1:5001/student'); // Use correct port for test environment
     await page.waitForLoadState('domcontentloaded');
 
-    // Verify connection status display
+    // Verify connection status display (still visible for no-code case)
     const connectionStatus = page.locator('#connection-status');
     await expect(connectionStatus).toBeVisible({ timeout: testConfig.ui.elementVisibilityTimeout });
     await expect(connectionStatus.locator('span')).toContainText('No classroom code provided');
@@ -45,24 +45,26 @@ test.describe('Student Interface - Basic Scenarios', () => {
     // The selector might need to be more specific if '.container' is too generic
     await expect(page.locator('body')).toContainText(`Joining Classroom: ${classroomCode}`);
 
-    // Verify language is auto-selected (assuming 'en-US' is the first real option in dropdown)
+    // New UX: language not auto-selected
     const languageDropdown = page.locator('#language-dropdown');
-    await expect(languageDropdown).toHaveValue('en-US');
+    await expect(languageDropdown).toHaveValue('');
 
-    // Verify selected language display is updated
-    await expect(page.locator('#selected-language')).toContainText('Selected: 🇺🇸 English (United States)');
+    // Selected language display starts empty
+    await expect(page.locator('#selected-language')).toHaveText('');
 
-    // Verify connection status is initially disconnected
-    const connectionStatus = page.locator('#connection-status');
-    await expect(connectionStatus.locator('span')).toContainText('Disconnected');
+    // Connection status hidden until language is selected
+    const connectionStatus2 = page.locator('#connection-status');
+    await expect(connectionStatus2).toBeHidden();
     // await expect(connectionStatus.locator('.indicator')).toHaveClass(/disconnected/); // Class check can be sensitive, let's focus on text for now
 
-    // Verify translation display shows the waiting message
-    const translationDisplay = page.locator('#translation-display');
-    await expect(translationDisplay).toContainText('Waiting for teacher to start speaking...');
+    // Translation area hidden until connected
+    const translationContainer = page.locator('#translation-step');
+    await expect(translationContainer).toBeHidden();
 
-    // Verify Connect button is enabled and has correct text
+    // Select a language to reveal connect controls
+    await page.selectOption('#language-dropdown', { index: 1 });
     const connectButton = page.locator('#connect-btn');
+    await expect(connectButton).toBeVisible();
     await expect(connectButton).toBeEnabled();
     await expect(connectButton).toHaveText('Connect to Session', { timeout: testConfig.ui.elementVisibilityTimeout });
 
@@ -70,34 +72,27 @@ test.describe('Student Interface - Basic Scenarios', () => {
     await expect(page.locator('#play-button')).toBeDisabled();
   });
 
-  test('should attempt to connect and handle failure for a non-existent classroom code', async () => {
+  test('should show error immediately for non-existent classroom code and keep connect hidden', async () => {
     const nonExistentCode = 'NONEXISTENTCODE123';
     await page.goto(`http://127.0.0.1:5001/student?code=${nonExistentCode}`); // Use correct port for test environment
     await page.waitForLoadState('domcontentloaded');
 
-    // Verify initial state: language auto-selected, connect button enabled
-    await expect(page.locator('#language-dropdown')).toHaveValue('en-US');
-    await expect(page.locator('#selected-language')).toContainText('Selected: 🇺🇸 English (United States)');
-    const connectButton = page.locator('#connect-btn');
-    await expect(connectButton).toBeEnabled();
-    await expect(connectButton).toHaveText('Connect to Session', { timeout: testConfig.ui.elementVisibilityTimeout });
-
-    // Click the connect button
-    await connectButton.click();
+    // New UX: invalid code shows error and no connect controls initially
+    await expect(page.locator('#connection-status')).toBeHidden();
 
     // Wait for the error message in the translation display (allow formatted prefix like "❌ Error")
     const translationDisplay = page.locator('#translation-display');
     await expect(translationDisplay).toContainText('Classroom session expired or invalid. Please ask teacher for new link.', { timeout: testConfig.ui.teacherRegistrationTimeout });
 
-    // Verify connection status updates to disconnected
-    const connectionStatus = page.locator('#connection-status');
-    await expect(connectionStatus.locator('span')).toContainText('Disconnected');
+    // Status remains hidden for invalid code path
+    const connectionStatus3 = page.locator('#connection-status');
+    await expect(connectionStatus3).toBeHidden();
     // await expect(connectionStatus.locator('.indicator')).toHaveClass(/disconnected/);
 
-    // Connect button should be enabled again and show "Connect to Session"
-    await expect(connectButton).toBeEnabled();
-    await expect(connectButton).toHaveText('Connect to Session', { timeout: testConfig.ui.elementVisibilityTimeout });
-    // await expect(connectButton).not.toHaveClass(/connected/);
+    // Selecting a language should NOT reveal connect when code is invalid
+    await page.selectOption('#language-dropdown', { index: 1 });
+    const connectButton2 = page.locator('#connect-btn');
+    await expect(connectButton2).toBeHidden();
 
     // Play button should remain disabled
     await expect(page.locator('#play-button')).toBeDisabled();
@@ -122,12 +117,10 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
       // 2. Student Setup
       studentPage = await browser.newPage();
-      await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`); // Use correct port for test environment
+      await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
       await studentPage.waitForLoadState('domcontentloaded');
-      // Assuming student defaults to or selects a language, e.g., en-US for this test flow
-      // If student needs to select French to match mocked translation, add that step.
-      await expect(studentPage.locator('#language-dropdown')).toHaveValue('en-US'); 
-      await expect(studentPage.locator('#selected-language')).toContainText('Selected: 🇺🇸 English (United States)');
+      // New UX: explicitly select a language first
+      await studentPage.selectOption('#language-dropdown', { index: 1 });
       const studentConnectButton = studentPage.locator('#connect-btn');
       await expect(studentConnectButton).toBeEnabled();
 

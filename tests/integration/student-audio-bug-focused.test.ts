@@ -81,6 +81,8 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
     console.log('🚨 [CRITICAL TEST] Testing TTS service - THE CORE OF THE BUG...');
     
     try {
+      // Force free-hq local TTS path during this test
+      speechOrchestrator.updateConfig({ ttsTier: 'free-hq' });
       const ttsResult = await speechOrchestrator.synthesizeSpeech('Hola mundo', 'es-ES');
       
       console.log('🔊 TTS Result structure:', {
@@ -90,11 +92,10 @@ describe('🚨 CRITICAL: Student Audio Bug - Minimal Test', () => {
         error: ttsResult.error
       });
 
-      // CRITICAL ASSERTIONS - This is where the audio bug manifests
+      // CRITICAL ASSERTIONS - Require non-empty audio from free-hq
       expect(ttsResult).toBeDefined();
       expect(ttsResult.audioBuffer).toBeDefined();
-      // Allow empty buffer if service defaults to browser/placeholder in CI
-      expect(ttsResult.audioBuffer.length).toBeGreaterThanOrEqual(0);
+      expect(ttsResult.audioBuffer.length).toBeGreaterThan(0);
       expect(ttsResult.ttsServiceType).toBeDefined();
       expect(ttsResult.error).toBeUndefined();
 

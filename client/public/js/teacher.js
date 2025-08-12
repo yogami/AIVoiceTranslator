@@ -62,6 +62,18 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
 (function() {
     console.log('[DEBUG] teacher.js: IIFE executed.');
+    // Enable WS audio streaming/final-send from URL flags for easy control
+    try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('stream') === '1') {
+            window.SEND_AUDIO_STREAMING = '1';
+            console.log('[DEBUG] URL flag stream=1 → enabled SEND_AUDIO_STREAMING');
+        }
+        if (url.searchParams.get('clientstt') === '1') {
+            window.CLIENT_STT_TO_SERVER_ENABLED = '1';
+            console.log('[DEBUG] URL flag clientstt=1 → enabled CLIENT_STT_TO_SERVER_ENABLED');
+        }
+    } catch (_) {}
     const appState = {
         ws: null,
         rtc: null,
@@ -75,7 +87,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         mediaReady: false, // Whether microphone has been initialized (iOS needs user gesture)
         readyToRecord: false, // True after WS connected, registered, and sessionId present
         lastSegmentBlob: null, // Last recorded audio segment for manual send
-        translationMode: 'auto' // 'auto' | 'manual' (UI toggle)
+        translationMode: 'auto', // 'auto' | 'manual' (UI toggle)
+        lastFinalTranscriptText: '' // caches last final transcript while recording
         // connectedStudents: new Map(), // Not currently used, for future student list feature
     };
 
@@ -744,6 +757,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         }
                         // Display locally as well
                         uiUpdater.displayTranscription(finalTranscript, true);
+                        // Cache last final transcript so we can send once on stop if needed
+                        appState.lastFinalTranscriptText = finalTranscript;
                         // In manual mode, populate the manual text area for review/send
                         if (isManualModeEnabled()) {
                             const ta = document.getElementById('manualText');
@@ -826,6 +841,18 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             
             uiUpdater.setRecordButtonToStopped();
             uiUpdater.updateStatus('Recording stopped');
+
+            // In stream+clientstt mode, proactively send the final transcript text once on stop
+            // This ensures students receive a translation+TTS even if audio decode fails upstream.
+            try {
+                const url = new URL(window.location.href);
+                const streamEnabled = url.searchParams.get('stream') === '1' || window.SEND_AUDIO_STREAMING === '1';
+                const clientSttEnabled = url.searchParams.get('clientstt') === '1' || window.CLIENT_STT_TO_SERVER_ENABLED === '1';
+                if (streamEnabled && clientSttEnabled && appState.lastFinalTranscriptText) {
+                    webSocketHandler.sendTranscription(appState.lastFinalTranscriptText);
+                    console.log('[DEBUG] Sent final transcript text on stop to ensure delivery.');
+                }
+            } catch (_) {}
         }
     };
 

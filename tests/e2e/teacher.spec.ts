@@ -574,10 +574,8 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.goto(`${getStudentURL(classroomCode || '')}&wsparam=code`);
         await studentPage.waitForLoadState('domcontentloaded');
 
-        // Student selects a language (e.g., Spanish)
+        // Student selects a language (e.g., Spanish) then connects
         await studentPage.selectOption('#language-dropdown', 'es-ES');
-        
-        // Student clicks the connect button
         await studentPage.click('#connect-btn');
         
         // Verify student connected status on student page
@@ -608,9 +606,8 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.goto(`${getStudentURL(classroomCode || '')}&wsparam=code`);
         await studentPage.waitForLoadState('domcontentloaded');
         
-        // Student selects initial language (e.g., Spanish)
+        // Student selects initial language then connects
         await studentPage.selectOption('#language-dropdown', 'es-ES');
-        // Student clicks connect
         await studentPage.click('#connect-btn');
         await expect(studentPage.locator('#connection-status')).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });
         
@@ -652,7 +649,7 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.waitForLoadState('domcontentloaded');
 
         // Student selects language and connects (retry once if needed)
-        await studentPage.selectOption('#language-dropdown', 'fr-FR'); // French for this test
+        await studentPage.selectOption('#language-dropdown', 'fr-FR');
         await studentPage.click('#connect-btn');
         const connStatus1 = studentPage.locator('#connection-status');
         try {
@@ -672,8 +669,8 @@ test.describe('Teacher Interface - Comprehensive Test Suite', () => {
         await studentPage.waitForLoadState('domcontentloaded');
         
         // After reload, student needs to select language and click connect again (with retry)
-        await studentPage.selectOption('#language-dropdown', 'fr-FR'); // Re-select language
-        await studentPage.click('#connect-btn'); // Re-click connect
+        await studentPage.selectOption('#language-dropdown', 'fr-FR');
+        await studentPage.click('#connect-btn');
         const connStatus2 = studentPage.locator('#connection-status');
         try {
           await expect(connStatus2).toContainText('Connected', { timeout: testConfig.ui.connectionStatusTimeout });

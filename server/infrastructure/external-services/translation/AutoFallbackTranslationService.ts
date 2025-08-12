@@ -38,26 +38,17 @@ export function createAutoFallbackTranslationService(): ITranslationService {
   let primaryService: ITranslationService;
   let fallbackService: ITranslationService;
 
-  // QUALITY-OPTIMIZED: Primary = OpenAI (if available); Fallback = DeepSeek → MyMemory
+  // QUALITY-OPTIMIZED: Primary = OpenAI (if available); Fallback = MyMemory
   if (openaiApiKey) {
     const openai = new OpenAI({ apiKey: openaiApiKey });
     primaryService = new OpenAITranslationService(openai);
     // Prefer a free fallback when available
-    try {
-      fallbackService = new DeepSeekTranslationService();
-    } catch {
-      fallbackService = new MyMemoryTranslationService();
-    }
+    fallbackService = new MyMemoryTranslationService();
   } else {
     // No OpenAI key: pick best free first, then MyMemory
-    try {
-      primaryService = new DeepSeekTranslationService();
-      fallbackService = new MyMemoryTranslationService();
-    } catch {
-      primaryService = new MyMemoryTranslationService();
-      // last resort: echo
-      fallbackService = { translate: async (text) => text } as ITranslationService;
-    }
+    primaryService = new MyMemoryTranslationService();
+    // last resort: echo
+    fallbackService = { translate: async (text) => text } as ITranslationService;
   }
 
   return new AutoFallbackTranslationService(primaryService, fallbackService);
