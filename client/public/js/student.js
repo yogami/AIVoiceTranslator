@@ -18,6 +18,7 @@
         languageDropdown: null,
         selectedLanguageDisplay: null,
         playButton: null,
+        playOriginalButton: null,
         volumeControl: null,
         container: null, // For inserting classroomInfo
         h1Element: null, // For inserting classroomInfo
@@ -148,6 +149,15 @@
                     <strong>Translation:</strong> ${translatedText}
                 </div>
             `;
+            // Enable original audio button if original audio is included and feature is on
+            if (domElements.playOriginalButton) {
+                const hasOriginal = !!data.originalAudioData;
+                domElements.playOriginalButton.disabled = !hasOriginal;
+                if (hasOriginal) {
+                    appState.originalAudioData = data.originalAudioData;
+                    appState.originalAudioFormat = data.originalAudioFormat || 'mp3';
+                }
+            }
         },
 
         showAudioErrorInDisplay: function() {
@@ -397,6 +407,7 @@
         domElements.languageDropdown = document.getElementById('language-dropdown');
         domElements.selectedLanguageDisplay = document.getElementById('selected-language');
         domElements.playButton = document.getElementById('play-button');
+        domElements.playOriginalButton = document.getElementById('play-original-button');
         domElements.volumeControl = document.getElementById('volume-control');
         domElements.container = document.querySelector('.container');
         domElements.h1Element = document.querySelector('h1');
@@ -505,6 +516,7 @@
     function setupWebSocket() {
         if (domElements.connectButton) domElements.connectButton.addEventListener('click', toggleConnection);
         if (domElements.playButton) domElements.playButton.addEventListener('click', playCurrentAudio);
+        if (domElements.playOriginalButton) domElements.playOriginalButton.addEventListener('click', playOriginalAudio);
         const dl = document.getElementById('download-audio');
         if (dl) {
             dl.addEventListener('click', function() {
@@ -602,6 +614,13 @@
             console.error('Error creating audio:', error);
             uiUpdater.showAudioErrorInDisplay();
         }
+    }
+
+    function playOriginalAudio() {
+        try {
+            if (!appState.originalAudioData) return;
+            playAudio(appState.originalAudioData, appState.originalAudioFormat || 'mp3');
+        } catch (_) {}
     }
 
     function speakWithBrowserTTS(text, languageCode, autoPlay = true) {

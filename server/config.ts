@@ -16,6 +16,10 @@ interface AppConfig {
     port: number;
     host: string;
   };
+  features?: {
+    twoWayCommunication: boolean;
+    originalSourceAudio?: boolean;
+  };
   app: {
     environment: 'development' | 'production' | 'test';
     logLevel: 'debug' | 'info' | 'warn' | 'error';
@@ -150,6 +154,16 @@ export const config: AppConfig = {
         }
       }
       return host;
+    })(),
+  },
+  features: {
+    twoWayCommunication: (() => {
+      const val = (process.env.FEATURE_TWO_WAY_COMMUNICATION || '').toLowerCase();
+      return val === '1' || val === 'true' || val === 'yes' || val === 'on';
+    })(),
+    originalSourceAudio: (() => {
+      const val = (process.env.FEATURE_ORIGINAL_SOURCE_AUDIO || '').toLowerCase();
+      return val === '1' || val === 'true' || val === 'yes' || val === 'on';
     })(),
   },
   app: {
