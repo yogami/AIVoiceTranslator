@@ -29,6 +29,8 @@ describe('Student UI Original Audio Button (component smoke)', () => {
   it('enables Play Original button when originalAudioData is present', async () => {
     // Load student script (will attach handlers)
     await import('../../../client/public/js/student.js');
+    // Fire DOMContentLoaded to allow student.js to cache DOM elements
+    document.dispatchEvent(new (window as any).Event('DOMContentLoaded'));
     const handle = (window as any).handleWebSocketMessage;
     expect(typeof handle).toBe('function');
 
