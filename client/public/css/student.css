@@ -209,8 +209,12 @@ button:disabled {
 }
 
 .audio-controls {
-    text-align: center;
+    text-align: left;
     margin: 20px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 #play-button {
@@ -237,12 +241,11 @@ button:disabled {
     color: white;
 }
 
-/* Layout: place buttons next to each other with nice spacing on mobile */
-.audio-controls {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
+/* Ensure UI V2 doesn't force full-width in inline layout */
+body.ui-v2 .audio-controls #play-button,
+body.ui-v2 .audio-controls #play-original-button {
+    width: auto;
+    margin-bottom: 0;
 }
 
 #play-button:hover:not(:disabled) {
