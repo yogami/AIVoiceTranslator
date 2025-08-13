@@ -220,6 +220,31 @@ button:disabled {
     padding: 14px 22px;
 }
 
+/* Match Play Original (AI) styling with Play Translation */
+#play-original-button {
+    background: linear-gradient(135deg, #6a5cff, #6fc5ff);
+    color: white;
+    font-size: 1.05rem;
+    padding: 14px 22px;
+}
+
+/* Keep gradient look when disabled, just lower opacity */
+#play-button:disabled,
+#play-original-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: linear-gradient(135deg, #6a5cff, #6fc5ff);
+    color: white;
+}
+
+/* Layout: place buttons next to each other with nice spacing on mobile */
+.audio-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
 #play-button:hover:not(:disabled) {
     background: #218838;
 }
