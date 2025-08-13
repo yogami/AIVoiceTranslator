@@ -13,6 +13,17 @@ describe('Student UI Original Audio Button (component smoke)', () => {
     (global as any).window = dom.window as any;
     (global as any).document = dom.window.document as any;
     (window as any).VITE_WS_URL = 'ws://test';
+    // Stub Audio to avoid play errors in JSDOM
+    (global as any).Audio = function() {
+      return {
+        load: () => {},
+        play: () => Promise.resolve(),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        set src(_v: string) {},
+        set volume(_v: number) {},
+      } as any;
+    } as any;
   });
 
   it('enables Play Original button when originalAudioData is present', async () => {
@@ -27,8 +38,6 @@ describe('Student UI Original Audio Button (component smoke)', () => {
       type: 'translation',
       originalText: 'Hello',
       text: 'Hola',
-      audioData: base64,
-      audioFormat: 'mp3',
       originalAudioData: base64,
       originalAudioFormat: 'mp3',
     });
