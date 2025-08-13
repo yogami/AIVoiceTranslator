@@ -18,7 +18,6 @@ interface AppConfig {
   };
   features?: {
     twoWayCommunication: boolean;
-    originalSourceAudio?: boolean;
   };
   app: {
     environment: 'development' | 'production' | 'test';
@@ -159,10 +158,6 @@ export const config: AppConfig = {
   features: {
     twoWayCommunication: (() => {
       const val = (process.env.FEATURE_TWO_WAY_COMMUNICATION || '').toLowerCase();
-      return val === '1' || val === 'true' || val === 'yes' || val === 'on';
-    })(),
-    originalSourceAudio: (() => {
-      const val = (process.env.FEATURE_ORIGINAL_SOURCE_AUDIO || '').toLowerCase();
       return val === '1' || val === 'true' || val === 'yes' || val === 'on';
     })(),
   },

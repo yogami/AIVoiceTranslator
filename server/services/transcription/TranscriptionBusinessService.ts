@@ -132,21 +132,18 @@ export class TranscriptionBusinessService {
       }
     }
 
-    // Optionally synthesize original-source audio once (teacherLanguage) when feature is enabled
+    // Always synthesize original-source audio once (teacherLanguage)
     let originalAudioBase64: string | null = null;
     let originalAudioFormat: 'mp3' | 'wav' | undefined;
     try {
-      const { config } = await import('../../config');
-      if (config.features?.originalSourceAudio) {
-        const originalTTS = await this.speechPipelineOrchestrator.synthesizeSpeech(
-          text,
-          teacherLanguage
-        );
-        originalAudioBase64 = originalTTS.audioBuffer.toString('base64');
-        originalAudioFormat = originalTTS.ttsServiceType === 'local' ? 'wav' : 'mp3';
-      }
+      const originalTTS = await this.speechPipelineOrchestrator.synthesizeSpeech(
+        text,
+        teacherLanguage
+      );
+      originalAudioBase64 = originalTTS.audioBuffer.toString('base64');
+      originalAudioFormat = originalTTS.ttsServiceType === 'local' ? 'wav' : 'mp3';
     } catch (e) {
-      // If feature not available or TTS fails, continue without original audio
+      // Continue without original audio if TTS fails
       originalAudioBase64 = null;
     }
 
