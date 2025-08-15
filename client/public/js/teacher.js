@@ -969,30 +969,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             });
         }
         
-        // Classroom Mode controls → send settings to server
-        try {
-            const modeGroup = document.getElementById('classroomModeGroup');
-            if (modeGroup) {
-                const radios = modeGroup.querySelectorAll('input[name="classroomMode"]');
-                const sendMode = (mode) => {
-                    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
-                        appState.ws.send(JSON.stringify({ type: 'settings', settings: { classroomMode: mode } }));
-                        uiUpdater.toast(`Classroom mode: ${mode}`, 'info');
-                    }
-                };
-                radios.forEach(r => r.addEventListener('change', () => { if (r.checked) sendMode(r.value); }));
-                // Send initial default once connected (retry loop)
-                const tryInitial = () => {
-                    const checked = Array.from(radios).find((r) => r.checked);
-                    if (checked && appState.ws && appState.ws.readyState === WebSocket.OPEN) {
-                        sendMode(checked.value);
-                        return true;
-                    }
-                    return false;
-                };
-                let attempts = 0; const iv = setInterval(() => { if (tryInitial() || ++attempts > 30) clearInterval(iv); }, 200);
-            }
-        } catch(_) {}
+        // Classroom Mode controls are hidden/disabled for now
         // Wire translation mode toggle when manual UI is enabled
         try {
             const url = new URL(window.location.href);
