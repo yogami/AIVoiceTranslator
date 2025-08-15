@@ -2,7 +2,7 @@
  * Component Tests for Translation Auto-Fallback Service
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { createAutoFallbackTranslationService } from '../../../server/services/translation/TranslationServiceFactory';
+import { getTranslationService } from '../../../server/infrastructure/factories/TranslationServiceFactory';
 
 describe('Translation Auto-Fallback Component Tests', () => {
   let originalEnv: any;
@@ -19,7 +19,7 @@ describe('Translation Auto-Fallback Component Tests', () => {
   it('should attempt OpenAI first when available', async () => {
     process.env.OPENAI_API_KEY = 'test-key';
     
-    const service = createAutoFallbackTranslationService();
+    const service = getTranslationService('auto');
     
     // Test with a simple translation that should work with MyMemory fallback
     try {
@@ -36,7 +36,7 @@ describe('Translation Auto-Fallback Component Tests', () => {
   it('should fallback to MyMemory when OpenAI fails with rate limit', async () => {
     process.env.OPENAI_API_KEY = 'test-key';
     
-    const service = createAutoFallbackTranslationService();
+    const service = getTranslationService('auto');
     
     // Test fallback behavior - this should use MyMemory
     try {
@@ -50,14 +50,14 @@ describe('Translation Auto-Fallback Component Tests', () => {
   });
 
   it('should handle empty text correctly', async () => {
-    const service = createAutoFallbackTranslationService();
+    const service = getTranslationService('auto');
     
     const result = await service.translate('', 'en-US', 'fr-FR');
     expect(result).toBe('');
   });
 
   it('should handle same source and target language', async () => {
-    const service = createAutoFallbackTranslationService();
+    const service = getTranslationService('auto');
     
     const testText = 'Hello world';
     const result = await service.translate(testText, 'en-US', 'en-US');
@@ -65,7 +65,7 @@ describe('Translation Auto-Fallback Component Tests', () => {
   });
 
   it('should maintain service state across multiple calls', async () => {
-    const service = createAutoFallbackTranslationService();
+    const service = getTranslationService('auto');
     
     // Multiple calls should work consistently
     const calls = [];
@@ -116,7 +116,7 @@ describe('Translation Auto-Fallback Component Tests', () => {
   });
 
   it('should handle concurrent translation requests correctly', async () => {
-    const service = createAutoFallbackTranslationService();
+    const service = getTranslationService('auto');
     
     // Test concurrent requests
     const promises = Array(5).fill(null).map((_, i) => 

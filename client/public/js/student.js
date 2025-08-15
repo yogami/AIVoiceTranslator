@@ -20,12 +20,17 @@
         playButton: null,
         playOriginalButton: null,
         volumeControl: null,
+        lowLiteracyToggle: null,
         container: null, // For inserting classroomInfo
         h1Element: null, // For inserting classroomInfo
         languageStep: null,
         connectStep: null,
         translationStep: null,
-        audioStep: null
+        audioStep: null,
+        askStep: null,
+        askInput: null,
+        askSend: null,
+        askPTT: null
     };
 
     const uiUpdater = {
@@ -113,6 +118,13 @@
                 domElements.translationStep?.classList.remove('hidden');
                 domElements.audioStep?.classList.remove('hidden');
                 domElements.connectionStatus?.classList.remove('hidden');
+                // Two-way UI (ask) when enabled
+                if (window.location.search.includes('twoWay=1')) {
+                    domElements.askStep?.classList.remove('hidden');
+                    if (domElements.askSend && domElements.askInput) {
+                        domElements.askSend.disabled = domElements.askInput.value.trim().length === 0;
+                    }
+                }
             } else {
                 domElements.connectionStatus.className = 'status disconnected';
                 if (indicator) indicator.className = 'indicator disconnected';
@@ -130,6 +142,7 @@
                 domElements.translationStep?.classList.add('hidden');
                 domElements.audioStep?.classList.add('hidden');
                 domElements.connectionStatus?.classList.remove('hidden');
+                domElements.askStep?.classList.add('hidden');
             }
         },
 
@@ -201,7 +214,13 @@
             
             console.log('[DEBUG] Connecting to WebSocket:', wsUrl, 'Lang:', appState.selectedLanguage);
             try {
-                appState.ws = new WebSocket(wsUrl);
+                // Append twoWay flag if present in page URL to inform server
+                const u = new URL(wsUrl);
+                const pageTwoWay = new URL(window.location.href).searchParams.get('twoWay');
+                if (pageTwoWay && !u.searchParams.has('twoWay')) {
+                    u.searchParams.set('twoWay', pageTwoWay);
+                }
+                appState.ws = new WebSocket(u.toString());
                 console.log('[DEBUG] WebSocket object created successfully');
             } catch (error) {
                 console.error('[DEBUG] Error creating WebSocket:', error);
@@ -251,7 +270,7 @@
                     type: 'register',
                     role: 'student',
                     languageCode: appState.selectedLanguage,
-                    classroomCode: classroomCode 
+                    classroomCode: classroomCode
                 };
                 console.log('[DEBUG] Sending student registration:', message);
                 appState.ws.send(JSON.stringify(message));
@@ -415,6 +434,10 @@
         domElements.connectStep = document.getElementById('connect-step');
         domElements.translationStep = document.getElementById('translation-step');
         domElements.audioStep = document.getElementById('audio-step');
+        domElements.askStep = document.getElementById('ask-step');
+        domElements.askInput = document.getElementById('ask-input');
+        domElements.askSend = document.getElementById('ask-send');
+        domElements.askPTT = document.getElementById('ask-ptt');
 
         setupLanguageSelection();
 
@@ -430,6 +453,27 @@
         uiUpdater.showJoiningClassroomInfo(appState.classroomCode);
 
         setupWebSocket();
+
+        // Low-literacy toggle wiring: send settings to server so it can optimize delivery
+        domElements.lowLiteracyToggle = document.getElementById('low-literacy-toggle');
+        if (domElements.lowLiteracyToggle) {
+            domElements.lowLiteracyToggle.addEventListener('change', () => {
+                try {
+                    if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                        const allow = !!domElements.lowLiteracyToggle.checked;
+                        window.appState.ws.send(JSON.stringify({ type: 'settings', settings: { lowLiteracyMode: allow } }));
+                    }
+                } catch (_) {}
+            });
+        }
+
+        // Two-way: enable ask UI when ?twoWay=1
+        try {
+            const twoWay = new URL(window.location.href).searchParams.get('twoWay') === '1';
+            if (twoWay && domElements.askStep) {
+                domElements.askStep.classList.remove('hidden');
+            }
+        } catch (_) {}
 
         // Initial step visibility: show only language step; status/connect appear after selection
         domElements.connectionStatus?.classList.add('hidden');
@@ -482,6 +526,64 @@
                 }
             });
     });
+
+    // Send student_request when ask-send clicked
+    function setupAskHandlers() {
+        if (!domElements.askSend || !domElements.askInput) return;
+        domElements.askInput.addEventListener('input', () => {
+            const hasText = domElements.askInput.value.trim().length > 0;
+            if (domElements.askSend) domElements.askSend.disabled = !hasText || !appState.isConnected;
+        });
+        domElements.askSend.addEventListener('click', () => {
+            try {
+                if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) return;
+                const text = domElements.askInput.value.trim();
+                if (!text) return;
+                const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
+                const msg = { type: 'student_request', text, visibility: vis };
+                appState.ws.send(JSON.stringify(msg));
+                domElements.askInput.value = '';
+                domElements.askSend.disabled = true;
+            } catch (e) { console.warn('Failed to send student_request', e); }
+        });
+
+        // Push-to-talk (hold to send short audio, then STT on server)
+        if (domElements.askPTT) {
+            let mediaRecorder = null;
+            let chunks = [];
+            const start = async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    chunks = [];
+                    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+                    mediaRecorder.onstop = async () => {
+                        try {
+                            if (chunks.length === 0) return;
+                            const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                const base64Audio = String(reader.result).split(',')[1];
+                                const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
+                                const msg = { type: 'student_audio', data: base64Audio, language: appState.selectedLanguage, visibility: vis };
+                                try { appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.ws.send(JSON.stringify(msg)); } catch (_) {}
+                            };
+                            reader.readAsDataURL(blob);
+                        } catch (_) {}
+                    };
+                    mediaRecorder.start();
+                } catch (e) { console.warn('PTT start failed', e); }
+            };
+            const stop = () => { try { mediaRecorder && mediaRecorder.state === 'recording' && mediaRecorder.stop(); } catch(_) {} };
+            domElements.askPTT.addEventListener('mousedown', start);
+            domElements.askPTT.addEventListener('touchstart', start);
+            domElements.askPTT.addEventListener('mouseup', stop);
+            domElements.askPTT.addEventListener('mouseleave', stop);
+            domElements.askPTT.addEventListener('touchend', stop);
+        }
+    }
+
+    setupAskHandlers();
 
     function autoSelectFirstLanguage() { /* intentionally disabled for guided UX */ }
 

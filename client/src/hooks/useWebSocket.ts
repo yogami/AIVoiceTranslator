@@ -30,7 +30,11 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     }
     
     try {
-      wsRef.current = new WebSocket(wsUrl);
+      // Append twoWay URL parameter to toggle feature per-connection, defaults to env flag
+      const flag = clientConfig.features.twoWayCommunication ? '1' : '0';
+      const url = new URL(wsUrl);
+      if (!url.searchParams.has('twoWay')) url.searchParams.set('twoWay', flag);
+      wsRef.current = new WebSocket(url.toString());
 
       wsRef.current.onopen = () => {
         console.log('WebSocket connected');

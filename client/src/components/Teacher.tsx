@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'wouter';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { clientConfig } from '../config/client-config';
 
 const Teacher: React.FC = () => {
   const [classroomCode, setClassroomCode] = useState<string>('');
@@ -12,6 +13,8 @@ const Teacher: React.FC = () => {
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  const [requests, setRequests] = useState<Array<{ requestId: string; name?: string; languageCode?: string; text: string }>>([]);
 
   const { isConnected, sendMessage } = useWebSocket({
     onOpen: () => {
@@ -28,6 +31,9 @@ const Teacher: React.FC = () => {
         setClassroomCode(data.code);
       } else if (data.type === 'error') {
         setError(data.message);
+      } else if (clientConfig.features.twoWayCommunication && data.type === 'student_request') {
+        const p = data.payload || {};
+        setRequests(prev => [{ requestId: p.requestId, name: p.name, languageCode: p.languageCode, text: p.text }, ...prev].slice(0, 50));
       }
     }
   });
@@ -178,6 +184,25 @@ const Teacher: React.FC = () => {
         <h3>Your Speech (Transcribed):</h3>
         <div id="transcript">{transcript || 'Start speaking to see transcription...'}</div>
       </div>
+
+      {clientConfig.features.twoWayCommunication && (
+        <div className="requests-panel" style={{ marginTop: 20 }}>
+          <h3>Student Requests</h3>
+          {requests.length === 0 && <div>No requests yet</div>}
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {requests.map((r) => (
+              <li key={r.requestId} style={{ borderBottom: '1px solid #eee', padding: '8px 0' }}>
+                <div style={{ fontWeight: 600 }}>{r.name || 'Unknown Student'} <span style={{ color: '#666' }}>{r.languageCode ? `(${r.languageCode})` : ''}</span></div>
+                <div style={{ margin: '4px 0' }}>{r.text}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn" onClick={() => sendMessage({ type: 'teacher_reply', text: 'I will explain next', scope: 'class' })}>Reply to class</button>
+                  <button className="btn" onClick={() => sendMessage({ type: 'teacher_reply', text: 'I will help you now', scope: 'private', requestId: r.requestId })}>Reply privately</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

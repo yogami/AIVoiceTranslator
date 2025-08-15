@@ -173,6 +173,24 @@
             <label for="volume-control" style="margin-left:4px;">Volume</label>
             <input type="range" id="volume-control" min="0" max="1" step="0.1" value="0.8">
             <div class="helper-text" aria-live="polite">The Original (AI) button plays the teacher’s sentence synthesized in the teacher’s language. Availability depends on feature flag.</div>
+            <div style="margin-top:8px;">
+              <label><input type="checkbox" id="low-literacy-toggle"> Read text aloud automatically (Low‑literacy mode)</label>
+            </div>
+        </div>
+
+        <!-- Two-Way: Ask the Teacher (shown when ?twoWay=1) -->
+        <div class="ask-section hidden" id="ask-step" style="margin-top:16px;">
+            <h3>🗣️ Ask the Teacher</h3>
+            <textarea id="ask-input" rows="2" style="width:100%; max-width:640px;" placeholder="Type your question..."></textarea>
+            <div style="margin-top:6px;">
+                <label><input type="radio" name="ask-visibility" value="private" checked> Private</label>
+                <label style="margin-left:12px;"><input type="radio" name="ask-visibility" value="class"> Ask to class</label>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button id="ask-send" disabled>Send</button>
+              <button id="ask-ptt">🎤 Hold to Speak</button>
+            </div>
+            <div class="helper-text">Your message will be translated to the teacher’s language.</div>
         </div>
         
     </div>

@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-describe('TranscriptionBusinessService (Original Source Audio FF)', () => {
+describe('TranscriptionBusinessService (Original Source Audio included)', () => {
   beforeEach(() => {
-    // Enable feature flag for this test run
-    process.env.FEATURE_ORIGINAL_SOURCE_AUDIO = '1';
+    // No flag now; feature is default
   });
 
-  it('includes originalAudioData and originalAudioFormat when feature flag is enabled', async () => {
+  it('includes originalAudioData and originalAudioFormat in outgoing translation message', async () => {
     // Arrange mocks
     const fakeBuffer = Buffer.from('test-audio');
     const synthesizeSpeech = vi.fn(async (text: string, lang: string) => ({

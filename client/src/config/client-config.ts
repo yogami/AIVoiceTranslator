@@ -11,6 +11,9 @@ interface ClientConfig {
     maxReconnectAttempts: number;
     reconnectDelay: number;
   };
+  features: {
+    twoWayCommunication: boolean;
+  };
   audio: {
     // Audio recording settings
     speechRecognitionRestartDelay: number;
@@ -89,6 +92,11 @@ export const clientConfig: ClientConfig = {
     reconnectDelay: scaleForTest(
       getEnvNumber('VITE_WS_RECONNECT_DELAY_MS', 3000)
     ),
+  },
+  features: {
+    twoWayCommunication: ((import.meta as any).env.VITE_FEATURE_TWO_WAY_COMMUNICATION || 'false')
+      .toString().toLowerCase() 
+      .match(/^(1|true|yes|on)$/) !== null
   },
   audio: {
     speechRecognitionRestartDelay: scaleForTest(

@@ -224,6 +224,14 @@
             <button id="recordButton">Start Recording</button>
         </div>
         
+        <!-- Classroom Mode (feature-flagged, simple control) -->
+        <div class="control-group" id="classroomModeGroup" style="display:block; gap:10px; align-items:center;">
+            <label style="margin-right: 8px;">Classroom Mode:</label>
+            <label><input type="radio" name="classroomMode" value="lecture" checked> Lecture</label>
+            <label style="margin-left: 12px;"><input type="radio" name="classroomMode" value="pair"> Pair</label>
+            <label style="margin-left: 12px;"><input type="radio" name="classroomMode" value="group"> Group</label>
+        </div>
+        
         <div class="status" id="status">Ready to connect</div>
         
         <div class="control-group">
@@ -265,6 +273,12 @@
                     <span id="session-duration">0:00</span>
                 </div>
             </div>
+        </div>
+
+        <!-- Two-Way: Student Requests Queue (shown when ?twoWay=1) -->
+        <div class="requests-queue" id="requestsQueue" style="display:none; margin-top:16px;">
+            <h3>📥 Student Requests</h3>
+            <div id="requestsList" style="display:flex; flex-direction:column; gap:8px;"></div>
         </div>
     </div>
 

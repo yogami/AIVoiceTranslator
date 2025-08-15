@@ -33,11 +33,15 @@ import {
 import { RegisterMessageHandler } from './websocket-services/RegisterMessageHandler';
 import { PingMessageHandler } from './websocket-services/PingMessageHandler';
 import { SettingsMessageHandler } from './websocket-services/SettingsMessageHandler';
+import { ComprehensionSignalMessageHandler } from './websocket-services/ComprehensionSignalMessageHandler';
 import { TranscriptionMessageHandler } from './websocket-services/TranscriptionMessageHandler';
 import { TTSRequestMessageHandler } from './websocket-services/TTSRequestMessageHandler';
 import { AudioMessageHandler } from './websocket-services/AudioMessageHandler';
 import { PongMessageHandler } from './websocket-services/PongMessageHandler';
 import { ManualSendTranslationHandler } from './websocket-services/ManualSendTranslationHandler';
+import { StudentRequestMessageHandler } from './websocket-services/StudentRequestMessageHandler';
+import { TeacherReplyMessageHandler } from './websocket-services/TeacherReplyMessageHandler';
+import { StudentAudioMessageHandler } from './websocket-services/StudentAudioMessageHandler';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -99,6 +103,8 @@ export class WebSocketServer implements IActiveSessionProvider {
   private static instances: Set<WebSocketServer> = new Set();
   private isShutdown = false;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  // Two-way request routing: sessionId -> (requestId -> student WebSocket)
+  private requestRouting: Map<string, Map<string, WebSocketClient>> = new Map();
 
   /**
    * Constructor with Dependency Injection
@@ -165,6 +171,7 @@ export class WebSocketServer implements IActiveSessionProvider {
     
     // Register message handlers (they know their own message type)
     this.messageHandlerRegistry.register(new RegisterMessageHandler());
+    this.messageHandlerRegistry.register(new ComprehensionSignalMessageHandler());
     this.messageHandlerRegistry.register(new PingMessageHandler());
     this.messageHandlerRegistry.register(new SettingsMessageHandler());
     this.messageHandlerRegistry.register(new TranscriptionMessageHandler());
@@ -172,6 +179,13 @@ export class WebSocketServer implements IActiveSessionProvider {
     this.messageHandlerRegistry.register(new TTSRequestMessageHandler());
     this.messageHandlerRegistry.register(new PongMessageHandler());
     this.messageHandlerRegistry.register(new ManualSendTranslationHandler());
+
+    // Two-way communication handlers (feature-flagged)
+    if (this.isTwoWayEnabled()) {
+      this.messageHandlerRegistry.register(new StudentRequestMessageHandler());
+      this.messageHandlerRegistry.register(new TeacherReplyMessageHandler());
+      this.messageHandlerRegistry.register(new StudentAudioMessageHandler());
+    }
     
     // Create message handler context with all required services
     const messageHandlerContext: Omit<MessageHandlerContext, 'ws'> = {
@@ -186,6 +200,34 @@ export class WebSocketServer implements IActiveSessionProvider {
     
     // Initialize message dispatcher with context
     this.messageDispatcher = new MessageDispatcher(this.messageHandlerRegistry, messageHandlerContext as MessageHandlerContext);
+  }
+
+  /**
+   * Runtime check for two-way feature flag that respects per-test env overrides.
+   */
+  private isTwoWayEnabled(): boolean {
+    const envVal = (process.env.FEATURE_TWO_WAY_COMMUNICATION || '').toLowerCase();
+    if (envVal === '1' || envVal === 'true' || envVal === 'yes' || envVal === 'on') return true;
+    if (envVal === '0' || envVal === 'false' || envVal === 'no' || envVal === 'off') return false;
+    return !!(config.features?.twoWayCommunication);
+  }
+
+  /**
+   * Register a mapping from a student requestId to the student's WebSocket within a session
+   */
+  public registerStudentRequest(sessionId: string, requestId: string, studentWs: WebSocketClient): void {
+    if (!sessionId || !requestId || !studentWs) return;
+    if (!this.requestRouting.has(sessionId)) this.requestRouting.set(sessionId, new Map());
+    this.requestRouting.get(sessionId)!.set(requestId, studentWs);
+  }
+
+  /**
+   * Resolve a student's WebSocket for a given session and requestId
+   */
+  public getStudentForRequest(sessionId: string, requestId: string): WebSocketClient | null {
+    const map = this.requestRouting.get(sessionId);
+    if (!map) return null;
+    return map.get(requestId) || null;
   }
 
   /**
@@ -649,6 +691,7 @@ export class WebSocketServer implements IActiveSessionProvider {
     this.messageHandlerRegistry.register(new TTSRequestMessageHandler());
     this.messageHandlerRegistry.register(new AudioMessageHandler());
     this.messageHandlerRegistry.register(new PongMessageHandler());
+    this.messageHandlerRegistry.register(new ComprehensionSignalMessageHandler());
     
     // Clean Architecture: All domain handlers now properly separated from transport layer
     // All handlers now use working message handlers instead of broken transport handlers

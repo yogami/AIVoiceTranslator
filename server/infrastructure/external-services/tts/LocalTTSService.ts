@@ -118,17 +118,19 @@ export class LocalTTSService implements ITTSService {
       
       console.log(`[Local TTS] Synthesizing "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}" using voice: ${voice}`);
       
-      // Generate audio using text2wav. Guard invalid voices in tests.
+      // Generate audio using text2wav unless disabled for component tests
       let audioData: Uint8Array = new Uint8Array();
-      try {
-        audioData = await this.text2wav(text, {
-          voice: voice,
-          speed: 170,
-          pitch: 50,
-          amplitude: 200 // boost
-        });
-      } catch (e) {
-        console.warn('[Local TTS] text2wav failed, will try CLI or test tone', e instanceof Error ? e.message : e);
+      if (process.env.DISABLE_TEXT2WAV !== '1') {
+        try {
+          audioData = await this.text2wav(text, {
+            voice: voice,
+            speed: 170,
+            pitch: 50,
+            amplitude: 200 // boost
+          });
+        } catch (e) {
+          console.warn('[Local TTS] text2wav failed, will try CLI or test tone', e instanceof Error ? e.message : e);
+        }
       }
 
       let audioBuffer = Buffer.from(audioData || new Uint8Array());

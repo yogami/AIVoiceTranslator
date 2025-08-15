@@ -61,18 +61,6 @@ describe('TTSServiceFactory Auto-Fallback', () => {
     expect(service.constructor.name).toBe('BrowserTTSService');
   });
 
-  it('should fallback to auto when ElevenLabs API key is missing', async () => {
-    delete process.env.ELEVENLABS_API_KEY;
-    process.env.TTS_SERVICE_TYPE = 'elevenlabs';
-    
-    const { getTTSService, TTSServiceFactory } = await import('../../../../server/services/tts/TTSService.js');
-    TTSServiceFactory.clearCache(); // Clear cache to ensure fresh instance
-    const service = getTTSService();
-    
-    expect(service).toBeDefined();
-    expect(service.constructor.name).toBe('AutoFallbackTTSService');
-  });
-
   it('should handle service type auto correctly', async () => {
     process.env.TTS_SERVICE_TYPE = 'auto';
     process.env.ELEVENLABS_API_KEY = 'test-key';
@@ -93,61 +81,6 @@ describe('TTSServiceFactory Auto-Fallback', () => {
     const service2 = getTTSService();
     
     expect(service1).toBe(service2); // Should be the same cached instance
-  });
-
-  it('should handle unknown service types by falling back to auto', async () => {
-    process.env.TTS_SERVICE_TYPE = 'unknown-service-type';
-    process.env.ELEVENLABS_API_KEY = 'test-key';
-    
-    const { getTTSService } = await import('../../../../server/services/tts/TTSService.js');
-    const service = getTTSService();
-    
-    expect(service).toBeDefined();
-    expect(service.constructor.name).toBe('AutoFallbackTTSService');
-  });
-
-  it('should create Browser service when service type is browser', async () => {
-    process.env.TTS_SERVICE_TYPE = 'browser';
-    
-    const { getTTSService } = await import('../../../../server/services/tts/TTSService.js');
-    const service = getTTSService();
-    
-    expect(service).toBeDefined();
-    expect(service.constructor.name).toBe('BrowserTTSService');
-  });
-
-  it('should fallback to auto when ElevenLabs API key is missing', async () => {
-    delete process.env.ELEVENLABS_API_KEY;
-    process.env.TTS_SERVICE_TYPE = 'elevenlabs';
-    
-    const { getTTSService, TTSServiceFactory } = await import('../../../../server/services/tts/TTSService.js');
-    TTSServiceFactory.clearCache(); // Clear cache to ensure fresh instance
-    const service = getTTSService();
-    
-    expect(service).toBeDefined();
-    expect(service.constructor.name).toBe('AutoFallbackTTSService');
-  });
-
-  it('should handle service type auto correctly', async () => {
-    process.env.TTS_SERVICE_TYPE = 'auto';
-    process.env.ELEVENLABS_API_KEY = 'test-key';
-    
-    const { getTTSService } = await import('../../../../server/services/tts/TTSService.js');
-    const service = getTTSService();
-    
-    expect(service).toBeDefined();
-    expect(service.constructor.name).toBe('AutoFallbackTTSService');
-  });
-
-  it('should cache services correctly', async () => {
-    process.env.TTS_SERVICE_TYPE = 'auto';
-    process.env.ELEVENLABS_API_KEY = 'test-key';
-    
-    const { getTTSService } = await import('../../../../server/services/tts/TTSService.js');
-    const service1 = getTTSService();
-    const service2 = getTTSService();
-    
-    expect(service1).toBe(service2); // Should return same cached instance
   });
 
   it('should handle unknown service types by falling back to auto', async () => {

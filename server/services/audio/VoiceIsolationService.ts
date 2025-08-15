@@ -14,7 +14,18 @@ export interface VoiceIsolationOptions {
   enhancementStrength?: number;
 }
 
-export class VoiceIsolationService {
+export interface IVoiceIsolationService {
+  isolateVoice(audioBuffer: Buffer, options?: VoiceIsolationOptions): Promise<Buffer>;
+  isAvailable(): boolean;
+  analyzeAudioQuality(originalBuffer: Buffer, isolatedBuffer: Buffer): Promise<{
+    originalSize: number;
+    isolatedSize: number;
+    compressionRatio: number;
+    estimatedNoiseReduction: number;
+  }>;
+}
+
+export class VoiceIsolationService implements IVoiceIsolationService {
   constructor() {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) {

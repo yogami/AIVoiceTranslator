@@ -14,6 +14,8 @@ import type {
   TranslationMessageToClient,
   ClientSettings
 } from '../WebSocketTypes';
+import { FeatureFlags } from '../../application/services/config/FeatureFlags';
+import { ContentRedactionService } from '../text/ContentRedactionService';
 
 export interface TranslationRequest {
   text: string;
@@ -161,9 +163,19 @@ export class TranslationOrchestrator {
     const sendWithRetry = async (studentWs: WebSocketClient, studentLanguage: string, attempt: number = 1): Promise<boolean> => {
       try {
         const clientSettings = getClientSettings(studentWs) || {};
-        const translation = translations.get(studentLanguage) || originalText;
+        let translation = translations.get(studentLanguage) || originalText;
+
+        // Redaction (feature-flagged)
+        if (FeatureFlags.REDACT_PROFANITY || FeatureFlags.REDACT_PII) {
+          translation = ContentRedactionService.redact(translation, {
+            redactProfanity: FeatureFlags.REDACT_PROFANITY,
+            redactPII: FeatureFlags.REDACT_PII,
+          });
+        }
         const ttsServiceType = clientSettings.ttsServiceType || process.env.TTS_SERVICE_TYPE || 'openai';
-        const useClientSpeech = clientSettings.useClientSpeech === true;
+        // Low-literacy mode: prefer client speech to play caption text aloud on device
+        const lowLiteracy = FeatureFlags.LOW_LITERACY_MODE && (clientSettings.lowLiteracyMode === true);
+        const useClientSpeech = lowLiteracy ? true : (clientSettings.useClientSpeech === true);
         let audioData = '';
         let speechParams: { type: 'browser-speech'; text: string; languageCode: string; autoPlay: boolean; } | undefined;
         if (useClientSpeech) {

@@ -13,6 +13,7 @@ import type {
   SettingsResponseToClient,
   ClientSettings
 } from '../WebSocketTypes';
+import { FeatureFlags } from '../../../application/services/config/FeatureFlags';
 
 export class SettingsMessageHandler implements IMessageHandler<SettingsMessageToServer> {
   getMessageType(): string {
@@ -62,8 +63,16 @@ export class SettingsMessageHandler implements IMessageHandler<SettingsMessageTo
             studentWs.send(JSON.stringify(teacherModeMessage));
           }
         });
+        // Classroom modes broadcast if enabled and teacher set classroomMode
+        if (FeatureFlags.CLASSROOM_MODES && settings.classroomMode && context.connectionManager.getRole(context.ws) === 'teacher') {
+          connections.forEach((studentWs: any) => {
+            if (studentWs && studentWs.readyState === 1) {
+              studentWs.send(JSON.stringify({ type: 'classroom_mode', mode: settings.classroomMode, timestamp: Date.now() }));
+            }
+          });
+        }
       } catch (broadcastError) {
-        logger.error('Error broadcasting teacher_mode:', broadcastError);
+        logger.error('Error broadcasting settings:', broadcastError);
       }
     } catch (error) {
       logger.error('Error handling settings message:', error);

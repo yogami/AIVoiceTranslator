@@ -138,7 +138,10 @@ test.describe('Student Interface - Basic Scenarios', () => {
         targetLanguage: 'fr-FR', // Language of translatedText (student should be listening for this)
         ttsServiceType: 'openai', // Or whatever is expected
         latency: { total:100, serverCompleteTime: Date.now(), components: { translation:50, tts:30, processing:20}},
-        audioData: null, 
+        audioData: null,
+        // Provide original audio so Play Original (AI) should enable
+        originalAudioData: Buffer.from('mock-original').toString('base64'),
+        originalAudioFormat: 'mp3',
         useClientSpeech: false 
         // speechParams could be added if useClientSpeech were true
       };
@@ -163,6 +166,9 @@ test.describe('Student Interface - Basic Scenarios', () => {
       } else {
         await expect(studentPage.locator('#play-button')).toBeDisabled();
       }
+
+      // New: Original audio button should be enabled when originalAudioData exists
+      await expect(studentPage.locator('#play-original-button')).toBeEnabled();
 
     } finally {
       // 6. Cleanup

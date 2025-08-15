@@ -115,6 +115,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         qrCodeContainer: null,
         studentCountDisplay: null, // For future use
         studentsListDisplay: null, // For future use
+        requestsQueue: null,
+        requestsList: null,
     };
 
     const uiUpdater = {
@@ -143,7 +145,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
         displayClassroomCode: function(code, expiresAt) {
             if (domElements.classroomCodeDisplay) domElements.classroomCodeDisplay.textContent = code;
-            const studentUrl = `${window.location.origin}/student?code=${code}`;
+            const twoWay = new URL(window.location.href).searchParams.get('twoWay') === '1' ? '&twoWay=1' : '';
+            const studentUrl = `${window.location.origin}/student?code=${code}${twoWay}`;
             if (domElements.studentUrlDisplay) domElements.studentUrlDisplay.textContent = studentUrl;
             if (domElements.qrCodeContainer && typeof QRCode !== 'undefined') {
                 domElements.qrCodeContainer.innerHTML = '';
@@ -571,6 +574,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     }
                     break;
 
+                case 'student_request':
+                    try {
+                        const enabled = new URL(window.location.href).searchParams.get('twoWay') === '1';
+                        if (!enabled) break;
+                    } catch (_) { break; }
+                    renderRequestCard(data.payload);
+                    break;
+
                 case 'ping':
                     // console.log('Ping received from server, sending pong.');
                     this.sendPong();
@@ -931,6 +942,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         domElements.qrCodeContainer = document.getElementById('qr-code');
         domElements.studentCountDisplay = document.getElementById('studentCount');
         domElements.studentsListDisplay = document.getElementById('studentsList');
+        domElements.requestsQueue = document.getElementById('requestsQueue');
+        domElements.requestsList = document.getElementById('requestsList');
 
         if (domElements.languageSelect) {
             appState.selectedLanguage = domElements.languageSelect.value;
@@ -955,6 +968,31 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                 speechHandler.toggle();
             });
         }
+        
+        // Classroom Mode controls → send settings to server
+        try {
+            const modeGroup = document.getElementById('classroomModeGroup');
+            if (modeGroup) {
+                const radios = modeGroup.querySelectorAll('input[name="classroomMode"]');
+                const sendMode = (mode) => {
+                    if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                        appState.ws.send(JSON.stringify({ type: 'settings', settings: { classroomMode: mode } }));
+                        uiUpdater.toast(`Classroom mode: ${mode}`, 'info');
+                    }
+                };
+                radios.forEach(r => r.addEventListener('change', () => { if (r.checked) sendMode(r.value); }));
+                // Send initial default once connected (retry loop)
+                const tryInitial = () => {
+                    const checked = Array.from(radios).find((r) => r.checked);
+                    if (checked && appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                        sendMode(checked.value);
+                        return true;
+                    }
+                    return false;
+                };
+                let attempts = 0; const iv = setInterval(() => { if (tryInitial() || ++attempts > 30) clearInterval(iv); }, 200);
+            }
+        } catch(_) {}
         // Wire translation mode toggle when manual UI is enabled
         try {
             const url = new URL(window.location.href);
@@ -989,7 +1027,110 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
         webSocketHandler.connect();
         speechHandler.setup(); // Call speechHandler.setup
+
+        // Show requests queue if twoWay enabled via URL
+        try { if (new URL(window.location.href).searchParams.get('twoWay') === '1' && domElements.requestsQueue) domElements.requestsQueue.style.display = 'block'; } catch(_) {}
     });
+
+    function renderRequestCard(payload) {
+        if (!domElements.requestsList) return;
+        const card = document.createElement('div');
+        card.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; padding:10px; background:#fff;';
+        const name = (payload && payload.name) ? payload.name : 'Student';
+        const lang = (payload && payload.languageCode) ? payload.languageCode : '';
+        const text = (payload && payload.text) ? payload.text : '';
+        const requestId = payload && payload.requestId;
+        card.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div>
+                    <div style="font-weight:600;">${name} <small style="color:#6b7280;">${lang}</small></div>
+                    <div style="color:#111827; margin-top:4px;">${escapeHtml(text)}</div>
+                </div>
+                <div style="display:flex; gap:6px; white-space:nowrap;">
+                    <button data-scope="private" ${requestId ? '' : 'disabled'}>Reply (Private)</button>
+                    <button data-scope="class">Reply to Class</button>
+                    <button data-scope="speak" ${requestId ? '' : ''}>Speak Reply</button>
+                </div>
+            </div>`;
+        const [btnPriv, btnClass, btnSpeak] = card.querySelectorAll('button');
+        btnPriv && btnPriv.addEventListener('click', () => promptAndSendReply('private', requestId));
+        btnClass && btnClass.addEventListener('click', () => promptAndSendReply('class'));
+        if (btnSpeak) btnSpeak.addEventListener('click', () => speakReplyFlow(requestId, btnSpeak));
+        domElements.requestsList.prepend(card);
+    }
+
+    function promptAndSendReply(scope, requestId) {
+        try {
+            const text = window.prompt('Reply (will be translated):');
+            if (!text) return;
+            // Prefer rtc if present
+            if (window.appState && window.appState.rtc && window.appState.rtc.isOpen && window.appState.rtc.isOpen()) {
+                const msg = { type: 'teacher_reply', text, scope, requestId };
+                window.appState.rtc.sendRaw(JSON.stringify(msg));
+                return;
+            }
+            if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                const msg = { type: 'teacher_reply', text, scope };
+                if (scope === 'private' && requestId) msg.requestId = requestId;
+                window.appState.ws.send(JSON.stringify(msg));
+            }
+        } catch (e) { console.warn('Failed to send teacher_reply', e); }
+    }
+
+    function escapeHtml(str) {
+        try { return str.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); } catch (_) { return str; }
+    }
+
+    // Speak → transcribe locally → edit → send
+    function speakReplyFlow(requestId, buttonEl) {
+        try {
+            if (!window.appState) return;
+            if (!window.appState.isRecording) {
+                // Enter compose mode: force client STT path and avoid server TTS mid-recording
+                window.__ORIG_CLIENT_STT_FLAG__ = window.CLIENT_STT_TO_SERVER_ENABLED;
+                window.CLIENT_STT_TO_SERVER_ENABLED = '1';
+                window.REPLY_COMPOSE_MODE = '1';
+                buttonEl.textContent = 'Stop & Preview';
+                speechHandler.start();
+            } else {
+                // Stop and preview/edit
+                speechHandler.stop();
+                setTimeout(() => {
+                    const last = (window.appState && window.appState.lastFinalTranscriptText) ? window.appState.lastFinalTranscriptText.trim() : '';
+                    const edited = window.prompt('Edit your reply (will be translated):', last);
+                    if (edited) {
+                        const scope = requestId ? 'private' : 'class';
+                        promptAndSendReplyWithText(scope, requestId, edited);
+                    }
+                    // Exit compose mode
+                    window.REPLY_COMPOSE_MODE = undefined;
+                    window.CLIENT_STT_TO_SERVER_ENABLED = window.__ORIG_CLIENT_STT_FLAG__;
+                    buttonEl.textContent = 'Speak Reply';
+                }, 150);
+            }
+        } catch (e) {
+            console.warn('Speak reply flow failed', e);
+            window.REPLY_COMPOSE_MODE = undefined;
+            if (typeof window.__ORIG_CLIENT_STT_FLAG__ !== 'undefined') window.CLIENT_STT_TO_SERVER_ENABLED = window.__ORIG_CLIENT_STT_FLAG__;
+            if (buttonEl) buttonEl.textContent = 'Speak Reply';
+        }
+    }
+
+    function promptAndSendReplyWithText(scope, requestId, text) {
+        try {
+            if (!text) return;
+            if (window.appState && window.appState.rtc && window.appState.rtc.isOpen && window.appState.rtc.isOpen()) {
+                const msg = { type: 'teacher_reply', text, scope, requestId };
+                window.appState.rtc.sendRaw(JSON.stringify(msg));
+                return;
+            }
+            if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                const msg = { type: 'teacher_reply', text, scope };
+                if (scope === 'private' && requestId) msg.requestId = requestId;
+                window.appState.ws.send(JSON.stringify(msg));
+            }
+        } catch (e) { console.warn('Failed to send teacher_reply', e); }
+    }
 
     function handleLanguageChange() {
         appState.selectedLanguage = this.value;

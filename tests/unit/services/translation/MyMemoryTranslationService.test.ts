@@ -18,30 +18,46 @@ describe('MyMemoryTranslationService', () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        responseData: { translatedText: 'Hola mundo' },
+        responseData: { translatedText: 'Hola mundo', match: 90 },
+        quotaFinished: false,
+        mtLangSupported: true,
+        responseDetails: '',
+        responseStatus: 200,
+        responderId: 'test',
         matches: []
       })
     });
-    const result = await service.translate('Hello world', 'en', 'es');
+    const result = await service.translate('Hello world', 'en-US', 'es-ES');
     expect(result).toBe('Hola mundo');
     expect(mockFetch).toHaveBeenCalled();
   });
 
-  it('should throw if fetch fails', async () => {
-    mockFetch.mockRejectedValue(new Error('Network error'));
-    await expect(service.translate('Hello', 'en', 'es')).rejects.toThrow('MyMemory translation failed: Network error');
-  });
-
-  it('should throw if API response is not ok', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' });
-    await expect(service.translate('Hello', 'en', 'es')).rejects.toThrow('MyMemory translation failed: 500 Server Error');
-  });
-
-  it('should throw if API returns no translation', async () => {
+  it('should return original text if API returns no translation', async () => {
     mockFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ responseData: {} })
+      json: async () => ({
+        responseData: { translatedText: '', match: 0 },
+        quotaFinished: false,
+        mtLangSupported: true,
+        responseDetails: '',
+        responseStatus: 200,
+        responderId: 'test',
+        matches: []
+      })
     });
-    await expect(service.translate('Hello', 'en', 'es')).rejects.toThrow('MyMemory translation failed: No translation found');
+    const result = await service.translate('Hello', 'en-US', 'es-ES');
+    expect(result).toBe('Hello');
+  });
+
+  it('should return empty string if fetch fails', async () => {
+    mockFetch.mockRejectedValue(new Error('Network error'));
+    const result = await service.translate('Hello', 'en-US', 'es-ES');
+    expect(result).toBe('');
+  });
+
+  it('should return empty string if API response is not ok', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: 'Server Error' });
+    const result = await service.translate('Hello', 'en-US', 'es-ES');
+    expect(result).toBe('');
   });
 });

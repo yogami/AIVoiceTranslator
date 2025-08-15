@@ -12,13 +12,13 @@
 import { ITranscriptionService } from './TranscriptionServiceFactory.js';
 import { OpenAITranscriptionService } from './OpenAITranscriptionService.js';
 import { ElevenLabsSTTService } from './ElevenLabsSTTService.js';
-import { VoiceIsolationService } from '../audio/VoiceIsolationService.js';
+import { VoiceIsolationService, IVoiceIsolationService } from '../audio/VoiceIsolationService.js';
 
 export class AutoFallbackSTTService implements ITranscriptionService {
   private primaryService: ITranscriptionService | null = null;
   private secondaryService: ITranscriptionService | null = null;
   private finalFallbackService: ITranscriptionService | null = null;
-  private voiceIsolationService: VoiceIsolationService | null = null;
+  private voiceIsolationService: IVoiceIsolationService | null = null;
   
   // Circuit breaker state for primary service (OpenAI)
   private isPrimaryDown: boolean = false;
@@ -33,7 +33,8 @@ export class AutoFallbackSTTService implements ITranscriptionService {
   private readonly RETRY_COOLDOWN_BASE_MS = 300000; // 5 minutes base
   private readonly MAX_COOLDOWN_MS = 1500000; // 25 minutes max
 
-  constructor() {
+  constructor(voiceIsolation?: IVoiceIsolationService) {
+    this.voiceIsolationService = voiceIsolation ?? null;
     this.initializeServices();
   }
 
@@ -66,8 +67,8 @@ export class AutoFallbackSTTService implements ITranscriptionService {
       // Initialize final fallback service (Whisper.cpp) - lazy loaded
       console.log('[AutoFallback STT] Final fallback service (Whisper.cpp) will be loaded when needed');
       
-      // Initialize voice isolation service if ElevenLabs API key is available
-      if (elevenLabsApiKey) {
+      // Initialize voice isolation service if not injected and ElevenLabs API key is available
+      if (!this.voiceIsolationService && elevenLabsApiKey) {
         try {
           this.voiceIsolationService = new VoiceIsolationService();
           console.log('[AutoFallback STT] Voice isolation service initialized for enhanced accuracy');

@@ -41,8 +41,17 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       context.connectionManager.setLanguage(context.ws, message.languageCode);
     }
     
-    // Store client settings
+    // Store client settings and merge twoWayEnabled from connection URL param if present
     const settings: ClientSettings = context.connectionManager.getClientSettings(context.ws) || {};
+    try {
+      const baseUrl = `http://${config.server.host}:${config.server.port}`;
+      const url = (context as any)?.request?.url ? new URL((context as any).request.url, baseUrl) : null;
+      const twoWayParam = url?.searchParams.get('twoWay');
+      if (twoWayParam) {
+        const enabled = /^(1|true|yes|on)$/i.test(twoWayParam);
+        (settings as any).twoWayEnabled = enabled;
+      }
+    } catch {}
     
     // Update all settings if provided (proper merge)
     if (message.settings) {

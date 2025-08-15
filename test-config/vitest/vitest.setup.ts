@@ -16,10 +16,24 @@ if (!process.env.OPENAI_API_KEY) {
 const testMode = process.env.TEST_MODE || "all";
 console.log(`[Vitest Setup] Test mode: ${testMode}`);
 
+// Provide safe defaults to satisfy config import in tests
+process.env.PORT = process.env.PORT || '3001';
+process.env.HOST = process.env.HOST || '127.0.0.1';
+process.env.LOG_LEVEL = process.env.LOG_LEVEL || 'debug';
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgres://test:test@localhost:5432/testdb';
+// Prevent accidental network features during tests
+process.env.FEATURE_TWO_WAY_COMMUNICATION = process.env.FEATURE_TWO_WAY_COMMUNICATION || '0';
+
 // Force free tiers for integration/component tests; avoid premium APIs during tests
 if (testMode !== 'unit') {
   process.env.STT_SERVICE_TYPE = process.env.STT_SERVICE_TYPE || 'free-enhanced';
-  process.env.TRANSLATION_SERVICE_TYPE = process.env.TRANSLATION_SERVICE_TYPE || 'free-basic';
+  // In component mode, avoid network: use offline/local translation
+  if (testMode === 'component') {
+    process.env.TRANSLATION_SERVICE_TYPE = 'offline';
+    process.env.DISABLE_TEXT2WAV = '1';
+  } else {
+    process.env.TRANSLATION_SERVICE_TYPE = process.env.TRANSLATION_SERVICE_TYPE || 'free-basic';
+  }
   process.env.TTS_SERVICE_TYPE = process.env.TTS_SERVICE_TYPE || 'free-hq';
   // Disable premium keys to avoid importing cloud SDK paths
   delete process.env.OPENAI_API_KEY;
@@ -29,6 +43,11 @@ if (testMode !== 'unit') {
   // Enable manual translation control in tests so manual-mode suites pass
   process.env.FEATURE_MANUAL_TRANSLATION_CONTROL = process.env.FEATURE_MANUAL_TRANSLATION_CONTROL || '1';
   console.log('[Vitest Setup] Forcing free-tier services for tests');
+}
+
+// Ensure ElevenLabs key is available for unit tests that exercise premium paths
+if (testMode === 'unit' && !process.env.ELEVENLABS_API_KEY) {
+  process.env.ELEVENLABS_API_KEY = 'test-elevenlabs-key-for-unit-tests';
 }
 
 // Initialize test isolation based on mode
@@ -79,15 +98,7 @@ process.on("uncaughtException", (error) => {
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error(`[Test ${testMode}] Unhandled Rejection at:`, promise, "reason:", reason);
-  // Try to cleanup
-  try {
-    const { WebSocketServer } = require("../../server/services/WebSocketServer");
-    if (WebSocketServer && typeof WebSocketServer.shutdownAll === "function") {
-      WebSocketServer.shutdownAll();
-    }
-  } catch (cleanupError) {
-    // Ignore cleanup errors
-  }
+  // Prevent aborting the entire test run (e.g., text2wav wasm abort)
 });
 
 // Add test isolation markers

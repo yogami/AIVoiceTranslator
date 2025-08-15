@@ -26,7 +26,7 @@ describe('Student UI Original Audio Button (component smoke)', () => {
     } as any;
   });
 
-  it('enables Play Original button when originalAudioData is present', async () => {
+  it('enables Play Original button when originalAudioData is present and keeps translation button state based on audioData', async () => {
     // Load student script (will attach handlers)
     await import('../../../client/public/js/student.js');
     // Fire DOMContentLoaded to allow student.js to cache DOM elements
@@ -47,6 +47,9 @@ describe('Student UI Original Audio Button (component smoke)', () => {
     const btn = document.getElementById('play-original-button') as HTMLButtonElement;
     expect(btn).toBeTruthy();
     expect(btn.disabled).toBe(false);
+
+    const playBtn = document.getElementById('play-button') as HTMLButtonElement;
+    expect(playBtn.disabled).toBe(true);
   });
 });
 

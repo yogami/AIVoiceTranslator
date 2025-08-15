@@ -16,7 +16,8 @@ import type {
   TTSRequestMessageToServer,
   SettingsMessageToServer,
   ManualSendTranslationMessageToServer,
-  PingMessageToServer
+  PingMessageToServer,
+  StudentAudioMessageToServer
 } from '../WebSocketTypes';
 
 /**
