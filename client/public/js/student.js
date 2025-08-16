@@ -82,7 +82,8 @@
             // Reveal connect step only after language chosen
             if (domElements.connectStep) {
                 // Reveal connect if a language is chosen and the code is not confirmed invalid
-                if (languageName && appState.isClassroomCodeValid !== 'invalid') {
+                // Allow showing Connect even without a classroom code; server will validate on register
+                if (languageName) {
                     domElements.connectStep.classList.remove('hidden');
                     domElements.connectButton && (domElements.connectButton.disabled = false);
                     domElements.proxyConnectButton && (domElements.proxyConnectButton.disabled = false);
@@ -451,9 +452,9 @@
         appState.classroomCode = urlParams.get('code');
 
         if (!appState.classroomCode) {
+            // Show a friendly message but do not exit; allow user to select language and see Connect
             uiUpdater.showNoClassroomCodeError();
             if (domElements.connectButton) domElements.connectButton.disabled = true;
-            return;
         }
 
         uiUpdater.showJoiningClassroomInfo(appState.classroomCode);
