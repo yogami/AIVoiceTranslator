@@ -17,10 +17,10 @@ This directory contains comprehensive documentation for the AIVoiceTranslator pr
 ### [WebSocket Architecture](websocket-architecture.md)
 **Status**: ✅ Current  
 **Purpose**: Real-time communication system documentation
-- Fully implemented WebSocket server with modular message handlers
-- Connection management and health monitoring
-- Session lifecycle and cleanup procedures
-- Message flow architecture and service integration
+- WebSocket server under `server/interface-adapters/websocket/`
+- Connection lifecycle and health monitoring
+- Session and classroom code lifecycle managers under `server/application/services/session/`
+- Message handlers under `server/interface-adapters/websocket/websocket-services/`
 
 ## 🚀 Deployment & Operations
 
@@ -124,11 +124,8 @@ All documents in this directory reflect the **current production state** of the 
 
 ### 🧹 Cleanup Completed
 Removed redundant and outdated documents:
-- `DATABASE_SCHEMA_RULES.md` (consolidated into DATABASE_ARCHITECTURE.md)
-- `EMERGENCY_DATABASE_RECOVERY.md` (consolidated into DATABASE_ARCHITECTURE.md)
-- `timeout-configuration-summary.md` (implementation-specific details)
-- `ENVIRONMENT_MANAGEMENT.md` (consolidated into deployment guides)
-- `E2E_TEST_SCENARIOS.md` (consolidated into E2E_TEST_INSTRUCTIONS.md)
+- `WEBSOCKET_SOLID_REFACTORING_COMPLETE.md` (redundant; merged into `websocket-architecture.md`)
+- `WEBSOCKET_ARCHITECTURE_REFACTORING.md` (duplicate summary; removed)
 
 ### 📝 Usage Guidelines
 

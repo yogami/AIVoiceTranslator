@@ -58,12 +58,9 @@
   - `NODE_ENV=production`
   - `HOST=0.0.0.0`
 - ACE/UX flags (optional):
-  - `FEATURE_LOW_LITERACY_MODE=1`
-  - `FEATURE_CLASSROOM_MODES=1`
-  - `FEATURE_LIVE_COMPREHENSION_INDICATORS=1`
-  - `FEATURE_ACE_SIMPLIFY=1`
-  - `FEATURE_CURRICULUM_GLOSSARY_LOCK=1`
-  - `FEATURE_ACE_HUD=1`
+  - `FEATURE_ACE=1` (master flag: enables simplification/chunking, term‑locking, slow‑repeat triggers, and teacher HUD hints)
+  - `FEATURE_LOW_LITERACY_MODE=1` (optional explicit enable; implied by ACE where supported)
+  - `FEATURE_LIVE_COMPREHENSION_INDICATORS=1` (optional explicit enable; implied by ACE where supported)
 
 ### 8) Model & Voice Assets (pre‑load)
 - Whisper.cpp model (choose one):
@@ -150,12 +147,9 @@
   - `STT_SERVICE_TYPE=whispercpp`
   - `TRANSLATION_SERVICE_TYPE=offline`
   - `TTS_SERVICE_TYPE=local`
+  - `FEATURE_ACE=1`
   - `FEATURE_LOW_LITERACY_MODE=1`
-  - `FEATURE_CLASSROOM_MODES=1`
   - `FEATURE_LIVE_COMPREHENSION_INDICATORS=1`
-  - `FEATURE_ACE_SIMPLIFY=1`
-  - `FEATURE_CURRICULUM_GLOSSARY_LOCK=1`
-  - `FEATURE_ACE_HUD=1`
 - Recommended models/voices list with file sizes
 
 ---

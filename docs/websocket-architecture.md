@@ -8,29 +8,28 @@ The WebSocket system is **fully implemented and actively running** in the applic
 
 ### Core Components
 
-1. **WebSocketServer** (`server/services/WebSocketServer.ts`)
+1. **WebSocketServer** (`server/interface-adapters/websocket/WebSocketServer.ts`)
    - Main WebSocket server implementation
    - Handles connection lifecycle management
    - Coordinates all services and message handling
    - Implements `IActiveSessionProvider` for analytics
 
-2. **ConnectionManager** (`server/services/websocket/ConnectionManager.ts`)
+2. **ConnectionManager** (`server/interface-adapters/websocket/websocket-services/ConnectionManager.ts`)
    - Manages WebSocket client connections
    - Tracks connection metadata (role, language, session ID, settings)
    - Provides connection validation and cleanup
 
-3. **SessionService** (`server/services/websocket/SessionService.ts`)
-   - Handles classroom session lifecycle
-   - Manages session creation, updates, and termination
-   - Integrates with database storage for persistence
+3. **Session Services** (`server/application/services/session/`)
+   - `StorageSessionManager.ts`: session persistence adapter
+   - `ClassroomSessionManager.ts`: classroom code lifecycle
 
-4. **SpeechPipelineOrchestrator** (`server/services/SpeechPipelineOrchestrator.ts`)
+4. **SpeechPipelineOrchestrator** (`server/application/services/SpeechPipelineOrchestrator.ts`)
    - Clean architecture orchestrator with dependency injection
    - Coordinates translation and TTS services through injected dependencies
    - Handles real-time speech processing pipeline
    - Manages audio transcription and delivery
 
-5. **Message Handler System** (`server/services/websocket/`)
+5. **Message Handler System** (`server/interface-adapters/websocket/websocket-services/`)
    - Modular message handlers for different message types
    - Type-safe message processing with validation
    - Extensible architecture for new message types

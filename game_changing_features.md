@@ -74,8 +74,7 @@
 ---
 
 ## Feature Flag Map (for incremental rollout)
-- `FEATURE_ACE_SIMPLIFY` – enable dynamic simplification/pace control.
-- `FEATURE_CURRICULUM_GLOSSARY_LOCK` – enable term extraction/locking.
+- `FEATURE_ACE` – master flag enabling simplification/chunking, term‑locking, slow‑repeat triggers, and teacher HUD hints.
 - `FEATURE_EDGE_ADAPTATION` – enable on‑gateway per‑speaker adaptation.
 - `FEATURE_AR_HUD` – enable teacher HUD overlay channel.
 
