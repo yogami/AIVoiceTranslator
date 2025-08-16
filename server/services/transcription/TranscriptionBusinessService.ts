@@ -11,6 +11,8 @@
 import logger from '../../logger';
 import type { IStorage } from '../../storage.interface';
 import type { SpeechPipelineOrchestrator } from '../../application/services/SpeechPipelineOrchestrator';
+import { FeatureFlags } from '../../application/services/config/FeatureFlags';
+import { ACEOrchestrator } from '../../application/services/ace/ACEOrchestrator';
 import type { WebSocketClient } from '../../interface-adapters/websocket/websocket-services/ConnectionManager';
 
 export interface TranscriptionProcessingRequest {
@@ -132,20 +134,26 @@ export class TranscriptionBusinessService {
       }
     }
 
-    // Always synthesize original-source audio once (teacherLanguage)
+    // Optional: synthesize original-source audio once (teacherLanguage) only when explicitly enabled to avoid espeak aborts in tests
+    const includeOriginalAudio = (process.env.FEATURE_INCLUDE_ORIGINAL_TTS || '0') === '1';
     let originalAudioBase64: string | null = null;
     let originalAudioFormat: 'mp3' | 'wav' | undefined;
-    try {
-      const originalTTS = await this.speechPipelineOrchestrator.synthesizeSpeech(
-        text,
-        teacherLanguage
-      );
-      originalAudioBase64 = originalTTS.audioBuffer.toString('base64');
-      originalAudioFormat = originalTTS.ttsServiceType === 'local' ? 'wav' : 'mp3';
-    } catch (e) {
-      // Continue without original audio if TTS fails
-      originalAudioBase64 = null;
+    if (includeOriginalAudio) {
+      try {
+        const originalTTS = await this.speechPipelineOrchestrator.synthesizeSpeech(
+          text,
+          teacherLanguage
+        );
+        originalAudioBase64 = originalTTS.audioBuffer.toString('base64');
+        originalAudioFormat = originalTTS.ttsServiceType === 'local' ? 'wav' : 'mp3';
+      } catch (e) {
+        originalAudioBase64 = null;
+      }
     }
+
+    // Prepare ACE orchestrator if enabled
+    const aceEnabled = FeatureFlags.ACE;
+    const ace = aceEnabled ? new ACEOrchestrator({}) : null;
 
     // Process translation for each target language
     const translationPromises = Array.from(studentsByLanguage.entries()).map(
@@ -160,7 +168,20 @@ export class TranscriptionBusinessService {
             targetLanguage
           );
 
-          // Generate TTS audio
+          // Apply ACE shaping per-student (term-locking, simplification)
+          // Note: term-locking applied within ACE orchestrator; per-student lowLiteracyMode respected
+          const shapedByStudent: Array<{ ws: WebSocketClient; text: string }> = [];
+          for (const student of students) {
+            const settings = options.clientProvider.getClientSettings(student) || {};
+            const low = !!settings.lowLiteracyMode;
+            const aceToggle = !!settings.aceEnabled;
+            const useACE = FeatureFlags.ACE || aceToggle;
+            const textForStudent = useACE && ace ? ace.applyPerStudentShaping(translation, { lowLiteracyMode: low, languageCode: targetLanguage }) : translation;
+            shapedByStudent.push({ ws: student, text: textForStudent });
+          }
+
+          // Generate TTS audio for the language group only when not using client speech
+          // If lowLiteracyMode is common we still send audio; client pages decide to use speechParams
           const ttsResult = await this.speechPipelineOrchestrator.synthesizeSpeech(
             translation,
             targetLanguage
@@ -169,11 +190,12 @@ export class TranscriptionBusinessService {
           // Send translation and audio to students in this language group
           for (const student of students) {
             try {
+              const shaped = shapedByStudent.find(s => s.ws === student)?.text || translation;
               const message = {
                 type: 'translation',
                 originalText: text,  // Add original text
-                text: translation,   // Keep translated text as 'text'
-                translatedText: translation, // Also add as translatedText for compatibility
+                text: shaped,
+                translatedText: shaped,
                 audioData: ttsResult.audioBuffer.toString('base64'),
                 audioFormat: ttsResult.ttsServiceType === 'local' ? 'wav' : 'mp3',
                 // Feature: include original-source audio in teacher's language when enabled

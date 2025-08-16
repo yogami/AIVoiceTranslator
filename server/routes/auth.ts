@@ -22,10 +22,35 @@ const SALT_ROUNDS = 10;
  */
 router.post('/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, betaCode } = req.body as { username?: string; password?: string; betaCode?: string };
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
+    }
+    // Optional: enforce beta code for registrations when enabled
+    const betaEnabled = (process.env.BETA_ENFORCE_REGISTRATION || '1').toLowerCase();
+    const enforceBeta = betaEnabled === '1' || betaEnabled === 'true' || betaEnabled === 'yes' || betaEnabled === 'on';
+    const requiredBeta = process.env.BETA_REGISTRATION_CODE;
+    if (enforceBeta) {
+      if (!requiredBeta) {
+        return res.status(503).json({ error: 'Registration temporarily disabled' });
+      }
+      if (betaCode !== requiredBeta) {
+        return res.status(401).json({ error: 'Invalid beta code' });
+      }
+    }
+
+    // Optional: restrict teacher accounts by allowed email domains
+    const domainAllowlist = (process.env.ALLOWED_EMAIL_DOMAINS || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (domainAllowlist.length > 0) {
+      const atIndex = username.indexOf('@');
+      const domain = atIndex > -1 ? username.slice(atIndex + 1).toLowerCase() : '';
+      if (!domain || !domainAllowlist.includes(domain)) {
+        return res.status(403).json({ error: 'Registration restricted to approved domains' });
+      }
     }
 
     if (password.length < 6) {
@@ -97,11 +122,13 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
 
-    // Generate JWT token
+    // Generate JWT token with configurable expiry
+    const defaultExpiry = '24h';
+    const expiresIn = process.env.JWT_EXPIRY || defaultExpiry;
     const token = jwt.sign(
       { userId: user[0].id, username: user[0].username },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn }
     );
 
     logger.info('Teacher logged in:', { username, teacherId: user[0].id });

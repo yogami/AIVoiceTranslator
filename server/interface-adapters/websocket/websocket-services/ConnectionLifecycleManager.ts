@@ -77,6 +77,19 @@ export class ConnectionLifecycleManager {
     
     // Store connection data
     this.connectionManager.addConnection(ws, sessionId, classroomCode || undefined);
+
+    // Initialize per-connection settings from URL params (e.g., ace=1)
+    try {
+      const baseUrl = `http://${config.server.host}:${config.server.port}`;
+      const url = request?.url ? new URL(request.url, baseUrl) : null;
+      const aceParam = url?.searchParams.get('ace');
+      if (aceParam) {
+        const enabled = /^(1|true|yes|on)$/i.test(aceParam);
+        const settings = this.connectionManager.getClientSettings(ws) || {};
+        (settings as any).aceEnabled = enabled;
+        this.connectionManager.setClientSettings(ws, settings);
+      }
+    } catch {}
     
     // Send immediate connection confirmation directly
     try {

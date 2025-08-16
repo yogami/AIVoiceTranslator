@@ -1,4 +1,4 @@
-import { IMessageHandler, MessageHandlerContext } from '../websocket/MessageHandler';
+import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { TTSRequestMessageToServer, TTSResponseMessageToClient } from '../WebSocketTypes';
 import logger from '../../../logger';
 
@@ -11,22 +11,22 @@ export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessa
     const text = message.text;
     const languageCode = message.languageCode;
     
-    if (!context.translationService.validateTTSRequest(text, languageCode)) {
+    if (!text || typeof text !== 'string' || !languageCode || typeof languageCode !== 'string') {
       await this.sendTTSErrorResponse(context, 'Invalid TTS request parameters');
       return;
     }
     
-    // Always use OpenAI TTS for best quality
-    const ttsServiceType = 'openai';
+    // Use configured TTS type or default in tests to avoid native dependencies
+    const ttsServiceType = process.env.NODE_ENV === 'test' ? (process.env.FORCE_TEST_TTS_SERVICE || 'browser') : (process.env.TTS_SERVICE_TYPE || 'openai');
     
     try {
-      // Generate TTS audio using TranslationService
-      const audioBuffer = await context.translationService.generateTTSAudio(
-        text,
-        languageCode,
-        ttsServiceType,
-        message.voice
-      );
+      // Delegate TTS generation to speech pipeline orchestrator
+      if (!context.speechPipelineOrchestrator) {
+        await this.sendTTSErrorResponse(context, 'TTS service unavailable');
+        return;
+      }
+      const ttsResult = await context.speechPipelineOrchestrator.synthesizeSpeech(text, languageCode, { voice: message.voice });
+      const audioBuffer = ttsResult.audioBuffer || Buffer.alloc(0);
       
       if (audioBuffer && audioBuffer.length > 0) {
         // Send successful response with audio
@@ -35,7 +35,7 @@ export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessa
           text,
           languageCode,
           audioBuffer,
-          ttsServiceType
+          ttsResult.ttsServiceType || ttsServiceType
         );
       } else {
         // Send error if no audio was generated
@@ -116,6 +116,7 @@ export class TTSRequestMessageHandler implements IMessageHandler<TTSRequestMessa
       const ttsErrorResponse: TTSResponseMessageToClient = {
         type: 'tts_response',
         status: 'error',
+        message: messageText,
         error: {
           message: messageText,
           code: code

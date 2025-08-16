@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'http';
 import type { IStorage } from '../storage.interface';
 import type { IRealtimeTransport } from './IRealtimeTransport';
 import { WebSocketTransportAdapter } from './WebSocketTransportAdapter';
+import { withConnectionGuards } from './WebSocketRealtimeAppAdapter';
 import { WebRTCTransportAdapter } from './WebRTCTransportAdapter';
 
 export function createRealtimeTransport(server: HttpServer, storage: IStorage): IRealtimeTransport {
@@ -19,8 +20,16 @@ export function createRealtimeTransport(server: HttpServer, storage: IStorage): 
       console.warn('[RealtimeTransport] WebRTC transport not enabled; falling back to WebSocket');
       return new WebSocketTransportAdapter(server, storage);
     case 'websocket':
-    default:
-      return new WebSocketTransportAdapter(server, storage);
+    default: {
+      const adapter = new WebSocketTransportAdapter(server, storage) as any;
+      try {
+        const legacy = adapter.legacy?.getWebSocketServer?.();
+        if (legacy && typeof legacy.on === 'function') {
+          withConnectionGuards(legacy);
+        }
+      } catch {}
+      return adapter;
+    }
   }
 }
 

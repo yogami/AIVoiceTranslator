@@ -36,9 +36,7 @@
   - Teacher HUD Notifier
 
 ### 6) Feature Flags (default off)
-- `FEATURE_ACE_SIMPLIFY` – enable simplification/chunking/slow‑repeat.
-- `FEATURE_CURRICULUM_GLOSSARY_LOCK` – enforce glossary terms.
-- `FEATURE_ACE_HUD` – send teacher hints.
+- `FEATURE_ACE` – master flag enabling simplification/chunking/slow‑repeat/term‑locking/HUD. Use this instead of per‑sub‑feature flags.
 
 ### 7) Data Inputs
 - Student settings: `lowLiteracyMode` (bool), language code.
@@ -60,7 +58,7 @@
 Notes: Simplification MVP is rules‑based—no new ML required.
 
 ### 9) WebSocket Messages (additions)
-- New (if `FEATURE_ACE_HUD`): `ace_hint` (server → teacher): `{ type: 'ace_hint', message, level, timestamp }`.
+- New (if `FEATURE_ACE`): `ace_hint` (server → teacher): `{ type: 'ace_hint', message, level, timestamp }`.
 
 ### 10) Glossary & Term‑Locking (MVP)
 - Import: CSV `term,en,es,de,...` or `source_term,target_lang,target_term`.

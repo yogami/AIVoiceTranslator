@@ -21,6 +21,8 @@ import { DatabaseStorage } from './database-storage';
 import fs from 'fs'; // Added fs import
 // Ensure setupVite and serveStatic are imported from your vite.ts
 import { setupVite, serveStatic } from './vite';
+import { restrictToAllowedIPs } from './middleware/ip-allowlist';
+import { betaGate } from './middleware/beta-gate';
 
 /**
  * Configure CORS middleware
@@ -73,6 +75,16 @@ export async function startServer(app: express.Express): Promise<Server> {
   
   // Apply CORS middleware (Open/Closed Principle - extending functionality without modifying existing code)
   configureCorsMiddleware(app);
+  // Global IP allowlist (no-op if ALLOWED_IPS unset)
+  app.use(restrictToAllowedIPs);
+  // Optional beta gate for all API routes (activated when BETA_ENABLED and BETA_ACCESS_TOKEN set)
+  app.use((req, res, next) => {
+    const enabled = (process.env.BETA_ENABLED || '').toLowerCase();
+    if (enabled === '1' || enabled === 'true' || enabled === 'yes' || enabled === 'on') {
+      return betaGate(req, res, next);
+    }
+    next();
+  });
   
   // Parse JSON in request body
   app.use(express.json());

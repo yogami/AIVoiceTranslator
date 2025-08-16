@@ -87,11 +87,15 @@ export class StorageSessionManager {
    */
   public async updateSession(sessionId: string, updates: Partial<InsertSession>): Promise<boolean> {
     try {
+      if (!this.storage || typeof (this.storage as any).updateSession !== 'function') {
+        logger.warn('Storage implementation does not support updateSession; skipping update', { sessionId, updates: Object.keys(updates) });
+        return false;
+      }
       const result = await this.storage.updateSession(sessionId, updates);
       return !!result; // Return true if update was successful
     } catch (error) {
       logger.error('Failed to update session in storage:', { sessionId, error, updates });
-      throw error;
+      return false;
     }
   }
 

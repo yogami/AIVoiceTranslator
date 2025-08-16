@@ -8,6 +8,8 @@ export interface ClientSettings {
   useClientSpeech?: boolean;
   translationMode?: 'auto' | 'manual';
   allowComprehensionSignals?: boolean;
+  lowLiteracyMode?: boolean;
+  aceEnabled?: boolean;
 }
 
 // --- Messages TO Server ---
@@ -183,6 +185,13 @@ export interface TeacherModeMessageToClient extends BaseWebSocketMessage {
   mode: 'auto' | 'manual';
 }
 
+// ACE teacher hint (feature-flagged)
+export interface ACEHintMessageToClient extends BaseWebSocketMessage {
+  type: 'ace_hint';
+  message: string;
+  level: 'info' | 'suggestion' | 'warning';
+}
+
 export interface ComprehensionSignalMessageToClient extends BaseWebSocketMessage {
   type: 'comprehension_signal';
   fromStudentId: string;
@@ -257,6 +266,7 @@ export type WebSocketMessageToClient =
   | TTSResponseMessageToClient
   | SettingsResponseToClient
   | TeacherModeMessageToClient
+  | ACEHintMessageToClient
   | ManualSendAckToClient
   | PongMessageToClient
   | ErrorMessageToClient

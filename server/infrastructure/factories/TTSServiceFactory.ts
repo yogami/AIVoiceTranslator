@@ -484,6 +484,16 @@ export class TTSServiceFactory implements ITTSServiceFactory {
 
 // Export functions for SpeechPipelineOrchestrator compatibility
 export function getTTSService(type?: string): ITTSService {
-  const serviceType = type || process.env.TTS_SERVICE_TYPE || 'auto';
-  return TTSServiceFactory.createTTSService(serviceType);
+  // Respect explicit type arg or env when provided
+  const explicit = type || process.env.TTS_SERVICE_TYPE;
+  if (explicit) {
+    return TTSServiceFactory.createTTSService(explicit);
+  }
+  // In test environment with no explicit selection, avoid local eSpeak to prevent native aborts
+  const isTest = (process.env.NODE_ENV || '').toLowerCase() === 'test';
+  if (isTest) {
+    const forcedForTests = process.env.FORCE_TEST_TTS_SERVICE || 'browser';
+    return TTSServiceFactory.createTTSService(forcedForTests);
+  }
+  return TTSServiceFactory.createTTSService('auto');
 }

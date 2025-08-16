@@ -148,6 +148,8 @@ export class WebSocketServer implements IActiveSessionProvider {
     this.sessionService = new SessionService(storage);
     this.classroomSessionManager = new ClassroomSessionManager();
     this.storageSessionManager = new StorageSessionManager(storage);
+    // Ensure classroom manager is injected for code generation in createSession flows
+    this.storageSessionManager.setClassroomSessionManager(this.classroomSessionManager);
     
     // Initialize specialized services
     this.connectionValidationService = new ConnectionValidationService(this.classroomSessionManager);
