@@ -191,13 +191,32 @@ export class TranscriptionBusinessService {
           for (const student of students) {
             try {
               const shaped = shapedByStudent.find(s => s.ws === student)?.text || translation;
+
+              // Determine per-student audio delivery: for low-literacy, instruct browser TTS; otherwise send server audio
+              const studentSettings = options.clientProvider.getClientSettings(student) || {};
+              const lowLiteracy = FeatureFlags.LOW_LITERACY_MODE && (studentSettings.lowLiteracyMode === true);
+              let audioDataBase64: string;
+              let audioFormat: 'mp3' | 'wav' | undefined = ttsResult.ttsServiceType === 'local' ? 'wav' : 'mp3';
+              if (lowLiteracy) {
+                const browserSpeech = {
+                  type: 'browser-speech',
+                  text: shaped,
+                  languageCode: targetLanguage,
+                  autoPlay: true
+                };
+                audioDataBase64 = Buffer.from(JSON.stringify(browserSpeech)).toString('base64');
+                // audioFormat remains 'mp3' nominally; client ignores for browser-speech
+              } else {
+                audioDataBase64 = ttsResult.audioBuffer.toString('base64');
+              }
+
               const message = {
                 type: 'translation',
                 originalText: text,  // Add original text
                 text: shaped,
                 translatedText: shaped,
-                audioData: ttsResult.audioBuffer.toString('base64'),
-                audioFormat: ttsResult.ttsServiceType === 'local' ? 'wav' : 'mp3',
+                audioData: audioDataBase64,
+                audioFormat: audioFormat,
                 // Feature: include original-source audio in teacher's language when enabled
                 ...(originalAudioBase64 ? {
                   originalAudioData: originalAudioBase64,

@@ -468,6 +468,15 @@
                     if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
                         const allow = !!domElements.lowLiteracyToggle.checked;
                         window.appState.ws.send(JSON.stringify({ type: 'settings', settings: { lowLiteracyMode: allow } }));
+                        // Show a short hint to clarify effect
+                        if (domElements.translationDisplay) {
+                            const hint = document.createElement('div');
+                            hint.style.cssText = 'color:#555; font-size: 0.9em; margin-top:6px;';
+                            hint.textContent = allow
+                              ? 'Low‑literacy enabled: you will hear translations read aloud by your device and text may be simplified.'
+                              : 'Low‑literacy disabled: you will hear server-generated audio only.';
+                            domElements.translationDisplay.appendChild(hint);
+                        }
                     }
                 } catch (_) {}
             });
