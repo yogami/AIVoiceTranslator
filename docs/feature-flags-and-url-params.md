@@ -12,6 +12,7 @@ This document lists environment variables to configure new features on the serve
 - FEATURE_REDACT_PII: Redact PII in transcripts/translations. Values: 1/true/yes/on.
 - FEATURE_SERVER_INTERIM_TRANSCRIPTION: Enable/disable server-side interim transcription broadcasts. Values: 1 (enable), 0 (disable).
 - FEATURE_ACE: Master ACE flag enabling simplification/chunking, term‑locking, slow‑repeat triggers, and HUD hints. Values: 1/true/yes/on.
+- FEATURE_INCLUDE_ORIGINAL_TTS: Include original teacher-language audio with translation messages. Values: 1/0 (default 0).
 - ENABLE_DETAILED_TRANSLATION_LOGGING: Verbose logs for translation flows. Values: true/false.
 
 Two-way controls
@@ -24,6 +25,8 @@ Core service keys (required for full pipeline)
 
 Runtime server
 - HOST, PORT: Server bind (Railway typically injects PORT).
+- REALTIME_TRANSPORT: websocket
+- COMMUNICATION_PROTOCOL: websocket
 - LOG_LEVEL: debug|info|warn|error (default: info).
 
 Client build-time
