@@ -7,7 +7,8 @@
         currentBrowserTTS: null, // Store browser TTS utterance for replay
         isConnected: false,
         classroomCode: null, // Will get this from URL params
-        isClassroomCodeValid: null // null=unknown, 'valid' | 'invalid' after validation
+        isClassroomCodeValid: null, // null=unknown, 'valid' | 'invalid' after validation
+        hasEverConnected: false // keep status hidden until first successful connection
     };
 
     const domElements = {
@@ -103,6 +104,7 @@
             const text = domElements.connectionStatus.querySelector('span');
             appState.isConnected = connected;
             if (connected) {
+                appState.hasEverConnected = true;
                 domElements.connectionStatus.className = 'status connected';
                 if (indicator) indicator.className = 'indicator connected';
                 if (text) text.textContent = 'Connected';
@@ -141,7 +143,11 @@
                 // After disconnect, keep connect step visible but hide translation/audio
                 domElements.translationStep?.classList.add('hidden');
                 domElements.audioStep?.classList.add('hidden');
-                domElements.connectionStatus?.classList.remove('hidden');
+                if (appState.hasEverConnected) {
+                    domElements.connectionStatus?.classList.remove('hidden');
+                } else {
+                    domElements.connectionStatus?.classList.add('hidden');
+                }
                 domElements.askStep?.classList.add('hidden');
             }
         },
@@ -467,13 +473,7 @@
             });
         }
 
-        // Two-way: enable ask UI when ?twoWay=1
-        try {
-            const twoWay = new URL(window.location.href).searchParams.get('twoWay') === '1';
-            if (twoWay && domElements.askStep) {
-                domElements.askStep.classList.remove('hidden');
-            }
-        } catch (_) {}
+        // Do not reveal ask UI pre-connection; this is handled upon connection
 
         // Initial step visibility: show only language step; status/connect appear after selection
         domElements.connectionStatus?.classList.add('hidden');
@@ -504,7 +504,6 @@
                         domElements.connectStep?.classList.remove('hidden');
                         if (domElements.connectButton) domElements.connectButton.disabled = false;
                         if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
-                        domElements.connectionStatus?.classList.remove('hidden');
                     }
                 } else {
                     // Unknown - allow the guided flow and let the server enforce validity on connect
@@ -598,8 +597,7 @@
                     if (domElements.connectButton) domElements.connectButton.disabled = false;
                     if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
                     domElements.connectStep?.classList.remove('hidden');
-                    // Show status bar now that language is selected
-                    domElements.connectionStatus?.classList.remove('hidden');
+                    // Keep status hidden until connected
                 }
                 if (appState.selectedLanguage && appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.isConnected) {
                     console.log('Language changed while connected - re-registering with server');
