@@ -295,6 +295,8 @@
           const manualControls = document.getElementById('manualControls');
           if (manual && manualControls) {
             manualControls.style.display = 'block';
+            const btn = document.getElementById('manualSendBtn');
+            if (btn) { btn.setAttribute('disabled', 'true'); }
             // After WS connects, send settings to switch to manual
             const trySendSettings = () => {
               if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {

@@ -349,6 +349,17 @@
                     if (data.status === 'success') {
                         uiUpdater.updateConnectionStatus(true);
                         appState.isConnected = true;
+                        // Enable ask UI elements when twoWay is on
+                        try {
+                            if (new URL(window.location.href).searchParams.get('twoWay') === '1') {
+                                if (domElements.askStep) showElement(domElements.askStep);
+                                if (domElements.askPTT) domElements.askPTT.disabled = false;
+                                if (domElements.askSend && domElements.askInput) {
+                                    const hasText = domElements.askInput.value.trim().length > 0;
+                                    domElements.askSend.disabled = !hasText;
+                                }
+                            }
+                        } catch(_) {}
                         if (domElements.translationDisplay) {
                             domElements.translationDisplay.innerHTML = '<div style="color:#333;">Waiting for teacher to start speaking...</div>';
                         }
@@ -565,7 +576,15 @@
         if (domElements.askInput) {
             domElements.askInput.addEventListener('input', () => {
                 const hasText = domElements.askInput.value.trim().length > 0;
-                if (domElements.askSend) domElements.askSend.disabled = !hasText || !appState.isConnected;
+                if (domElements.askSend) {
+                    const shouldDisable = !hasText || !appState.isConnected;
+                    domElements.askSend.disabled = shouldDisable;
+                    if (shouldDisable) {
+                        try { domElements.askSend.setAttribute('disabled', 'true'); } catch (_) {}
+                    } else {
+                        try { domElements.askSend.removeAttribute('disabled'); } catch (_) {}
+                    }
+                }
             });
         }
         if (domElements.askSend) {
