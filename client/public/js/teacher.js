@@ -720,6 +720,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         if (isManualModeEnabled()) {
                             appState.lastSegmentBlob = audioBlobIOS;
                             uiUpdater.updateStatus('Ready to send last audio segment');
+                            try { const b = document.getElementById('manualSendBtn'); if (b) (b).disabled = false; } catch(_) {}
                         } else {
                             uiUpdater.updateStatus('Sending final audio for transcription...');
                             webSocketHandler.sendAudioChunk(audioBlobIOS, false, true);
@@ -750,6 +751,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         const blobType = appState.chosenMimeType || appState.mediaRecorder.mimeType || 'audio/webm';
                         appState.lastSegmentBlob = new Blob(appState.audioChunks, { type: blobType });
                         uiUpdater.updateStatus('Ready to send last audio segment');
+                        try { const b = document.getElementById('manualSendBtn'); if (b) (b).disabled = false; } catch(_) {}
                     }
                     appState.audioChunks = [];
                 };
@@ -975,6 +977,25 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             const url = new URL(window.location.href);
             const manual = url.searchParams.get('manual') === '1';
             const modeGroup = document.getElementById('modeToggleGroup');
+            if (manual) {
+                // Show manual controls immediately for UX clarity; create if missing (SSR/middleware variants)
+                try {
+                    let mc = document.getElementById('manualControls');
+                    if (!mc) {
+                        mc = document.createElement('div');
+                        mc.id = 'manualControls';
+                        mc.style.display = 'block';
+                        mc.style.marginTop = '10px';
+                        mc.innerHTML = '<label for="manualText" style="display:block; margin-bottom: 6px;">Review Text (from your last audio)</label>\
+<textarea id="manualText" rows="3" style="width:100%; max-width: 640px; margin-bottom: 6px;" placeholder="Your last spoken words will appear here for review..."></textarea>\
+<div><button id="manualSendBtn" disabled>Send Last Audio</button> <small style="margin-left:8px; color:#555;">Manual mode: click “Send Last Audio” after you stop recording to deliver the reviewed segment.</small></div>';
+                        const anchor = document.getElementById('classroomInfo') || document.body;
+                        anchor.parentNode.insertBefore(mc, anchor.nextSibling);
+                    } else {
+                        mc.style.display = 'block';
+                    }
+                } catch(_) {}
+            }
             if (manual && modeGroup) {
                 const radios = modeGroup.querySelectorAll('input[name="mode"]');
                 const sendSetting = (mode) => {

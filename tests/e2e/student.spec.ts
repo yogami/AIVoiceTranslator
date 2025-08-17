@@ -112,7 +112,7 @@ test.describe('Student Interface - Basic Scenarios', () => {
 
       // 2. Student Setup
       studentPage = await browser.newPage();
-      await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}`);
+      await studentPage.goto(`http://127.0.0.1:5001/student?code=${classroomCode}&twoWay=1`);
       await studentPage.waitForLoadState('domcontentloaded');
       // New UX: explicitly select a language first
       await studentPage.selectOption('#language-dropdown', { index: 1 });
@@ -155,6 +155,30 @@ test.describe('Student Interface - Basic Scenarios', () => {
       const translationDisplay = studentPage.locator('#translation-display');
       await expect(translationDisplay).toContainText(mockTranslationPayload.originalText);
       await expect(translationDisplay).toContainText(mockTranslationPayload.translatedText);
+
+      // 6. Audio controls should be visible after connect
+      await expect(studentPage.locator('#translation-step')).toBeVisible();
+      await expect(studentPage.locator('#audio-step')).toBeVisible();
+      // Original (AI) enabled due to originalAudioData in mocked payload
+      await expect(studentPage.locator('#play-original-button')).toBeEnabled();
+
+      // 7. Two-way ask UI should be visible and PTT enabled in twoWay mode
+      await expect(studentPage.locator('#ask-step')).toBeVisible();
+      await expect(studentPage.locator('#ask-ptt')).toBeEnabled();
+
+      // 8. Simulate a PTT press/release cycle to ensure handler runs and a message is attempted
+      await studentPage.evaluate(() => {
+        (window as any).__studentMsgs = [];
+        if (window.appState && window.appState.ws) {
+          const origSend = window.appState.ws.send.bind(window.appState.ws);
+          window.appState.ws.send = (data) => { try { (window as any).__studentMsgs.push(JSON.parse(data)); } catch { (window as any).__studentMsgs.push(data); } origSend(data); };
+        }
+      });
+      // Trigger mousedown/mouseup to start/stop recording (handlers may fail silently if no mic; we just assert no crash and optional send attempt)
+      await studentPage.dispatchEvent('#ask-ptt', 'mousedown');
+      await studentPage.dispatchEvent('#ask-ptt', 'mouseup');
+      // We won't assert on the exact message due to browser mic permissions; ensure UI remains responsive
+      await expect(studentPage.locator('#ask-ptt')).toBeEnabled();
 
       // Check play button state based on audioData
       if (mockTranslationPayload.audioData) {
