@@ -34,6 +34,18 @@
         askPTT: null
     };
 
+    // UI helpers to ensure elements are actually hidden/shown in all builds
+    function hideElement(el) {
+        if (!el) return;
+        try { el.classList.add('hidden'); } catch (_) {}
+        try { el.style.display = 'none'; } catch (_) {}
+    }
+    function showElement(el, displayStyle) {
+        if (!el) return;
+        try { el.classList.remove('hidden'); } catch (_) {}
+        try { el.style.display = displayStyle || ''; } catch (_) {}
+    }
+
     const uiUpdater = {
         showNoClassroomCodeError: function() {
             if (domElements.connectionStatus) {
@@ -41,7 +53,7 @@
                     <div class="indicator disconnected"></div>
                     <span>No classroom code provided</span>
                 `;
-                domElements.connectionStatus.classList.remove('hidden');
+                showElement(domElements.connectionStatus);
             }
             if (domElements.translationDisplay) {
                 domElements.translationDisplay.innerHTML = 
@@ -51,6 +63,7 @@
                     '<p>The link should look like: <code>/student?code=ABC123</code></p>' +
                     '</div>';
             }
+            showElement(domElements.translationStep);
             if (domElements.connectButton) domElements.connectButton.disabled = true;
         },
 
@@ -84,17 +97,23 @@
                 // Reveal connect if a language is chosen and the code is not confirmed invalid
                 // Allow showing Connect even without a classroom code; server will validate on register
                 if (languageName) {
-                    domElements.connectStep.classList.remove('hidden');
+                    // Only reveal connect when classroom code is present and not invalid
+                    if (appState.classroomCode && appState.isClassroomCodeValid !== 'invalid') {
+                        showElement(domElements.connectStep);
+                    } else {
+                        hideElement(domElements.connectStep);
+                    }
+                    showElement(domElements.connectionStatus, '');
                     domElements.connectButton && (domElements.connectButton.disabled = false);
                     domElements.proxyConnectButton && (domElements.proxyConnectButton.disabled = false);
                 } else {
-                    domElements.connectStep.classList.add('hidden');
+                    hideElement(domElements.connectStep);
                 }
             }
             // Hide later steps until connected (status row shown only after language selection)
             if (!appState.isConnected) {
-                domElements.translationStep?.classList.add('hidden');
-                domElements.audioStep?.classList.add('hidden');
+                hideElement(domElements.translationStep);
+                hideElement(domElements.audioStep);
                 // connection status gating handled based on language selection below
             }
         },
@@ -107,6 +126,7 @@
             if (connected) {
                 appState.hasEverConnected = true;
                 domElements.connectionStatus.className = 'status connected';
+                showElement(domElements.connectionStatus, '');
                 if (indicator) indicator.className = 'indicator connected';
                 if (text) text.textContent = 'Connected';
                 domElements.connectButton.textContent = 'Disconnect';
@@ -451,6 +471,14 @@
         const urlParams = new URLSearchParams(window.location.search);
         appState.classroomCode = urlParams.get('code');
 
+        // Initial step visibility: show only language step; status/connect appear after selection
+        hideElement(domElements.connectionStatus);
+        hideElement(domElements.translationStep);
+        hideElement(domElements.audioStep);
+        hideElement(domElements.connectStep);
+        if (domElements.connectButton) domElements.connectButton.disabled = true;
+        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
+
         if (!appState.classroomCode) {
             // Show a friendly message but do not exit; allow user to select language and see Connect
             uiUpdater.showNoClassroomCodeError();
@@ -485,16 +513,9 @@
 
         // Do not reveal ask UI pre-connection; this is handled upon connection
 
-        // Initial step visibility: show only language step; status/connect appear after selection
-        domElements.connectionStatus?.classList.add('hidden');
-        domElements.translationStep?.classList.add('hidden');
-        domElements.audioStep?.classList.add('hidden');
-        domElements.connectStep?.classList.add('hidden');
-        if (domElements.connectButton) domElements.connectButton.disabled = true;
-        if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
-
-        // Validate classroom code immediately so we can show early error or allow flow
-        validateClassroomCode(appState.classroomCode)
+        // Validate classroom code immediately only if a code is present
+        if (appState.classroomCode) {
+            validateClassroomCode(appState.classroomCode)
             .then((status) => {
                 appState.isClassroomCodeValid = status;
                 if (status === 'invalid') {
@@ -502,23 +523,23 @@
                     if (domElements.translationDisplay) {
                         domElements.translationDisplay.innerHTML = '<div style="color: red; text-align: center; padding: 20px;"><h3>❌ Error</h3><p>Classroom session expired or invalid. Please ask teacher for new link.</p></div>';
                     }
-                    domElements.translationStep?.classList.remove('hidden');
+                    showElement(domElements.translationStep);
                     // Do NOT show status/connection bar when code is invalid
                     // Keep connect hidden/disabled
-                    domElements.connectStep?.classList.add('hidden');
+                    hideElement(domElements.connectStep);
                     if (domElements.connectButton) domElements.connectButton.disabled = true;
                     if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
                 } else if (status === 'valid') {
                     // If student already selected a language quickly, enable connect
                     if (appState.selectedLanguage) {
-                        domElements.connectStep?.classList.remove('hidden');
+                        showElement(domElements.connectStep);
                         if (domElements.connectButton) domElements.connectButton.disabled = false;
                         if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
                     }
                 } else {
                     // Unknown - allow the guided flow and let the server enforce validity on connect
                     if (appState.selectedLanguage) {
-                        domElements.connectStep?.classList.remove('hidden');
+                        showElement(domElements.connectStep);
                         if (domElements.connectButton) domElements.connectButton.disabled = false;
                         if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
                         // Only show status when language is selected (handled in language selection)
@@ -529,11 +550,12 @@
                 // Network issue: set unknown and allow connect after language; server will validate on register
                 appState.isClassroomCodeValid = null;
                 if (appState.selectedLanguage) {
-                    domElements.connectStep?.classList.remove('hidden');
+                    showElement(domElements.connectStep);
                     domElements.connectButton && (domElements.connectButton.disabled = false);
                     domElements.proxyConnectButton && (domElements.proxyConnectButton.disabled = false);
                 }
             });
+        }
     });
 
     // Send student_request when ask-send clicked
@@ -603,12 +625,10 @@
             if (selectedOption.value) {
                 appState.selectedLanguage = selectedOption.value;
                 uiUpdater.updateSelectedLanguageDisplay(selectedOption.textContent);
-                if (appState.isClassroomCodeValid !== 'invalid') {
-                    if (domElements.connectButton) domElements.connectButton.disabled = false;
-                    if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
-                    domElements.connectStep?.classList.remove('hidden');
-                    // Keep status hidden until connected
-                }
+                if (domElements.connectButton) domElements.connectButton.disabled = false;
+                if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
+                domElements.connectStep?.classList.remove('hidden');
+                // Keep status hidden until connected
                 if (appState.selectedLanguage && appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.isConnected) {
                     console.log('Language changed while connected - re-registering with server');
                     webSocketHandler.register(appState.classroomCode); // Call new handler
