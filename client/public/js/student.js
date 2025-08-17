@@ -320,8 +320,8 @@
             const data = JSON.parse(event.data);
             switch (data.type) {
                 case 'connection':
-                    // Only show error if connection failed (status === 'error'), otherwise clear any error
-                    if (data.status === 'error' || data.error || data.message) {
+                    // Only show error if connection failed (status === 'error') or explicit error flag
+                    if (data.status === 'error' || data.error) {
                         // Show nothing if the user is already connected (should not happen), else show friendly message
                         if (domElements.translationDisplay) {
                             domElements.translationDisplay.innerHTML = '<div style="color: orange;">Waiting for teacher to start the session. Please try again in a moment.</div>';
@@ -331,6 +331,18 @@
                     } else {
                     // Successful join: clear any error message and show default waiting message
                     uiUpdater.updateConnectionStatus(true);
+                    appState.isConnected = true;
+                    try {
+                        if (new URL(window.location.href).searchParams.get('twoWay') === '1') {
+                            if (domElements.askStep) showElement(domElements.askStep);
+                            if (domElements.askPTT) domElements.askPTT.disabled = false;
+                            if (domElements.askSend && domElements.askInput) {
+                                const hasText = domElements.askInput.value.trim().length > 0;
+                                domElements.askSend.disabled = !hasText;
+                                if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
+                            }
+                        }
+                    } catch(_) {}
                     if (domElements.translationDisplay) {
                         domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                     }
@@ -529,7 +541,7 @@
 
         // Validate classroom code immediately only if a code is present
         if (appState.classroomCode) {
-            validateClassroomCode(appState.classroomCode)
+        validateClassroomCode(appState.classroomCode)
             .then((status) => {
                 appState.isClassroomCodeValid = status;
                 if (status === 'invalid') {
@@ -576,8 +588,8 @@
     function setupAskHandlers() {
         // Text ask handlers (optional presence)
         if (domElements.askInput) {
-            domElements.askInput.addEventListener('input', () => {
-                const hasText = domElements.askInput.value.trim().length > 0;
+        domElements.askInput.addEventListener('input', () => {
+            const hasText = domElements.askInput.value.trim().length > 0;
                 if (domElements.askSend) {
                     const twoWayOn = (() => { try { return new URL(window.location.href).searchParams.get('twoWay') === '1'; } catch { return false; } })();
                     const wsOpen = !!(appState.ws && appState.ws.readyState === WebSocket.OPEN);
@@ -592,18 +604,18 @@
             });
         }
         if (domElements.askSend) {
-            domElements.askSend.addEventListener('click', () => {
-                try {
-                    if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) return;
+        domElements.askSend.addEventListener('click', () => {
+            try {
+                if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) return;
                     const text = domElements.askInput ? domElements.askInput.value.trim() : '';
-                    if (!text) return;
-                    const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
-                    const msg = { type: 'student_request', text, visibility: vis };
-                    appState.ws.send(JSON.stringify(msg));
+                if (!text) return;
+                const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
+                const msg = { type: 'student_request', text, visibility: vis };
+                appState.ws.send(JSON.stringify(msg));
                     if (domElements.askInput) domElements.askInput.value = '';
                     if (domElements.askSend) domElements.askSend.disabled = true;
-                } catch (e) { console.warn('Failed to send student_request', e); }
-            });
+            } catch (e) { console.warn('Failed to send student_request', e); }
+        });
         }
 
         // Push-to-talk (hold to send short audio, then STT on server)
@@ -654,9 +666,9 @@
             if (selectedOption.value) {
                 appState.selectedLanguage = selectedOption.value;
                 uiUpdater.updateSelectedLanguageDisplay(selectedOption.textContent);
-                if (domElements.connectButton) domElements.connectButton.disabled = false;
-                if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
-                domElements.connectStep?.classList.remove('hidden');
+                    if (domElements.connectButton) domElements.connectButton.disabled = false;
+                    if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = false;
+                    domElements.connectStep?.classList.remove('hidden');
                 // Keep status hidden until connected
                 if (appState.selectedLanguage && appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.isConnected) {
                     console.log('Language changed while connected - re-registering with server');
