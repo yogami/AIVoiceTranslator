@@ -119,7 +119,7 @@
         },
 
         updateConnectionStatus: function(connected) {
-            if (!domElements.connectionStatus || !domElements.connectButton || !domElements.playButton) return;
+            if (!domElements.connectionStatus || !domElements.connectButton) return;
             const indicator = domElements.connectionStatus.querySelector('.indicator');
             const text = domElements.connectionStatus.querySelector('span');
             appState.isConnected = connected;
@@ -138,15 +138,16 @@
                     domElements.proxyConnectButton.disabled = false;
                 }
                 // Reveal translation and audio steps when connected
-                domElements.translationStep?.classList.remove('hidden');
-                domElements.audioStep?.classList.remove('hidden');
-                domElements.connectionStatus?.classList.remove('hidden');
+                showElement(domElements.translationStep);
+                showElement(domElements.audioStep);
+                showElement(domElements.connectionStatus);
                 // Two-way UI (ask) when enabled
                 if (window.location.search.includes('twoWay=1')) {
-                    domElements.askStep?.classList.remove('hidden');
+                    domElements.askStep && showElement(domElements.askStep);
                     if (domElements.askSend && domElements.askInput) {
                         domElements.askSend.disabled = domElements.askInput.value.trim().length === 0;
                     }
+                    if (domElements.askPTT) domElements.askPTT.disabled = false;
                 }
             } else {
                 domElements.connectionStatus.className = 'status disconnected';
@@ -162,14 +163,14 @@
                     domElements.proxyConnectButton.disabled = !appState.selectedLanguage;
                 }
                 // After disconnect, keep connect step visible but hide translation/audio
-                domElements.translationStep?.classList.add('hidden');
-                domElements.audioStep?.classList.add('hidden');
+                hideElement(domElements.translationStep);
+                hideElement(domElements.audioStep);
                 if (appState.hasEverConnected) {
-                    domElements.connectionStatus?.classList.remove('hidden');
+                    showElement(domElements.connectionStatus);
                 } else {
-                    domElements.connectionStatus?.classList.add('hidden');
+                    hideElement(domElements.connectionStatus);
                 }
-                domElements.askStep?.classList.add('hidden');
+                hideElement(domElements.askStep);
             }
         },
 
@@ -558,40 +559,45 @@
         }
     });
 
-    // Send student_request when ask-send clicked
+    // Send student_request and setup Push-to-Talk handlers
     function setupAskHandlers() {
-        if (!domElements.askSend || !domElements.askInput) return;
-        domElements.askInput.addEventListener('input', () => {
-            const hasText = domElements.askInput.value.trim().length > 0;
-            if (domElements.askSend) domElements.askSend.disabled = !hasText || !appState.isConnected;
-        });
-        domElements.askSend.addEventListener('click', () => {
-            try {
-                if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) return;
-                const text = domElements.askInput.value.trim();
-                if (!text) return;
-                const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
-                const msg = { type: 'student_request', text, visibility: vis };
-                appState.ws.send(JSON.stringify(msg));
-                domElements.askInput.value = '';
-                domElements.askSend.disabled = true;
-            } catch (e) { console.warn('Failed to send student_request', e); }
-        });
+        // Text ask handlers (optional presence)
+        if (domElements.askInput) {
+            domElements.askInput.addEventListener('input', () => {
+                const hasText = domElements.askInput.value.trim().length > 0;
+                if (domElements.askSend) domElements.askSend.disabled = !hasText || !appState.isConnected;
+            });
+        }
+        if (domElements.askSend) {
+            domElements.askSend.addEventListener('click', () => {
+                try {
+                    if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) return;
+                    const text = domElements.askInput ? domElements.askInput.value.trim() : '';
+                    if (!text) return;
+                    const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
+                    const msg = { type: 'student_request', text, visibility: vis };
+                    appState.ws.send(JSON.stringify(msg));
+                    if (domElements.askInput) domElements.askInput.value = '';
+                    if (domElements.askSend) domElements.askSend.disabled = true;
+                } catch (e) { console.warn('Failed to send student_request', e); }
+            });
+        }
 
         // Push-to-talk (hold to send short audio, then STT on server)
         if (domElements.askPTT) {
+            domElements.askPTT.disabled = true; // default disabled until connected and twoWay enabled
             let mediaRecorder = null;
             let chunks = [];
             const start = async () => {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const stream = await (navigator.mediaDevices && navigator.mediaDevices.getUserMedia ? navigator.mediaDevices.getUserMedia({ audio: true }) : Promise.reject(new Error('mediaDevices unavailable')));
                     mediaRecorder = new MediaRecorder(stream);
                     chunks = [];
                     mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
                     mediaRecorder.onstop = async () => {
                         try {
                             if (chunks.length === 0) return;
-                            const blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                            const blob = new Blob(chunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
                             const reader = new FileReader();
                             reader.onloadend = () => {
                                 const base64Audio = String(reader.result).split(',')[1];
