@@ -145,7 +145,9 @@
                 if (window.location.search.includes('twoWay=1')) {
                     domElements.askStep && showElement(domElements.askStep);
                     if (domElements.askSend && domElements.askInput) {
-                        domElements.askSend.disabled = domElements.askInput.value.trim().length === 0;
+                        const hasText = domElements.askInput.value.trim().length > 0;
+                        domElements.askSend.disabled = !hasText;
+                        try { if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled'); } catch(_) {}
                     }
                     if (domElements.askPTT) domElements.askPTT.disabled = false;
                 }
