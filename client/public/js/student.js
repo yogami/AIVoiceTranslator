@@ -371,6 +371,7 @@
                                 if (domElements.askSend && domElements.askInput) {
                                     const hasText = domElements.askInput.value.trim().length > 0;
                                     domElements.askSend.disabled = !hasText;
+                                    if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
                                 }
                             }
                         } catch(_) {}
