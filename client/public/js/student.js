@@ -592,9 +592,8 @@
             domElements.askInput.addEventListener('input', () => {
                 const hasText = domElements.askInput.value.trim().length > 0;
                 if (domElements.askSend) {
-                    const twoWayOn = (() => { try { return new URL(window.location.href).searchParams.get('twoWay') === '1'; } catch { return false; } })();
                     const wsOpen = !!(appState.ws && appState.ws.readyState === WebSocket.OPEN);
-                    const shouldDisable = !hasText || !wsOpen;
+                    const shouldDisable = !hasText || (!wsOpen && !appState.isConnected);
                     domElements.askSend.disabled = shouldDisable;
                     if (shouldDisable) {
                         try { domElements.askSend.setAttribute('disabled', 'true'); } catch (_) {}
