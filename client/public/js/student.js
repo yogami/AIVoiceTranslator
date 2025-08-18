@@ -346,6 +346,20 @@
                     if (domElements.translationDisplay) {
                         domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                     }
+                    // Periodic refresh to ensure ask-send reflects current text and WS state
+                    try {
+                        if (!window.__askRefreshInterval) {
+                            window.__askRefreshInterval = setInterval(() => {
+                                if (domElements.askInput && domElements.askSend) {
+                                    const hasTextNow = domElements.askInput.value.trim().length > 0;
+                                    const wsOpenNow = !!(appState.ws && appState.ws.readyState === WebSocket.OPEN);
+                                    const disable = !hasTextNow || !wsOpenNow;
+                                    domElements.askSend.disabled = disable;
+                                    if (disable) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
+                                }
+                            }, 300);
+                        }
+                    } catch(_) {}
                     }
                     break;
                 case 'teacher_mode':
