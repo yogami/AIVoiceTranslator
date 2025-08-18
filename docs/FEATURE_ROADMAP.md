@@ -10,6 +10,10 @@ Plan the next set of high‑impact features that directly help teachers and stud
 
 ### Next: Differentiated features (our wedge in live, mixed‑language classrooms)
 
+0) On‑Demand Elaboration (Micro‑Tutoring)  ← moved to top
+- What: Students tap “Elaborate” to get a brief, simpler explanation and one example for the last sentence; teacher can pin to all.
+- Value: Converts translation into understanding in the moment; measurable drop in miscomprehension.
+
 1) Class glossary loop
 - What: One‑tap “correct translation” and “fix pronunciation”; persists for the rest of class and future lessons
 - Value: Classroom‑specific accuracy that compounds; fewer repeated errors
@@ -18,7 +22,7 @@ Plan the next set of high‑impact features that directly help teachers and stud
 - What: Live tiles for each target language: delivered/queued/failed with quick resend
 - Value: Operates at classroom scale; confidence when teaching many languages at once
 
-3) Offline/campus mode
+3) Offline/campus mode (Gateway SLA)
 - What: Pre‑baked voice + topic packs; runs without cloud; background sync later
 - Value: Works in low‑connectivity schools and privacy‑sensitive deployments
 
@@ -35,9 +39,9 @@ Plan the next set of high‑impact features that directly help teachers and stud
 - Value: Long‑tail coverage that improves with each classroom
 
 ### Suggested Phasing
-- Phase 1 (2–4 weeks): Class glossary loop; WhatsApp recap; privacy and audit controls (MVP subset)
-- Phase 2 (4–8 weeks): Multi‑language broadcast health panel; Offline/campus mode (core); Community voice requests (basic)
-- Phase 3 (8–12 weeks): Offline/campus advanced packs; voice request workflows; admin reporting and exports
+- Phase 1 (2–4 weeks): On‑Demand Elaboration (MVP); Class glossary loop; privacy and audit controls (MVP subset)
+- Phase 2 (4–8 weeks): Multi‑language broadcast health panel; Offline/campus mode (core); WhatsApp recap
+- Phase 3 (8–12 weeks): Private Voice Lock (teacher‑only); Community voice requests; admin reporting and exports
 
 ### Why this is hard to copy (defensibility)
 - Reliability moat: Multi‑tier fallbacks, voice caching, audio normalization, and session orchestration
