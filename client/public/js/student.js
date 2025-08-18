@@ -592,8 +592,7 @@
             domElements.askInput.addEventListener('input', () => {
                 const hasText = domElements.askInput.value.trim().length > 0;
                 if (domElements.askSend) {
-                    const wsOpen = !!(appState.ws && appState.ws.readyState === WebSocket.OPEN);
-                    const shouldDisable = !hasText || (!wsOpen && !appState.isConnected);
+                    const shouldDisable = !hasText; // UI-enabled purely on text; click handler guards WS state
                     domElements.askSend.disabled = shouldDisable;
                     if (shouldDisable) {
                         try { domElements.askSend.setAttribute('disabled', 'true'); } catch (_) {}
