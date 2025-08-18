@@ -601,7 +601,37 @@
                     }
                 }
             });
+            // Extra resilience for environments where 'fill' may not trigger expected events
+            domElements.askInput.addEventListener('keyup', () => {
+                try {
+                    const hasText = domElements.askInput.value.trim().length > 0;
+                    if (domElements.askSend) {
+                        domElements.askSend.disabled = !hasText;
+                        if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
+                    }
+                } catch(_) {}
+            });
+            domElements.askInput.addEventListener('change', () => {
+                try {
+                    const hasText = domElements.askInput.value.trim().length > 0;
+                    if (domElements.askSend) {
+                        domElements.askSend.disabled = !hasText;
+                        if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
+                    }
+                } catch(_) {}
+            });
         }
+        // Global fallback in case listeners above did not attach
+        document.addEventListener('input', (ev) => {
+            try {
+                const target = ev.target;
+                if (target && target.id === 'ask-input' && domElements.askSend) {
+                    const hasText = String(target.value || '').trim().length > 0;
+                    domElements.askSend.disabled = !hasText;
+                    if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
+                }
+            } catch(_) {}
+        });
         if (domElements.askSend) {
         domElements.askSend.addEventListener('click', () => {
             try {
