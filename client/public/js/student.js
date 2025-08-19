@@ -1,4 +1,6 @@
 (function() { // Start of IIFE
+    const __STUDENT_JS_VERSION__ = '20250810-8';
+    console.log('[student.js] Version', __STUDENT_JS_VERSION__);
     const appState = {
         ws: null,
         selectedLanguage: null,
@@ -347,7 +349,17 @@
                     // Successful join: clear any error message and show default waiting message
                     uiUpdater.updateConnectionStatus(true);
                     appState.isConnected = true;
-                    // Defer enabling two-way UI until register success to ensure server has assigned roles
+                    try {
+                        if (new URL(window.location.href).searchParams.get('twoWay') === '1') {
+                            if (domElements.askStep) showElement(domElements.askStep);
+                            if (domElements.askPTT) domElements.askPTT.disabled = false;
+                            if (domElements.askSend && domElements.askInput) {
+                                const hasText = domElements.askInput.value.trim().length > 0;
+                                domElements.askSend.disabled = !hasText;
+                                if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
+                            }
+                        }
+                    } catch(_) {}
                     if (domElements.translationDisplay) {
                         domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                     }
@@ -696,7 +708,7 @@
                 } catch (e) { console.warn('PTT start failed', e); }
             };
             const stop = () => { try { mediaRecorder && mediaRecorder.state === 'recording' && mediaRecorder.stop(); } catch(_) {} };
-            domElements.askPTT.title = 'Hold to record your voice and send to the teacher';
+            domElements.askPTT.title = 'Hold to record your voice and send to the teacher (v8)';
             domElements.askPTT.addEventListener('mousedown', start);
             domElements.askPTT.addEventListener('touchstart', start);
             domElements.askPTT.addEventListener('mouseup', stop);
@@ -736,15 +748,15 @@
 
     function setupWebSocket() {
         if (domElements.connectButton) {
-            domElements.connectButton.title = 'Connect to your classroom session';
+            domElements.connectButton.title = 'Connect to your classroom session (v8)';
             domElements.connectButton.addEventListener('click', toggleConnection);
         }
         if (domElements.playButton) {
-            domElements.playButton.title = 'Play the translated audio';
+            domElements.playButton.title = 'Play the translated audio (v8)';
             domElements.playButton.addEventListener('click', playCurrentAudio);
         }
         if (domElements.playOriginalButton) {
-            domElements.playOriginalButton.title = 'Play the teacher\'s original voice (AI-synthesized)';
+            domElements.playOriginalButton.title = 'Play the teacher\'s original voice (AI) (v8)';
             domElements.playOriginalButton.addEventListener('click', playOriginalAudio);
         }
         const dl = document.getElementById('download-audio');
