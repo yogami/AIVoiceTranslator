@@ -18,6 +18,7 @@ export class StudentRequestMessageHandler implements IMessageHandler<StudentRequ
     const settings = context.connectionManager.getClientSettings?.(context.ws) || {};
     const enabled = !!(config.features?.twoWayCommunication || settings.twoWayEnabled);
     if (!enabled) {
+      logger.info('student_request ignored: two-way disabled for this connection');
       return;
     }
     try {
@@ -48,6 +49,7 @@ export class StudentRequestMessageHandler implements IMessageHandler<StudentRequ
       const teachers = Array.from(context.connectionManager.getConnections()).filter((ws: any) => {
         return context.connectionManager.getRole(ws) === 'teacher' && context.connectionManager.getSessionId(ws) === sessionId;
       });
+      logger.info('student_request received', { sessionId, teachersFound: teachers.length, text: message.text });
 
       const requestId = `req_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const payload: StudentRequestMessageToClient = {
@@ -63,7 +65,7 @@ export class StudentRequestMessageHandler implements IMessageHandler<StudentRequ
       };
 
       for (const teacherWs of teachers) {
-        try { teacherWs.send(JSON.stringify(payload)); } catch (e) {
+        try { teacherWs.send(JSON.stringify(payload)); logger.info('student_request delivered to teacher'); } catch (e) {
           logger.warn('Failed to deliver student_request to teacher', { error: e });
         }
       }
