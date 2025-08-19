@@ -579,6 +579,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                         const enabled = new URL(window.location.href).searchParams.get('twoWay') === '1';
                         if (!enabled) break;
                     } catch (_) { break; }
+                    try { console.log('[teacher] student_request received', data.payload); } catch(_){}
                     renderRequestCard(data.payload);
                     break;
 
@@ -990,7 +991,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 <textarea id="manualText" rows="3" style="width:100%; max-width: 640px; margin-bottom: 6px;" placeholder="Your last spoken words will appear here for review..."></textarea>\
 <div><button id="manualSendBtn" disabled>Send Last Audio</button> <small style="margin-left:8px; color:#555;">Manual mode: click “Send Last Audio” after you stop recording to deliver the reviewed segment.</small></div>';
                         const anchor = document.getElementById('classroomInfo') || document.body;
-                        anchor.parentNode.insertBefore(mc, anchor.nextSibling);
+                        if (anchor && anchor.parentNode) {
+                            anchor.parentNode.insertBefore(mc, anchor.nextSibling);
+                        } else {
+                            document.body.appendChild(mc);
+                        }
                     } else {
                         mc.style.display = 'block';
                     }
@@ -1035,13 +1040,14 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         const card = document.createElement('div');
         card.style.cssText = 'border:1px solid #e5e7eb; border-radius:8px; padding:10px; background:#fff;';
         const name = (payload && payload.name) ? payload.name : 'Student';
+        const sid = (payload && payload.studentId) ? ` (${payload.studentId})` : '';
         const lang = (payload && payload.languageCode) ? payload.languageCode : '';
         const text = (payload && payload.text) ? payload.text : '';
         const requestId = payload && payload.requestId;
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                 <div>
-                    <div style="font-weight:600;">${name} <small style="color:#6b7280;">${lang}</small></div>
+                    <div style="font-weight:600;">${name}${sid} <small style="color:#6b7280;">${lang}</small></div>
                     <div style="color:#111827; margin-top:4px;">${escapeHtml(text)}</div>
                 </div>
                 <div style="display:flex; gap:6px; white-space:nowrap;">

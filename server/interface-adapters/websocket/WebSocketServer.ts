@@ -182,12 +182,10 @@ export class WebSocketServer implements IActiveSessionProvider {
     this.messageHandlerRegistry.register(new PongMessageHandler());
     this.messageHandlerRegistry.register(new ManualSendTranslationHandler());
 
-    // Two-way communication handlers (feature-flagged)
-    if (this.isTwoWayEnabled()) {
-      this.messageHandlerRegistry.register(new StudentRequestMessageHandler());
-      this.messageHandlerRegistry.register(new TeacherReplyMessageHandler());
-      this.messageHandlerRegistry.register(new StudentAudioMessageHandler());
-    }
+    // Two-way communication handlers: always register; handlers self-gate by flags/settings
+    this.messageHandlerRegistry.register(new StudentRequestMessageHandler());
+    this.messageHandlerRegistry.register(new TeacherReplyMessageHandler());
+    this.messageHandlerRegistry.register(new StudentAudioMessageHandler());
     
     // Create message handler context with all required services
     const messageHandlerContext: Omit<MessageHandlerContext, 'ws'> = {

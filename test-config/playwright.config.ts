@@ -70,6 +70,7 @@ export default defineConfig({
           NODE_ENV: "development",
           E2E_TEST_MODE: "true",
           LOG_LEVEL: "warn",
+          FEATURE_TWO_WAY_COMMUNICATION: "1",
           PORT: "5001",
           HOST: "127.0.0.1",
           ANALYTICS_PASSWORD: "",

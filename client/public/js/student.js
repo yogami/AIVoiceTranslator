@@ -246,9 +246,15 @@
             try {
                 // Append twoWay flag if present in page URL to inform server
                 const u = new URL(wsUrl);
-                const pageTwoWay = new URL(window.location.href).searchParams.get('twoWay');
+                const pageUrl = new URL(window.location.href);
+                const pageTwoWay = pageUrl.searchParams.get('twoWay');
                 if (pageTwoWay && !u.searchParams.has('twoWay')) {
                     u.searchParams.set('twoWay', pageTwoWay);
+                }
+                // Pass classroom code to WS so server can associate with teacher session
+                const classCode = appState.classroomCode || pageUrl.searchParams.get('code') || pageUrl.searchParams.get('class');
+                if (classCode && !u.searchParams.has('code')) {
+                    u.searchParams.set('code', classCode);
                 }
                 appState.ws = new WebSocket(u.toString());
                 console.log('[DEBUG] WebSocket object created successfully');
@@ -296,11 +302,20 @@
             });
             
             if (appState.ws && appState.ws.readyState === WebSocket.OPEN && appState.selectedLanguage) {
+                let displayName = (function(){
+                    try {
+                        const v = (document.getElementById('student-name') || {}).value || localStorage.getItem('studentDisplayName') || '';
+                        const t = String(v).trim();
+                        if (t) return t;
+                    } catch(_) {}
+                    return '';
+                })();
                 const message = {
                     type: 'register',
                     role: 'student',
                     languageCode: appState.selectedLanguage,
-                    classroomCode: classroomCode
+                    classroomCode: classroomCode,
+                    ...(displayName ? { name: displayName } : {})
                 };
                 console.log('[DEBUG] Sending student registration:', message);
                 appState.ws.send(JSON.stringify(message));
@@ -332,17 +347,7 @@
                     // Successful join: clear any error message and show default waiting message
                     uiUpdater.updateConnectionStatus(true);
                     appState.isConnected = true;
-                    try {
-                        if (new URL(window.location.href).searchParams.get('twoWay') === '1') {
-                            if (domElements.askStep) showElement(domElements.askStep);
-                            if (domElements.askPTT) domElements.askPTT.disabled = false;
-                            if (domElements.askSend && domElements.askInput) {
-                                const hasText = domElements.askInput.value.trim().length > 0;
-                                domElements.askSend.disabled = !hasText;
-                                if (!hasText) domElements.askSend.setAttribute('disabled', 'true'); else domElements.askSend.removeAttribute('disabled');
-                            }
-                        }
-                    } catch(_) {}
+                    // Defer enabling two-way UI until register success to ensure server has assigned roles
                     if (domElements.translationDisplay) {
                         domElements.translationDisplay.innerHTML = '<div style="color: #333;">Waiting for teacher to start speaking...</div>';
                     }
@@ -486,6 +491,17 @@
     };
 
     document.addEventListener('DOMContentLoaded', function() {
+        // Restore and persist student display name
+        try {
+            const nameInput = document.getElementById('student-name');
+            if (nameInput) {
+                const saved = localStorage.getItem('studentDisplayName') || '';
+                if (saved) nameInput.value = saved;
+                nameInput.addEventListener('input', () => {
+                    try { localStorage.setItem('studentDisplayName', String(nameInput.value || '').trim()); } catch(_) {}
+                });
+            }
+        } catch(_) {}
         // Cache DOM elements
         domElements.connectionStatus = document.getElementById('connection-status');
         domElements.translationDisplay = document.getElementById('translation-display');

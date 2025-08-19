@@ -230,6 +230,7 @@ export interface StudentRequestMessageToClient extends BaseWebSocketMessage {
   type: 'student_request';
   payload: {
     requestId: string;
+    studentId?: string;
     name?: string;
     languageCode?: string;
     text: string;

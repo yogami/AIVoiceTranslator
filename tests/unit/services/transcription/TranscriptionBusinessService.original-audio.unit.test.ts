@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 describe('TranscriptionBusinessService (Original Source Audio included)', () => {
   beforeEach(() => {
-    // No flag now; feature is default
+    // Ensure original TTS is enabled for this test's expectation
+    process.env.FEATURE_INCLUDE_ORIGINAL_TTS = '1';
   });
 
   it('includes originalAudioData and originalAudioFormat in outgoing translation message', async () => {

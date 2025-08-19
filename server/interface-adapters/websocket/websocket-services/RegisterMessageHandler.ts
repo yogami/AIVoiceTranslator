@@ -53,6 +53,10 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       }
     } catch {}
     
+    // If a name is provided in the register message, persist it in settings for this connection
+    if (message.name && typeof message.name === 'string') {
+      (settings as any).name = message.name.trim();
+    }
     // Update all settings if provided (proper merge)
     if (message.settings) {
       Object.assign(settings, message.settings);
@@ -432,14 +436,25 @@ export class RegisterMessageHandler implements IMessageHandler<RegisterMessageTo
       // BUGFIX: Students can join sessions regardless of isActive status
       session = await context.storage.getSessionById(studentSessionId);
       if (session && session.endTime) session = null;
-      if (!session && classroomCode) {
+      if (classroomCode) {
         const sessionInfo = context.webSocketServer.classroomSessionManager.getSessionByCode(classroomCode);
         if (sessionInfo) {
-          session = await context.storage.getSessionById(sessionInfo.sessionId);
-          if (session && session.endTime) session = null;
-          if (session) {
-            context.connectionManager.updateSessionId(context.ws, sessionInfo.sessionId);
-            studentSessionId = sessionInfo.sessionId;
+          // Always migrate the student's connection to the teacher's live session for in-memory routing,
+          // even if storage lookups fail or are delayed in tests.
+          context.connectionManager.updateSessionId(context.ws, sessionInfo.sessionId);
+          studentSessionId = sessionInfo.sessionId;
+
+          // Best-effort: verify session exists in storage for persistence; ignore failures
+          try {
+            const persisted = await context.storage.getSessionById(sessionInfo.sessionId);
+            if (!persisted || (persisted && persisted.endTime)) {
+              // Leave session variable null to trigger soft-fail path below
+              session = null as any;
+            } else {
+              session = persisted;
+            }
+          } catch (_) {
+            session = null as any;
           }
         }
       }

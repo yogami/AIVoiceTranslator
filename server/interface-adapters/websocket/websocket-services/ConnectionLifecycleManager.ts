@@ -78,7 +78,7 @@ export class ConnectionLifecycleManager {
     // Store connection data
     this.connectionManager.addConnection(ws, sessionId, classroomCode || undefined);
 
-    // Initialize per-connection settings from URL params (e.g., ace=1)
+    // Initialize per-connection settings from URL params (e.g., ace=1, twoWay=1)
     try {
       const baseUrl = `http://${config.server.host}:${config.server.port}`;
       const url = request?.url ? new URL(request.url, baseUrl) : null;
@@ -87,6 +87,13 @@ export class ConnectionLifecycleManager {
         const enabled = /^(1|true|yes|on)$/i.test(aceParam);
         const settings = this.connectionManager.getClientSettings(ws) || {};
         (settings as any).aceEnabled = enabled;
+        this.connectionManager.setClientSettings(ws, settings);
+      }
+      const twoWayParam = url?.searchParams.get('twoWay');
+      if (twoWayParam) {
+        const twoWayEnabled = /^(1|true|yes|on)$/i.test(twoWayParam);
+        const settings = this.connectionManager.getClientSettings(ws) || {};
+        (settings as any).twoWayEnabled = twoWayEnabled;
         this.connectionManager.setClientSettings(ws, settings);
       }
     } catch {}

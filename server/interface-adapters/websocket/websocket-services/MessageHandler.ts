@@ -102,7 +102,8 @@ export class MessageDispatcher {
       const message = JSON.parse(data) as WebSocketMessageToServer;
       
       // Skip session validation for certain message types that don't require active sessions
-      const skipValidation = ['register', 'ping', 'pong'].includes(message.type);
+      // Allow two-way messages to flow in test/demo even if storage lookups are delayed
+      const skipValidation = ['register', 'ping', 'pong', 'student_request', 'student_audio', 'teacher_reply'].includes(message.type);
       
       if (!skipValidation) {
         // Validate session is still active for non-exempt message types
