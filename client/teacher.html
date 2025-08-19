@@ -287,12 +287,17 @@
     <script src="/js/services/rtcExperiment.js?v=20250810-5"></script>
     <script src="/js/teacher.js?v=20250810-5" defer></script>
     <script>
-      // Minimal manual-mode bootstrap via URL flag (?manual=1)
+      // Minimal manual-mode bootstrap via URL flag (?manual=1) and twoWay queue reveal
       document.addEventListener('DOMContentLoaded', function() {
         try {
           const url = new URL(window.location.href);
           const manual = url.searchParams.get('manual') === '1';
+          const twoWay = url.searchParams.get('twoWay') === '1';
           const manualControls = document.getElementById('manualControls');
+          const requestsQueue = document.getElementById('requestsQueue');
+          if (twoWay && requestsQueue) {
+            requestsQueue.style.display = 'block';
+          }
           if (manual && manualControls) {
             manualControls.style.display = 'block';
             const btn = document.getElementById('manualSendBtn');
