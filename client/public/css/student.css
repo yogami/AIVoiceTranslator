@@ -248,6 +248,15 @@ body.ui-v2 .audio-controls #play-original-button {
     margin-bottom: 0;
 }
 
+/* Make Hold to Speak more visible */
+#ask-ptt {
+    background: linear-gradient(135deg, #ff7a59, #ff3b30);
+    color: #fff;
+}
+#ask-ptt:hover:not(:disabled) {
+    filter: brightness(1.05);
+}
+
 #play-button:hover:not(:disabled) {
     background: #218838;
 }

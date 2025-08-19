@@ -690,6 +690,7 @@
                 } catch (e) { console.warn('PTT start failed', e); }
             };
             const stop = () => { try { mediaRecorder && mediaRecorder.state === 'recording' && mediaRecorder.stop(); } catch(_) {} };
+            domElements.askPTT.title = 'Hold to record your voice and send to the teacher';
             domElements.askPTT.addEventListener('mousedown', start);
             domElements.askPTT.addEventListener('touchstart', start);
             domElements.askPTT.addEventListener('mouseup', stop);
@@ -728,9 +729,18 @@
     }
 
     function setupWebSocket() {
-        if (domElements.connectButton) domElements.connectButton.addEventListener('click', toggleConnection);
-        if (domElements.playButton) domElements.playButton.addEventListener('click', playCurrentAudio);
-        if (domElements.playOriginalButton) domElements.playOriginalButton.addEventListener('click', playOriginalAudio);
+        if (domElements.connectButton) {
+            domElements.connectButton.title = 'Connect to your classroom session';
+            domElements.connectButton.addEventListener('click', toggleConnection);
+        }
+        if (domElements.playButton) {
+            domElements.playButton.title = 'Play the translated audio';
+            domElements.playButton.addEventListener('click', playCurrentAudio);
+        }
+        if (domElements.playOriginalButton) {
+            domElements.playOriginalButton.title = 'Play the teacher\'s original voice (AI-synthesized)';
+            domElements.playOriginalButton.addEventListener('click', playOriginalAudio);
+        }
         const dl = document.getElementById('download-audio');
         if (dl) {
             dl.addEventListener('click', function() {
