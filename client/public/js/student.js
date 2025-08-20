@@ -667,14 +667,19 @@
         if (domElements.askSend) {
         domElements.askSend.addEventListener('click', () => {
             try {
-                if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) return;
-                    const text = domElements.askInput ? domElements.askInput.value.trim() : '';
-                if (!text) return;
+                const text = domElements.askInput ? domElements.askInput.value.trim() : '';
+                if (!text) { console.warn('student_request not sent: empty text'); return; }
+                if (!appState.ws || appState.ws.readyState !== WebSocket.OPEN) {
+                    console.warn('student_request not sent: WebSocket not open');
+                    alert('Connection not ready. Please click Connect again.');
+                    return;
+                }
                 const vis = (document.querySelector('input[name="ask-visibility"]:checked') || {}).value || 'private';
                 const msg = { type: 'student_request', text, visibility: vis };
+                console.log('[student] sending student_request', msg);
                 appState.ws.send(JSON.stringify(msg));
-                    if (domElements.askInput) domElements.askInput.value = '';
-                    if (domElements.askSend) domElements.askSend.disabled = true;
+                if (domElements.askInput) domElements.askInput.value = '';
+                if (domElements.askSend) domElements.askSend.disabled = true;
             } catch (e) { console.warn('Failed to send student_request', e); }
         });
         }
