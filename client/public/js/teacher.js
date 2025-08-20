@@ -369,7 +369,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             uiUpdater.updateStatus('Connecting to server at ' + wsUrl + '...');
             
             try {
-                if (window.RealtimeClientFactory) {
+                if (window.RTC_EXPERIMENT === '1' && window.RealtimeClientFactory) {
                     appState.rtc = window.RealtimeClientFactory.create({ wsUrl, wsCtor: WebSocket });
                 }
                 appState.ws = appState.rtc ? null : new WebSocket(wsUrl);
@@ -575,11 +575,8 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
                     break;
 
                 case 'student_request':
-                    try {
-                        const enabled = new URL(window.location.href).searchParams.get('twoWay') === '1';
-                        if (!enabled) break;
-                    } catch (_) { break; }
                     try { console.log('[teacher] student_request received', data.payload); } catch(_){}
+                    try { if (domElements.requestsQueue) domElements.requestsQueue.style.display = 'block'; } catch(_){}
                     renderRequestCard(data.payload);
                     break;
 
