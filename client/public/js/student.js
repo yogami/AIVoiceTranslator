@@ -557,16 +557,16 @@
         setupWebSocket();
 
         // Default-enable low‑literacy delivery for students (no checkbox UI)
-        try {
+                try {
             const tryEnableLowLiteracy = () => {
-                if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
+                    if (window.appState && window.appState.ws && window.appState.ws.readyState === WebSocket.OPEN) {
                     window.appState.ws.send(JSON.stringify({ type: 'settings', settings: { lowLiteracyMode: true } }));
                     return true;
-                }
+                    }
                 return false;
             };
             let attempts = 0; const iv = setInterval(() => { if (tryEnableLowLiteracy() || ++attempts > 30) clearInterval(iv); }, 200);
-        } catch (_) {}
+                } catch (_) {}
 
         // Do not reveal ask UI pre-connection; this is handled upon connection
 
@@ -619,8 +619,8 @@
     function setupAskHandlers() {
         // Text ask handlers (optional presence)
         if (domElements.askInput) {
-            domElements.askInput.addEventListener('input', () => {
-                const hasText = domElements.askInput.value.trim().length > 0;
+        domElements.askInput.addEventListener('input', () => {
+            const hasText = domElements.askInput.value.trim().length > 0;
                 if (domElements.askSend) {
                     const shouldDisable = !hasText; // UI-enabled purely on text; click handler guards WS state
                     domElements.askSend.disabled = shouldDisable;
@@ -662,8 +662,8 @@
                 }
             } catch(_) {}
         });
-        if (domElements.askSend) {
-        domElements.askSend.addEventListener('click', () => {
+        // Defensive: delegate click so event is captured even if handler attach fails
+        const onSend = () => {
             try {
                 const text = domElements.askInput ? domElements.askInput.value.trim() : '';
                 if (!text) { console.warn('student_request not sent: empty text'); return; }
@@ -679,8 +679,9 @@
                 if (domElements.askInput) domElements.askInput.value = '';
                 if (domElements.askSend) domElements.askSend.disabled = true;
             } catch (e) { console.warn('Failed to send student_request', e); }
-        });
-        }
+        };
+        if (domElements.askSend) domElements.askSend.addEventListener('click', onSend);
+        document.addEventListener('click', (ev) => { try { if ((ev.target as HTMLElement)?.id === 'ask-send') onSend(); } catch(_){} });
 
         // Push-to-talk (hold to send short audio, then STT on server)
         if (domElements.askPTT) {
