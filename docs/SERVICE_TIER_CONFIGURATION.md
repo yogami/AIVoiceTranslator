@@ -132,6 +132,24 @@ Service selection and fallback behavior is logged at startup and during operatio
 [TTSFactory] Creating multi-tier auto-fallback TTS service: OpenAI → ElevenLabs → Local → Kokoro → Browser
 ```
 
+## German-Specific Original Audio (Kartoffel)
+
+For teacher original audio playback when the teacher's language is German, the system will attempt to synthesize using a German-focused TTS (Kartoffel/Chatterbox) without a feature flag. This behaves as a targeted override within the translation delivery flow and then falls back to the normal TTS chain if unavailable.
+
+Behavior:
+
+- Prefer Kartoffel for German teacher original audio
+- On any failure/unavailability, fallback continues through the standard TTS chain
+- No additional URL params or flags required; controlled by runtime availability/config
+
+Environment variables (optional, only if a remote endpoint requires them):
+
+```bash
+# Kartoffel TTS Endpoint (if using a hosted variant)
+KARTOFFEL_TTS_URL=https://api-inference.huggingface.co/models/<org>/<kartoffel-model>
+KARTOFFEL_TTS_TOKEN=hf_xxx  # Optional
+```
+
 ## Kokoro‑82M (HF) Configuration
 
 Kokoro‑82M is an optional free TTS tier using a Hugging Face Inference endpoint. It supports 9 languages (English US/UK, French, Japanese, Korean, Chinese, Spanish, Hindi, Italian, Brazilian Portuguese). It does not require local model download when using HF inference.
