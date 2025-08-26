@@ -138,14 +138,40 @@ export class TranscriptionBusinessService {
     const includeOriginalAudio = (process.env.FEATURE_INCLUDE_ORIGINAL_TTS || '0') === '1';
     let originalAudioBase64: string | null = null;
     let originalAudioFormat: 'mp3' | 'wav' | undefined;
+    let originalTtsServiceType: string | undefined;
     if (includeOriginalAudio) {
       try {
-        const originalTTS = await this.speechPipelineOrchestrator.synthesizeSpeech(
-          text,
-          teacherLanguage
-        );
-        originalAudioBase64 = originalTTS.audioBuffer.toString('base64');
-        originalAudioFormat = originalTTS.ttsServiceType === 'local' ? 'wav' : 'mp3';
+        const isGerman = /^de(-|_|$)/i.test(teacherLanguage) || teacherLanguage.toLowerCase() === 'de';
+        if (isGerman) {
+          // Prefer Kartoffel for German; fallback to default pipeline on failure/empty
+          try {
+            const { KartoffelTTSService } = await import('../../infrastructure/external-services/tts/KartoffelTTSService');
+            const svc = new KartoffelTTSService();
+            const res = await svc.synthesize(text, { language: teacherLanguage });
+            if (res && res.audioBuffer && res.audioBuffer.length > 0) {
+              originalAudioBase64 = res.audioBuffer.toString('base64');
+              originalTtsServiceType = res.ttsServiceType || 'kartoffel';
+              originalAudioFormat = originalTtsServiceType === 'local' ? 'wav' : 'mp3';
+            }
+          } catch (_) {
+            // ignore and fallback below
+          }
+          if (!originalAudioBase64) {
+            const fallback = await this.speechPipelineOrchestrator.synthesizeSpeech(text, teacherLanguage);
+            if (fallback && fallback.audioBuffer && fallback.audioBuffer.length > 0) {
+              originalAudioBase64 = fallback.audioBuffer.toString('base64');
+              originalTtsServiceType = fallback.ttsServiceType;
+              originalAudioFormat = fallback.ttsServiceType === 'local' ? 'wav' : 'mp3';
+            }
+          }
+        } else {
+          const originalTTS = await this.speechPipelineOrchestrator.synthesizeSpeech(text, teacherLanguage);
+          if (originalTTS && originalTTS.audioBuffer && originalTTS.audioBuffer.length > 0) {
+            originalAudioBase64 = originalTTS.audioBuffer.toString('base64');
+            originalTtsServiceType = originalTTS.ttsServiceType;
+            originalAudioFormat = originalTTS.ttsServiceType === 'local' ? 'wav' : 'mp3';
+          }
+        }
       } catch (e) {
         originalAudioBase64 = null;
       }
@@ -227,6 +253,9 @@ export class TranscriptionBusinessService {
                 timestamp: Date.now(),
                 ttsServiceType: ttsResult.ttsServiceType // Add the missing TTS service type
               };
+              if (originalAudioBase64 && originalTtsServiceType) {
+                try { (message as any).originalTtsServiceType = originalTtsServiceType; } catch {}
+              }
 
               // Send the message via WebSocket
               if (student.readyState === 1) { // WebSocket.OPEN

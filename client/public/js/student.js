@@ -681,7 +681,13 @@
             } catch (e) { console.warn('Failed to send student_request', e); }
         };
         if (domElements.askSend) domElements.askSend.addEventListener('click', onSend);
-        document.addEventListener('click', (ev) => { try { if ((ev.target as HTMLElement)?.id === 'ask-send') onSend(); } catch(_){} });
+        document.addEventListener('click', function(ev) {
+            try {
+                var tgt = ev && ev.target ? ev.target : null;
+                var id = tgt && tgt.id ? tgt.id : '';
+                if (id === 'ask-send') onSend();
+            } catch(_) {}
+        });
 
         // Push-to-talk (hold to send short audio, then STT on server)
         if (domElements.askPTT) {

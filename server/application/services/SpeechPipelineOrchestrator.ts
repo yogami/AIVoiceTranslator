@@ -197,9 +197,13 @@ export class SpeechPipelineOrchestrator {
   /**
    * Process TTS only
    */
-  async synthesizeSpeech(text: string, language: string, options: { voice?: string } = {}): Promise<TTSResult> {
+  async synthesizeSpeech(text: string, language: string, options: { voice?: string; preferredServiceType?: string } = {}): Promise<TTSResult> {
     console.log('[SpeechPipelineOrchestrator] Synthesizing speech only');
-    const tts = await this.ttsService.synthesize(text, { language, voice: options.voice });
+    // Allow per-call preferred TTS override (e.g., kartoffel for German)
+    const service = options.preferredServiceType && this.ttsFactoryFn
+      ? this.ttsFactoryFn(options.preferredServiceType)
+      : this.ttsService;
+    const tts = await service.synthesize(text, { language, voice: options.voice });
     try {
       const buf = tts.audioBuffer || Buffer.alloc(0);
       const isWav = buf.length >= 4 && buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46; // 'RIFF'

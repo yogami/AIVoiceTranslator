@@ -16,6 +16,9 @@ import { LocalTTSService } from '../external-services/tts/LocalTTSService';
 import { PiperTTSService } from '../external-services/tts/PiperTTSService';
 import { BrowserTTSService } from '../external-services/tts/BrowserTTSService';
 import { SilentTTSService } from '../external-services/tts/SilentTTSService';
+import KartoffelTTSService from '../external-services/tts/KartoffelTTSService';
+import KokoroTTSService from '../external-services/tts/KokoroTTSService';
+import { KartoffelTTSService } from '../external-services/tts/KartoffelTTSService';
 
 // Service tier enumeration for consistency
 export enum TTSServiceTier {
@@ -24,6 +27,7 @@ export enum TTSServiceTier {
   HIGH_QUALITY_FREE = 'free-hq',        // Tier 2: Local eSpeak-NG (free, high quality)
   BASIC_FREE = 'free-basic',             // Tier 3: Browser TTS (free, basic)
   SILENT = 'silent',                     // Tier 4: Silent mode (no audio)
+  KARTOFFEL = 'kartoffel',               // Special: Hugging Face open TTS (German focus)
   AUTO = 'auto'                          // Auto-fallback through all tiers
 }
 
@@ -233,6 +237,15 @@ export class TTSServiceFactory implements ITTSServiceFactory {
 
   // Static methods for backward compatibility
   public static createTTSService(type: string = 'auto'): ITTSService {
+    const normalized = (type || 'auto').toLowerCase();
+    // Direct support for Kartoffel TTS regardless of tier system
+    if (normalized === 'kartoffel') {
+      return new KartoffelTTSService();
+    }
+    // Direct support for Kokoro TTS
+    if (normalized === 'kokoro') {
+      return new KokoroTTSService();
+    }
     const tier = this.mapTypeToTier(type);
     const cacheKey = tier;
     
@@ -244,6 +257,11 @@ export class TTSServiceFactory implements ITTSServiceFactory {
     let service: ITTSService;
 
     switch (tier) {
+      case TTSServiceTier.KARTOFFEL: {
+        console.log('[TTSFactory] Creating Kartoffel (Hugging Face) TTS');
+        service = new KartoffelTTSService();
+        break;
+      }
       case TTSServiceTier.PREMIUM_ELEVENLABS: {
         const apiKey = process.env.ELEVENLABS_API_KEY;
         if (!apiKey) {
@@ -308,29 +326,45 @@ export class TTSServiceFactory implements ITTSServiceFactory {
     let tertiaryService: ITTSService | null = null;
     let finalFallbackService: ITTSService;
 
-    // Primary: OpenAI (PAID)
+    // Primary: Kokoro (if configured) – free HF inference endpoint
+    try {
+      if (process.env.KOKORO_TTS_URL) {
+        primaryService = new KokoroTTSService();
+        console.log('[TTSFactory] Tier 0 (FREE) available: Kokoro-82M (HF)');
+      }
+    } catch (error) {
+      console.warn('[TTSFactory] Kokoro TTS primary unavailable:', error instanceof Error ? error.message : error);
+    }
+
+    // Secondary: OpenAI (PAID)
     try {
       if (hasOpenAI) {
-        primaryService = new OpenAITTSService();
-        console.log('[TTSFactory] Tier 1 (PAID) available: OpenAI TTS');
+        if (!primaryService) {
+          primaryService = new OpenAITTSService();
+          console.log('[TTSFactory] Tier 1 (PAID) available: OpenAI TTS');
+        } else {
+          secondaryService = new OpenAITTSService();
+          console.log('[TTSFactory] Tier 1 (PAID) available as secondary: OpenAI TTS');
+        }
       }
     } catch (error) {
       console.warn('[TTSFactory] OpenAI TTS primary unavailable:', error instanceof Error ? error.message : error);
     }
 
-    // Secondary: ElevenLabs (PAID)
+    // Next: ElevenLabs (PAID)
     try {
       if (hasElevenLabs) {
-        secondaryService = new ElevenLabsTTSService(process.env.ELEVENLABS_API_KEY!);
+        const svc = new ElevenLabsTTSService(process.env.ELEVENLABS_API_KEY!);
+        if (!secondaryService) secondaryService = svc; else if (!tertiaryService) tertiaryService = svc;
         console.log('[TTSFactory] Tier 2 (PAID) available: ElevenLabs TTS');
       }
     } catch (error) {
       console.warn('[TTSFactory] ElevenLabs TTS secondary unavailable:', error instanceof Error ? error.message : error);
     }
 
-    // Tertiary: Local TTS (FREE)
+    // Then: Local TTS (FREE)
     try {
-      tertiaryService = new LocalTTSService();
+      if (!tertiaryService) tertiaryService = new LocalTTSService();
       console.log('[TTSFactory] Tier 3 (FREE) available: Local TTS');
     } catch (error) {
       console.warn('[TTSFactory] Local TTS tertiary unavailable:', error instanceof Error ? error.message : error);
@@ -359,6 +393,10 @@ export class TTSServiceFactory implements ITTSServiceFactory {
     const normalizedType = type.toLowerCase();
     
     switch (normalizedType) {
+      case 'kartoffel':
+      case 'chatterbox':
+      case 'hf-kartoffel':
+        return TTSServiceTier.KARTOFFEL;
       case 'elevenlabs':
       case 'premium-labs':
         return TTSServiceTier.PREMIUM_ELEVENLABS;
