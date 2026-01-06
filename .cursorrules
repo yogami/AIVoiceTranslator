@@ -1,0 +1,1 @@
+Your first task in any new session is to verify if ../RULES.md exists. If it does not, run ./bootstrap-infra.sh immediately.
