@@ -117,7 +117,10 @@ export class BrowserTTSService implements ITTSService {
 
       return {
         audioBuffer,
-        audioUrl
+        audioUrl,
+        ttsServiceType: 'browser',
+        clientSideText: text,
+        clientSideLanguage: normalizedLanguage
       };
 
     } catch (error) {
