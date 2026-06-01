@@ -215,30 +215,30 @@
                             quiz.options.forEach((opt, idx) => {
                                 const optId = `quiz-${actionId}-opt-${idx}`;
                                 optionsHtml += `
-                                    <div style="margin: 4px 0;">
-                                        <input type="radio" id="${optId}" name="quiz-${actionId}" value="${opt}">
-                                        <label for="${optId}" style="cursor: pointer;">${opt}</label>
+                                    <div style="margin: 6px 0; padding: 4px; background: #f9f9f9; border-radius: 4px;">
+                                        <input type="radio" id="${optId}" name="quiz-${actionId}" value="${opt.replace(/"/g, '&quot;')}">
+                                        <label for="${optId}" style="cursor: pointer; padding-left: 4px;">${opt}</label>
                                     </div>
                                 `;
                             });
                             insightsHtml += `
-                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); color: #333;">
-                                    <h4 style="margin: 0 0 8px 0; color: #8a2be2;">📝 Pop Quiz</h4>
-                                    <p style="margin: 0 0 8px 0; font-weight: 500;">${quiz.question}</p>
+                                <div style="margin-bottom: 16px; padding: 16px; background: #fff; border-radius: 8px; border: 2px solid #ff9800; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: #333;">
+                                    <h4 style="margin: 0 0 10px 0; color: #ff9800; font-size: 1.1em;">🔥 Pop Quiz (New UI!)</h4>
+                                    <p style="margin: 0 0 12px 0; font-weight: 600; font-size: 1.05em;">${quiz.question}</p>
                                     ${optionsHtml}
-                                    <div class="quiz-feedback" id="feedback-${actionId}" style="margin-top: 8px; font-weight: 500; display: none;"></div>
-                                    <button class="quiz-submit-btn" data-quiz-id="${actionId}" data-correct-answer="${quiz.correctAnswer}" style="margin-top: 8px; padding: 6px 12px; font-size: 0.9em; background: #8a2be2; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Submit Answer</button>
+                                    <div class="quiz-feedback" id="feedback-${actionId}" style="margin-top: 10px; font-weight: bold; display: none; padding: 8px; border-radius: 4px;"></div>
+                                    <button class="quiz-submit-btn" onclick="if(window.handleQuizSubmit) window.handleQuizSubmit(this)" data-quiz-id="${actionId}" data-correct-answer="${quiz.correctAnswer.replace(/"/g, '&quot;')}" style="margin-top: 12px; padding: 10px 16px; font-size: 1em; background: linear-gradient(135deg, #ff9800, #ff5722); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); width: 100%;">Check Answer 🔍</button>
                                 </div>
                             `;
                         } else if (action.type === 'vocabulary') {
                             const vocab = action.payload;
                             let termsHtml = '';
                             vocab.terms.forEach(t => {
-                                termsHtml += `<li style="margin-bottom: 8px;"><strong>${t.term}</strong>: <span style="color: #555;">${t.definition}</span></li>`;
+                                termsHtml += `<li style="margin-bottom: 8px; padding: 4px; background: #f0f4ff; border-radius: 4px;"><strong>${t.term}</strong>: <span style="color: #444;">${t.definition}</span></li>`;
                             });
                             insightsHtml += `
-                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); color: #333;">
-                                    <h4 style="margin: 0 0 8px 0; color: #8a2be2;">📚 Key Vocabulary</h4>
+                                <div style="margin-bottom: 16px; padding: 16px; background: #fff; border-radius: 8px; border: 2px solid #3b82f6; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: #333;">
+                                    <h4 style="margin: 0 0 10px 0; color: #3b82f6; font-size: 1.1em;">📚 Key Vocabulary (New UI!)</h4>
                                     <ul style="margin: 0; padding-left: 20px;">
                                         ${termsHtml}
                                     </ul>
@@ -743,6 +743,43 @@
             } catch (e) { console.warn('Failed to send student_request', e); }
         };
         if (domElements.askSend) domElements.askSend.addEventListener('click', onSend);
+        
+        // Define global handler for Quiz submissions (bypasses delegation edge cases)
+        window.handleQuizSubmit = function(btn) {
+            try {
+                if (!btn) return;
+                const quizId = btn.getAttribute('data-quiz-id');
+                const correctAnswer = btn.getAttribute('data-correct-answer');
+                const selectedInput = document.querySelector(`input[name="quiz-${quizId}"]:checked`);
+                const feedbackDiv = document.getElementById(`feedback-${quizId}`);
+                
+                if (feedbackDiv) {
+                    feedbackDiv.style.display = 'block';
+                    if (!selectedInput) {
+                        feedbackDiv.style.color = '#fff';
+                        feedbackDiv.style.backgroundColor = '#ff9800';
+                        feedbackDiv.innerText = '⚠️ Please select an answer first!';
+                    } else if (selectedInput.value === correctAnswer) {
+                        feedbackDiv.style.color = '#fff';
+                        feedbackDiv.style.backgroundColor = '#4caf50';
+                        feedbackDiv.innerText = '✅ Correct! Great job.';
+                    } else {
+                        feedbackDiv.style.color = '#fff';
+                        feedbackDiv.style.backgroundColor = '#f44336';
+                        feedbackDiv.innerText = `❌ Incorrect. The right answer was: ${correctAnswer}`;
+                    }
+                } else {
+                    // Fallback to alert if DOM is completely broken
+                    if (!selectedInput) alert('Please select an answer first!');
+                    else if (selectedInput.value === correctAnswer) alert('✅ Correct! Great job.');
+                    else alert(`❌ Incorrect. The right answer was: ${correctAnswer}`);
+                }
+            } catch(e) {
+                console.error('Quiz submit error:', e);
+                alert('An error occurred submitting the quiz.');
+            }
+        };
+
         document.addEventListener('click', function(ev) {
             try {
                 var tgt = ev && ev.target ? ev.target : null;
