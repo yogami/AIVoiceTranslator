@@ -194,6 +194,54 @@
                     <strong>Translation:</strong> ${translatedText}
                 </div>
             `;
+            
+            // Handle Agent Insights
+            const agentInsightsContainer = document.getElementById('agent-insights-step');
+            const agentInsightsDisplay = document.getElementById('agent-insights-display');
+            if (agentInsightsContainer && agentInsightsDisplay) {
+                if (data.agentActions && data.agentActions.length > 0) {
+                    agentInsightsContainer.classList.remove('hidden');
+                    let insightsHtml = '';
+                    data.agentActions.forEach(action => {
+                        if (action.type === 'quiz') {
+                            const quiz = action.payload;
+                            let optionsHtml = '';
+                            quiz.options.forEach((opt, idx) => {
+                                optionsHtml += `
+                                    <div style="margin: 4px 0;">
+                                        <input type="radio" id="quiz-opt-${idx}" name="quiz-options" value="${opt}">
+                                        <label for="quiz-opt-${idx}">${opt}</label>
+                                    </div>
+                                `;
+                            });
+                            insightsHtml += `
+                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                    <h4 style="margin: 0 0 8px 0; color: #333;">📝 Pop Quiz</h4>
+                                    <p style="margin: 0 0 8px 0;">${quiz.question}</p>
+                                    ${optionsHtml}
+                                    <button onclick="alert(document.querySelector('input[name=quiz-options]:checked')?.value === '${quiz.correctAnswer}' ? 'Correct!' : 'Incorrect, the right answer was: ${quiz.correctAnswer}')" style="margin-top: 8px; padding: 4px 12px; font-size: 0.9em;">Submit Answer</button>
+                                </div>
+                            `;
+                        } else if (action.type === 'vocabulary') {
+                            const vocab = action.payload;
+                            let termsHtml = '';
+                            vocab.terms.forEach(t => {
+                                termsHtml += `<li style="margin-bottom: 4px;"><strong>${t.term}</strong>: ${t.definition}</li>`;
+                            });
+                            insightsHtml += `
+                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                    <h4 style="margin: 0 0 8px 0; color: #333;">📚 Key Vocabulary</h4>
+                                    <ul style="margin: 0; padding-left: 20px;">
+                                        ${termsHtml}
+                                    </ul>
+                                </div>
+                            `;
+                        }
+                    });
+                    agentInsightsDisplay.innerHTML = insightsHtml;
+                }
+            }
+
             // Enable original audio button if original audio is included and feature is on
             if (domElements.playOriginalButton) {
                 const hasOriginal = !!data.originalAudioData;

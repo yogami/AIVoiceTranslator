@@ -13,7 +13,7 @@ export class AutoFallbackTranslationService implements ITranslationService {
     this.fallbackService = fallbackService;
   }
 
-  async translate(text: string, sourceLang: string, targetLang: string): Promise<string> {
+  async translate(text: string, sourceLang: string, targetLang: string): Promise<string | { text: string; agentActions?: any[] }> {
     try {
       console.log('[AutoFallbackTranslation] Attempting primary service...');
       return await this.primaryService.translate(text, sourceLang, targetLang);

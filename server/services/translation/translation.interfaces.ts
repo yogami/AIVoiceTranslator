@@ -5,6 +5,11 @@
  * These interfaces define the contracts for clean architecture implementation.
  */
 
+export interface AgentAction {
+  type: 'quiz' | 'vocabulary' | string;
+  payload: any;
+}
+
 export interface TranslationResult {
   translatedText: string;
   detectedLanguage?: string;
@@ -12,7 +17,7 @@ export interface TranslationResult {
 }
 
 export interface ITranslationService {
-  translate(text: string, targetLanguage: string, sourceLanguage?: string): Promise<string>;
+  translate(text: string, sourceLanguage: string, targetLanguage: string): Promise<string | { text: string; agentActions?: AgentAction[] }>;
 }
 
 export interface TranscriptionResult {

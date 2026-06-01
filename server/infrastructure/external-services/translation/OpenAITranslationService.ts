@@ -8,21 +8,94 @@ export class OpenAITranslationService implements ITranslationService {
     this.openai = openai;
   }
 
-  async translate(text: string, sourceLang: string, targetLang: string): Promise<string> {
-    // Replace with actual OpenAI translation API call
-    // This is a placeholder for demonstration
+  async translate(text: string, sourceLang: string, targetLang: string): Promise<string | { text: string; agentActions?: any[] }> {
     try {
-      // Example: Use OpenAI's chat/completions endpoint for translation
+      const tools: any[] = [
+        {
+          type: 'function',
+          function: {
+            name: 'generate_quiz',
+            description: 'Generate a quick multiple-choice quiz based on the teacher\'s recent transcript to check student understanding.',
+            parameters: {
+              type: 'object',
+              properties: {
+                question: { type: 'string', description: 'The quiz question.' },
+                options: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'List of 3-4 possible answers.'
+                },
+                correctAnswer: { type: 'string', description: 'The correct answer exactly matching one of the options.' }
+              },
+              required: ['question', 'options', 'correctAnswer']
+            }
+          }
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'extract_vocabulary',
+            description: 'Identify 1-3 complex or important terms in the transcript and provide their definitions in the target language.',
+            parameters: {
+              type: 'object',
+              properties: {
+                terms: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      term: { type: 'string', description: 'The difficult word or phrase.' },
+                      definition: { type: 'string', description: `The definition of the term translated into ${targetLang}.` }
+                    },
+                    required: ['term', 'definition']
+                  }
+                }
+              },
+              required: ['terms']
+            }
+          }
+        }
+      ];
+
       const response = await this.openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: `You are a professional translator. Translate the following text from ${sourceLang} to ${targetLang}. Provide only the literal translation without any additional commentary, explanations, or conversational responses. Preserve the original meaning and tone exactly.` },
+          { 
+            role: 'system', 
+            content: `You are an autonomous Teacher's Assistant and Translator.
+First, YOU MUST ALWAYS translate the provided text from ${sourceLang} to ${targetLang}. Your direct text response MUST be ONLY the literal translation of the teacher's words. Do not include commentary in your text response.
+Second, if the teacher has just explained a complex concept, you may autonomously call the 'generate_quiz' tool.
+Third, if the teacher used difficult jargon, you may autonomously call the 'extract_vocabulary' tool.` 
+          },
           { role: 'user', content: text }
         ],
-        temperature: 0.1  // Low temperature for consistent, literal translations
+        tools: tools,
+        tool_choice: 'auto',
+        temperature: 0.3
       });
-      // Extract translation from response
-      const translation = response.choices[0]?.message?.content?.trim() || '';
+
+      const choice = response.choices[0];
+      const translation = choice?.message?.content?.trim() || '';
+      
+      const agentActions: any[] = [];
+      if (choice.message.tool_calls) {
+        for (const toolCall of choice.message.tool_calls) {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            if (toolCall.function.name === 'generate_quiz') {
+              agentActions.push({ type: 'quiz', payload: args });
+            } else if (toolCall.function.name === 'extract_vocabulary') {
+              agentActions.push({ type: 'vocabulary', payload: args });
+            }
+          } catch (e) {
+            console.error('[OpenAITranslationService] Failed to parse tool call args', e);
+          }
+        }
+      }
+
+      if (agentActions.length > 0) {
+        return { text: translation, agentActions };
+      }
       return translation;
     } catch (error) {
       throw new Error(`OpenAI translation failed: ${error instanceof Error ? error.message : String(error)}`);

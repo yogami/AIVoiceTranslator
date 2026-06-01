@@ -137,7 +137,8 @@ export class SpeechPipelineOrchestrator {
 
       // Step 2: Translation
       const translationStart = performance.now();
-      const translation = await this.translationService.translate(transcription, sourceLanguage, targetLanguage);
+      const transResult = await this.translationService.translate(transcription, sourceLanguage, targetLanguage);
+      const translation = typeof transResult === 'string' ? transResult : transResult.text;
       const translationEnd = performance.now();
       metrics.translationTime = translationEnd - translationStart;
       metrics.servicesUsed.translation = this.getServiceName(this.translationService);
@@ -191,7 +192,8 @@ export class SpeechPipelineOrchestrator {
    */
   async translateText(text: string, sourceLanguage: string, targetLanguage: string): Promise<string> {
     console.log('[SpeechPipelineOrchestrator] Translating text only');
-    return await this.translationService.translate(text, sourceLanguage, targetLanguage);
+    const result = await this.translationService.translate(text, sourceLanguage, targetLanguage);
+    return typeof result === 'string' ? result : result.text;
   }
 
   /**
@@ -388,8 +390,15 @@ export class SpeechPipelineOrchestrator {
       const clientSettings = getClientSettings?.(ws) || {};
 
       let translation = originalText;
+      let agentActions: any[] | undefined = undefined;
       try {
-        translation = await this.translationService.translate(originalText, sourceLanguage, studentLanguage);
+        const transResult = await this.translationService.translate(originalText, sourceLanguage, studentLanguage);
+        if (typeof transResult === 'string') {
+          translation = transResult;
+        } else {
+          translation = transResult.text;
+          agentActions = transResult.agentActions;
+        }
       } catch (e) {
         console.warn('[SpeechPipelineOrchestrator] Translation failed, using original text');
       }
@@ -458,6 +467,9 @@ export class SpeechPipelineOrchestrator {
         useClientSpeech,
         ttsServiceType,
       };
+      if (agentActions && agentActions.length > 0) {
+        payload.agentActions = agentActions;
+      }
       if (audioBuffer.length > 0) {
         payload.audioData = audioBuffer.toString('base64');
       }

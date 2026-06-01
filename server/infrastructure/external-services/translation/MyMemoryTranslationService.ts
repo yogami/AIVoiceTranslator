@@ -207,7 +207,7 @@ export class MyMemoryTranslationService implements ITranslationService {
     text: string, 
     sourceLanguage: string, 
     targetLanguage: string
-  ): Promise<string> {
+  ): Promise<string | { text: string; agentActions?: any[] }> {
     // Skip translation for empty text
     if (!text || text.trim().length === 0) {
       return '';

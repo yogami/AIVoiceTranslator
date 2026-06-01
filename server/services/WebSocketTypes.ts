@@ -112,6 +112,10 @@ export interface TranslationMessageToClient extends BaseWebSocketMessage {
     components: LatencyComponents;
   };
   audioData?: string; // base64 encoded audio
+  agentActions?: Array<{
+    type: 'quiz' | 'vocabulary' | string;
+    payload: any;
+  }>;
   useClientSpeech?: boolean;
   speechParams?: { // Specific params if client speech is used
     type: 'browser-speech';
