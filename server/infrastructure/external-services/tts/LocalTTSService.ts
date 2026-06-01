@@ -193,6 +193,8 @@ export class LocalTTSService implements ITTSService {
               audioBuffer = tone;
             }
           } catch {}
+        } else {
+          throw new Error('Local TTS generated empty or silent audio and all fallbacks failed.');
         }
       }
 
