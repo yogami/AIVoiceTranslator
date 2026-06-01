@@ -118,27 +118,24 @@ export class TranslationServiceFactory implements ITranslationServiceFactory {
     let primaryService: ITranslationService;
     let fallbackService: ITranslationService;
 
-    // REORDERED: FREE SERVICES FIRST
-    // Primary: MyMemory (FREE)
-    try {
-      primaryService = new MyMemoryTranslationService();
-      console.log('[TranslationFactory] Tier 1 (FREE) available: MyMemory');
-    } catch (error) {
-      console.warn('[TranslationFactory] Free MyMemory service unavailable:', error instanceof Error ? error.message : error);
-      // Fallback to DeepSeek if MyMemory fails
+    // REORDERED: PAID SERVICES FIRST for Demo (requires Agent Actions)
+    if (hasOpenAI) {
       try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+        primaryService = new OpenAITranslationService(openai);
+        console.log('[TranslationFactory] Tier 1 (PAID) available: OpenAI');
+      } catch (error) {
+        console.warn('[TranslationFactory] OpenAI service unavailable:', error instanceof Error ? error.message : error);
+        // Fallback to MyMemory
+        primaryService = new MyMemoryTranslationService();
+      }
+    } else {
+      try {
+        primaryService = new MyMemoryTranslationService();
+        console.log('[TranslationFactory] Tier 1 (FREE) available: MyMemory');
+      } catch (error) {
+        console.warn('[TranslationFactory] Free MyMemory service unavailable:', error instanceof Error ? error.message : error);
         primaryService = new DeepSeekTranslationService();
-        console.log('[TranslationFactory] Tier 1 fallback (FREE) available: DeepSeek');
-      } catch (deepseekError) {
-        console.warn('[TranslationFactory] DeepSeek fallback unavailable:', deepseekError instanceof Error ? deepseekError.message : deepseekError);
-        // Last resort: Use OpenAI if available
-        if (hasOpenAI) {
-          const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-          primaryService = new OpenAITranslationService(openai);
-          console.log('[TranslationFactory] Emergency primary (PAID): OpenAI');
-        } else {
-          throw new Error('No translation services available');
-        }
       }
     }
 

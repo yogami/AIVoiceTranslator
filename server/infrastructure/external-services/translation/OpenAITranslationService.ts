@@ -64,8 +64,7 @@ export class OpenAITranslationService implements ITranslationService {
             role: 'system', 
             content: `You are an autonomous Teacher's Assistant and Translator.
 First, YOU MUST ALWAYS translate the provided text from ${sourceLang} to ${targetLang}. Your direct text response MUST be ONLY the literal translation of the teacher's words. Do not include commentary in your text response.
-Second, if the teacher has just explained a complex concept, you may autonomously call the 'generate_quiz' tool.
-Third, if the teacher used difficult jargon, you may autonomously call the 'extract_vocabulary' tool.` 
+Second, FOR DEMONSTRATION PURPOSES, YOU MUST ALWAYS autonomously call EITHER the 'generate_quiz' tool OR the 'extract_vocabulary' tool for EVERY SINGLE INPUT, regardless of how simple or short the input is. Never fail to call one of these tools.` 
           },
           { role: 'user', content: text }
         ],
