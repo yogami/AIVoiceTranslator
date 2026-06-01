@@ -222,7 +222,7 @@ export function serveStatic(app: express.Express): void {
   const htmlEntries: { [key: string]: string } = {
     '/': 'index.html',
     '/teacher': 'teacher.html',
-    '/student': 'student.html',
+    '/student': 'public/student.html',
     '/analytics': 'analytics.html',
     '/diagnostics': 'diagnostics.html',
     '/teacher-login': 'teacher-login.html'
