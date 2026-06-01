@@ -787,6 +787,19 @@
 
     function toggleConnection() {
         console.log('[DEBUG] toggleConnection() called, isConnected:', appState.isConnected);
+        
+        // Unlock audio context on direct user interaction (fixes iOS/Safari autoplay blocking async WebSocket audio)
+        try {
+            if (!appState.audioUnlocked) {
+                const dummy = new Audio();
+                dummy.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+                dummy.volume = 0.01;
+                dummy.play().catch(e => console.warn('Audio unlock failed:', e));
+                appState.audioUnlocked = true;
+                console.log('[DEBUG] Audio context unlocked for async playback.');
+            }
+        } catch (e) {}
+
         if (appState.isConnected) {
             console.log('[DEBUG] Disconnecting...');
             webSocketHandler.disconnect();
