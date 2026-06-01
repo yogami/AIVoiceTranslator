@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentVerify Observability Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Fira Code', monospace;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #58a6ff;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 10px;
+        }
+        .connection-status {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #21262d;
+            border: 1px solid #30363d;
+        }
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            background-color: #ff7b72;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-dot.connected {
+            background-color: #2ea043;
+        }
+        .stream-container {
+            display: flex;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            background-color: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 15px;
+            height: 70vh;
+            overflow-y: auto;
+        }
+        .panel h2 {
+            margin-top: 0;
+            font-size: 1.1em;
+            color: #8b949e;
+        }
+        .log-entry {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #30363d;
+        }
+        .log-time {
+            color: #8b949e;
+            font-size: 0.85em;
+        }
+        .log-tag {
+            background-color: #1f6feb;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-right: 8px;
+        }
+        .log-tag.audit {
+            background-color: #a371f7;
+        }
+        .log-tag.pass {
+            background-color: #2ea043;
+        }
+        .hash {
+            color: #f0ad4e;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <h1>Aegis-12 AgentVerify Dashboard</h1>
+    
+    <div class="connection-status">
+        <span class="status-dot" id="status-indicator"></span>
+        <span id="status-text">Disconnected</span>
+        
+        <input type="text" id="classroom-code" placeholder="Enter Classroom Code" style="margin-left: 20px; padding: 5px; background: #0d1117; color: white; border: 1px solid #30363d; border-radius: 4px;">
+        <button id="connect-btn" style="padding: 5px 10px; background: #238636; color: white; border: none; border-radius: 4px; cursor: pointer;">Connect</button>
+    </div>
+
+    <div class="stream-container">
+        <div class="panel" id="transcript-panel">
+            <h2>Live Translation Stream</h2>
+            <div id="transcript-stream"></div>
+        </div>
+        
+        <div class="panel" id="audit-panel">
+            <h2>LTL Compliance Ledger</h2>
+            <div id="audit-stream"></div>
+        </div>
+    </div>
+
+    <script src="js/observability.js"></script>
+    <script>
+        // Runtime config injection
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            window.VITE_WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+        } else {
+            window.VITE_WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+        }
+    </script>
+</body>
+</html>

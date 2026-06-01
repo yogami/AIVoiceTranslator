@@ -168,6 +168,7 @@ export default defineConfig(async ({ mode, command }) => {
           'teacher-login': path.resolve(clientRoot, 'teacher-login.html'),
           student: path.resolve(clientRoot, 'public/student.html'),
           analytics: path.resolve(clientRoot, 'analytics.html'),
+          observability: path.resolve(clientRoot, 'public/observability.html'),
         },
       },
     },

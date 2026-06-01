@@ -391,6 +391,8 @@ export class SpeechPipelineOrchestrator {
 
       let translation = originalText;
       let agentActions: any[] | undefined = undefined;
+      let auditReceipts: any[] | undefined = undefined;
+
       try {
         const transResult = await this.translationService.translate(originalText, sourceLanguage, studentLanguage);
         if (typeof transResult === 'string') {
@@ -398,9 +400,15 @@ export class SpeechPipelineOrchestrator {
         } else {
           translation = transResult.text;
           agentActions = transResult.agentActions;
+          
+          if (agentActions && agentActions.length > 0) {
+            // Import dynamically to avoid circular dependencies if any
+            const { AgentVerify } = require('../../domain/governance/AgentVerify');
+            auditReceipts = agentActions.map(action => AgentVerify.evaluateAction(action));
+          }
         }
       } catch (e) {
-        console.warn('[SpeechPipelineOrchestrator] Translation failed, using original text');
+        console.warn('[SpeechPipelineOrchestrator] Translation failed, using original text', e);
       }
 
       let audioBuffer = Buffer.alloc(0);
@@ -469,6 +477,7 @@ export class SpeechPipelineOrchestrator {
       };
       if (agentActions && agentActions.length > 0) {
         payload.agentActions = agentActions;
+        payload.auditReceipts = auditReceipts;
       }
       if (audioBuffer.length > 0) {
         payload.audioData = audioBuffer.toString('base64');
