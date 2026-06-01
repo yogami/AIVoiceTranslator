@@ -33,7 +33,8 @@
         askStep: null,
         askInput: null,
         askSend: null,
-        askPTT: null
+        askPTT: null,
+        agentInsightsStep: null
     };
 
     // UI helpers to ensure elements are actually hidden/shown in all builds
@@ -139,9 +140,10 @@
                     domElements.proxyConnectButton.classList.add('connected');
                     domElements.proxyConnectButton.disabled = false;
                 }
-                // Reveal translation and audio steps when connected
+                // Reveal translation, audio, and insights steps when connected
                 showElement(domElements.translationStep);
                 showElement(domElements.audioStep);
+                showElement(domElements.agentInsightsStep);
                 showElement(domElements.connectionStatus);
                 // Two-way UI (ask) when enabled
                 if (window.location.search.includes('twoWay=1')) {
@@ -238,7 +240,11 @@
                             `;
                         }
                     });
-                    agentInsightsDisplay.innerHTML = insightsHtml;
+                    const placeholder = document.getElementById('agent-insights-placeholder');
+                    if (placeholder) {
+                        placeholder.remove();
+                    }
+                    agentInsightsDisplay.insertAdjacentHTML('afterbegin', insightsHtml);
                 }
             }
 
@@ -580,6 +586,7 @@
         domElements.askInput = document.getElementById('ask-input');
         domElements.askSend = document.getElementById('ask-send');
         domElements.askPTT = document.getElementById('ask-ptt');
+        domElements.agentInsightsStep = document.getElementById('agent-insights-step');
 
         setupLanguageSelection();
 
@@ -590,6 +597,7 @@
         hideElement(domElements.connectionStatus);
         hideElement(domElements.translationStep);
         hideElement(domElements.audioStep);
+        hideElement(domElements.agentInsightsStep);
         hideElement(domElements.connectStep);
         if (domElements.connectButton) domElements.connectButton.disabled = true;
         if (domElements.proxyConnectButton) domElements.proxyConnectButton.disabled = true;
