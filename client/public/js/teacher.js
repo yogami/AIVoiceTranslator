@@ -10,20 +10,19 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
 
 // Authentication check - ensure teacher is logged in
 (function checkAuthentication() {
-    // Check if we're in test mode
-    const urlParams = new URLSearchParams(window.location.search);
-    const isTestMode = urlParams.get('e2e') === 'true' || 
-                      navigator.userAgent.includes('HeadlessChrome') || 
-                      navigator.userAgent.includes('Firefox');
+    // Check if we're in test mode or if auth is temporarily disabled
+    // HARDCODED DEMO MODE: Temporarily disable authentication redirect
+    const isTestMode = true; // Force test mode behavior to bypass login
     
     if (isTestMode) {
-        console.log('[DEBUG] teacher.js: Test mode detected, bypassing authentication');
+        console.log('[DEBUG] teacher.js: Demo mode detected, bypassing authentication');
         // Use teacher ID from URL parameter or default for tests
-        const teacherId = urlParams.get('teacherId') || 'test-teacher-id';
-        const teacherUsername = urlParams.get('teacherUsername') || 'test-teacher';
+        const urlParams = new URLSearchParams(window.location.search);
+        const teacherId = urlParams.get('teacherId') || 'demo-teacher-id';
+        const teacherUsername = urlParams.get('teacherUsername') || 'Demo Teacher';
         
         // Set mock authentication data for tests
-        localStorage.setItem('teacherToken', 'test-token-' + Date.now());
+        localStorage.setItem('teacherToken', 'demo-token-' + Date.now());
         localStorage.setItem('teacherUser', JSON.stringify({
             id: teacherId,
             username: teacherUsername,
@@ -32,6 +31,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         return;
     }
     
+    /* Original auth logic commented out for demo
     const token = localStorage.getItem('teacherToken');
     const teacherUser = localStorage.getItem('teacherUser');
     
@@ -58,6 +58,7 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
         window.location.href = '/teacher-login';
         return;
     }
+    */
 })();
 
 (function() {

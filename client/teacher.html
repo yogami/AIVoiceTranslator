@@ -39,14 +39,10 @@
         } catch (_) {}
     </script>
     
-    <!-- Authentication Check -->
+    <!-- Authentication Check (DISABLED FOR DEMO) -->
     <script>
-        // Skip authentication in test mode
-        const isTestMode = window.location.search.includes('e2e=true') || 
-                          window.location.search.includes('e2e=1') || 
-                          window.location.hostname === '127.0.0.1' && 
-                          (window.navigator.userAgent.includes('HeadlessChrome') || 
-                           window.navigator.userAgent.includes('Firefox'));
+        // Skip authentication in test/demo mode
+        const isTestMode = true; // Forced to true for demo
         
         if (!isTestMode) {
             // Check if teacher is authenticated
