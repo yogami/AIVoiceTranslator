@@ -1,5 +1,5 @@
 (function() { // Start of IIFE
-    const __STUDENT_JS_VERSION__ = '20250810-8';
+    const __STUDENT_JS_VERSION__ = '20260601-1';
     console.log('[student.js] Version', __STUDENT_JS_VERSION__);
     const appState = {
         ws: null,
