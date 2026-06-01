@@ -204,35 +204,41 @@
                 if (data.agentActions && data.agentActions.length > 0) {
                     agentInsightsContainer.classList.remove('hidden');
                     let insightsHtml = '';
-                    data.agentActions.forEach(action => {
+                    const uniqueIdBase = Date.now().toString(36) + Math.random().toString(36).substr(2);
+                    
+                    data.agentActions.forEach((action, actionIdx) => {
+                        const actionId = `${uniqueIdBase}-${actionIdx}`;
+                        
                         if (action.type === 'quiz') {
                             const quiz = action.payload;
                             let optionsHtml = '';
                             quiz.options.forEach((opt, idx) => {
+                                const optId = `quiz-${actionId}-opt-${idx}`;
                                 optionsHtml += `
                                     <div style="margin: 4px 0;">
-                                        <input type="radio" id="quiz-opt-${idx}" name="quiz-options" value="${opt}">
-                                        <label for="quiz-opt-${idx}">${opt}</label>
+                                        <input type="radio" id="${optId}" name="quiz-${actionId}" value="${opt}">
+                                        <label for="${optId}" style="cursor: pointer;">${opt}</label>
                                     </div>
                                 `;
                             });
                             insightsHtml += `
-                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                    <h4 style="margin: 0 0 8px 0; color: #333;">📝 Pop Quiz</h4>
-                                    <p style="margin: 0 0 8px 0;">${quiz.question}</p>
+                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); color: #333;">
+                                    <h4 style="margin: 0 0 8px 0; color: #8a2be2;">📝 Pop Quiz</h4>
+                                    <p style="margin: 0 0 8px 0; font-weight: 500;">${quiz.question}</p>
                                     ${optionsHtml}
-                                    <button onclick="alert(document.querySelector('input[name=quiz-options]:checked')?.value === '${quiz.correctAnswer}' ? 'Correct!' : 'Incorrect, the right answer was: ${quiz.correctAnswer}')" style="margin-top: 8px; padding: 4px 12px; font-size: 0.9em;">Submit Answer</button>
+                                    <div class="quiz-feedback" id="feedback-${actionId}" style="margin-top: 8px; font-weight: 500; display: none;"></div>
+                                    <button class="quiz-submit-btn" data-quiz-id="${actionId}" data-correct-answer="${quiz.correctAnswer}" style="margin-top: 8px; padding: 6px 12px; font-size: 0.9em; background: #8a2be2; color: #fff; border: none; border-radius: 4px; cursor: pointer;">Submit Answer</button>
                                 </div>
                             `;
                         } else if (action.type === 'vocabulary') {
                             const vocab = action.payload;
                             let termsHtml = '';
                             vocab.terms.forEach(t => {
-                                termsHtml += `<li style="margin-bottom: 4px;"><strong>${t.term}</strong>: ${t.definition}</li>`;
+                                termsHtml += `<li style="margin-bottom: 8px;"><strong>${t.term}</strong>: <span style="color: #555;">${t.definition}</span></li>`;
                             });
                             insightsHtml += `
-                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                    <h4 style="margin: 0 0 8px 0; color: #333;">📚 Key Vocabulary</h4>
+                                <div style="margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); color: #333;">
+                                    <h4 style="margin: 0 0 8px 0; color: #8a2be2;">📚 Key Vocabulary</h4>
                                     <ul style="margin: 0; padding-left: 20px;">
                                         ${termsHtml}
                                     </ul>
@@ -742,6 +748,28 @@
                 var tgt = ev && ev.target ? ev.target : null;
                 var id = tgt && tgt.id ? tgt.id : '';
                 if (id === 'ask-send') onSend();
+                
+                // Agent Insights Quiz Submission Handling
+                if (tgt && tgt.classList && tgt.classList.contains('quiz-submit-btn')) {
+                    const quizId = tgt.getAttribute('data-quiz-id');
+                    const correctAnswer = tgt.getAttribute('data-correct-answer');
+                    const selectedInput = document.querySelector(`input[name="quiz-${quizId}"]:checked`);
+                    const feedbackDiv = document.getElementById(`feedback-${quizId}`);
+                    
+                    if (feedbackDiv) {
+                        feedbackDiv.style.display = 'block';
+                        if (!selectedInput) {
+                            feedbackDiv.style.color = '#ff9800';
+                            feedbackDiv.innerText = 'Please select an answer first!';
+                        } else if (selectedInput.value === correctAnswer) {
+                            feedbackDiv.style.color = '#4caf50';
+                            feedbackDiv.innerText = '✅ Correct!';
+                        } else {
+                            feedbackDiv.style.color = '#f44336';
+                            feedbackDiv.innerText = `❌ Incorrect. The right answer was: ${correctAnswer}`;
+                        }
+                    }
+                }
             } catch(_) {}
         });
 
