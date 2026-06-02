@@ -209,7 +209,7 @@
                     data.agentActions.forEach((action, actionIdx) => {
                         const actionId = `${uniqueIdBase}-${actionIdx}`;
                         
-                        if (action.type === 'quiz') {
+                        if (action.type === 'quiz' || action.type === 'generate_quiz') {
                             const quiz = action.payload;
                             let optionsHtml = '';
                             quiz.options.forEach((opt, idx) => {
@@ -230,7 +230,7 @@
                                     <button class="quiz-submit-btn" onclick="if(window.handleQuizSubmit) window.handleQuizSubmit(this)" data-quiz-id="${actionId}" data-correct-answer="${quiz.correctAnswer.replace(/"/g, '&quot;')}" style="margin-top: 12px; padding: 10px 16px; font-size: 1em; background: linear-gradient(135deg, #ff9800, #ff5722); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); width: 100%;">Check Answer 🔍</button>
                                 </div>
                             `;
-                        } else if (action.type === 'vocabulary') {
+                        } else if (action.type === 'vocabulary' || action.type === 'extract_vocabulary') {
                             const vocab = action.payload;
                             let termsHtml = '';
                             vocab.terms.forEach(t => {
