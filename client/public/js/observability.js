@@ -317,6 +317,7 @@
             'generate_quiz': 'AI autonomously generated a comprehension quiz for students',
             'extract_vocabulary': 'AI autonomously extracted key vocabulary terms from the lecture',
             'unsafe_content': '⚠️ AI attempted to deliver unverified content outside approved scope',
+            'content_verification': '🔍 Content verified against Moderation API (safety classifier) + Embedding scope check (cosine similarity)',
         };
         return map[actionType] || `AI performed action: ${actionType}`;
     }

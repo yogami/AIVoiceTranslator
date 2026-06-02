@@ -1,10 +1,10 @@
 import { ComplianceLedger, AuditReceipt } from './ComplianceLedger';
+import { ContentSafetyService, ContentVerificationResult } from './ContentSafetyService';
 
 export class AgentVerify {
   /**
    * Intercepts an agent action and evaluates it against formal LTL (Linear Temporal Logic) constraints.
-   * In a full production Aegis-12 system, this is evaluated against an external stateful TEE.
-   * For the demo, we use a simplified synchronous rule engine.
+   * Synchronous structural check — fast, deterministic.
    */
   public static evaluateAction(agentAction: any): AuditReceipt {
     const actionType = agentAction.type || 'unknown_action';
@@ -44,5 +44,49 @@ export class AgentVerify {
       status,
       details
     );
+  }
+
+  /**
+   * Evaluates translated content using deterministic verification layers:
+   * 1. OpenAI Moderation API (content safety classifier — FREE)
+   * 2. Embedding cosine similarity (curriculum scope — ~$0)
+   * 
+   * This is NOT an LLM-as-Judge. Both methods are classifier/embedding based,
+   * providing deterministic results for the same input.
+   */
+  public static async evaluateContent(
+    originalText: string,
+    translatedText: string
+  ): Promise<{ receipt: AuditReceipt; verification: ContentVerificationResult }> {
+    const verification = await ContentSafetyService.verifyContent(translatedText);
+
+    const ltlRules = [
+      'G (Content → ¬Harmful)',
+      'G (Content → WithinCurriculumScope)'
+    ];
+
+    let status: 'PASSED' | 'FAILED' = 'PASSED';
+    let details: string;
+    let euClause = 'Article 9: Risk management system';
+
+    if (!verification.safe) {
+      status = 'FAILED';
+      details = `VIOLATION DETECTED: ${verification.failureReasons.join('; ')}`;
+      console.log(`[AgentVerify] ⛔ Content verification FAILED: ${verification.failureReasons.join('; ')}`);
+    } else {
+      details = `Content verified safe. Moderation: clean (highest=${verification.moderation.highestCategory}:${verification.moderation.highestScore.toFixed(4)}). ` +
+        `Scope: similarity=${verification.scope.similarityScore.toFixed(4)} to "${verification.scope.closestTopic}" (threshold=${verification.scope.threshold}).`;
+      console.log(`[AgentVerify] ✅ Content verification PASSED`);
+    }
+
+    const receipt = ComplianceLedger.generateReceipt(
+      'content_verification',
+      ltlRules,
+      euClause,
+      status,
+      details
+    );
+
+    return { receipt, verification };
   }
 }

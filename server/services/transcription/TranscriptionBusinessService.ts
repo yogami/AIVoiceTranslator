@@ -197,19 +197,33 @@ export class TranscriptionBusinessService {
           const translation = translateResult.text;
           const agentActions = translateResult.agentActions;
 
-          // Generate audit receipts via AgentVerify if agent actions exist
-          let auditReceipts: any[] | undefined;
+          // Generate audit receipts via AgentVerify for agent actions (structural check)
+          let auditReceipts: any[] = [];
           if (agentActions && agentActions.length > 0) {
             try {
               auditReceipts = agentActions.map((action: any) => AgentVerify.evaluateAction(action));
-              logger.info(`[AgentVerify] Generated ${auditReceipts!.length} audit receipts for agent actions`);
+              logger.info(`[AgentVerify] Generated ${auditReceipts.length} structural audit receipts`);
             } catch (e) {
-              logger.warn('[AgentVerify] Failed to generate audit receipts:', e);
+              logger.warn('[AgentVerify] Failed to generate structural audit receipts:', e);
             }
           }
 
+          // Run content verification (Moderation API + Embedding scope check) in parallel
+          // These are deterministic classifier/embedding checks, NOT LLM-as-Judge
+          try {
+            const { receipt: contentReceipt, verification } = await AgentVerify.evaluateContent(text, translation);
+            auditReceipts.push(contentReceipt);
+            logger.info(`[AgentVerify] Content verification: safe=${verification.safe}, ` +
+              `moderation_flagged=${verification.moderation.flagged}, ` +
+              `scope_similarity=${verification.scope.similarityScore}, ` +
+              `methods=${verification.verificationMethods.join(' + ')}`);
+          } catch (e) {
+            logger.warn('[AgentVerify] Content verification failed (fail-open):', e);
+          }
+
           // GOVERNANCE GATE: If ANY audit receipt has status FAILED, block student delivery
-          if (auditReceipts && auditReceipts.some((r: any) => r.status === 'FAILED')) {
+          if (auditReceipts.length > 0 && auditReceipts.some((r: any) => r.status === 'FAILED')) {
+            const failedReceipt = auditReceipts.find((r: any) => r.status === 'FAILED');
             console.log('[TranscriptionBusinessService] ⛔ GOVERNANCE BLOCK: FAILED audit receipt detected — skipping student delivery');
             logger.info('[TranscriptionBusinessService] Governance blocked: unsafe content will NOT be delivered to students');
 
@@ -218,9 +232,10 @@ export class TranscriptionBusinessService {
                 if (student.readyState === 1) { // WebSocket.OPEN
                   const blockedMessage = {
                     type: 'governance_blocked',
-                    blockedAction: auditReceipts.find((r: any) => r.status === 'FAILED')?.agentActionType || 'unknown',
-                    reason: 'Content safety violation detected by AgentVerify — delivery blocked',
-                    auditReceipt: auditReceipts.find((r: any) => r.status === 'FAILED'),
+                    blockedAction: failedReceipt?.agentActionType || 'content_verification',
+                    reason: failedReceipt?.details || 'Content verification failed — delivery blocked',
+                    auditReceipt: failedReceipt,
+                    allReceipts: auditReceipts,
                     timestamp: Date.now()
                   };
                   student.send(JSON.stringify(blockedMessage));
