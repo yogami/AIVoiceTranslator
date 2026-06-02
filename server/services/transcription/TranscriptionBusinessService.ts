@@ -188,11 +188,25 @@ export class TranscriptionBusinessService {
           logger.info(`Processing translation for ${students.length} students in ${targetLanguage}`);
           
           // Use the orchestrator to translate text only
-          const translation = await this.speechPipelineOrchestrator.translateText(
+          const translateResult = await this.speechPipelineOrchestrator.translateText(
             text,
             teacherLanguage,
             targetLanguage
           );
+          const translation = translateResult.text;
+          const agentActions = translateResult.agentActions;
+
+          // Generate audit receipts via AgentVerify if agent actions exist
+          let auditReceipts: any[] | undefined;
+          if (agentActions && agentActions.length > 0) {
+            try {
+              const { AgentVerify } = require('../../domain/governance/AgentVerify');
+              auditReceipts = agentActions.map((action: any) => AgentVerify.evaluateAction(action));
+              logger.info(`[AgentVerify] Generated ${auditReceipts!.length} audit receipts for agent actions`);
+            } catch (e) {
+              logger.warn('[AgentVerify] Failed to generate audit receipts:', e);
+            }
+          }
 
           // Apply ACE shaping per-student (term-locking, simplification)
           // Note: term-locking applied within ACE orchestrator; per-student lowLiteracyMode respected
@@ -251,7 +265,9 @@ export class TranscriptionBusinessService {
                 sourceLanguage: teacherLanguage,
                 targetLanguage: targetLanguage,
                 timestamp: Date.now(),
-                ttsServiceType: ttsResult.ttsServiceType // Add the missing TTS service type
+                ttsServiceType: ttsResult.ttsServiceType, // Add the missing TTS service type
+                ...(agentActions && agentActions.length > 0 ? { agentActions } : {}),
+                ...(auditReceipts && auditReceipts.length > 0 ? { auditReceipts } : {})
               };
               if (originalAudioBase64 && originalTtsServiceType) {
                 try { (message as any).originalTtsServiceType = originalTtsServiceType; } catch {}

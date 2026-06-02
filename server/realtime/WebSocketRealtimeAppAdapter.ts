@@ -25,7 +25,7 @@ export class WebSocketRealtimeAppAdapter {
           synthesize: (text, options) => orchestrator.synthesize(text, { language: options?.language }),
         },
         translationDeps: {
-          translate: (text, src, dst) => orchestrator.translateText(text, src, dst),
+          translate: async (text, src, dst) => (await orchestrator.translateText(text, src, dst)).text,
         },
       });
       this.app.start();

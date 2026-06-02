@@ -190,10 +190,13 @@ export class SpeechPipelineOrchestrator {
   /**
    * Process Translation only
    */
-  async translateText(text: string, sourceLanguage: string, targetLanguage: string): Promise<string> {
+  async translateText(text: string, sourceLanguage: string, targetLanguage: string): Promise<{ text: string; agentActions?: any[] }> {
     console.log('[SpeechPipelineOrchestrator] Translating text only');
     const result = await this.translationService.translate(text, sourceLanguage, targetLanguage);
-    return typeof result === 'string' ? result : result.text;
+    if (typeof result === 'string') {
+      return { text: result };
+    }
+    return { text: result.text, agentActions: result.agentActions };
   }
 
   /**
