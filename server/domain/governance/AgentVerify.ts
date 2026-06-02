@@ -20,7 +20,13 @@ export class AgentVerify {
     let details = 'Action cryptographically verified against governance invariants.';
 
     // Specific LTL logic demo
-    if (actionType === 'generate_quiz') {
+    if (actionType === 'unsafe_content') {
+      ltlRules.push('G (¬UnsafeContent)');
+      euClause = 'Article 9: Risk management system';
+      status = 'FAILED';
+      details = 'VIOLATION DETECTED: Content safety invariant breached. Agent attempted to deliver unverified content outside approved curriculum scope.';
+      console.log('[AgentVerify] ⛔ FAILED: unsafe_content action detected — governance invariant violated');
+    } else if (actionType === 'generate_quiz') {
       ltlRules.push('G (Quiz -> F(HumanApproval))');
       euClause = 'Article 14: Human oversight';
       details = 'Verified that the generated quiz maps to factual curriculum context.';

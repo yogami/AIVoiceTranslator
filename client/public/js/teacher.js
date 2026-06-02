@@ -1026,6 +1026,71 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             domElements.statusDisplay.insertAdjacentText('afterbegin', 'Note: Live audio streaming may be limited on this device; audio is sent when you stop recording. ');
         }
 
+        // ── Simulate Violation Button (Agora Panel Demo — Act 3) ──
+        (function addViolationButton() {
+            const violationBtn = document.createElement('button');
+            violationBtn.id = 'simulate-violation-btn';
+            violationBtn.textContent = '⚠️ Simulate Agent Violation';
+            violationBtn.title = 'Send a simulated governance violation (Ctrl+Shift+V)';
+            violationBtn.style.cssText = [
+                'display: block',
+                'margin: 24px auto 0',
+                'padding: 10px 22px',
+                'background: linear-gradient(135deg, #6e1a1a, #9b2020)',
+                'color: #ffcccc',
+                'border: 1px solid rgba(248,81,73,0.35)',
+                'border-radius: 8px',
+                'font-family: inherit',
+                'font-size: 0.88em',
+                'font-weight: 600',
+                'cursor: pointer',
+                'transition: all 0.2s',
+                'letter-spacing: 0.3px'
+            ].join(';');
+
+            violationBtn.addEventListener('mouseenter', function () {
+                this.style.background = 'linear-gradient(135deg, #8b2020, #c0392b)';
+                this.style.boxShadow = '0 0 18px rgba(248,81,73,0.35)';
+            });
+            violationBtn.addEventListener('mouseleave', function () {
+                this.style.background = 'linear-gradient(135deg, #6e1a1a, #9b2020)';
+                this.style.boxShadow = 'none';
+            });
+
+            function triggerViolation() {
+                const wsConn = appState.rtc || appState.ws;
+                if (appState.rtc && appState.rtc.isOpen && appState.rtc.isOpen()) {
+                    appState.rtc.sendRaw(JSON.stringify({ type: 'simulate_violation' }));
+                } else if (appState.ws && appState.ws.readyState === WebSocket.OPEN) {
+                    appState.ws.send(JSON.stringify({ type: 'simulate_violation' }));
+                } else {
+                    uiUpdater.toast('WebSocket not connected', 'error');
+                    return;
+                }
+                uiUpdater.toast('⚠️ Violation triggered!', 'error');
+            }
+
+            violationBtn.addEventListener('click', triggerViolation);
+
+            // Keyboard shortcut: Ctrl+Shift+V
+            document.addEventListener('keydown', function (e) {
+                if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+                    e.preventDefault();
+                    triggerViolation();
+                }
+            });
+
+            // Insert at the bottom of .container
+            const container = document.querySelector('.container');
+            if (container) {
+                // Add a subtle separator
+                const sep = document.createElement('hr');
+                sep.style.cssText = 'border: none; border-top: 1px solid rgba(220,53,69,0.15); margin: 20px 0 8px;';
+                container.appendChild(sep);
+                container.appendChild(violationBtn);
+            }
+        })();
+
         webSocketHandler.connect();
         speechHandler.setup(); // Call speechHandler.setup
 

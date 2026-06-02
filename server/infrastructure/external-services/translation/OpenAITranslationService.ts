@@ -70,7 +70,14 @@ Third, if the teacher used difficult jargon, you may autonomously call the 'extr
           { role: 'user', content: text }
         ],
         tools: tools,
-        tool_choice: 'auto',
+        tool_choice: (() => {
+          const forceActions = process.env.FORCE_AGENT_ACTIONS;
+          if (forceActions === 'true' || forceActions === '1') {
+            console.log('[OpenAITranslationService] FORCE_AGENT_ACTIONS enabled — using tool_choice: required');
+            return 'required' as const;
+          }
+          return 'auto' as const;
+        })(),
         temperature: 0.3
       });
 

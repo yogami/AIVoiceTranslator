@@ -197,28 +197,11 @@
                 </div>
             `;
             
-            // === DIAGNOSTIC PANEL (temporary - for debugging agentActions) ===
-            let diagPanel = document.getElementById('ws-diagnostic-panel');
-            if (!diagPanel) {
-                diagPanel = document.createElement('div');
-                diagPanel.id = 'ws-diagnostic-panel';
-                diagPanel.style.cssText = 'margin: 12px 0; padding: 12px; background: #1a1a2e; color: #0f0; border: 2px solid #e94560; border-radius: 8px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;';
-                domElements.translationDisplay.parentNode.insertBefore(diagPanel, domElements.translationDisplay.nextSibling);
-            }
-            const dataKeys = Object.keys(data);
-            const hasAgentActions = !!(data.agentActions && data.agentActions.length > 0);
-            const agentActionsDetail = hasAgentActions 
-                ? JSON.stringify(data.agentActions.map(a => ({ type: a.type, payloadKeys: Object.keys(a.payload || {}) })))
-                : 'NONE';
-            const hasAuditReceipts = !!(data.auditReceipts && data.auditReceipts.length > 0);
-            diagPanel.innerHTML = `
-                <div style="color: #e94560; font-weight: bold; margin-bottom: 4px;">🔬 WebSocket Diagnostic (v3)</div>
-                <div>📦 Keys in payload: ${dataKeys.join(', ')}</div>
-                <div>🎯 agentActions present: <span style="color: ${hasAgentActions ? '#0f0' : '#f00'}; font-weight: bold;">${hasAgentActions ? 'YES ✅' : 'NO ❌'}</span></div>
-                <div>📋 agentActions detail: ${agentActionsDetail}</div>
-                <div>🔐 auditReceipts: ${hasAuditReceipts ? 'YES ✅' : 'NO'}</div>
-                <div>⏰ ${new Date().toLocaleTimeString()}</div>
-            `;
+            // Remove any leftover diagnostic panel from previous builds
+            try { const old = document.getElementById('ws-diagnostic-panel'); if (old) old.remove(); } catch(_) {}
+
+            // Dismiss any active governance_blocked alert on new translation
+            try { const gba = document.getElementById('governance-blocked-alert'); if (gba) gba.remove(); } catch(_) {}
             
             // Handle Agent Insights
             const agentInsightsContainer = document.getElementById('agent-insights-step');
@@ -567,6 +550,91 @@
                             domElements.translationDisplay.innerHTML = '<div style="color: orange;">Waiting for teacher to start the session. Please try again in a moment.</div>';
                         }
                     }
+                    break;
+                case 'governance_blocked':
+                    // ── Governance Blocked Alert (Agora Panel Demo) ──
+                    (function showGovernanceBlocked() {
+                        try {
+                            // Remove existing alert if any
+                            const existing = document.getElementById('governance-blocked-alert');
+                            if (existing) existing.remove();
+
+                            const reason = data.reason || 'Policy violation detected';
+                            const hash = (data.auditReceipt && data.auditReceipt.hash)
+                                ? data.auditReceipt.hash
+                                : (data.hash || '—');
+                            const hashShort = hash.length > 24 ? hash.substring(0, 24) + '…' : hash;
+
+                            const alert = document.createElement('div');
+                            alert.id = 'governance-blocked-alert';
+                            alert.style.cssText = [
+                                'position: fixed',
+                                'top: 50%',
+                                'left: 50%',
+                                'transform: translate(-50%, -50%)',
+                                'z-index: 9999',
+                                'width: 90%',
+                                'max-width: 480px',
+                                'padding: 28px 24px',
+                                'background: linear-gradient(145deg, #1a0a0a, #2d0f0f)',
+                                'border: 2px solid rgba(248,81,73,0.6)',
+                                'border-radius: 16px',
+                                'color: #ffcccc',
+                                'font-family: system-ui, -apple-system, sans-serif',
+                                'box-shadow: 0 0 40px rgba(248,81,73,0.3), 0 8px 32px rgba(0,0,0,0.6)',
+                                'animation: govBlockedIn 0.4s ease-out'
+                            ].join(';');
+
+                            alert.innerHTML = `
+                                <style>
+                                    @keyframes govBlockedIn {
+                                        from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+                                        to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+                                    }
+                                    @keyframes govPulse {
+                                        0%, 100% { box-shadow: 0 0 40px rgba(248,81,73,0.3); }
+                                        50% { box-shadow: 0 0 60px rgba(248,81,73,0.5); }
+                                    }
+                                </style>
+                                <div style="text-align: center; margin-bottom: 14px;">
+                                    <span style="font-size: 2.2em;">🛡️</span>
+                                </div>
+                                <div style="text-align: center; font-size: 1.15em; font-weight: 700; color: #f85149; margin-bottom: 10px;">
+                                    Action Blocked by AgentVerify
+                                </div>
+                                <div style="text-align: center; font-size: 0.88em; color: #ffb3b3; margin-bottom: 16px; line-height: 1.5;">
+                                    An autonomous agent action was intercepted and blocked by the governance layer.
+                                </div>
+                                <div style="background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.25); border-radius: 10px; padding: 14px; font-size: 0.82em;">
+                                    <div style="margin-bottom: 8px;"><strong style="color: #f85149;">Reason:</strong> <span style="color: #ffcccc;">${reason.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</span></div>
+                                    <div><strong style="color: #f0ad4e;">Audit Hash:</strong> <span style="color: #f0ad4e; font-family: 'Fira Code', monospace; font-size: 0.9em;">${hashShort}</span></div>
+                                </div>
+                            `;
+
+                            // Overlay backdrop
+                            const backdrop = document.createElement('div');
+                            backdrop.id = 'governance-blocked-backdrop';
+                            backdrop.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9998;animation:fadeIn 0.3s ease;';
+                            backdrop.addEventListener('click', dismiss);
+
+                            document.body.appendChild(backdrop);
+                            document.body.appendChild(alert);
+
+                            // Pulsing animation after initial appearance
+                            setTimeout(() => { alert.style.animation = 'govPulse 2s ease-in-out infinite'; }, 500);
+
+                            // Auto-dismiss after 10 seconds
+                            const timer = setTimeout(dismiss, 10000);
+
+                            function dismiss() {
+                                clearTimeout(timer);
+                                try { alert.remove(); } catch(_) {}
+                                try { backdrop.remove(); } catch(_) {}
+                            }
+                        } catch (e) {
+                            console.error('[student.js] governance_blocked display error:', e);
+                        }
+                    })();
                     break;
                 case 'webrtc_offer':
                 case 'webrtc_answer':

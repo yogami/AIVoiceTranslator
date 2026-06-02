@@ -31,6 +31,7 @@ import { createLanguageRoutes } from './languages.routes';
 import { createTranslationRoutes } from './translations.routes';
 import { createTranscriptRoutes } from './transcripts.routes';
 import { createSessionRoutes } from './sessions.routes';
+import { createAuditRoutes } from './audit.routes';
 import authRoutes from './auth';
 
 // Import error handling
@@ -52,6 +53,7 @@ export function createApiRoutes(
   router.use('/', createTranscriptRoutes(storage));
   // sessions routes accept optional cleanupService; cast to avoid type mismatch from previous signature
   router.use('/', createSessionRoutes(storage, activeSessionProvider, sessionCleanupService as any));
+  router.use('/', createAuditRoutes());
   
   // Auth routes (existing)
   router.use('/auth', authRoutes);

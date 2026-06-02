@@ -42,6 +42,7 @@ import { ManualSendTranslationHandler } from './websocket-services/ManualSendTra
 import { StudentRequestMessageHandler } from './websocket-services/StudentRequestMessageHandler';
 import { TeacherReplyMessageHandler } from './websocket-services/TeacherReplyMessageHandler';
 import { StudentAudioMessageHandler } from './websocket-services/StudentAudioMessageHandler';
+import { SimulateViolationHandler } from './websocket-services/SimulateViolationHandler';
 import type {
   ClientSettings,
   WebSocketMessageToServer,
@@ -186,6 +187,9 @@ export class WebSocketServer implements IActiveSessionProvider {
     this.messageHandlerRegistry.register(new StudentRequestMessageHandler());
     this.messageHandlerRegistry.register(new TeacherReplyMessageHandler());
     this.messageHandlerRegistry.register(new StudentAudioMessageHandler());
+
+    // Governance handlers
+    this.messageHandlerRegistry.register(new SimulateViolationHandler());
     
     // Create message handler context with all required services
     const messageHandlerContext: Omit<MessageHandlerContext, 'ws'> = {

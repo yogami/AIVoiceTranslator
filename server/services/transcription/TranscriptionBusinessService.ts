@@ -208,6 +208,33 @@ export class TranscriptionBusinessService {
             }
           }
 
+          // GOVERNANCE GATE: If ANY audit receipt has status FAILED, block student delivery
+          if (auditReceipts && auditReceipts.some((r: any) => r.status === 'FAILED')) {
+            console.log('[TranscriptionBusinessService] ⛔ GOVERNANCE BLOCK: FAILED audit receipt detected — skipping student delivery');
+            logger.info('[TranscriptionBusinessService] Governance blocked: unsafe content will NOT be delivered to students');
+
+            for (const student of students) {
+              try {
+                if (student.readyState === 1) { // WebSocket.OPEN
+                  const blockedMessage = {
+                    type: 'governance_blocked',
+                    blockedAction: auditReceipts.find((r: any) => r.status === 'FAILED')?.agentActionType || 'unknown',
+                    reason: 'Content safety violation detected by AgentVerify — delivery blocked',
+                    auditReceipt: auditReceipts.find((r: any) => r.status === 'FAILED'),
+                    timestamp: Date.now()
+                  };
+                  student.send(JSON.stringify(blockedMessage));
+                }
+              } catch (err) {
+                logger.error('[TranscriptionBusinessService] Failed to send governance_blocked to student', {
+                  error: err instanceof Error ? err.message : String(err)
+                });
+              }
+            }
+            // Skip normal translation delivery for this language group
+            return;
+          }
+
           // Apply ACE shaping per-student (term-locking, simplification)
           // Note: term-locking applied within ACE orchestrator; per-student lowLiteracyMode respected
           const shapedByStudent: Array<{ ws: WebSocketClient; text: string }> = [];
