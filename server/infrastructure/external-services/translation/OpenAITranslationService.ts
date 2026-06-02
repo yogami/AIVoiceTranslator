@@ -75,7 +75,7 @@ Third, if the teacher used difficult jargon, you may autonomously call the 'extr
       });
 
       const choice = response.choices[0];
-      const translation = choice?.message?.content?.trim() || '';
+      let translation = choice?.message?.content?.trim() || '';
       
       const agentActions: any[] = [];
       if (choice.message.tool_calls) {
@@ -92,6 +92,28 @@ Third, if the teacher used difficult jargon, you may autonomously call the 'extr
           }
         }
       }
+
+      // When OpenAI returns tool calls, content is often null.
+      // Make a fast follow-up call just for the translation text.
+      if (!translation && agentActions.length > 0) {
+        console.log('[OpenAITranslationService] Tool calls returned but content was empty — fetching translation separately');
+        try {
+          const fallbackResponse = await this.openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              { role: 'system', content: `Translate the following text from ${sourceLang} to ${targetLang}. Respond with ONLY the translation, nothing else.` },
+              { role: 'user', content: text }
+            ],
+            temperature: 0.3
+          });
+          translation = fallbackResponse.choices[0]?.message?.content?.trim() || text;
+        } catch (fallbackError) {
+          console.warn('[OpenAITranslationService] Fallback translation failed, using original text', fallbackError);
+          translation = text; // Last resort: use original text
+        }
+      }
+
+      console.log(`[OpenAITranslationService] Result: translation="${translation.substring(0, 80)}...", agentActions=${agentActions.length}`);
 
       if (agentActions.length > 0) {
         return { text: translation, agentActions };
