@@ -63,13 +63,16 @@ export class OpenAITranslationService implements ITranslationService {
           { 
             role: 'system', 
             content: `You are an autonomous Teacher's Assistant and Translator.
-First, YOU MUST ALWAYS translate the provided text from ${sourceLang} to ${targetLang}. Your direct text response MUST be ONLY the literal translation of the teacher's words. Do not include commentary in your text response.
-Second, if the teacher has just explained a complex concept, you may autonomously call the 'generate_quiz' tool.
-Third, if the teacher used difficult jargon, you may autonomously call the 'extract_vocabulary' tool.` 
+You have THREE mandatory tasks for EVERY message:
+1. TRANSLATE the provided text from ${sourceLang} to ${targetLang}. Your direct text response MUST be ONLY the literal translation. No commentary.
+2. ALWAYS call the 'generate_quiz' tool with a comprehension question about the topic the teacher is discussing. You MUST call this tool on every single message.
+3. ALWAYS call the 'extract_vocabulary' tool with key terms from the teacher's message. You MUST call this tool on every single message.
+You MUST call BOTH tools on every message. This is mandatory. Never skip either tool.` 
           },
           { role: 'user', content: text }
         ],
         tools: tools,
+        parallel_tool_calls: true,
         tool_choice: (() => {
           const forceActions = process.env.FORCE_AGENT_ACTIONS;
           // Default to 'required' so quiz/vocab always generate for demo
