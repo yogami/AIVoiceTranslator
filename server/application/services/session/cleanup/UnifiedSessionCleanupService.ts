@@ -211,7 +211,7 @@ export class UnifiedSessionCleanupService {
     // Execute strategies in priority order (Single Responsibility Principle)
     for (const strategy of this.cleanupStrategies) {
       if (this.isExplicitlyStopped) {
-        logger.info(`[StrategyExecution] Service stopped, breaking strategy loop`);
+        logger.info('[StrategyExecution] Service stopped, breaking strategy loop');
         break;
       }
 
@@ -278,7 +278,7 @@ export class UnifiedSessionCleanupService {
         .update(sessions)
         .set({
           studentsCount: 0,
-          qualityReason: `All students disconnected - grace period active`
+          qualityReason: 'All students disconnected - grace period active'
         })
         .where(
           and(

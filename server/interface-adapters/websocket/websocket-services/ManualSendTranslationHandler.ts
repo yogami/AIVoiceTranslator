@@ -2,6 +2,7 @@ import logger from '../../../logger';
 import { IMessageHandler, MessageHandlerContext } from './MessageHandler';
 import type { ManualSendTranslationMessageToServer } from '../WebSocketTypes';
 import { ManualTranslationService } from '../../../application/services/manual/ManualTranslationService';
+import { TranscriptionBusinessService } from '../../../services/transcription/TranscriptionBusinessService';
 
 export class ManualSendTranslationHandler implements IMessageHandler<ManualSendTranslationMessageToServer> {
   getMessageType(): string {
@@ -33,7 +34,7 @@ export class ManualSendTranslationHandler implements IMessageHandler<ManualSendT
     }
 
     try {
-      const service = new ManualTranslationService((ctx) => new (require('../../../services/transcription/TranscriptionBusinessService').TranscriptionBusinessService)(ctx.storage, ctx.speechPipelineOrchestrator));
+      const service = new ManualTranslationService((ctx) => new TranscriptionBusinessService(ctx.storage, ctx.speechPipelineOrchestrator));
       await service.sendTextToStudents(message.text, context);
       // Acknowledge to teacher
       try { context.ws.send(JSON.stringify({ type: 'manual_send_ack', status: 'ok' })); } catch(_){ }

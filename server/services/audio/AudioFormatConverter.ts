@@ -64,7 +64,7 @@ export class AudioFormatConverter {
             const mp3 = AudioFormatConverter.encodeWithLame(wavBuffer);
             resolve(mp3);
           } catch (e) {
-            reject(new Error(`ffmpeg conversion failed and lamejs fallback failed`));
+            reject(new Error('ffmpeg conversion failed and lamejs fallback failed'));
           }
         }
       });

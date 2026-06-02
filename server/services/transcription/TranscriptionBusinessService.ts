@@ -11,6 +11,8 @@
 import logger from '../../logger';
 import type { IStorage } from '../../storage.interface';
 import type { SpeechPipelineOrchestrator } from '../../application/services/SpeechPipelineOrchestrator';
+import { v4 as uuidv4 } from 'uuid';
+import { AgentVerify } from '../../domain/governance/AgentVerify';
 import { FeatureFlags } from '../../application/services/config/FeatureFlags';
 import { ACEOrchestrator } from '../../application/services/ace/ACEOrchestrator';
 import type { WebSocketClient } from '../../interface-adapters/websocket/websocket-services/ConnectionManager';
@@ -200,7 +202,6 @@ export class TranscriptionBusinessService {
           let auditReceipts: any[] | undefined;
           if (agentActions && agentActions.length > 0) {
             try {
-              const { AgentVerify } = require('../../domain/governance/AgentVerify');
               auditReceipts = agentActions.map((action: any) => AgentVerify.evaluateAction(action));
               logger.info(`[AgentVerify] Generated ${auditReceipts!.length} audit receipts for agent actions`);
             } catch (e) {
@@ -305,13 +306,13 @@ export class TranscriptionBusinessService {
                 student.send(JSON.stringify(message));
                 logger.debug(`Sent translation to student in ${targetLanguage}`);
               } else {
-                logger.warn(`Student WebSocket not ready, skipping delivery`, { 
+                logger.warn('Student WebSocket not ready, skipping delivery', { 
                   targetLanguage, 
                   readyState: student.readyState 
                 });
               }
             } catch (error) {
-              logger.error(`Failed to send translation to student`, { 
+              logger.error('Failed to send translation to student', { 
                 error: error instanceof Error ? error.message : String(error),
                 targetLanguage 
               });
@@ -332,7 +333,7 @@ export class TranscriptionBusinessService {
               logger.debug(`Stored translation in database for session ${sessionId}`);
             }
           } catch (storageError) {
-            logger.warn(`Failed to store translation in database`, {
+            logger.warn('Failed to store translation in database', {
               error: storageError instanceof Error ? storageError.message : String(storageError),
               sessionId,
               targetLanguage
@@ -364,7 +365,7 @@ export class TranscriptionBusinessService {
                 student.send(JSON.stringify(fallbackMessage));
               }
             } catch (fallbackError) {
-              logger.error(`Failed to send fallback message`, { 
+              logger.error('Failed to send fallback message', { 
                 error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
               });
             }

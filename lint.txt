@@ -1,0 +1,713 @@
+
+> rest-express@1.0.0 lint
+> eslint . --fix --config eslint.config.cjs
+
+
+/Users/user1000/gitprojects/AIVoiceTranslator/client/src/components/Student.tsx
+   1:27  warning  'useEffect' is defined but never used          @typescript-eslint/no-unused-vars
+  16:9   warning  'audioRef' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  31:46  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  31:76  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/client/src/components/Teacher.tsx
+  1:27  warning  'useEffect' is defined but never used               @typescript-eslint/no-unused-vars
+  9:22  warning  'setTranscript' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/client/src/hooks/useAudioRecording.ts
+  46:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  56:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/client/src/hooks/useWebSocket.ts
+  12:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  27:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  75:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/client/src/services/WebSocketService.ts
+  14:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  76:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/SpeechPipelineOrchestrator.ts
+   58:75   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   76:47   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+   76:98   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  193:125  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  197:81   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  197:114  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  200:82   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  200:129  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  200:155  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  325:35   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  374:45   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  390:32   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  402:25   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  403:26   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  415:37   error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  456:40   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  457:44   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  480:22   warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/manual/ManualTranslationService.ts
+  20:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  21:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  22:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/SessionCountCacheService.ts
+  111:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/SessionLifecycleService.ts
+  14:24  warning  'InsertSession' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/SessionMetricsService.ts
+  8:29  warning  'WebSocketClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/StorageSessionManager.ts
+   13:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   22:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   71:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   90:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  148:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  178:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  193:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/ISessionClassifier.ts
+  30:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/MemoryCleanupManager.ts
+  12:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/SessionClassifier.ts
+  20:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/UnifiedSessionCleanupService.ts
+    3:19  warning  'lt' is defined but never used            @typescript-eslint/no-unused-vars
+    3:27  warning  'isNotNull' is defined but never used     @typescript-eslint/no-unused-vars
+    3:38  warning  'isNull' is defined but never used        @typescript-eslint/no-unused-vars
+   39:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   44:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  375:68  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  484:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  488:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/strategies/AbandonedSessionCleanupStrategy.ts
+   3:23  warning  'gt' is defined but never used       @typescript-eslint/no-unused-vars
+   3:38  warning  'inArray' is defined but never used  @typescript-eslint/no-unused-vars
+   4:25  warning  'Session' is defined but never used  @typescript-eslint/no-unused-vars
+  21:13  warning  'now' is defined but never used      @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/strategies/EmptyTeacherSessionCleanupStrategy.ts
+  21:13  warning  'now' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/application/services/session/cleanup/strategies/InactiveSessionCleanupStrategy.ts
+  22:13  warning  'now' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/config.ts
+  409:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/database-storage.ts
+  291:133  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  334:147  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  343:30   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/db.ts
+  17:11  warning  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+  18:9   warning  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+  36:9   warning  'isAivenFree' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  38:9   warning  'isTestEnvironment' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  41:27  warning  Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/domain/governance/AgentVerify.ts
+  9:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/audio/VoiceIsolationService.ts
+  32:7  warning  'enhancementStrength' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/speech/AutoFallbackSTTService.ts
+  247:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  268:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/speech/ElevenLabsSTTService.ts
+  50:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  85:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/speech/WhisperCppTranscriptionService.ts
+   13:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   37:56  warning  'options' is defined but never used       @typescript-eslint/no-unused-vars
+   37:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   75:58  warning  'options' is defined but never used       @typescript-eslint/no-unused-vars
+   75:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/translation/AutoFallbackTranslationService.ts
+  16:122  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/translation/MyMemoryTranslationService.ts
+  210:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/translation/OpenAITranslationService.ts
+  11:122  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  13:20   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  87:27   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/ElevenLabsTTSService.ts
+    3:13  warning  'fs' is defined but never used            @typescript-eslint/no-unused-vars
+    5:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    8:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   73:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/EmotionControlService.ts
+   91:7   warning  'language' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  296:22  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  297:27  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  468:87  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+  470:24  warning  Unexpected any. Specify a different type       @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/KartoffelTTSService.ts
+  48:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  75:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/KokoroTTSService.ts
+  25:19   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  36:108  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  50:34   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/LocalTTSService.ts
+   15:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  295:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  312:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  347:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/OpenAITTSService.ts
+  152:77   warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  161:32   warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  232:24   warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  265:75   warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  265:118  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  266:36   warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  266:66   warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  268:9    warning  'errObj' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/PiperTTSService.ts
+  72:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/external-services/tts/SilentTTSService.ts
+  8:34  warning  'options' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/factories/STTServiceFactory.ts
+  14:10  warning  'DeepgramSTTService' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/factories/TTSServiceFactory.ts
+  123:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/infrastructure/handlers/AudioFileHandler.ts
+  74:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/WebSocketServer.ts
+   13:10  warning  'URL' is defined but never used                           @typescript-eslint/no-unused-vars
+   17:31  warning  'ClassroomSession' is defined but never used              @typescript-eslint/no-unused-vars
+   48:3   warning  'WebSocketMessageToServer' is defined but never used      @typescript-eslint/no-unused-vars
+   49:3   warning  'RegisterMessageToServer' is defined but never used       @typescript-eslint/no-unused-vars
+   50:3   warning  'TranscriptionMessageToServer' is defined but never used  @typescript-eslint/no-unused-vars
+   51:3   warning  'AudioMessageToServer' is defined but never used          @typescript-eslint/no-unused-vars
+   52:3   warning  'TTSRequestMessageToServer' is defined but never used     @typescript-eslint/no-unused-vars
+   53:3   warning  'SettingsMessageToServer' is defined but never used       @typescript-eslint/no-unused-vars
+   54:3   warning  'PingMessageToServer' is defined but never used           @typescript-eslint/no-unused-vars
+   55:3   warning  'ConnectionMessageToClient' is defined but never used     @typescript-eslint/no-unused-vars
+   56:3   warning  'ClassroomCodeMessageToClient' is defined but never used  @typescript-eslint/no-unused-vars
+   57:3   warning  'RegisterResponseToClient' is defined but never used      @typescript-eslint/no-unused-vars
+   58:3   warning  'TranslationMessageToClient' is defined but never used    @typescript-eslint/no-unused-vars
+   59:3   warning  'SettingsResponseToClient' is defined but never used      @typescript-eslint/no-unused-vars
+   60:3   warning  'PongMessageToClient' is defined but never used           @typescript-eslint/no-unused-vars
+   61:3   warning  'ErrorMessageToClient' is defined but never used          @typescript-eslint/no-unused-vars
+   62:3   warning  'StudentJoinedMessageToClient' is defined but never used  @typescript-eslint/no-unused-vars
+  320:59  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  330:75  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  340:29  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  391:67  warning  'context' is defined but never used                       @typescript-eslint/no-unused-vars
+  734:31  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  743:12  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/WebSocketTypes.ts
+  151:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  168:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/AudioMessageHandler.ts
+   14:49  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   14:99  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  111:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  142:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  171:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  173:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  189:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/ComprehensionSignalMessageHandler.ts
+  24:36   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:92   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:119  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:60   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:87   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:38   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/ConnectionHealthManager.ts
+   26:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   91:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/ConnectionLifecycleManager.ts
+   18:15  warning  'ConnectionMessageToClient' is defined but never used  @typescript-eslint/no-unused-vars
+   30:29  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   38:23  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   52:64  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   89:22  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   96:22  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  116:43  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  193:25  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  216:27  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  226:27  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  271:25  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  282:25  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/ConnectionManager.ts
+  19:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/ManualSendTranslationHandler.ts
+  36:66  error  Require statement not part of import statement  @typescript-eslint/no-var-requires
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/MessageHandler.ts
+  13:3   warning  'RegisterMessageToServer' is defined but never used               @typescript-eslint/no-unused-vars
+  14:3   warning  'TranscriptionMessageToServer' is defined but never used          @typescript-eslint/no-unused-vars
+  15:3   warning  'AudioMessageToServer' is defined but never used                  @typescript-eslint/no-unused-vars
+  16:3   warning  'TTSRequestMessageToServer' is defined but never used             @typescript-eslint/no-unused-vars
+  17:3   warning  'SettingsMessageToServer' is defined but never used               @typescript-eslint/no-unused-vars
+  18:3   warning  'ManualSendTranslationMessageToServer' is defined but never used  @typescript-eslint/no-unused-vars
+  19:3   warning  'PingMessageToServer' is defined but never used                   @typescript-eslint/no-unused-vars
+  20:3   warning  'StudentAudioMessageToServer' is defined but never used           @typescript-eslint/no-unused-vars
+  28:22  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+  29:12  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+  30:19  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+  31:23  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+  32:32  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+  33:28  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+  34:20  warning  Unexpected any. Specify a different type                          @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/PingMessageHandler.ts
+   9:10  warning  'config' is defined but never used           @typescript-eslint/no-unused-vars
+  10:10  warning  'WebSocketClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/PongMessageHandler.ts
+  15:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/RegisterMessageHandler.ts
+   48:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   48:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   52:22  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   58:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  239:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  253:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  309:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  342:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  354:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  360:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  372:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  382:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  434:18  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  452:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  457:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  467:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  480:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  496:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/SettingsMessageHandler.ts
+   9:10  warning  'WebSocketClient' is defined but never used  @typescript-eslint/no-unused-vars
+  61:41  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+  68:43  warning  Unexpected any. Specify a different type     @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/StudentAudioMessageHandler.ts
+  14:77  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  59:10  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/StudentRequestMessageHandler.ts
+  10:37   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:78   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  53:83   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:87   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  80:35   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  97:102  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/TeacherReplyMessageHandler.ts
+  25:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  52:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  53:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/interface-adapters/websocket/websocket-services/WebSocketResponseService.ts
+  69:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/middleware/analytics-security.ts
+  45:9  warning  'isTestOrE2E' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/middleware/error-handler.middleware.ts
+  26:95  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  38:74  warning  '_next' is defined but never used         @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/middleware/ip-allowlist.ts
+  14:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/middleware/validation.middleware.ts
+  10:46  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  20:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/openai.ts
+  31:67  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/RealTimeCommunicationService.ts
+  33:50  warning  '_ctx' is defined but never used          @typescript-eslint/no-unused-vars
+  39:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:56  warning  '_id' is defined but never used           @typescript-eslint/no-unused-vars
+  72:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  73:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/RealtimeTransportFactory.ts
+  24:73  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/WebRTCTransportAdapter.ts
+  15:15  warning  '_server' is defined but never used          @typescript-eslint/no-unused-vars
+  40:18  warning  '_toConnectionId' is defined but never used  @typescript-eslint/no-unused-vars
+  40:43  warning  '_message' is defined but never used         @typescript-eslint/no-unused-vars
+  43:32  warning  '_sessionId' is defined but never used       @typescript-eslint/no-unused-vars
+  43:52  warning  '_message' is defined but never used         @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/WebSocketRealtimeAppAdapter.ts
+  44:87   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:104  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  54:33   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  55:14   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  55:59   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:42   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:52   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:66   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/WebSocketTransportAdapter.ts
+   4:15  warning  'IActiveSessionProvider' is defined but never used  @typescript-eslint/no-unused-vars
+  19:15  warning  '_server' is defined but never used                 @typescript-eslint/no-unused-vars
+  27:13  warning  '_cb' is defined but never used                     @typescript-eslint/no-unused-vars
+  28:13  warning  '_cb' is defined but never used                     @typescript-eslint/no-unused-vars
+  29:16  warning  '_cb' is defined but never used                     @typescript-eslint/no-unused-vars
+  35:53  warning  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  35:69  warning  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  38:50  warning  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+  38:66  warning  Unexpected any. Specify a different type            @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/ErrorHandler.ts
+  8:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/RealtimeAudioHandler.ts
+  19:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/RealtimeRegisterHandler.ts
+  10:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/RealtimeSessionHandlers.ts
+   9:60  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  13:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  17:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/RealtimeSignalingHandler.ts
+  25:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  25:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  29:64  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  49:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  57:72  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  69:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/RealtimeTTSHandler.ts
+  22:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/handlers/RealtimeTranslationHandler.ts
+  18:65  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  31:61  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/signaling/InMemorySignalingStore.ts
+   1:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   2:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   3:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  14:50  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  19:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/realtime/webrtc/PeerManager.ts
+   4:44   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   5:17   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   7:125  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  22:50   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  22:64   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  28:36   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:64   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:81   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  44:52   warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/routes.ts
+  131:88  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  139:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  149:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  368:71  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  564:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  626:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  661:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  675:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  776:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  776:74  warning  '_next' is defined but never used         @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/routes/analytics.routes.ts
+  169:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  231:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  270:33  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  284:28  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/routes/auth.ts
+   90:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  142:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:41  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:51  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  151:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  159:54  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  170:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/routes/index.ts
+  24:7   warning  'sessionCleanupService' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  55:96  warning  Unexpected any. Specify a different type                    @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/routes/sessions.routes.ts
+   92:68  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   97:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  136:68  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  140:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/server.ts
+  134:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  157:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  163:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  165:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  165:45  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:17  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/SessionCleanupService.ts
+  369:68  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  418:69  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/SessionCountCacheService.ts
+  111:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/SessionLifecycleService.ts
+  14:24  warning  'InsertSession' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/WebSocketTypes.ts
+  117:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  142:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/audio/AudioFormatConverter.ts
+  97:9  warning  'bitsPerSample' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/audio/VoiceIsolationService.ts
+  43:7  warning  'enhancementStrength' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/handlers/AudioFileHandler.ts
+  73:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/pipeline/TranslationDeliveryService.ts
+  50:7  warning  'sessionId' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  52:7  warning  'getSessionId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/transcription/AudioTranscriptionService.ts
+    9:10  warning  'Readable' is defined but never used      @typescript-eslint/no-unused-vars
+  106:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/transcription/AutoFallbackSTTService.ts
+  256:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  277:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/transcription/ElevenLabsSTTService.ts
+  57:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  93:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/transcription/TranscriptionBusinessService.ts
+   37:43  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  112:22  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  200:30  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  203:39  error    Require statement not part of import statement  @typescript-eslint/no-var-requires
+  204:57  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  212:55  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  221:59  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  223:58  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+  300:35  warning  Unexpected any. Specify a different type        @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/transcription/TranscriptionServiceFactory.ts
+  6:10  warning  'AudioFileHandler' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/transcription/WhisperCppTranscriptionService.ts
+  57:38  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/translation/CulturalContextService.ts
+  164:7  warning  'sourceLanguage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  165:7  warning  'targetLanguage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/translation/TranslationServiceFactory.ts
+   53:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  128:29  warning  'error' is defined but never used         @typescript-eslint/no-unused-vars
+  128:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/translation/translation.interfaces.ts
+  10:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/tts/ElevenLabsTTSService.ts
+   55:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  127:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  146:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  147:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/tts/EmotionControlService.ts
+  91:7  warning  'language' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/tts/OpenAITTSService.ts
+   17:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  124:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  125:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/tts/TTSService.ts
+  23:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/tts/TTSServiceFactory.ts
+  91:40  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/AudioMessageHandler.ts
+  45:13  warning  'teacherLanguage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/ConnectionHealthManager.ts
+  26:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  88:35  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/ConnectionLifecycleManager.ts
+   18:15  warning  'ConnectionMessageToClient' is defined but never used  @typescript-eslint/no-unused-vars
+   30:29  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   38:23  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   52:64  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   97:43  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  174:25  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  197:27  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  207:27  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  248:25  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  259:25  warning  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/ConnectionManager.ts
+  19:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/MessageHandler.ts
+  13:3   warning  'RegisterMessageToServer' is defined but never used       @typescript-eslint/no-unused-vars
+  14:3   warning  'TranscriptionMessageToServer' is defined but never used  @typescript-eslint/no-unused-vars
+  15:3   warning  'AudioMessageToServer' is defined but never used          @typescript-eslint/no-unused-vars
+  16:3   warning  'TTSRequestMessageToServer' is defined but never used     @typescript-eslint/no-unused-vars
+  17:3   warning  'SettingsMessageToServer' is defined but never used       @typescript-eslint/no-unused-vars
+  18:3   warning  'PingMessageToServer' is defined but never used           @typescript-eslint/no-unused-vars
+  26:22  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  27:12  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  28:19  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  29:23  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  30:28  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  31:20  warning  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/PingMessageHandler.ts
+   9:10  warning  'config' is defined but never used           @typescript-eslint/no-unused-vars
+  10:10  warning  'WebSocketClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/PongMessageHandler.ts
+  15:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/RegisterMessageHandler.ts
+  212:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  226:57  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  279:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  317:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  322:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  334:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  344:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  490:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  552:29  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  556:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  571:39  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  619:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/SessionMetricsService.ts
+  8:29  warning  'WebSocketClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/SettingsMessageHandler.ts
+  9:10  warning  'WebSocketClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/StorageSessionManager.ts
+   13:37  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   22:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   71:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:55  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:24  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  174:26  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  189:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/TranslationOrchestrator.ts
+   63:20  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   65:25  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  202:36  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/services/websocket/WebSocketResponseService.ts
+  69:52  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/storage/language.storage.ts
+  123:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  173:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/storage/session.storage.ts
+   10:61  warning  'SQL' is defined but never used           @typescript-eslint/no-unused-vars
+  303:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  318:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  340:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  357:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  374:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  398:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  486:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  504:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  517:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  557:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  594:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  639:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  679:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/storage/translation.storage.ts
+   42:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  126:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/storage/user.storage.ts
+   43:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  107:21  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/user1000/gitprojects/AIVoiceTranslator/server/vite.ts
+   68:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   83:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   95:27  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  121:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  133:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  144:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  156:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  167:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  178:23  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 462 problems (3 errors, 459 warnings)
+

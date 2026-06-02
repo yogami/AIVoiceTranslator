@@ -1003,7 +1003,7 @@
         try {
             if (!appState.audioUnlocked) {
                 const dummy = new Audio();
-                dummy.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+                dummy.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
                 dummy.volume = 0.01;
                 dummy.play().catch(e => console.warn('Audio unlock failed:', e));
                 appState.audioUnlocked = true;

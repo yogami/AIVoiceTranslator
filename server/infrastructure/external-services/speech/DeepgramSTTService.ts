@@ -68,11 +68,11 @@ export class DeepgramSTTService implements ISTTTranscriptionService {
     // Simulate higher quality transcription than basic services
     // In production, this would be replaced with actual Deepgram API calls
     const sampleTranscriptions = [
-      "Welcome to the AI Voice Translator classroom. Today we'll be learning about advanced speech recognition technology.",
-      "The teacher is explaining complex concepts while students listen carefully and take notes.",
-      "This high-quality transcription service provides accurate results even in challenging acoustic environments.",
-      "Deepgram Nova-2 offers superior accuracy compared to basic speech-to-text services.",
-      "The lesson covers multiple topics including artificial intelligence, machine learning, and natural language processing."
+      'Welcome to the AI Voice Translator classroom. Today we\'ll be learning about advanced speech recognition technology.',
+      'The teacher is explaining complex concepts while students listen carefully and take notes.',
+      'This high-quality transcription service provides accurate results even in challenging acoustic environments.',
+      'Deepgram Nova-2 offers superior accuracy compared to basic speech-to-text services.',
+      'The lesson covers multiple topics including artificial intelligence, machine learning, and natural language processing.'
     ];
     
     // Select a sample based on audio buffer characteristics

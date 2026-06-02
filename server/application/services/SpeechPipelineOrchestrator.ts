@@ -412,7 +412,6 @@ export class SpeechPipelineOrchestrator {
           
           if (agentActions && agentActions.length > 0) {
             // Import dynamically to avoid circular dependencies if any
-            const { AgentVerify } = require('../../domain/governance/AgentVerify');
             auditReceipts = agentActions.map(action => AgentVerify.evaluateAction(action));
           }
         }

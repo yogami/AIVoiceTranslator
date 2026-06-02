@@ -130,7 +130,7 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
           }
         }, clientProvider);
         
-        logger.info(`[AudioMessageHandler] Audio processing pipeline completed successfully`);
+        logger.info('[AudioMessageHandler] Audio processing pipeline completed successfully');
 
           // New: echo final transcription back to the teacher so the teacher UI can display it
           try {
