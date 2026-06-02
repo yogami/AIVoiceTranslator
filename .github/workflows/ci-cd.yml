@@ -51,14 +51,21 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Create .env.test
+        run: |
+          echo "NODE_ENV=test" > .env.test
+          echo "HOST=127.0.0.1" >> .env.test
+          echo "PORT=5001" >> .env.test
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> .env.test
+          echo "REDIS_URL=redis://localhost:6379" >> .env.test
+          echo "SESSION_SECRET=test-session-secret" >> .env.test
+          echo "OPENAI_API_KEY=fake-key" >> .env.test
+          echo "TTS_SERVICE_TYPE=openai" >> .env.test
+          echo "LOG_LEVEL=info" >> .env.test
+          echo "VITE_API_URL=http://127.0.0.1:5001" >> .env.test
+          echo "VITE_WS_URL=ws://127.0.0.1:5001" >> .env.test
       - name: Run unit tests
         run: npm run test:unit
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
-          REDIS_URL: redis://localhost:6379
-          SESSION_SECRET: test-session-secret
-          OPENAI_API_KEY: fake-key
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -82,6 +89,19 @@ jobs:
           cache: 'npm'
       - name: Install dependencies
         run: npm ci
+      - name: Create .env.test
+        run: |
+          echo "NODE_ENV=test" > .env.test
+          echo "HOST=127.0.0.1" >> .env.test
+          echo "PORT=5001" >> .env.test
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> .env.test
+          echo "REDIS_URL=redis://localhost:6379" >> .env.test
+          echo "SESSION_SECRET=test-session-secret" >> .env.test
+          echo "OPENAI_API_KEY=fake-key" >> .env.test
+          echo "TTS_SERVICE_TYPE=openai" >> .env.test
+          echo "LOG_LEVEL=info" >> .env.test
+          echo "VITE_API_URL=http://127.0.0.1:5001" >> .env.test
+          echo "VITE_WS_URL=ws://127.0.0.1:5001" >> .env.test
       - name: Run component tests
         run: npm run test:component
         env:
@@ -149,6 +169,19 @@ jobs:
         run: npm ci
       - name: Build application
         run: npm run build || echo "No build script configured"
+      - name: Create .env.test
+        run: |
+          echo "NODE_ENV=test" > .env.test
+          echo "HOST=127.0.0.1" >> .env.test
+          echo "PORT=5001" >> .env.test
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> .env.test
+          echo "REDIS_URL=redis://localhost:6379" >> .env.test
+          echo "SESSION_SECRET=test-session-secret" >> .env.test
+          echo "OPENAI_API_KEY=fake-key" >> .env.test
+          echo "TTS_SERVICE_TYPE=openai" >> .env.test
+          echo "LOG_LEVEL=info" >> .env.test
+          echo "VITE_API_URL=http://127.0.0.1:5001" >> .env.test
+          echo "VITE_WS_URL=ws://127.0.0.1:5001" >> .env.test
       - name: Run integration tests
         run: npm run test:integration
         env:
