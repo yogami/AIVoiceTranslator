@@ -21,6 +21,7 @@ import type { ISTTTranscriptionService } from '../../services/translation/transl
 import type { ITranslationService } from '../../services/translation/translation.interfaces';
 import type { ITTSService, TTSResult } from '../../services/tts/TTSService';
 import { AudioFormatConverter } from '../../services/audio/AudioFormatConverter';
+import { AgentVerify } from '../../domain/governance/AgentVerify';
 
 // Pipeline configuration interface
 interface PipelineConfig {
