@@ -72,11 +72,13 @@ Third, if the teacher used difficult jargon, you may autonomously call the 'extr
         tools: tools,
         tool_choice: (() => {
           const forceActions = process.env.FORCE_AGENT_ACTIONS;
-          if (forceActions === 'true' || forceActions === '1') {
-            console.log('[OpenAITranslationService] FORCE_AGENT_ACTIONS enabled — using tool_choice: required');
-            return 'required' as const;
+          // Default to 'required' so quiz/vocab always generate for demo
+          // Set FORCE_AGENT_ACTIONS=false to revert to 'auto'
+          if (forceActions === 'false' || forceActions === '0') {
+            console.log('[OpenAITranslationService] FORCE_AGENT_ACTIONS=false — using tool_choice: auto');
+            return 'auto' as const;
           }
-          return 'auto' as const;
+          return 'required' as const;
         })(),
         temperature: 0.3
       });
