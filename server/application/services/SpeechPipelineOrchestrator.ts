@@ -193,6 +193,12 @@ export class SpeechPipelineOrchestrator {
   async translateText(text: string, sourceLanguage: string, targetLanguage: string): Promise<{ text: string; agentActions?: any[] }> {
     console.log('[SpeechPipelineOrchestrator] Translating text only');
     const result = await this.translationService.translate(text, sourceLanguage, targetLanguage);
+    const resultType = typeof result;
+    const hasAgentActions = resultType !== 'string' && Array.isArray((result as any).agentActions) && (result as any).agentActions.length > 0;
+    console.log(`[SpeechPipelineOrchestrator] translateText result: type=${resultType}, hasAgentActions=${hasAgentActions}, serviceClass=${this.translationService?.constructor?.name}`);
+    if (hasAgentActions) {
+      console.log(`[SpeechPipelineOrchestrator] agentActions count: ${(result as any).agentActions.length}, types: ${(result as any).agentActions.map((a: any) => a.type).join(', ')}`);
+    }
     if (typeof result === 'string') {
       return { text: result };
     }

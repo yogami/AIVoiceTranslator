@@ -197,6 +197,29 @@
                 </div>
             `;
             
+            // === DIAGNOSTIC PANEL (temporary - for debugging agentActions) ===
+            let diagPanel = document.getElementById('ws-diagnostic-panel');
+            if (!diagPanel) {
+                diagPanel = document.createElement('div');
+                diagPanel.id = 'ws-diagnostic-panel';
+                diagPanel.style.cssText = 'margin: 12px 0; padding: 12px; background: #1a1a2e; color: #0f0; border: 2px solid #e94560; border-radius: 8px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;';
+                domElements.translationDisplay.parentNode.insertBefore(diagPanel, domElements.translationDisplay.nextSibling);
+            }
+            const dataKeys = Object.keys(data);
+            const hasAgentActions = !!(data.agentActions && data.agentActions.length > 0);
+            const agentActionsDetail = hasAgentActions 
+                ? JSON.stringify(data.agentActions.map(a => ({ type: a.type, payloadKeys: Object.keys(a.payload || {}) })))
+                : 'NONE';
+            const hasAuditReceipts = !!(data.auditReceipts && data.auditReceipts.length > 0);
+            diagPanel.innerHTML = `
+                <div style="color: #e94560; font-weight: bold; margin-bottom: 4px;">🔬 WebSocket Diagnostic (v3)</div>
+                <div>📦 Keys in payload: ${dataKeys.join(', ')}</div>
+                <div>🎯 agentActions present: <span style="color: ${hasAgentActions ? '#0f0' : '#f00'}; font-weight: bold;">${hasAgentActions ? 'YES ✅' : 'NO ❌'}</span></div>
+                <div>📋 agentActions detail: ${agentActionsDetail}</div>
+                <div>🔐 auditReceipts: ${hasAuditReceipts ? 'YES ✅' : 'NO'}</div>
+                <div>⏰ ${new Date().toLocaleTimeString()}</div>
+            `;
+            
             // Handle Agent Insights
             const agentInsightsContainer = document.getElementById('agent-insights-step');
             const agentInsightsDisplay = document.getElementById('agent-insights-display');
