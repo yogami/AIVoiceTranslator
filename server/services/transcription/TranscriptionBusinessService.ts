@@ -11,7 +11,6 @@
 import logger from '../../logger';
 import type { IStorage } from '../../storage.interface';
 import type { SpeechPipelineOrchestrator } from '../../application/services/SpeechPipelineOrchestrator';
-import { v4 as uuidv4 } from 'uuid';
 import { AgentVerify } from '../../domain/governance/AgentVerify';
 import { FeatureFlags } from '../../application/services/config/FeatureFlags';
 import { ACEOrchestrator } from '../../application/services/ace/ACEOrchestrator';
@@ -297,6 +296,14 @@ export class TranscriptionBusinessService {
                 ...(agentActions && agentActions.length > 0 ? { agentActions } : {}),
                 ...(auditReceipts && auditReceipts.length > 0 ? { auditReceipts } : {})
               };
+              // ⚡ DIAGNOSTIC: trace agentActions in outgoing message
+              console.log('[QUIZ DEBUG SERVER] Sending to student:', {
+                hasAgentActions: !!(agentActions && agentActions.length > 0),
+                agentActionsCount: agentActions ? agentActions.length : 0,
+                actionTypes: agentActions ? agentActions.map((a: any) => a.type) : [],
+                hasAuditReceipts: !!(auditReceipts && auditReceipts.length > 0),
+                messageKeys: Object.keys(message)
+              });
               if (originalAudioBase64 && originalTtsServiceType) {
                 try { (message as any).originalTtsServiceType = originalTtsServiceType; } catch {}
               }
