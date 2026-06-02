@@ -429,6 +429,48 @@
 
         .prev-hash .chain-link { color: var(--green); }
 
+        /* ── Business-Friendly Explanations ─────────────────────────── */
+        .business-summary {
+            font-size: 0.82em;
+            padding: 10px 14px;
+            margin: 8px 0;
+            border-radius: 8px;
+            background: rgba(88, 166, 255, 0.06);
+            border: 1px solid rgba(88, 166, 255, 0.15);
+            line-height: 1.5;
+            color: var(--text);
+        }
+
+        .audit-entry.failed .business-summary {
+            background: rgba(248, 81, 73, 0.08);
+            border-color: rgba(248, 81, 73, 0.25);
+        }
+
+        .rule-explain {
+            font-size: 0.78em;
+            color: var(--cyan);
+            padding-left: 22px;
+            margin-bottom: 4px;
+            opacity: 0.85;
+            font-style: italic;
+        }
+
+        .audit-clause-explain {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            padding-left: 4px;
+            margin: 2px 0 6px;
+            line-height: 1.5;
+            opacity: 0.9;
+        }
+
+        .audit-rules code {
+            background: rgba(88, 166, 255, 0.1);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: 0.95em;
+        }
+
         /* ── Panel Flash on FAIL ───────────────────────────────────── */
         .panel.flash-fail {
             animation: panelFlash 0.6s ease;
@@ -511,8 +553,8 @@
     <!-- ═══ HEADER ═══ -->
     <div class="header">
         <div class="header-left">
-            <h1>Aegis-12 — AgentVerify Observability</h1>
-            <div class="subtitle">Real-time LTL Governance for Autonomous AI Agents</div>
+            <h1>Aegis-12 — AI Governance Dashboard</h1>
+            <div class="subtitle">Real-time compliance monitoring · EU AI Act alignment · Tamper-proof audit trail</div>
         </div>
         <div class="header-right">
             <div class="status-indicator">
@@ -527,19 +569,19 @@
     <!-- ═══ LIVE STATS BAR ═══ -->
     <div class="stats-bar">
         <div class="stat-card" id="stat-actions">
-            <div class="stat-label">Actions Verified</div>
+            <div class="stat-label">AI Decisions Audited</div>
             <div class="stat-value" id="stat-actions-val">0</div>
         </div>
         <div class="stat-card" id="stat-violations">
-            <div class="stat-label">Violations Caught</div>
+            <div class="stat-label">Risks Blocked</div>
             <div class="stat-value" id="stat-violations-val">0</div>
         </div>
         <div class="stat-card" id="stat-chain">
-            <div class="stat-label">Chain Length</div>
+            <div class="stat-label">Audit Trail Depth</div>
             <div class="stat-value" id="stat-chain-val">0</div>
         </div>
         <div class="stat-card" id="stat-integrity">
-            <div class="stat-label">Chain Integrity</div>
+            <div class="stat-label">Audit Integrity</div>
             <div class="stat-value ok" id="stat-integrity-val">✓</div>
         </div>
     </div>
@@ -548,7 +590,7 @@
     <div class="panels">
         <!-- Left: Live Translation Stream -->
         <div class="panel" id="transcript-panel">
-            <div class="panel-header">📡 Live Translation Stream</div>
+            <div class="panel-header">📡 Live AI Agent Activity</div>
             <div class="panel-body" id="transcript-stream">
                 <div style="color: var(--text-dim); text-align: center; margin-top: 40px; font-size: 0.85em;">
                     Waiting for translations…
@@ -558,7 +600,7 @@
 
         <!-- Right: LTL Compliance Ledger -->
         <div class="panel" id="audit-panel">
-            <div class="panel-header">🔐 LTL Compliance Ledger</div>
+            <div class="panel-header">🔐 Governance & Compliance Audit Trail</div>
             <div class="panel-body" id="audit-stream">
                 <div style="color: var(--text-dim); text-align: center; margin-top: 40px; font-size: 0.85em;">
                     Awaiting audit receipts…
@@ -570,11 +612,12 @@
     <!-- ═══ BOTTOM BAR ═══ -->
     <div class="bottom-bar">
         <div class="bottom-left">
-            <button id="verify-chain-btn">🔗 Verify Chain Integrity</button>
+            <button id="verify-chain-btn">🔗 Verify Audit Trail Integrity</button>
             <span id="chain-result"></span>
+            <span style="font-size: 0.72em; color: var(--text-dim); margin-left: 8px;">Confirms no audit records have been tampered with</span>
         </div>
         <div class="bottom-right">
-            <a href="/api/audit/ledger" target="_blank">📋 Full Ledger API →</a>
+            <a href="/api/audit/ledger" target="_blank">📋 Export Full Audit Report →</a>
         </div>
     </div>
 

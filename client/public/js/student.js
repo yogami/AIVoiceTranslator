@@ -203,10 +203,13 @@
             // Dismiss any active governance_blocked alert on new translation
             try { const gba = document.getElementById('governance-blocked-alert'); if (gba) gba.remove(); } catch(_) {}
             
-            // Handle Agent Insights
+            // Handle Agent Insights — CLEAR old insights on every new translation
             const agentInsightsContainer = document.getElementById('agent-insights-step');
             const agentInsightsDisplay = document.getElementById('agent-insights-display');
             if (agentInsightsContainer && agentInsightsDisplay) {
+                // Always clear previous insights so stale quiz/vocab from old topics doesn't persist
+                agentInsightsDisplay.innerHTML = '';
+
                 if (data.agentActions && data.agentActions.length > 0) {
                     agentInsightsContainer.classList.remove('hidden');
                     let insightsHtml = '';
@@ -229,7 +232,7 @@
                             });
                             insightsHtml += `
                                 <div style="margin-bottom: 16px; padding: 16px; background: #fff; border-radius: 8px; border: 2px solid #ff9800; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: #333;">
-                                    <h4 style="margin: 0 0 10px 0; color: #ff9800; font-size: 1.1em;">🔥 Pop Quiz (New UI!)</h4>
+                                    <h4 style="margin: 0 0 10px 0; color: #ff9800; font-size: 1.1em;">🔥 Pop Quiz</h4>
                                     <p style="margin: 0 0 12px 0; font-weight: 600; font-size: 1.05em;">${quiz.question}</p>
                                     ${optionsHtml}
                                     <div class="quiz-feedback" id="feedback-${actionId}" style="margin-top: 10px; font-weight: bold; display: none; padding: 8px; border-radius: 4px;"></div>
@@ -244,7 +247,7 @@
                             });
                             insightsHtml += `
                                 <div style="margin-bottom: 16px; padding: 16px; background: #fff; border-radius: 8px; border: 2px solid #3b82f6; box-shadow: 0 4px 6px rgba(0,0,0,0.1); color: #333;">
-                                    <h4 style="margin: 0 0 10px 0; color: #3b82f6; font-size: 1.1em;">📚 Key Vocabulary (New UI!)</h4>
+                                    <h4 style="margin: 0 0 10px 0; color: #3b82f6; font-size: 1.1em;">📚 Key Vocabulary</h4>
                                     <ul style="margin: 0; padding-left: 20px;">
                                         ${termsHtml}
                                     </ul>
@@ -252,11 +255,7 @@
                             `;
                         }
                     });
-                    const placeholder = document.getElementById('agent-insights-placeholder');
-                    if (placeholder) {
-                        placeholder.remove();
-                    }
-                    agentInsightsDisplay.insertAdjacentHTML('afterbegin', insightsHtml);
+                    agentInsightsDisplay.innerHTML = insightsHtml;
                 }
             }
 

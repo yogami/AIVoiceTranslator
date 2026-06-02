@@ -175,7 +175,9 @@
             auditFirstMessage = false;
         }
 
-        const isFailed = (receipt.verdict || '').toUpperCase() === 'FAILED';
+        // Check both 'status' (server field) and 'verdict' (client fallback)
+        const statusField = (receipt.status || receipt.verdict || '').toUpperCase();
+        const isFailed = statusField === 'FAILED';
         actionsCount++;
         chainLength++;
         if (isFailed) violationsCount++;
@@ -194,8 +196,13 @@
             ? new Date(receipt.timestamp).toLocaleTimeString()
             : new Date().toLocaleTimeString();
 
+        // Build LTL rules with both technical and plain-English explanations
         const rulesHtml = (receipt.ltlRulesChecked || [])
-            .map(r => `<div class="rule"><span class="turnstile">⊢</span> ${escapeHtml(r)}</div>`)
+            .map(r => {
+                const plain = ltlToPlainEnglish(r);
+                return `<div class="rule"><span class="turnstile">⊢</span> <code>${escapeHtml(r)}</code></div>` +
+                       (plain ? `<div class="rule-explain">↳ ${plain}</div>` : '');
+            })
             .join('');
 
         const hashShort = (receipt.hash || '—').length > 16
@@ -210,6 +217,13 @@
             ? '<span class="badge badge-fail">⚠️ FAILED</span>'
             : '<span class="badge badge-pass">✓ PASSED</span>';
 
+        // Business-friendly summary for C-level audience
+        const actionLabel = friendlyActionName(receipt.agentActionType);
+        const euExplain = friendlyEuClause(receipt.euAiActClause);
+        const businessSummary = isFailed
+            ? '🚨 <strong>Risk Alert:</strong> The AI attempted an unauthorized action and was <strong>blocked before it reached any user</strong>. This incident has been cryptographically sealed for regulatory audit.'
+            : '✅ <strong>Compliant:</strong> The AI\'s action was verified against governance rules and regulatory requirements before delivery.';
+
         const el = document.createElement('div');
         el.className = 'audit-entry' + (isFailed ? ' failed' : '');
         el.innerHTML = `
@@ -218,12 +232,14 @@
                 <span class="badge badge-verify">AEGIS-12 VERIFY</span>
                 ${verdictBadge}
             </div>
-            <div class="audit-action"><strong>Action:</strong> ${escapeHtml(receipt.agentActionType || 'unknown')}</div>
-            <div class="audit-rules"><strong>LTL Verification:</strong>${rulesHtml}</div>
-            <div class="audit-clause"><strong>EU AI Act:</strong> ${escapeHtml(receipt.euAiActClause || '—')}</div>
+            <div class="business-summary">${businessSummary}</div>
+            <div class="audit-action"><strong>What happened:</strong> ${escapeHtml(actionLabel)}</div>
+            <div class="audit-clause"><strong>Regulation:</strong> ${escapeHtml(receipt.euAiActClause || '—')}</div>
+            <div class="audit-clause-explain">${euExplain}</div>
+            <div class="audit-rules"><strong>Formal Verification (LTL):</strong>${rulesHtml}</div>
             <div class="audit-details">${escapeHtml(receipt.details || '')}</div>
             <div class="audit-hash">
-                <span class="hash-label">SHA-256: </span>
+                <span class="hash-label">Tamper-proof seal: </span>
                 <span class="hash-value">${hashShort}<span class="hash-full">${escapeHtml(receipt.hash || '—')}</span></span>
             </div>
             ${prevHashHtml}
@@ -271,6 +287,53 @@
 
         updateStats();
         glowCard('stat-integrity');
+    }
+
+    // ── Business-Friendly Translations ─────────────────────────────
+    // Translate technical LTL formulas into plain English
+    function ltlToPlainEnglish(rule) {
+        const map = {
+            'G (Action -> ContextVerified)': 'Every AI action must have verified context before proceeding',
+            'G (Quiz -> F(HumanApproval))': 'Every quiz must eventually receive human oversight approval',
+            'G (VocabExtraction -> OntologyAligned)': 'Vocabulary definitions must align with verified domain knowledge',
+            'G (¬UnsafeContent)': 'Unsafe content must NEVER be produced — zero tolerance policy',
+        };
+        // Exact match first
+        if (map[rule]) return map[rule];
+        // Partial matches
+        if (rule.includes('ContextVerified')) return 'Every AI action must have verified context before proceeding';
+        if (rule.includes('SafeContent')) return 'This action type must only produce safe, appropriate content';
+        if (rule.includes('HumanApproval')) return 'This content requires human oversight before final delivery';
+        if (rule.includes('OntologyAligned')) return 'Extracted information must align with verified domain knowledge';
+        if (rule.includes('UnsafeContent')) return 'Unsafe content must NEVER be produced — zero tolerance policy';
+        return '';
+    }
+
+    // Translate technical action types into business language
+    function friendlyActionName(actionType) {
+        const map = {
+            'vocabulary': 'AI autonomously extracted key vocabulary terms from the teacher\'s lecture',
+            'quiz': 'AI autonomously generated a comprehension quiz for students',
+            'generate_quiz': 'AI autonomously generated a comprehension quiz for students',
+            'extract_vocabulary': 'AI autonomously extracted key vocabulary terms from the lecture',
+            'unsafe_content': '⚠️ AI attempted to deliver unverified content outside approved scope',
+        };
+        return map[actionType] || `AI performed action: ${actionType}`;
+    }
+
+    // Translate EU AI Act articles into business-friendly explanations
+    function friendlyEuClause(clause) {
+        if (!clause) return '';
+        const explanations = {
+            'Article 9: Risk management system': '📋 Requires high-risk AI systems to have a risk management system that identifies, analyzes, and mitigates risks throughout the system lifecycle.',
+            'Article 10: Data and data governance': '📊 Requires training and validation data to be relevant, representative, and free from errors — preventing biased or hallucinated outputs.',
+            'Article 12: Record-keeping': '📝 Requires automatic logging of AI system events to ensure traceability and enable post-market monitoring.',
+            'Article 14: Human oversight': '👤 Requires that high-risk AI systems can be effectively overseen by humans, including the ability to intervene and override.',
+        };
+        for (const [key, value] of Object.entries(explanations)) {
+            if (clause.includes(key) || clause.includes(key.split(':')[0])) return value;
+        }
+        return '';
     }
 
     // ── Utilities ──────────────────────────────────────────────────
