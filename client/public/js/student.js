@@ -206,15 +206,6 @@
             // Handle Agent Insights — CLEAR old insights on every new translation
             const agentInsightsContainer = document.getElementById('agent-insights-step');
             const agentInsightsDisplay = document.getElementById('agent-insights-display');
-            // ⚡ DIAGNOSTIC: trace agentActions arrival (remove after debugging)
-            console.log('[QUIZ DEBUG] agentActions present:', !!data.agentActions, 
-                'count:', data.agentActions ? data.agentActions.length : 0,
-                'types:', data.agentActions ? data.agentActions.map(a => a.type).join(',') : 'none',
-                'container found:', !!agentInsightsContainer, 
-                'display found:', !!agentInsightsDisplay);
-            if (data.agentActions && data.agentActions.length > 0) {
-                console.log('[QUIZ DEBUG] Full agentActions payload:', JSON.stringify(data.agentActions).substring(0, 500));
-            }
             if (agentInsightsContainer && agentInsightsDisplay) {
                 // Always clear previous insights so stale quiz/vocab from old topics doesn't persist
                 agentInsightsDisplay.innerHTML = '';

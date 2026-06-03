@@ -103,6 +103,19 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
         
         logger.info(`[AudioMessageHandler] Audio transcribed: "${transcriptionResult.substring(0, 100)}..."`);
         
+        // ⚡ LATENCY: Echo transcription to teacher IMMEDIATELY, before translation pipeline
+        // Teacher sees their words ~1-2s after speaking instead of waiting 5-8s for full pipeline
+        try {
+          context.ws.send(JSON.stringify({
+            type: 'transcription',
+            text: transcriptionResult,
+            isFinal: true,
+            timestamp: Date.now()
+          }));
+        } catch (echoErr) {
+          logger.debug('[AudioMessageHandler] Failed to send transcription echo to teacher', { error: echoErr });
+        }
+
         // Now process the transcription through the business service
         // This will handle translation, TTS, and sending to students
         const sessionStudents = context.connectionManager.getStudentConnectionsAndLanguagesForSession(sessionId);
@@ -131,19 +144,6 @@ export class AudioMessageHandler implements IMessageHandler<AudioMessageToServer
         }, clientProvider);
         
         logger.info('[AudioMessageHandler] Audio processing pipeline completed successfully');
-
-          // New: echo final transcription back to the teacher so the teacher UI can display it
-          try {
-            const teacherEcho = {
-              type: 'transcription',
-              text: transcriptionResult,
-              isFinal: true,
-              timestamp: Date.now()
-            } as any;
-            context.ws.send(JSON.stringify(teacherEcho));
-          } catch (echoErr) {
-            logger.debug('[AudioMessageHandler] Failed to send final transcription echo to teacher', { error: echoErr });
-          }
         
       } catch (error) {
         logger.error('[AudioMessageHandler] Audio processing failed:', error);

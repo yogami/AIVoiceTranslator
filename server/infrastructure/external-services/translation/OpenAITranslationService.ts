@@ -14,6 +14,20 @@ export class OpenAITranslationService implements ITranslationService {
         {
           type: 'function',
           function: {
+            name: 'translate_text',
+            description: `Translate the teacher's message from ${sourceLang} to ${targetLang}. Return ONLY the literal translation.`,
+            parameters: {
+              type: 'object',
+              properties: {
+                translation: { type: 'string', description: `The literal translation of the teacher's message in ${targetLang}.` }
+              },
+              required: ['translation']
+            }
+          }
+        },
+        {
+          type: 'function',
+          function: {
             name: 'generate_quiz',
             description: 'Generate a quick multiple-choice quiz based on the teacher\'s recent transcript to check student understanding.',
             parameters: {
@@ -62,12 +76,11 @@ export class OpenAITranslationService implements ITranslationService {
         messages: [
           { 
             role: 'system', 
-            content: `You are an autonomous Teacher's Assistant and Translator.
-You have THREE mandatory tasks for EVERY message:
-1. TRANSLATE the provided text from ${sourceLang} to ${targetLang}. Your direct text response MUST be ONLY the literal translation. No commentary.
-2. ALWAYS call the 'generate_quiz' tool with a comprehension question about the topic the teacher is discussing. You MUST call this tool on every single message.
-3. ALWAYS call the 'extract_vocabulary' tool with key terms from the teacher's message. You MUST call this tool on every single message.
-You MUST call BOTH tools on every message. This is mandatory. Never skip either tool.` 
+            content: `You are an autonomous Teacher's Assistant. You MUST call ALL THREE tools on every message:
+1. ALWAYS call 'translate_text' with the literal translation from ${sourceLang} to ${targetLang}.
+2. ALWAYS call 'generate_quiz' with a comprehension question about the topic.
+3. ALWAYS call 'extract_vocabulary' with key terms and definitions.
+Call all three tools. This is mandatory. Never skip any tool.` 
           },
           { role: 'user', content: text }
         ],
@@ -87,6 +100,7 @@ You MUST call BOTH tools on every message. This is mandatory. Never skip either 
       });
 
       const choice = response.choices[0];
+      // With translate_text as a tool, content may be null — that's expected
       let translation = choice?.message?.content?.trim() || '';
       
       const agentActions: any[] = [];
@@ -94,7 +108,10 @@ You MUST call BOTH tools on every message. This is mandatory. Never skip either 
         for (const toolCall of choice.message.tool_calls) {
           try {
             const args = JSON.parse(toolCall.function.arguments);
-            if (toolCall.function.name === 'generate_quiz') {
+            if (toolCall.function.name === 'translate_text') {
+              // Extract translation from tool call — eliminates the need for a second API call
+              translation = args.translation || translation;
+            } else if (toolCall.function.name === 'generate_quiz') {
               agentActions.push({ type: 'quiz', payload: args });
             } else if (toolCall.function.name === 'extract_vocabulary') {
               agentActions.push({ type: 'vocabulary', payload: args });
@@ -105,24 +122,10 @@ You MUST call BOTH tools on every message. This is mandatory. Never skip either 
         }
       }
 
-      // When OpenAI returns tool calls, content is often null.
-      // Make a fast follow-up call just for the translation text.
-      if (!translation && agentActions.length > 0) {
-        console.log('[OpenAITranslationService] Tool calls returned but content was empty — fetching translation separately');
-        try {
-          const fallbackResponse = await this.openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: `Translate the following text from ${sourceLang} to ${targetLang}. Respond with ONLY the translation, nothing else.` },
-              { role: 'user', content: text }
-            ],
-            temperature: 0.3
-          });
-          translation = fallbackResponse.choices[0]?.message?.content?.trim() || text;
-        } catch (fallbackError) {
-          console.warn('[OpenAITranslationService] Fallback translation failed, using original text', fallbackError);
-          translation = text; // Last resort: use original text
-        }
+      // Fallback: if translation is still empty (shouldn't happen with translate_text tool)
+      if (!translation) {
+        console.warn('[OpenAITranslationService] translate_text tool not called, using original text as fallback');
+        translation = text;
       }
 
       console.log(`[OpenAITranslationService] Result: translation="${translation.substring(0, 80)}...", agentActions=${agentActions.length}`);

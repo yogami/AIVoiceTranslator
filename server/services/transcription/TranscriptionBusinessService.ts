@@ -208,17 +208,26 @@ export class TranscriptionBusinessService {
             }
           }
 
-          // Run content verification (Moderation API + Embedding scope check) in parallel
-          // These are deterministic classifier/embedding checks, NOT LLM-as-Judge
-          try {
-            const { receipt: contentReceipt, verification } = await AgentVerify.evaluateContent(text, translation);
-            auditReceipts.push(contentReceipt);
-            logger.info(`[AgentVerify] Content verification: safe=${verification.safe}, ` +
-              `moderation_flagged=${verification.moderation.flagged}, ` +
-              `scope_similarity=${verification.scope.similarityScore}, ` +
-              `methods=${verification.verificationMethods.join(' + ')}`);
-          } catch (e) {
-            logger.warn('[AgentVerify] Content verification failed (fail-open):', e);
+          // ⚡ LATENCY OPTIMIZATION: Run content verification AND TTS in parallel
+          // Content verification (~300ms) and TTS (~1-2s) are independent — no reason to wait
+          // If verification fails (rare), we discard the pre-generated audio
+          const [contentResult, ttsResult] = await Promise.all([
+            // Content verification (Moderation API + Embedding scope check)
+            AgentVerify.evaluateContent(text, translation).catch(e => {
+              logger.warn('[AgentVerify] Content verification failed (fail-open):', e);
+              return null;
+            }),
+            // TTS synthesis (optimistically started in parallel)
+            this.speechPipelineOrchestrator.synthesizeSpeech(translation, targetLanguage)
+          ]);
+
+          // Add content verification receipt if available
+          if (contentResult) {
+            auditReceipts.push(contentResult.receipt);
+            logger.info(`[AgentVerify] Content verification: safe=${contentResult.verification.safe}, ` +
+              `moderation_flagged=${contentResult.verification.moderation.flagged}, ` +
+              `scope_similarity=${contentResult.verification.scope.similarityScore}, ` +
+              `methods=${contentResult.verification.verificationMethods.join(' + ')}`);
           }
 
           // GOVERNANCE GATE: If ANY audit receipt has status FAILED, block student delivery
@@ -262,13 +271,6 @@ export class TranscriptionBusinessService {
             shapedByStudent.push({ ws: student, text: textForStudent });
           }
 
-          // Generate TTS audio for the language group only when not using client speech
-          // If lowLiteracyMode is common we still send audio; client pages decide to use speechParams
-          const ttsResult = await this.speechPipelineOrchestrator.synthesizeSpeech(
-            translation,
-            targetLanguage
-          );
-
           // Send translation and audio to students in this language group
           for (const student of students) {
             try {
@@ -311,14 +313,6 @@ export class TranscriptionBusinessService {
                 ...(agentActions && agentActions.length > 0 ? { agentActions } : {}),
                 ...(auditReceipts && auditReceipts.length > 0 ? { auditReceipts } : {})
               };
-              // ⚡ DIAGNOSTIC: trace agentActions in outgoing message
-              console.log('[QUIZ DEBUG SERVER] Sending to student:', {
-                hasAgentActions: !!(agentActions && agentActions.length > 0),
-                agentActionsCount: agentActions ? agentActions.length : 0,
-                actionTypes: agentActions ? agentActions.map((a: any) => a.type) : [],
-                hasAuditReceipts: !!(auditReceipts && auditReceipts.length > 0),
-                messageKeys: Object.keys(message)
-              });
               if (originalAudioBase64 && originalTtsServiceType) {
                 try { (message as any).originalTtsServiceType = originalTtsServiceType; } catch {}
               }
