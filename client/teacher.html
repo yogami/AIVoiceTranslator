@@ -111,9 +111,20 @@
             <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
                 <button id="copyLinkBtn" style="padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px; cursor:pointer;">Copy Link</button>
                 <button id="shareLinkBtn" style="padding:8px 12px; background:#16a34a; color:#fff; border:none; border-radius:6px; cursor:pointer;">Share</button>
-                <button id="showQrBtn" style="padding:8px 12px; background:#111827; color:#fff; border:none; border-radius:6px; cursor:pointer; display:none;">Show QR</button>
             </div>
-            <div id="qr-code"></div>
+            <!-- QR Codes: Student Page + Observability Dashboard -->
+            <div id="qr-codes-panel" style="display:flex; gap:32px; justify-content:center; margin-top:16px; flex-wrap:wrap;">
+                <div style="text-align:center;">
+                    <div style="font-weight:600; margin-bottom:6px; color:#2563eb; font-size:0.95em;">📱 Student Page</div>
+                    <div id="qr-code" style="display:inline-block; padding:8px; background:#fff; border-radius:10px;"></div>
+                    <div id="qr-student-url" style="font-size:0.7em; color:#888; margin-top:4px; max-width:200px; word-break:break-all;"></div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-weight:600; margin-bottom:6px; color:#a371f7; font-size:0.95em;">🛡️ Governance Dashboard</div>
+                    <div id="qr-observability" style="display:inline-block; padding:8px; background:#fff; border-radius:10px;"></div>
+                    <div id="qr-observability-url" style="font-size:0.7em; color:#888; margin-top:4px; max-width:200px; word-break:break-all;"></div>
+                </div>
+            </div>
         </div>
 
         <div id="manualControls" style="display:none; margin-top: 10px;">

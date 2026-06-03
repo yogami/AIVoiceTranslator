@@ -148,12 +148,28 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             if (domElements.classroomCodeDisplay) domElements.classroomCodeDisplay.textContent = code;
             const twoWay = new URL(window.location.href).searchParams.get('twoWay') === '1' ? '&twoWay=1' : '';
             const studentUrl = `${window.location.origin}/student?code=${code}${twoWay}`;
+            const observabilityUrl = `${window.location.origin}/observability?code=${code}`;
             if (domElements.studentUrlDisplay) domElements.studentUrlDisplay.textContent = studentUrl;
+
+            // Generate Student QR code
             if (domElements.qrCodeContainer && typeof QRCode !== 'undefined') {
                 domElements.qrCodeContainer.innerHTML = '';
-                domElements.qrCodeContainer.style.display = 'block';
+                domElements.qrCodeContainer.style.display = 'inline-block';
                 new QRCode(domElements.qrCodeContainer, { text: studentUrl, width: 150, height: 150 });
+                const studentUrlLabel = document.getElementById('qr-student-url');
+                if (studentUrlLabel) studentUrlLabel.textContent = studentUrl;
             }
+
+            // Generate Observability QR code
+            const obsContainer = document.getElementById('qr-observability');
+            if (obsContainer && typeof QRCode !== 'undefined') {
+                obsContainer.innerHTML = '';
+                obsContainer.style.display = 'inline-block';
+                new QRCode(obsContainer, { text: observabilityUrl, width: 150, height: 150 });
+                const obsUrlLabel = document.getElementById('qr-observability-url');
+                if (obsUrlLabel) obsUrlLabel.textContent = observabilityUrl;
+            }
+
             if (expiresAt) {
                 const expirationDate = new Date(expiresAt);
                 console.log(`Classroom code ${code} expires at ${expirationDate.toLocaleTimeString()}`);
