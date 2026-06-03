@@ -139,6 +139,78 @@
 
         #connect-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(46,160,67,0.4); }
 
+        /* ── Session Picker ─────────────────────────────────────────── */
+        .session-picker {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .session-picker-label {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-right: 4px;
+        }
+
+        .session-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--cyan);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .session-btn:hover {
+            border-color: var(--cyan);
+            background: rgba(121, 192, 255, 0.08);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(121, 192, 255, 0.15);
+        }
+
+        .session-btn.active {
+            border-color: var(--green);
+            color: var(--green);
+            background: rgba(46, 160, 67, 0.1);
+            box-shadow: 0 0 8px rgba(46, 160, 67, 0.2);
+        }
+
+        .session-btn .live-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse-green 2s ease-in-out infinite;
+        }
+
+        .session-btn .student-count {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            font-weight: 400;
+        }
+
+        .session-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border);
+            margin: 0 4px;
+        }
+
+        .no-sessions {
+            font-size: 0.75em;
+            color: var(--text-dim);
+            font-style: italic;
+        }
+
+        #session-list { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
         /* ── Live Stats Bar ─────────────────────────────────────────── */
         .stats-bar {
             display: grid;
@@ -561,8 +633,13 @@
                 <span class="status-dot" id="status-indicator"></span>
                 <span id="status-text">Disconnected</span>
             </div>
-            <input type="text" id="classroom-code" placeholder="Classroom Code" spellcheck="false" autocomplete="off">
-            <button id="connect-btn">Connect</button>
+            <div class="session-picker">
+                <span class="session-picker-label">Sessions:</span>
+                <div id="session-list"><span class="no-sessions">Loading…</span></div>
+                <div class="session-divider"></div>
+                <input type="text" id="classroom-code" placeholder="Manual code" spellcheck="false" autocomplete="off" style="width: 120px;">
+                <button id="connect-btn">Connect</button>
+            </div>
         </div>
     </div>
 

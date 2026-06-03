@@ -12,6 +12,7 @@
     let chainLength = 0;
     let chainIntact = true;
     let firstMessage = true; // Track if we've cleared the placeholder
+    let connectedCode = null; // Currently connected classroom code
 
     // ── DOM refs ───────────────────────────────────────────────────
     const $ = (id) => document.getElementById(id);
@@ -23,6 +24,7 @@
         dom.statusText      = $('status-text');
         dom.connectBtn      = $('connect-btn');
         dom.codeInput       = $('classroom-code');
+        dom.sessionList     = $('session-list');
         dom.transcriptStream = $('transcript-stream');
         dom.auditStream     = $('audit-stream');
         dom.auditPanel      = $('audit-panel');
@@ -62,11 +64,13 @@
 
         const wsUrl = window.VITE_WS_URL || `ws://${window.location.host}`;
         ws = new WebSocket(wsUrl);
+        connectedCode = classroomCode;
 
         ws.onopen = () => {
             dom.statusDot.classList.add('connected');
             dom.statusText.textContent = `Connected · ${classroomCode}`;
             dom.connectBtn.textContent = 'Connected';
+            updateSessionButtons();
 
             // Register as student/observer to receive translation stream
             ws.send(JSON.stringify({
@@ -91,6 +95,8 @@
             dom.statusDot.classList.remove('connected');
             dom.statusText.textContent = 'Disconnected';
             dom.connectBtn.textContent = 'Connect';
+            connectedCode = null;
+            updateSessionButtons();
         };
 
         ws.onerror = (err) => {
@@ -343,6 +349,70 @@
         return String(str).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     }
 
+    // ── Session Fetching ───────────────────────────────────────────
+    let knownSessions = []; // Cache of fetched sessions
+
+    async function fetchActiveSessions() {
+        try {
+            const apiUrl = window.VITE_API_URL || window.location.origin;
+            const resp = await fetch(`${apiUrl}/api/sessions/active`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const json = await resp.json();
+            if (json.success && json.data && json.data.activeSessions) {
+                knownSessions = json.data.activeSessions;
+                renderSessionList();
+                return json.data.activeSessions;
+            }
+        } catch (e) {
+            console.warn('[Observability] Failed to fetch active sessions:', e);
+            if (dom.sessionList) {
+                dom.sessionList.innerHTML = '<span class="no-sessions">Could not load sessions</span>';
+            }
+        }
+        return [];
+    }
+
+    function renderSessionList() {
+        if (!dom.sessionList) return;
+
+        if (knownSessions.length === 0) {
+            dom.sessionList.innerHTML = '<span class="no-sessions">No active sessions</span>';
+            return;
+        }
+
+        dom.sessionList.innerHTML = '';
+        knownSessions.forEach(session => {
+            const code = session.classCode || session.sessionId.substring(0, 8);
+            const students = session.connectedStudents || 0;
+            const langs = (session.languages || []).join(', ');
+            const isConnected = connectedCode && connectedCode.toUpperCase() === code.toUpperCase();
+
+            const btn = document.createElement('button');
+            btn.className = 'session-btn' + (isConnected ? ' active' : '');
+            btn.title = `Students: ${students} · Languages: ${langs || 'none'}`;
+            btn.innerHTML = `
+                <span class="live-dot"></span>
+                ${escapeHtml(code)}
+                <span class="student-count">(${students})</span>
+            `;
+            btn.addEventListener('click', () => {
+                dom.codeInput.value = code;
+                connect(code.toUpperCase());
+            });
+            dom.sessionList.appendChild(btn);
+        });
+    }
+
+    function updateSessionButtons() {
+        if (!dom.sessionList) return;
+        const buttons = dom.sessionList.querySelectorAll('.session-btn');
+        buttons.forEach(btn => {
+            const codeText = btn.textContent.trim().split('(')[0].trim();
+            const isActive = connectedCode && connectedCode.toUpperCase() === codeText.toUpperCase();
+            btn.classList.toggle('active', isActive);
+        });
+    }
+
     // ── Init ───────────────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
         cacheDom();
@@ -366,13 +436,28 @@
         dom.verifyBtn.addEventListener('click', verifyChain);
 
         // Auto-connect if code is in URL
+        let autoConnected = false;
         try {
             const urlParams = new URLSearchParams(window.location.search);
             const code = urlParams.get('code') || urlParams.get('classroom');
             if (code) {
                 dom.codeInput.value = code.toUpperCase();
                 connect(code.toUpperCase());
+                autoConnected = true;
             }
         } catch (_) {}
+
+        // Fetch active sessions and auto-connect to the most recent one
+        fetchActiveSessions().then(sessions => {
+            if (!autoConnected && sessions && sessions.length > 0) {
+                const latest = sessions[0];
+                const code = (latest.classCode || latest.sessionId.substring(0, 8)).toUpperCase();
+                dom.codeInput.value = code;
+                connect(code);
+            }
+        });
+
+        // Poll for new sessions every 15 seconds
+        setInterval(fetchActiveSessions, 15000);
     });
 })();
