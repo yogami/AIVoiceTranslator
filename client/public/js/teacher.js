@@ -152,10 +152,11 @@ console.log('[DEBUG] teacher.js: Top of file, script is being parsed.');
             if (domElements.studentUrlDisplay) domElements.studentUrlDisplay.textContent = studentUrl;
 
             // Generate Student QR code
-            if (domElements.qrCodeContainer && typeof QRCode !== 'undefined') {
-                domElements.qrCodeContainer.innerHTML = '';
-                domElements.qrCodeContainer.style.display = 'inline-block';
-                new QRCode(domElements.qrCodeContainer, { text: studentUrl, width: 150, height: 150 });
+            const studentQrContainer = document.getElementById('qr-code');
+            if (studentQrContainer && typeof QRCode !== 'undefined') {
+                studentQrContainer.innerHTML = '';
+                studentQrContainer.style.display = 'inline-block';
+                new QRCode(studentQrContainer, { text: studentUrl, width: 150, height: 150 });
                 const studentUrlLabel = document.getElementById('qr-student-url');
                 if (studentUrlLabel) studentUrlLabel.textContent = studentUrl;
             }
